@@ -194,6 +194,95 @@ public sealed class MoveOperationTests
     }
 
     [Fact]
+    public async Task namespace_move_preserves_unqualified_types_from_the_former_parent_namespace()
+    {
+        using var project = new AdhocProjectBuilder("Domain")
+            .WithDefaultNamespace("WageClaim.Calculation.Domain")
+            .AddSource(
+                "Money.cs",
+                "namespace WageClaim.Calculation.Domain; public readonly record struct Money(decimal Value);")
+            .AddSource(
+                "Allowances/AllowanceRule.cs",
+                "namespace WageClaim.Calculation.Domain.Allowances; public record AllowanceRule(Money Amount);");
+        var (_, solution) = project.Build();
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "WageClaim.Calculation.Domain.Allowances",
+                "WageClaims.Domain.Calculation.Allowances",
+                MoveFiles: false))).Unwrap();
+
+        var movedDocument = preparation.Solution.Projects.Single().Documents
+            .Single(document => document.Name == "AllowanceRule.cs");
+        var movedText = (await movedDocument.GetTextAsync()).ToString();
+        movedText.ShouldContain("using WageClaim.Calculation.Domain;", Case.Sensitive);
+        preparation.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Code == "preserved-parent-namespace-dependency");
+        await AssertCompilesWithoutErrorsAsync(preparation.Solution);
+    }
+
+    [Fact]
+    public async Task namespace_move_rewrites_semantically_bound_relative_namespace_qualifiers()
+    {
+        using var project = new AdhocProjectBuilder("Domain")
+            .WithDefaultNamespace("WageClaim.Calculation.Domain")
+            .AddSource(
+                "Money.cs",
+                "namespace WageClaim.Calculation.Domain; public readonly record struct Money(decimal Value);");
+        project.AddProject("Application")
+            .AddSource(
+                "ClaimAssessmentService.cs",
+                "namespace WageClaim.Calculation.Application.Claims; public class ClaimAssessmentService { Domain.Money Value; }")
+            .ReferenceProject("Domain");
+        var (_, solution) = project.Build();
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "WageClaim.Calculation.Domain",
+                "WageClaims.Domain.Calculation",
+                MoveFiles: false))).Unwrap();
+
+        var consumer = preparation.Solution.Projects
+            .Single(candidate => candidate.Name == "Application")
+            .Documents.Single();
+        var consumerText = (await consumer.GetTextAsync()).ToString();
+        consumerText.ShouldContain("WageClaims.Domain.Calculation.Money", Case.Sensitive);
+        consumerText.ShouldNotContain("Domain.Money", Case.Sensitive);
+        await AssertCompilesWithoutErrorsAsync(preparation.Solution);
+    }
+
+    [Fact]
+    public async Task namespace_move_reports_types_from_recursively_moved_child_namespaces()
+    {
+        using var project = new AdhocProjectBuilder("Domain")
+            .WithDefaultNamespace("WageClaim.Calculation.Domain")
+            .AddSource(
+                "Money.cs",
+                "namespace WageClaim.Calculation.Domain; public readonly record struct Money(decimal Value);")
+            .AddSource(
+                "Assessment/AssessmentLine.cs",
+                "namespace WageClaim.Calculation.Domain.Assessment; public record AssessmentLine(decimal Value);");
+        var (_, solution) = project.Build();
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "WageClaim.Calculation.Domain",
+                "WageClaims.Domain.Calculation",
+                MoveFiles: false))).Unwrap();
+
+        preparation.Result.MovedTypes.Select(type => type.FullyQualifiedName).ShouldBe(
+            [
+                "WageClaim.Calculation.Domain.Assessment.AssessmentLine",
+                "WageClaim.Calculation.Domain.Money"
+            ],
+            ignoreOrder: true);
+        preparation.Result.UpdatedReferenceDocumentCount.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task cross_project_preparation_updates_explicit_compile_items_and_previews_both_paths()
     {
         using var project = new AdhocProjectBuilder("Source")
@@ -245,6 +334,18 @@ public sealed class MoveOperationTests
     private static RtError GetError<T>(Result<T, RtError> result) => result.Match(
         _ => throw new ShouldAssertException("Expected an error."),
         error => error);
+
+    private static async Task AssertCompilesWithoutErrorsAsync(Solution solution)
+    {
+        foreach (var project in solution.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            compilation.ShouldNotBeNull();
+            compilation.GetDiagnostics()
+                .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .ShouldBeEmpty();
+        }
+    }
 
     private sealed class RecordingPreparedWriter : IPreparedChangeSetWriter
     {
