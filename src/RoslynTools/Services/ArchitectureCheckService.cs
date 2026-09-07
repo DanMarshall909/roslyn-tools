@@ -151,15 +151,25 @@ internal static class ArchitectureCheckService
         var entries = new List<ProjectLayerEntry>();
         foreach (var project in solution.Projects)
         {
+            var ignored = configuration.IgnoredProjects.Any(pattern => MatchesPattern(project.Name, pattern));
             var matchingLayers = configuration.Layers
                 .Where(layer => layer.Projects.Any(pattern => MatchesPattern(project.Name, pattern)))
                 .ToList();
+            if (ignored && matchingLayers.Count > 0)
+                return ValidationResult.Fail(
+                    $"Project '{project.Name}' is both ignored and assigned to layer '{matchingLayers[0].Name}'.");
+            if (ignored)
+                continue;
             if (matchingLayers.Count > 1)
                 return ValidationResult.Fail(
                     $"Project '{project.Name}' is assigned to multiple layers: "
                     + string.Join(", ", matchingLayers.Select(layer => layer.Name)) + ".");
             if (matchingLayers.Count == 1)
                 entries.Add(new ProjectLayerEntry(project, matchingLayers[0]));
+            else
+                return ValidationResult.Fail(
+                    $"Loaded project '{project.Name}' is not assigned to a layer. "
+                    + "Assign it or list it in ignoredProjects explicitly.");
         }
 
         foreach (var layer in configuration.Layers)
@@ -167,6 +177,10 @@ internal static class ArchitectureCheckService
                 if (!solution.Projects.Any(project => MatchesPattern(project.Name, pattern)))
                     return ValidationResult.Fail(
                         $"Architecture layer '{layer.Name}' project pattern '{pattern}' matched no loaded project.");
+        foreach (var pattern in configuration.IgnoredProjects)
+            if (!solution.Projects.Any(project => MatchesPattern(project.Name, pattern)))
+                return ValidationResult.Fail(
+                    $"Ignored project pattern '{pattern}' matched no loaded project.");
 
         var projectsById = entries.ToDictionary(entry => entry.Project.Id);
         var projectsByAssembly = entries
@@ -615,6 +629,7 @@ internal sealed class ArchitectureConfiguration
 {
     public int Version { get; init; }
     public string? BaselineFile { get; init; }
+    public List<string> IgnoredProjects { get; init; } = [];
     public List<ArchitectureLayerRule> Layers { get; init; } = [];
     public List<ArchitectureTechnologyRule> TechnologyRules { get; init; } = [];
 }

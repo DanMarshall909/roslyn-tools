@@ -62,10 +62,11 @@ internal sealed class ArchitectureCheckOperation(IWorkspaceSessionFactory sessio
         {
             return Result<ArchitectureCheckResult, RtError>.Err(RtError.NotFound(ex.Message));
         }
-        catch (Exception ex) when (ex is IOException
-                                   or JsonException
-                                   or InvalidOperationException
-                                   or ArgumentException)
+        catch (Exception ex) when ((ex is IOException
+                                    or JsonException
+                                    or InvalidOperationException
+                                    or ArgumentException)
+                                   && ex is not RepositoryTrustRequiredException)
         {
             return Result<ArchitectureCheckResult, RtError>.Err(new RtError(
                 RtErrorKind.InvalidInput,
