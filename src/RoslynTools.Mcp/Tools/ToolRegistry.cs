@@ -13,7 +13,6 @@ namespace RoslynTools.Mcp.Tools;
 internal sealed class ToolRegistry
 {
     private readonly McpCommandAdapter _adapter;
-    private readonly HashSet<string> _toolNames;
     private readonly ToolDefinition[] _tools;
 
     public ToolRegistry(
@@ -22,7 +21,6 @@ internal sealed class ToolRegistry
     {
         _adapter = adapter;
         _tools = [.. schemaBuilder.Build()];
-        _toolNames = _tools.Select(tool => tool.name).ToHashSet(StringComparer.Ordinal);
     }
 
     public ToolDefinition[] GetTools()
@@ -35,9 +33,6 @@ internal sealed class ToolRegistry
         JsonElement arguments,
         CancellationToken cancellationToken = default)
     {
-        if (!_toolNames.Contains(toolName))
-            return Task.FromResult(new ToolResult(true, $"Unknown tool: {toolName}"));
-
         return _adapter.InvokeAsync(toolName, arguments, cancellationToken);
     }
 }

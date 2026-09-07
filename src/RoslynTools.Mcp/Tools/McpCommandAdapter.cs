@@ -40,7 +40,7 @@ internal sealed class McpCommandAdapter(
         CancellationToken cancellationToken = default)
     {
         if (!_descriptors.TryGetByToolName(toolName, out var descriptor)
-            || !descriptor.McpVisible)
+            || !McpToolAvailability.IsAvailable(descriptor, _hostOptions))
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);

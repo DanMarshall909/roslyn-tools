@@ -19,16 +19,10 @@ internal sealed class ToolSchemaBuilder(
     public IReadOnlyList<ToolDefinition> Build()
     {
         return _descriptors.All
-            .Where(descriptor => descriptor.McpVisible
-                                 && descriptor.Audience == CommandAudience.Public
-                                 && (_hostOptions.TrustedRepositoryRoot is not null
-                                     || !WritesRepository(descriptor)))
+            .Where(descriptor => McpToolAvailability.IsAvailable(descriptor, _hostOptions))
             .Select(Build)
             .ToList();
     }
-
-    private static bool WritesRepository(ApplicationCommandDescriptor descriptor) =>
-        descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite);
 
     internal static ToolDefinition Build(ApplicationCommandDescriptor descriptor)
     {
