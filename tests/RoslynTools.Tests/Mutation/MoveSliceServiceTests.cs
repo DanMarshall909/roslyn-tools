@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -230,6 +232,60 @@ public sealed class MoveSliceServiceTests
         execution.Value.ShouldNotBeNull().Applicable.ShouldBeTrue();
         execution.AffectedPaths.ShouldContain(path => path.EndsWith("Service.cs"));
         writer.ApplyCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task cli_dry_run_reaches_the_shared_operation_and_leaves_files_untouched()
+    {
+        const string sourceText = "namespace Legacy; public sealed class Service { }";
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", sourceText);
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (workspace, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        var sourcePath = Path.Combine(fixture.Directory, "Source", "Service.cs");
+        var targetPath = Path.Combine(fixture.Directory, "Target", "Feature", "Service.cs");
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        Console.SetOut(stdout);
+        Console.SetError(stderr);
+
+        try
+        {
+            using var workspaceOverride = WorkspaceLoader.UseOverride(workspace, solution);
+            var services = new ServiceCollection();
+            global::RoslynTools.Bootstrap.RegisterServices(services);
+            await using var provider = services.BuildServiceProvider();
+
+            var exitCode = await App.RunAsync(
+                [
+                    "move-slice",
+                    "--type", "Legacy.Service",
+                    "--to-project", "Target",
+                    "--to-namespace", "App.Target.Feature",
+                    "--solution", fixture.SolutionPath,
+                    "--json",
+                    "--trust-repository"
+                ],
+                provider);
+
+            exitCode.ShouldBe(0, stderr.ToString());
+            using var payload = JsonDocument.Parse(stdout.ToString());
+            var execution = payload.RootElement.GetProperty("data");
+            execution.GetProperty("status").GetInt32().ShouldBe((int)MutationExecutionStatus.DryRun);
+            execution.GetProperty("value").GetProperty("applicable").GetBoolean().ShouldBeTrue();
+            File.ReadAllText(sourcePath).ShouldBe(sourceText);
+            File.Exists(targetPath).ShouldBeFalse();
+            stderr.ToString().ShouldBeEmpty();
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+            workspace.Dispose();
+        }
     }
 
     [Fact]

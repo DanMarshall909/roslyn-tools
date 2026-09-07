@@ -4,7 +4,7 @@ tags:
   - architecture
   - mutation-safety
   - mcp
-ticket: rt-017
+ticket: rt-018
 severity: High
 status: Open
 area: commands
@@ -13,7 +13,7 @@ reported: 2026-09-08
 summary: "Add a strict typed operation that moves a reviewed architectural slice across projects and namespaces as one transaction"
 ---
 
-# Add transactional architectural slice move
+# RT-018: Add transactional architectural slice move
 
 ## Context
 
@@ -41,7 +41,7 @@ Add a distinct typed `move-slice` CLI operation, projected as MCP `move_slice`. 
 
 ## Acceptance criteria
 
-- [ ] CLI and MCP bind the same typed request and return the same structured result.
+- [x] CLI and MCP bind the same typed request and return the same structured result.
 - [ ] Multiple explicit types and recursive namespaces report every moved type,
       changed document, file move, and project edit deterministically.
 - [ ] Files with multiple declarations are indivisible and every moved declaration is
@@ -63,3 +63,13 @@ Add a distinct typed `move-slice` CLI operation, projected as MCP `move_slice`. 
 - Removing now-unused project references or changing package references.
 - Replacing the durable mutation-kernel work tracked by the platform-hardening programme.
 
+## Progress
+
+### 2026-09-08: typed host adapters
+
+- Added the thin `move-slice` CLI adapter over `MoveSliceOperation`.
+- The generic MCP descriptor adapter exposes the same typed port as `move_slice` only
+  for startup-trusted repositories.
+- CLI and MCP integration tests prove that omitted `dry-run` remains review-only and
+  leaves source and destination paths untouched.
+- Focused verification: 15 CLI/core move-slice tests and 2 MCP move-slice tests pass.

@@ -67,7 +67,7 @@ The manifest is the review boundary. Apply recomputes and validates the complete
 manifest, then gives the prepared source writes, file moves, and explicitly requested
 project edits to the existing transactional writer.
 
-> **[ISSUE: rt-017]** written — add a strict typed architectural slice move operation.
+> **[ISSUE: rt-018]** written — add a strict typed architectural slice move operation.
 
 ---
 
@@ -155,7 +155,7 @@ semantic loading or filesystem planning.
 
 ### Gaps logged
 
-- `rt-017` records the typed operation, manifest, validation, transaction, host parity,
+- `rt-018` records the typed operation, manifest, validation, transaction, host parity,
   and Wage Claims regression requirements.
 
 ### Next session
@@ -165,3 +165,20 @@ semantic loading or filesystem planning.
 3. Add projected-solution validation and explicit project edits.
 4. Prove CLI/MCP parity and real stdio trust behavior.
 
+---
+
+## Follow-up outcome: typed host adapters [REAL]
+
+The recovered planner is now reachable through a thin `move-slice` CLI command and
+the generic MCP descriptor adapter. Both hosts bind `MoveSliceRequest` and execute
+the same `MoveSliceOperation`; there is no command-specific MCP handler.
+
+Focused proof:
+
+- 15 CLI/core `MoveSlice` tests pass, including a real `App.RunAsync` dry-run that
+  emits the typed manifest and leaves disk unchanged.
+- 2 MCP `MoveSlice` tests pass, covering descriptor/schema parity, startup trust
+  discovery, default dry-run injection, typed invocation, and unchanged files.
+
+Real stdio transport verification remains open; the focused MCP proof invokes the
+same registry used by the stdio host but does not yet exercise framing over stdin/stdout.
