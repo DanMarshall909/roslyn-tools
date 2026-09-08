@@ -205,7 +205,7 @@ internal sealed class MoveSliceService : IRtService
 
         var sourceProjectIds = explicitSymbols
             .SelectMany(symbol => symbol.DeclaringSyntaxReferences)
-            .Select(reference => solution.GetDocument(reference.SyntaxTree)?.Project.Id)
+            .Select(reference => GetRegularDocument(solution, reference.SyntaxTree)?.Project.Id)
             .OfType<ProjectId>()
             .Distinct()
             .ToArray();
@@ -215,16 +215,26 @@ internal sealed class MoveSliceService : IRtService
         var explicitNames = requestedTypes.ToHashSet(StringComparer.Ordinal);
         var selectedDocuments = explicitSymbols
             .SelectMany(symbol => symbol.DeclaringSyntaxReferences)
-            .Select(reference => solution.GetDocument(reference.SyntaxTree)?.Id)
+            .Select(reference => GetRegularDocument(solution, reference.SyntaxTree)?.Id)
             .OfType<DocumentId>()
             .ToHashSet();
         var selectedTypes = new Dictionary<string, SelectedType>(StringComparer.Ordinal);
         var pending = new Queue<DocumentId>(selectedDocuments);
         while (pending.TryDequeue(out var documentId))
         {
-            var document = solution.GetDocument(documentId)!;
+            var document = solution.GetDocument(documentId);
+            if (document is null)
+                return ErrorSelection(
+                    $"Selected document '{documentId}' is unavailable in the current workspace.");
             foreach (var type in await GetTopLevelTypesAsync(document, cancellationToken))
             {
+                var declarationDocuments = type.DeclaringSyntaxReferences
+                    .Select(reference => GetRegularDocument(solution, reference.SyntaxTree))
+                    .ToArray();
+                if (declarationDocuments.Any(candidate => candidate is null))
+                    return ErrorSelection(
+                        $"Type '{type.ToDisplayString()}' includes a source-generated declaration that cannot be represented in a reviewed file-move manifest.");
+
                 var name = type.ToDisplayString();
                 if (!selectedTypes.TryAdd(name, new SelectedType(
                         type,
@@ -233,10 +243,9 @@ internal sealed class MoveSliceService : IRtService
                             : MoveSliceTypeSelectionReason.CoLocatedDeclaration)))
                     continue;
 
-                foreach (var declaration in type.DeclaringSyntaxReferences)
+                foreach (var partialDocument in declarationDocuments.OfType<Document>())
                 {
-                    var partialDocument = solution.GetDocument(declaration.SyntaxTree);
-                    if (partialDocument is not null && selectedDocuments.Add(partialDocument.Id))
+                    if (selectedDocuments.Add(partialDocument.Id))
                         pending.Enqueue(partialDocument.Id);
                 }
             }
@@ -949,6 +958,12 @@ internal sealed class MoveSliceService : IRtService
             .GroupBy(symbol => symbol.ToDisplayString(), StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
+    }
+
+    private static Document? GetRegularDocument(Solution solution, SyntaxTree syntaxTree)
+    {
+        var resolved = solution.GetDocument(syntaxTree);
+        return resolved is null ? null : solution.GetDocument(resolved.Id);
     }
 
     private static string[] CollectUnmovedNamespaceDependencies(

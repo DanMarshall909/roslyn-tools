@@ -260,6 +260,43 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task source_generated_partial_declarations_fail_closed_with_a_typed_error()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource(
+                "Service.cs",
+                "namespace Legacy; public sealed partial class Service { }");
+        fixture.AddProject("Source").AddGeneratedSource(
+            "Service.g.cs",
+            "namespace Legacy; public sealed partial class Service { public int Generated => 1; }");
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var result = await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["Legacy.Service"],
+                SourceNamespace: null,
+                TargetProject: "Target",
+                TargetNamespace: "App.Target.Feature",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null));
+
+        RtError? error = null;
+        result.Match(_ => { }, value => error = value);
+        error.ShouldNotBeNull();
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("Legacy.Service");
+        error.Message.ShouldContain("source-generated declaration");
+    }
+
+    [Fact]
     public async Task explicit_friend_assembly_edits_are_justified_and_disclosed_in_the_manifest()
     {
         using var fixture = new AdhocProjectBuilder("Source")

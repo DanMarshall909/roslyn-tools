@@ -140,6 +140,66 @@ public sealed class MoveSliceHandlerTests
         File.Exists(targetPath).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task Trusted_stdio_protocol_returns_a_typed_error_for_a_source_generated_partial_type()
+    {
+        using var builder = new AdhocProjectBuilder("Source")
+            .AddSource(
+                "Service.cs",
+                "namespace Legacy; public sealed partial class Service { }");
+        builder.AddProject("Source").AddGeneratedSource(
+            "Service.g.cs",
+            "namespace Legacy; public sealed partial class Service { public int Generated => 1; }");
+        builder.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (workspace, solution) = builder.Build();
+        WriteProjectFiles(solution);
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 1,
+            @params = new
+            {
+                name = MoveSliceCommandDefinition.Definition.Name,
+                arguments = new Dictionary<string, object>
+                {
+                    ["types"] = new List<string> { "Legacy.Service" },
+                    ["to-project"] = "Target",
+                    ["to-namespace"] = "App.Target.Feature",
+                    ["analyze-dependencies"] = true,
+                    ["dry-run"] = true,
+                    ["solution"] = builder.SolutionPath
+                }
+            }
+        });
+        using var output = new StringWriter();
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        services.AddMcpServices(
+            new StringReader(request + Environment.NewLine),
+            output,
+            new McpHostOptions(builder.Directory));
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var provider = services.BuildServiceProvider())
+        {
+            await provider.GetRequiredService<Server>().RunAsync();
+        }
+
+        using var invocation = JsonDocument.Parse(output.ToString());
+        invocation.RootElement.TryGetProperty("error", out _).ShouldBeFalse();
+        var result = invocation.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+        var content = result.GetProperty("content")[0].GetProperty("text").GetString();
+        content.ShouldNotBeNull();
+        using var error = JsonDocument.Parse(content);
+        error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.InvalidInput));
+        var message = error.RootElement.GetProperty("message").GetString();
+        message.ShouldNotBeNull();
+        message!.ShouldContain("source-generated declaration");
+    }
+
     private static void WriteProjectFiles(Solution solution)
     {
         foreach (var project in solution.Projects)
