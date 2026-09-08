@@ -1,11 +1,11 @@
 ---
 title: Refactor safely
-description: Use MCP semantic evidence to plan changes, then preview and apply repository writes through the companion CLI.
+description: Gather semantic evidence, preview a refactoring, and apply reviewed changes across your C# solution with Roslyn Tools.
 order: 6
 section: Refactoring
 ---
 
-MCP is the primary agent surface for gathering semantic evidence and planning a change. Apply-capable tools are intentionally absent from normal MCP discovery today. When a reviewed plan is ready, use the companion CLI to update declarations and references across the solution: establish the workspace, select the symbol, preview the operation, then verify the repository diff.
+Gather semantic evidence through the CLI or MCP before changing code. An MCP host with startup repository approval exposes eligible refactoring tools with dry-run defaults. The workflow below uses the CLI: establish the workspace, select the symbol, preview the operation, then verify the repository diff.
 
 ## Preview before applying
 

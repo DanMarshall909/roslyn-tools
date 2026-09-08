@@ -41,3 +41,8 @@ No arbitrary script execution, baseline suppression or custom rule plugins.
   `npm test` passed all six content and four built-site checks, including the CI
   section and complete command inventory. The .NET Release and preview CI checks
   passed for the feature implementation before this documentation-only follow-up.
+- README and Astro website now present developer CLI, coding-agent MCP, and CI
+  rule enforcement as three current use cases, with IDE integration explicitly
+  planned. The website includes a CI setup guide and mobile navigation for all
+  three entry points. `npm test` passes six content and four built-site checks;
+  desktop and 390-pixel mobile previews were inspected, with no mobile overflow.

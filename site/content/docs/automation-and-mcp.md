@@ -2,10 +2,10 @@
 title: Connect with MCP
 description: Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server.
 order: 1
-section: Start here
+section: Coding agents
 ---
 
-Roslyn Tools is primarily an MCP server for AI coding agents working in C# repositories. It gives an agent bounded, structured tools backed by the same solution model the compiler uses—not text matches or terminal output it has to scrape.
+Connect the Roslyn Tools MCP host to give coding agents bounded, structured semantic tools for C# repositories. It shares its Roslyn-powered engine with the [developer CLI](/docs/getting-started/) and [CI rule checks](/docs/ci/).
 
 ## Install the MCP server
 
@@ -62,9 +62,9 @@ These tools return typed results with explicit workspace context. That lets an a
 
 ## Respect the exposed surface
 
-MCP is the primary agent surface, but its stable tool list is intentionally focused. Normal discovery currently excludes apply-capable repository mutations and maintainer plumbing, so an agent can inspect and plan without silently writing to the repository.
+The available tools depend on the host's startup repository approval. An approved host advertises eligible refactoring tools as well as read-only tools; refactor requests default to dry-run unless the caller explicitly applies them. Without startup approval, discovery is limited to the read-only subset, and semantic workspace tools still require trust before evaluation.
 
-Use the MCP client's tool listing for the agent surface. Use the companion `rt` CLI when a reviewed change is ready to preview or apply.
+Use the MCP client's tool listing for the current agent surface. MCP exposure is being migrated incrementally; the `rt` CLI command catalogue covers the complete command surface.
 
 ## Bound agent output
 

@@ -13,6 +13,7 @@ const requiredPages = [
   'analyzing-solutions.md',
   'refactoring-safely.md',
   'automation-and-mcp.md',
+  'ci.md',
   'command-reference.md',
 ];
 
@@ -57,15 +58,16 @@ test('every required documentation source is tracked by Git', () => {
   }
 });
 
-test('the public examples lead with MCP and use canonical commands from the product surface', () => {
+test('the public examples cover CLI, MCP and CI with canonical commands', () => {
   const homepage = read('site/pages/index.astro');
   const mcp = read('site/content/docs/automation-and-mcp.md');
   const gettingStarted = read('site/content/docs/getting-started.md');
   const discovery = read('site/content/docs/discovery.md');
 
-  assert.match(homepage, /The MCP server for semantic C#/);
+  assert.match(homepage, /Semantic C# tools for developers, agents, and CI/);
   assert.match(homepage, /roslyn-tools-mcp/);
-  assert.match(homepage, /search_symbols/);
+  assert.match(homepage, /rt inspect describe/);
+  assert.match(homepage, /rt ci check/);
   assert.match(homepage, /relationships/);
   assert.match(mcp, /title: Connect with MCP/);
   assert.match(mcp, /order: 1/);
