@@ -57,6 +57,7 @@ rename	refactor	M0	complete	in-process	review-default
 replace-call	refactor	M1	complete	in-process	review-default
 replace-datetime	refactor	M1	complete	in-process	review-default
 replace-new	refactor	M1	complete	in-process	review-default
+remove-unused-usings	refactor	M1	complete	in-process	review-default
 replace-xunit-asserts	refactor	M3	complete	in-process	review-default
 delete-unreferenced	refactor	M1	complete	in-process	review-default
 transform-parameters	refactor	M2	complete	in-process	review-default
