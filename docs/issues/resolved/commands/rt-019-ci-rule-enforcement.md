@@ -36,3 +36,8 @@ No arbitrary script execution, baseline suppression or custom rule plugins.
 - Command discovery, category markers, schemas, MCP trust/error behavior,
   malformed policies, baseline enforcement and cancellation are covered.
 - Delivery branch: `feat/ci-rule-checks`; integration is tracked by its pull request.
+- PR #131 follow-up: the website's fixed three-group list omitted the CI command.
+  Rendering and navigation now use groups from generated command metadata.
+  `npm test` passed all six content and four built-site checks, including the CI
+  section and complete command inventory. The .NET Release and preview CI checks
+  passed for the feature implementation before this documentation-only follow-up.

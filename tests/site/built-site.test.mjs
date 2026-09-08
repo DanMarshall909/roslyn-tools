@@ -85,6 +85,8 @@ test('the command reference lists every generated public command', () => {
   assert.match(html, /href="#commands-inspect"/);
   assert.match(html, /href="#commands-analyze"/);
   assert.match(html, /href="#commands-refactor"/);
+  assert.match(html, /href="#commands-ci"/);
+  assert.match(html, /data-command="check"/);
 });
 
 test('every generated page has production metadata and valid internal links', () => {
