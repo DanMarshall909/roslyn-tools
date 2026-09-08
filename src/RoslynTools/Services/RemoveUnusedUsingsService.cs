@@ -68,6 +68,8 @@ internal sealed class RemoveUnusedUsingsService : IRtService
             if (changedRoot is null)
                 throw new InvalidOperationException($"Could not update '{displayPath}'.");
 
+            changedRoot = TrimVacatedFileHeader(root, changedRoot);
+
             changedSolution = changedSolution.WithDocumentSyntaxRoot(document.Id, changedRoot);
         }
 
@@ -100,6 +102,11 @@ internal sealed class RemoveUnusedUsingsService : IRtService
                 throw new ArgumentException(
                     $"Generated or intermediate file '{filePath}' cannot be changed.",
                     nameof(filePath));
+            if (RepositoryTrustContext.IsExplicitlyTrusted
+                && !RepositoryTrustContext.IsExplicitlyTrustedFor(document.FilePath!))
+                throw new ArgumentException(
+                    $"File '{filePath}' is outside the trusted repository and cannot be changed.",
+                    nameof(filePath));
 
             return rtIgnore.IsIgnored(document.FilePath, CommandName)
                 ? []
@@ -108,9 +115,50 @@ internal sealed class RemoveUnusedUsingsService : IRtService
 
         return allDocuments
             .Where(document => !FilePathFilters.IsGeneratedOrIntermediate(document.FilePath))
+            .Where(document => !RepositoryTrustContext.IsExplicitlyTrusted
+                               || document.FilePath is not null
+                               && RepositoryTrustContext.IsExplicitlyTrustedFor(document.FilePath))
             .Where(document => !rtIgnore.IsIgnored(document.FilePath, CommandName))
             .OrderBy(document => document.FilePath ?? document.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static SyntaxNode TrimVacatedFileHeader(SyntaxNode originalRoot, SyntaxNode changedRoot)
+    {
+        if (originalRoot is not CompilationUnitSyntax { Usings.Count: > 0 }
+            || changedRoot is not CompilationUnitSyntax { Usings.Count: 0 } compilationUnit)
+            return changedRoot;
+
+        var firstToken = compilationUnit.GetFirstToken(includeZeroWidth: true);
+        var leadingTrivia = firstToken.LeadingTrivia;
+        if (leadingTrivia.Count == 0)
+            return changedRoot;
+
+        if (leadingTrivia.All(trivia => trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia)
+                                        || trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.EndOfLineTrivia)))
+            return compilationUnit.ReplaceToken(firstToken, firstToken.WithLeadingTrivia());
+
+        var trimmed = leadingTrivia
+            .SkipWhile(trivia => trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia)
+                                 || trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.EndOfLineTrivia));
+        var normalized = new List<SyntaxTrivia>();
+        var consecutiveLineBreaks = 0;
+        foreach (var trivia in trimmed)
+        {
+            if (trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.EndOfLineTrivia))
+            {
+                consecutiveLineBreaks++;
+                if (consecutiveLineBreaks <= 2)
+                    normalized.Add(trivia);
+                continue;
+            }
+
+            if (!trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia))
+                consecutiveLineBreaks = 0;
+            normalized.Add(trivia);
+        }
+
+        return compilationUnit.ReplaceToken(firstToken, firstToken.WithLeadingTrivia(normalized));
     }
 
     private static StringComparison PathComparison => OperatingSystem.IsWindows()

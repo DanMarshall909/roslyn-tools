@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Services;
@@ -47,6 +48,105 @@ public sealed class RemoveUnusedUsingsOperationTests
             .ShouldBe(["using System;", "using System.Linq;"], ignoreOrder: true);
         execution.ChangedFiles.Count.ShouldBe(2);
         writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task solution_scope_ignores_the_same_external_test_sdk_document_loaded_by_multiple_projects()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", "using System;\ninternal sealed class Imports { }");
+        project.AddProject("ImportsApp.Tests");
+        var (workspace, initialSolution) = project.Build();
+        var externalDirectory = Directory.CreateTempSubdirectory("rt-test-sdk-");
+        var externalPath = Path.Combine(externalDirectory.FullName, "Microsoft.NET.Test.Sdk.Program.cs");
+        const string externalSource = "using System;\ninternal static class MicrosoftNetTestSdkProgram { }";
+        await File.WriteAllTextAsync(externalPath, externalSource);
+
+        try
+        {
+            var solution = initialSolution;
+            foreach (var candidate in initialSolution.Projects)
+                solution = solution.AddDocument(
+                    DocumentId.CreateNewId(candidate.Id),
+                    Path.GetFileName(externalPath),
+                    SourceText.From(externalSource),
+                    filePath: externalPath);
+
+            var writer = new CapturingSolutionChangeWriter();
+            var operation = CreateOperation(workspace, solution, writer);
+            using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
+
+            var result = await operation.ExecuteAsync(new RemoveUnusedUsingsRequest(DryRun: true));
+            var execution = result.Unwrap();
+
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.Value!.RemovedUsings.ShouldHaveSingleItem()
+                .File.ShouldEndWith("Imports.cs");
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Imports.cs");
+            (await File.ReadAllTextAsync(externalPath)).ShouldBe(externalSource);
+        }
+        finally
+        {
+            externalDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task removing_a_block_of_usings_does_not_leave_blank_lines_before_the_namespace()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", """
+            using System;
+            using System.Collections.Generic;
+            using System.Linq;
+
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(new RemoveUnusedUsingsRequest(DryRun: false));
+        var execution = result.Unwrap();
+
+        execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+        execution.Value!.RemovedCount.ShouldBe(3);
+        var changedDocument = writer.NewSolution!.Projects.Single().Documents.Single();
+        var changedText = (await changedDocument.GetTextAsync()).ToString();
+        changedText.ShouldBe("""
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+    }
+
+    [Fact]
+    public async Task removing_all_usings_preserves_comments_without_stacking_vacated_lines()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", """
+            // file explanation retained
+            using System; // directive explanation retained
+            using System.Collections.Generic;
+
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(new RemoveUnusedUsingsRequest(DryRun: false));
+        result.Unwrap().Status.ShouldBe(MutationExecutionStatus.Applied);
+
+        var changedDocument = writer.NewSolution!.Projects.Single().Documents.Single();
+        var changedText = (await changedDocument.GetTextAsync()).ToString();
+        changedText.ShouldContain("// file explanation retained");
+        changedText.ShouldContain("// directive explanation retained");
+        changedText.ShouldNotContain("\n\n\n");
     }
 
     [Fact]
