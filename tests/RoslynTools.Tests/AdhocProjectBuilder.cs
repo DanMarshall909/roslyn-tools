@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 namespace RoslynTools.Tests;
@@ -156,7 +157,10 @@ public sealed class AdhocProjectBuilder : IDisposable
                 projectReferences: projectRefs,
                 metadataReferences: BclReferences)
                 .WithDefaultNamespace(p.DefaultNamespace)
-                .WithAdditionalDocuments(additionalDocs));
+                .WithAdditionalDocuments(additionalDocs)
+                .WithAnalyzerReferences(p.GeneratedSources.Count == 0
+                    ? []
+                    : [new GeneratedSourceAnalyzerReference(p.GeneratedSources)]));
         }
 
         var workspace = new AdhocWorkspace();
@@ -204,6 +208,7 @@ public sealed class AdhocProjectBuilder : IDisposable
         internal string? DefaultNamespace { get; private set; }
         internal List<(string RelativePath, string Content)> Files { get; } = new();
         internal List<(string RelativePath, string Content)> AdditionalFiles { get; } = new();
+        internal List<(string HintName, string Content)> GeneratedSources { get; } = new();
         internal List<string> ProjectReferenceNames { get; } = new();
 
         public ProjectDef AddSource(string relativePath, string content)
@@ -218,6 +223,12 @@ public sealed class AdhocProjectBuilder : IDisposable
             return this;
         }
 
+        public ProjectDef AddGeneratedSource(string hintName, string content)
+        {
+            GeneratedSources.Add((hintName, content));
+            return this;
+        }
+
         public ProjectDef ReferenceProject(string otherProjectName)
         {
             if (!ProjectReferenceNames.Contains(otherProjectName))
@@ -225,4 +236,40 @@ public sealed class AdhocProjectBuilder : IDisposable
             return this;
         }
     }
+
+    private sealed class GeneratedSourceAnalyzerReference(
+        IReadOnlyList<(string HintName, string Content)> sources) : AnalyzerReference
+    {
+        private readonly ImmutableArray<ISourceGenerator> _generators =
+            [new FixedSourceGenerator(sources)];
+
+        public override string FullPath => string.Empty;
+
+        public override object Id { get; } = new();
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => [];
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() => [];
+
+        public override ImmutableArray<ISourceGenerator> GetGenerators(string language) =>
+            language == LanguageNames.CSharp ? _generators : [];
+
+        public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => _generators;
+    }
+
+#pragma warning disable RS1042 // Test-only in-memory generator; it is never distributed as an analyzer.
+    private sealed class FixedSourceGenerator(
+        IReadOnlyList<(string HintName, string Content)> sources) : ISourceGenerator
+    {
+        public void Initialize(GeneratorInitializationContext context)
+        {
+        }
+
+        public void Execute(GeneratorExecutionContext context)
+        {
+            foreach (var (hintName, content) in sources)
+                context.AddSource(hintName, content);
+        }
+    }
+#pragma warning restore RS1042
 }
