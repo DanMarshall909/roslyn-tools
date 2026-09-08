@@ -141,7 +141,24 @@ internal sealed class RemoveUnusedUsingsService : IRtService
         var trimmed = leadingTrivia
             .SkipWhile(trivia => trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia)
                                  || trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.EndOfLineTrivia));
-        return compilationUnit.ReplaceToken(firstToken, firstToken.WithLeadingTrivia(trimmed));
+        var normalized = new List<SyntaxTrivia>();
+        var consecutiveLineBreaks = 0;
+        foreach (var trivia in trimmed)
+        {
+            if (trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.EndOfLineTrivia))
+            {
+                consecutiveLineBreaks++;
+                if (consecutiveLineBreaks <= 2)
+                    normalized.Add(trivia);
+                continue;
+            }
+
+            if (!trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia))
+                consecutiveLineBreaks = 0;
+            normalized.Add(trivia);
+        }
+
+        return compilationUnit.ReplaceToken(firstToken, firstToken.WithLeadingTrivia(normalized));
     }
 
     private static StringComparison PathComparison => OperatingSystem.IsWindows()

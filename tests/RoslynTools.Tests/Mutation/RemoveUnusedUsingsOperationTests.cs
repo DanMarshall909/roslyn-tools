@@ -123,6 +123,33 @@ public sealed class RemoveUnusedUsingsOperationTests
     }
 
     [Fact]
+    public async Task removing_all_usings_preserves_comments_without_stacking_vacated_lines()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", """
+            // file explanation retained
+            using System; // directive explanation retained
+            using System.Collections.Generic;
+
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(new RemoveUnusedUsingsRequest(DryRun: false));
+        result.Unwrap().Status.ShouldBe(MutationExecutionStatus.Applied);
+
+        var changedDocument = writer.NewSolution!.Projects.Single().Documents.Single();
+        var changedText = (await changedDocument.GetTextAsync()).ToString();
+        changedText.ShouldContain("// file explanation retained");
+        changedText.ShouldContain("// directive explanation retained");
+        changedText.ShouldNotContain("\n\n\n");
+    }
+
+    [Fact]
     public async Task file_scope_leaves_unused_usings_in_other_files_untouched()
     {
         using var project = new AdhocProjectBuilder("ImportsApp");
