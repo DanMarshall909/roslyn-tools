@@ -77,6 +77,7 @@ but only the destination contract is eligible for preview support.
 | `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically. |
 | `replace-datetime` | `recipe use-time-provider` | Experimental | Framework and constructor-injection assumptions. |
 | `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic. |
+| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` | Preview plan-only/high risk | Candidate language; require complete workspace and explicit limitations. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |

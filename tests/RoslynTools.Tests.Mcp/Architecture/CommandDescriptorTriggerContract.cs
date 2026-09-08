@@ -113,6 +113,7 @@ public sealed class CommandDescriptorTriggerContract
         ["replace_call"] = "Edit",
         ["replace_datetime"] = "Edit",
         ["replace_new"] = "Edit",
+        ["remove_unused_usings"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
         ["delete_unreferenced"] = "Edit",
         ["semantic_diff"] = "git diff",
