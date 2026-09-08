@@ -341,6 +341,167 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task source_generated_references_are_regenerated_instead_of_treated_as_disappeared_documents()
+    {
+        using var fixture = new AdhocProjectBuilder("Infrastructure")
+            .AddSource(
+                "EbaCatalogueModels.cs",
+                "namespace WageClaim.Function.Models; public sealed record EbaCatalogueEntry(string Id);");
+        fixture.AddProject("Application")
+            .WithDefaultNamespace("WageClaims.Application");
+        fixture.AddProject("Functions")
+            .AddSource(
+                "EbaCatalogueMapper.cs",
+                "using WageClaim.Function.Models; namespace WageClaim.Function; public sealed class EbaCatalogueMapper { public string Map(EbaCatalogueEntry source) => source.Id; }")
+            .AddGeneratedSource(
+                "EbaCatalogueMapper.g.cs",
+                "namespace WageClaim.Function.Generated; internal sealed class GeneratedMapper { internal string Map(global::WageClaim.Function.Models.EbaCatalogueEntry source) => source.Id; }")
+            .ReferenceProject("Infrastructure")
+            .ReferenceProject("Application");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["WageClaim.Function.Models.EbaCatalogueEntry"],
+                SourceNamespace: null,
+                TargetProject: "Application",
+                TargetNamespace: "WageClaims.Application.Agreements",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        preparation.Result.ReferenceEdits.ShouldContain(edit =>
+            Path.GetFileName(edit.Path) == "EbaCatalogueMapper.cs");
+        preparation.Result.ReferenceEdits.ShouldNotContain(edit =>
+            edit.Path.EndsWith("EbaCatalogueMapper.g.cs", StringComparison.OrdinalIgnoreCase));
+        preparation.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Code == "projected-compilation-error");
+        preparation.Result.Applicable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task member_access_only_consumers_receive_the_moved_types_target_namespace()
+    {
+        using var fixture = new AdhocProjectBuilder("Infrastructure")
+            .AddSource(
+                "Models/DocumentLayoutModels.cs",
+                """
+                using System.Collections.Generic;
+                namespace WageClaim.Function.Models;
+                public static class DocumentLayoutQualityStatuses
+                {
+                    public const string Unusable = "unusable";
+                }
+                public sealed record DocumentLayoutResult(IReadOnlyList<DocumentLayoutPage> Pages);
+                public sealed record DocumentLayoutPage(IReadOnlyList<DocumentLayoutWord> Words);
+                public sealed record DocumentLayoutWord(IReadOnlyList<DocumentLayoutPoint> Polygon);
+                public sealed record DocumentLayoutPoint(double X, double Y);
+                public sealed record DocumentLayoutRenderedPage(byte[] Content);
+                """)
+            .AddSource(
+                "Models/LegacyMarker.cs",
+                "namespace WageClaim.Function.Models; public sealed record LegacyMarker;")
+            .AddSource(
+                "Services/PayslipExtractionWorkerService.cs",
+                "using WageClaim.Function.Models; namespace WageClaim.Function.Services; public sealed class PayslipExtractionWorkerService(DocumentLayoutResult result) { public bool Unusable => DocumentLayoutQualityStatuses.Unusable == \"unusable\"; }")
+            .AddSource(
+                "Services/ProfileExtractionWorkerService.cs",
+                "using WageClaim.Function.Models; namespace WageClaim.Function.Services; public sealed class ProfileExtractionWorkerService { public bool Unusable => DocumentLayoutQualityStatuses.Unusable == \"unusable\"; }");
+        fixture.AddProject("Application")
+            .WithDefaultNamespace("WageClaims.Application");
+        fixture.AddProject("Infrastructure").ReferenceProject("Application");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                [
+                    "WageClaim.Function.Models.DocumentLayoutQualityStatuses",
+                    "WageClaim.Function.Models.DocumentLayoutResult",
+                    "WageClaim.Function.Models.DocumentLayoutPage",
+                    "WageClaim.Function.Models.DocumentLayoutWord",
+                    "WageClaim.Function.Models.DocumentLayoutPoint",
+                    "WageClaim.Function.Models.DocumentLayoutRenderedPage"
+                ],
+                SourceNamespace: null,
+                TargetProject: "Application",
+                TargetNamespace: "WageClaims.Application.Extraction",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        preparation.Result.ReferenceEdits.Select(edit => Path.GetFileName(edit.Path)).ShouldContain(
+            "ProfileExtractionWorkerService.cs");
+        preparation.Result.Applicable.ShouldBeTrue(
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(item => item.Message)));
+    }
+
+    [Fact]
+    public async Task selected_files_drop_compiler_confirmed_stale_imports_before_cross_project_moves()
+    {
+        using var fixture = new AdhocProjectBuilder("Infrastructure")
+            .AddSource(
+                "Models/LegacyMarker.cs",
+                "namespace WageClaim.Function.Models; public sealed record LegacyMarker;")
+            .AddSource(
+                "Services/IJsonExtractionModel.cs",
+                """
+                using System.Threading.Tasks;
+                using WageClaim.Function.Models;
+                using WageClaims.Application.Extraction;
+
+                namespace WageClaim.Function.Services;
+
+                public interface IJsonExtractionModel
+                {
+                    Task<JsonExtractionEnvelope> ExtractAsync();
+                }
+                """);
+        fixture.AddProject("Application")
+            .WithDefaultNamespace("WageClaims.Application")
+            .AddSource(
+                "Extraction/JsonExtractionModels.cs",
+                "namespace WageClaims.Application.Extraction; public sealed record JsonExtractionEnvelope;");
+        fixture.AddProject("Infrastructure").ReferenceProject("Application");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["WageClaim.Function.Services.IJsonExtractionModel"],
+                SourceNamespace: null,
+                TargetProject: "Application",
+                TargetNamespace: "WageClaims.Application.Extraction",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        var rewritten = preparation.ChangedSourceSolution.Projects
+            .Single(project => project.Name == "Infrastructure")
+            .Documents.Single(document => document.Name == "IJsonExtractionModel.cs");
+        var rewrittenText = (await rewritten.GetTextAsync()).ToString();
+        rewrittenText.ShouldNotContain("using WageClaim.Function.Models;");
+        preparation.Result.Applicable.ShouldBeTrue(
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(item => item.Message)));
+    }
+
+    [Fact]
     public async Task source_generated_partial_declarations_fail_closed_with_a_typed_error()
     {
         using var fixture = new AdhocProjectBuilder("Source")

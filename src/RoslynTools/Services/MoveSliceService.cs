@@ -389,22 +389,40 @@ internal sealed class MoveSliceService : IRtService
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var document = original.GetDocument(location.Document.Id);
-                    var root = document is null
-                        ? null
-                        : await document.GetSyntaxRootAsync(cancellationToken);
-                    if (document is null || root is null)
+                    if (document is null)
+                    {
+                        // FindReferences includes source-generator output. It is not an editable
+                        // solution document and will be regenerated from the source edits before
+                        // the projected compilation is validated.
+                        if (location.Document is SourceGeneratedDocument)
+                            continue;
+
                         return RewritePlan.Fail("A bound reference document disappeared during planning.");
+                    }
+
+                    var root = await document.GetSyntaxRootAsync(cancellationToken);
+                    if (root is null)
+                        return RewritePlan.Fail(
+                            $"Bound reference document '{document.FilePath ?? document.Name}' has no syntax root.");
 
                     var node = root.FindNode(location.Location.SourceSpan, getInnermostNodeForTie: true);
                     var outer = FindOutermostQualifiedName(node);
+                    var rewroteQualifiedReference = false;
                     if (outer is not null)
                     {
                         var oldText = outer.ToString();
                         var newText = RewriteNamespacePrefix(oldText, sourceNamespace, targetNamespace);
                         if (!string.Equals(oldText, newText, StringComparison.Ordinal))
+                        {
                             GetOrAdd(qualifiedChanges, document.Id)[outer.Span] = newText;
+                            rewroteQualifiedReference = true;
+                        }
                     }
-                    else if (!selection.DocumentIds.Contains(location.Document.Id))
+
+                    // `Type.Member` is a member access, not necessarily a namespace-qualified
+                    // reference. When no namespace prefix was rewritten, the consumer still
+                    // needs an import for the type's target namespace.
+                    if (!rewroteQualifiedReference && !selection.DocumentIds.Contains(document.Id))
                         GetOrAdd(requiredUsings, document.Id).Add(targetNamespace);
                 }
             }
@@ -422,15 +440,61 @@ internal sealed class MoveSliceService : IRtService
             var root = await document.GetSyntaxRootAsync(cancellationToken);
             if (root is null)
                 return RewritePlan.Fail($"Document '{document.FilePath}' has no syntax root.");
+
+            var unnecessaryUsingAnnotation = new SyntaxAnnotation();
+            if (selection.DocumentIds.Contains(documentId))
+            {
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+                if (semanticModel is null)
+                    return RewritePlan.Fail(
+                        $"Document '{document.FilePath}' has no complete semantic model.");
+
+                var unnecessaryUsings = FindUnnecessaryUsings(
+                    root,
+                    semanticModel,
+                    cancellationToken);
+                root = root.ReplaceNodes(
+                    unnecessaryUsings,
+                    (_, rewritten) => rewritten.WithAdditionalAnnotations(unnecessaryUsingAnnotation));
+            }
+
             var rewrittenRoot = new SliceDocumentRewriter(
                 namespaceChanges.GetValueOrDefault(documentId),
                 qualifiedChanges.GetValueOrDefault(documentId)).Visit(root)!;
+            var rewrittenUnnecessaryUsings = rewrittenRoot
+                .GetAnnotatedNodes(unnecessaryUsingAnnotation)
+                .OfType<UsingDirectiveSyntax>()
+                .ToArray();
+            if (rewrittenUnnecessaryUsings.Length != 0)
+            {
+                rewrittenRoot = rewrittenRoot.RemoveNodes(
+                    rewrittenUnnecessaryUsings,
+                    SyntaxRemoveOptions.KeepExteriorTrivia)!;
+            }
             foreach (var namespaceName in requiredUsings.GetValueOrDefault(documentId) ?? [])
                 rewrittenRoot = EnsureUsing(rewrittenRoot, namespaceName);
             solution = solution.WithDocumentSyntaxRoot(documentId, rewrittenRoot);
         }
 
         return new RewritePlan(solution, referencesByType.Values.SelectMany(value => value).ToArray(), null);
+    }
+
+    private static UsingDirectiveSyntax[] FindUnnecessaryUsings(
+        SyntaxNode root,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        var unnecessarySpans = semanticModel.GetDiagnostics(cancellationToken: cancellationToken)
+            .Where(diagnostic => diagnostic.Id == "CS8019")
+            .Select(diagnostic => diagnostic.Location.SourceSpan)
+            .ToArray();
+        if (unnecessarySpans.Length == 0)
+            return [];
+
+        return root.DescendantNodes()
+            .OfType<UsingDirectiveSyntax>()
+            .Where(usingDirective => unnecessarySpans.Any(usingDirective.Span.Contains))
+            .ToArray();
     }
 
     private static async Task<FileMovePlan> PlanFileMovesAsync(
