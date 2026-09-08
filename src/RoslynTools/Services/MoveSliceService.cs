@@ -440,15 +440,61 @@ internal sealed class MoveSliceService : IRtService
             var root = await document.GetSyntaxRootAsync(cancellationToken);
             if (root is null)
                 return RewritePlan.Fail($"Document '{document.FilePath}' has no syntax root.");
+
+            var unnecessaryUsingAnnotation = new SyntaxAnnotation();
+            if (selection.DocumentIds.Contains(documentId))
+            {
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+                if (semanticModel is null)
+                    return RewritePlan.Fail(
+                        $"Document '{document.FilePath}' has no complete semantic model.");
+
+                var unnecessaryUsings = FindUnnecessaryUsings(
+                    root,
+                    semanticModel,
+                    cancellationToken);
+                root = root.ReplaceNodes(
+                    unnecessaryUsings,
+                    (_, rewritten) => rewritten.WithAdditionalAnnotations(unnecessaryUsingAnnotation));
+            }
+
             var rewrittenRoot = new SliceDocumentRewriter(
                 namespaceChanges.GetValueOrDefault(documentId),
                 qualifiedChanges.GetValueOrDefault(documentId)).Visit(root)!;
+            var rewrittenUnnecessaryUsings = rewrittenRoot
+                .GetAnnotatedNodes(unnecessaryUsingAnnotation)
+                .OfType<UsingDirectiveSyntax>()
+                .ToArray();
+            if (rewrittenUnnecessaryUsings.Length != 0)
+            {
+                rewrittenRoot = rewrittenRoot.RemoveNodes(
+                    rewrittenUnnecessaryUsings,
+                    SyntaxRemoveOptions.KeepExteriorTrivia)!;
+            }
             foreach (var namespaceName in requiredUsings.GetValueOrDefault(documentId) ?? [])
                 rewrittenRoot = EnsureUsing(rewrittenRoot, namespaceName);
             solution = solution.WithDocumentSyntaxRoot(documentId, rewrittenRoot);
         }
 
         return new RewritePlan(solution, referencesByType.Values.SelectMany(value => value).ToArray(), null);
+    }
+
+    private static UsingDirectiveSyntax[] FindUnnecessaryUsings(
+        SyntaxNode root,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        var unnecessarySpans = semanticModel.GetDiagnostics(cancellationToken: cancellationToken)
+            .Where(diagnostic => diagnostic.Id == "CS8019")
+            .Select(diagnostic => diagnostic.Location.SourceSpan)
+            .ToArray();
+        if (unnecessarySpans.Length == 0)
+            return [];
+
+        return root.DescendantNodes()
+            .OfType<UsingDirectiveSyntax>()
+            .Where(usingDirective => unnecessarySpans.Any(usingDirective.Span.Contains))
+            .ToArray();
     }
 
     private static async Task<FileMovePlan> PlanFileMovesAsync(

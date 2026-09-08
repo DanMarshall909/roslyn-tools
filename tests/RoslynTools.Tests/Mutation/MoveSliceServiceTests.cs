@@ -444,6 +444,59 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task selected_files_drop_compiler_confirmed_stale_imports_before_cross_project_moves()
+    {
+        using var fixture = new AdhocProjectBuilder("Infrastructure")
+            .AddSource(
+                "Models/LegacyMarker.cs",
+                "namespace WageClaim.Function.Models; public sealed record LegacyMarker;")
+            .AddSource(
+                "Services/IJsonExtractionModel.cs",
+                """
+                using WageClaim.Function.Models;
+                using WageClaims.Application.Extraction;
+
+                namespace WageClaim.Function.Services;
+
+                public interface IJsonExtractionModel
+                {
+                    Task<JsonExtractionEnvelope> ExtractAsync();
+                }
+                """);
+        fixture.AddProject("Application")
+            .WithDefaultNamespace("WageClaims.Application")
+            .AddSource(
+                "Extraction/JsonExtractionModels.cs",
+                "namespace WageClaims.Application.Extraction; public sealed record JsonExtractionEnvelope;");
+        fixture.AddProject("Infrastructure").ReferenceProject("Application");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["WageClaim.Function.Services.IJsonExtractionModel"],
+                SourceNamespace: null,
+                TargetProject: "Application",
+                TargetNamespace: "WageClaims.Application.Extraction",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        var rewritten = preparation.ChangedSourceSolution.Projects
+            .Single(project => project.Name == "Infrastructure")
+            .Documents.Single(document => document.Name == "IJsonExtractionModel.cs");
+        var rewrittenText = (await rewritten.GetTextAsync()).ToString();
+        rewrittenText.ShouldNotContain("using WageClaim.Function.Models;");
+        preparation.Result.Applicable.ShouldBeTrue(
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(item => item.Message)));
+    }
+
+    [Fact]
     public async Task source_generated_partial_declarations_fail_closed_with_a_typed_error()
     {
         using var fixture = new AdhocProjectBuilder("Source")
