@@ -1,4 +1,5 @@
 command	category	group	work	execution	safety
+check	ci	R2	complete	in-process	read-only
 analyze-interface	analyze	R2	complete	daemon-preferred	read-only
 check-architecture	analyze	R2	complete	daemon-preferred	read-only
 circular-deps	analyze	R0	complete	daemon-preferred	read-only

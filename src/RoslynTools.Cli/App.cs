@@ -26,7 +26,7 @@ namespace RoslynTools;
 internal static class App
 {
     /// <summary>
-    ///     The three top-level groups under which every command is filed. Each command's
+    ///     The top-level groups under which every command is filed. Each command's
     ///     <see cref="RtCommandInfo.Category" /> must equal one of these keys exactly — checked
     ///     at startup in <see cref="RunAsync" />.
     /// </summary>
@@ -35,7 +35,8 @@ internal static class App
         {
             ["inspect"] = "Read-only: examine a single symbol or file",
             ["analyze"] = "Read-only: scan for cross-cutting issues",
-            ["refactor"] = "Mutations: rename, move, extract, replace, modify"
+            ["refactor"] = "Mutations: rename, move, extract, replace, modify",
+            ["ci"] = "Read-only: enforce configured rules with failing exit status"
         };
 
     /// <summary>
@@ -65,7 +66,7 @@ internal static class App
                 + ". Add `: IRtCommand` and supply static `Info` + `Build()`.");
 
         // Bidirectional consistency: JsonOutput in RtCommandInfo ↔ IStructuredOutputCommand.
-        // For inspect/analyze commands, both must be set together. This prevents shipping a
+        // For inspect/analyze/ci commands, both must be set together. This prevents shipping a
         // command that claims JSON output but forgets the interface, or vice versa.
         const BindingFlags staticPublic = BindingFlags.Static | BindingFlags.Public;
         var inconsistentOutput = typeof(App).Assembly.GetTypes()
@@ -81,19 +82,19 @@ internal static class App
                     IsStructured: typeof(IStructuredOutputCommand).IsAssignableFrom(t),
                     ClaimsJson: info?.JsonOutput == true);
             })
-            .Where(x => x.Category is "inspect" or "analyze" && x.IsStructured != x.ClaimsJson)
+            .Where(x => x.Category is "inspect" or "analyze" or "ci" && x.IsStructured != x.ClaimsJson)
             .Select(x => $"{x.Name} (JsonOutput={x.ClaimsJson}, IStructuredOutputCommand={x.IsStructured})")
             .ToList();
 
         if (inconsistentOutput.Count > 0)
             throw new InvalidOperationException(
-                "These inspect/analyze commands have inconsistent structured-output state "
+                "These inspect/analyze/ci commands have inconsistent structured-output state "
                 + "(RtCommandInfo.JsonOutput and IStructuredOutputCommand must be set together): "
                 + string.Join(", ", inconsistentOutput));
 
         // Category-marker biconditional: every concrete command in RoslynTools.Commands
         // (excluding the DumpHelp meta-command) must implement EXACTLY ONE of
-        // IInspectCommand / IAnalyzeCommand / IRefactorCommand. The category marker
+        // IInspectCommand / IAnalyzeCommand / IRefactorCommand / ICiCommand. The category marker
         // and RtCommandInfo.Category together describe the same fact in two places;
         // this ratchet keeps them in sync at startup so new commands can't forget to
         // declare a category — the post-build docs/COMMANDS.md regeneration will fail.
@@ -110,6 +111,7 @@ internal static class App
                 {
                     typeof(IInspectCommand).IsAssignableFrom(t) ? "IInspectCommand" : null,
                     typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "IAnalyzeCommand" : null,
+                    typeof(ICiCommand).IsAssignableFrom(t) ? "ICiCommand" : null,
                     typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null
                 }.Where(m => m is not null).ToArray()
             })
@@ -122,7 +124,7 @@ internal static class App
         if (categoryOffenders.Count > 0)
             throw new InvalidOperationException(
                 "These commands must implement exactly one category marker "
-                + "(IInspectCommand, IAnalyzeCommand, or IRefactorCommand): "
+                + "(IInspectCommand, IAnalyzeCommand, ICiCommand, or IRefactorCommand): "
                 + string.Join(", ", categoryOffenders)
                 + ". Add the appropriate marker to the class declaration.");
     }

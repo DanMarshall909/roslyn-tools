@@ -162,7 +162,8 @@ public class ServerSerializationTests
             .Select(tool => tool.GetProperty("name").GetString())
             .ToArray();
 
-        names.Length.ShouldBe(57);
+        names.Length.ShouldBe(58);
+        names.ShouldContain("check");
         names.ShouldContain("prime");
         names.ShouldContain("move");
         names.ShouldContain("move_slice");

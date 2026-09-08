@@ -10,7 +10,7 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class CommandMigrationManifestContracts
 {
     private static readonly HashSet<string> Categories =
-        ["inspect", "analyze", "refactor"];
+        ["inspect", "analyze", "refactor", "ci"];
     private static readonly HashSet<string> WorkStates =
         ["convert", "reconcile", "complete"];
     private static readonly HashSet<string> ExecutionPlacements =
@@ -28,7 +28,7 @@ public sealed class CommandMigrationManifestContracts
             .Where(command => Categories.Contains(command.Info.Category))
             .ToDictionary(command => command.Info.Name, command => command.Info, StringComparer.Ordinal);
 
-        rows.Length.ShouldBe(62);
+        rows.Length.ShouldBe(63);
         rows.Select(row => row.Command).ShouldBeUnique();
         rows.Select(row => row.Command).OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(commands.Keys.OrderBy(name => name, StringComparer.Ordinal));

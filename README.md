@@ -99,11 +99,12 @@ MCP clients invoke `prime` with an empty object and receive the same structured 
 | Refactor safely | `rename`, `move`, `extract-method`, `delete-unreferenced`, `semantic-diff` |
 | Modernise code | `convert-to-record`, `make-async`, `migrate-to-ioptions`, `replace-xunit-asserts` |
 
-Commands are organised into three groups:
+Commands are organised into four groups:
 
 - `rt inspect <command>` — read-only symbol and file queries
 - `rt analyze <command>` — read-only solution-wide analysis
 - `rt refactor <command>` — source mutations
+- `rt ci check` — enforce configured rules with a failing exit status; see [CI setup](docs/ci.md).
 
 Unambiguous commands are also available directly at the root. These are equivalent:
 

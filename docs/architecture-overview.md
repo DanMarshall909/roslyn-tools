@@ -61,6 +61,16 @@ mutations.
 
 ## Contracts that bind the layers
 
+### CI rule enforcement
+
+`rt ci check` uses the typed `CiCheckOperation` in-process for CLI and MCP. The
+read-only `ICiCommand` marker extends the exactly-one-category invariant. Version 1
+policies compose architecture and complexity checks over one workspace; findings
+are never truncated or suppressed by architecture baselines. CLI compliance maps
+to exit 0/1, while execution errors remain nonzero and MCP retains typed errors
+separately from the result's `passed` value. See [ADR-0016](adr/0016-ci-rule-enforcement.md)
+and [CI usage](ci.md).
+
 ### 1. Host-neutral application definition and port
 
 Every ordinary stable command has one host-neutral application definition and exactly one typed `ICommandApplicationPort`. The definition carries:
