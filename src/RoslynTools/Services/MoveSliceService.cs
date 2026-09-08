@@ -509,7 +509,7 @@ internal sealed class MoveSliceService : IRtService
         Project sourceProject,
         CancellationToken cancellationToken)
     {
-        var moved = selection.Types.Select(type => type.Symbol)
+        var moved = selection.Types.Select(type => GetDeclaredTypeDefinition(type.Symbol))
             .ToHashSet(SymbolEqualityComparer.Default);
         var evidence = new Dictionary<string, List<MoveSliceDependencyEvidence>>(StringComparer.Ordinal);
         foreach (var documentId in selection.DocumentIds)
@@ -524,15 +524,11 @@ internal sealed class MoveSliceService : IRtService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var symbol = semanticModel.GetSymbolInfo(name, cancellationToken).Symbol;
-                var type = symbol switch
-                {
-                    INamedTypeSymbol named => named,
-                    IMethodSymbol method => method.ContainingType,
-                    IPropertySymbol property => property.ContainingType,
-                    IFieldSymbol field => field.ContainingType,
-                    _ => null
-                };
-                if (type is null || moved.Contains(type))
+                var containingType = GetContainingType(symbol);
+                if (containingType is null)
+                    continue;
+                var type = GetDeclaredTypeDefinition(containingType);
+                if (moved.Contains(type))
                     continue;
                 var declaringProject = type.DeclaringSyntaxReferences
                     .Select(reference => solution.GetDocument(reference.SyntaxTree)?.Project.Id)
@@ -782,7 +778,7 @@ internal sealed class MoveSliceService : IRtService
             result[(consumer.Id, targetProject.Id)] = (consumer, targetProject);
         }
 
-        var movedSymbols = selection.Types.Select(type => type.Symbol)
+        var movedSymbols = selection.Types.Select(type => GetDeclaredTypeDefinition(type.Symbol))
             .ToHashSet(SymbolEqualityComparer.Default);
         foreach (var documentId in selection.DocumentIds)
         {
@@ -794,15 +790,11 @@ internal sealed class MoveSliceService : IRtService
             foreach (var name in root.DescendantNodes().OfType<SimpleNameSyntax>())
             {
                 var symbol = model.GetSymbolInfo(name, cancellationToken).Symbol;
-                var containingType = symbol switch
-                {
-                    INamedTypeSymbol type => type,
-                    IMethodSymbol method => method.ContainingType,
-                    IPropertySymbol property => property.ContainingType,
-                    IFieldSymbol field => field.ContainingType,
-                    _ => null
-                };
-                if (containingType is null || movedSymbols.Contains(containingType))
+                var referencedType = GetContainingType(symbol);
+                if (referencedType is null)
+                    continue;
+                var containingType = GetDeclaredTypeDefinition(referencedType);
+                if (movedSymbols.Contains(containingType))
                     continue;
                 var dependencyId = containingType.DeclaringSyntaxReferences
                     .Select(reference => solution.GetDocument(reference.SyntaxTree)?.Project.Id)
@@ -822,6 +814,20 @@ internal sealed class MoveSliceService : IRtService
             .ThenBy(pair => pair.Item2.Name, StringComparer.Ordinal)
             .ToArray();
     }
+
+    private static INamedTypeSymbol? GetContainingType(ISymbol? symbol) => symbol switch
+    {
+        INamedTypeSymbol type => type,
+        IMethodSymbol method => method.ContainingType,
+        IPropertySymbol property => property.ContainingType,
+        IFieldSymbol field => field.ContainingType,
+        _ => null
+    };
+
+    private static INamedTypeSymbol GetDeclaredTypeDefinition(INamedTypeSymbol type) =>
+        type.IsTupleType
+            ? type.TupleUnderlyingType?.OriginalDefinition ?? type.OriginalDefinition
+            : type.OriginalDefinition;
 
     private static async Task<Solution> BuildProjectedSolutionAsync(
         Solution rewritten,

@@ -141,6 +141,59 @@ public sealed class MoveSliceHandlerTests
     }
 
     [Fact]
+    public async Task Trusted_stdio_dependency_analysis_ignores_constructed_target_types()
+    {
+        using var builder = BuildWageClaimsRuleItemFixture();
+        var (workspace, solution) = builder.Build();
+        WriteProjectFiles(solution);
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 1,
+            @params = new
+            {
+                name = MoveSliceCommandDefinition.Definition.Name,
+                arguments = new Dictionary<string, object>
+                {
+                    ["types"] = new List<string>
+                    {
+                        "WageClaim.Function.Services.IRuleItemManagementService",
+                        "WageClaim.Function.Services.RuleItemManagementService"
+                    },
+                    ["to-project"] = "Application",
+                    ["to-namespace"] = "WageClaims.Application.Rules",
+                    ["analyze-dependencies"] = true,
+                    ["solution"] = builder.SolutionPath
+                }
+            }
+        });
+        using var output = new StringWriter();
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        services.AddMcpServices(
+            new StringReader(request + Environment.NewLine),
+            output,
+            new McpHostOptions(builder.Directory));
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var provider = services.BuildServiceProvider())
+        {
+            await provider.GetRequiredService<Server>().RunAsync();
+        }
+
+        using var invocation = JsonDocument.Parse(output.ToString());
+        invocation.RootElement.TryGetProperty("error", out _).ShouldBeFalse();
+        var result = invocation.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var value = result.GetProperty("structuredContent").GetProperty("value");
+        value.GetProperty("applicable").GetBoolean().ShouldBeTrue();
+        value.GetProperty("requiredRelatedTypes").GetArrayLength().ShouldBe(0);
+        value.GetProperty("projectEdits").GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Trusted_stdio_protocol_returns_a_typed_error_for_a_source_generated_partial_type()
     {
         using var builder = new AdhocProjectBuilder("Source")
@@ -204,5 +257,51 @@ public sealed class MoveSliceHandlerTests
     {
         foreach (var project in solution.Projects)
             File.WriteAllText(project.FilePath!, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    }
+
+    private static AdhocProjectBuilder BuildWageClaimsRuleItemFixture()
+    {
+        var fixture = new AdhocProjectBuilder("Infrastructure")
+            .AddSource(
+                "IRuleItemManagementService.cs",
+                """
+                using System.Threading.Tasks;
+                using WageClaims.Application.Profiles;
+                using WageClaims.Application.Rules;
+                namespace WageClaim.Function.Services;
+                public interface IRuleItemManagementService
+                {
+                    Task<(ProfileHeaderRecord header, RuleVersionFence version)> LoadAsync();
+                }
+                """)
+            .AddSource(
+                "RuleItemManagementService.cs",
+                """
+                using System.Threading.Tasks;
+                using WageClaims.Application.Profiles;
+                using WageClaims.Application.Rules;
+                namespace WageClaim.Function.Services;
+                public sealed class RuleItemManagementService : IRuleItemManagementService
+                {
+                    public Task<(ProfileHeaderRecord header, RuleVersionFence version)> LoadAsync() =>
+                        Task.FromResult((new ProfileHeaderRecord(), new RuleVersionFence()));
+
+                    public async Task<ProfileHeaderRecord> LoadHeaderAsync()
+                    {
+                        var result = await LoadAsync();
+                        return result.header;
+                    }
+                }
+                """);
+        fixture.AddProject("Application")
+            .WithDefaultNamespace("WageClaims.Application")
+            .AddSource(
+                "Profiles/ProfileHeaderRecord.cs",
+                "namespace WageClaims.Application.Profiles; public sealed record ProfileHeaderRecord;")
+            .AddSource(
+                "Rules/RuleVersionFence.cs",
+                "namespace WageClaims.Application.Rules; public sealed record RuleVersionFence;");
+        fixture.AddProject("Infrastructure").ReferenceProject("Application");
+        return fixture;
     }
 }
