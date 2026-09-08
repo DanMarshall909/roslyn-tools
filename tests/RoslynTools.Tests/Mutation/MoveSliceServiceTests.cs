@@ -392,6 +392,7 @@ public sealed class MoveSliceServiceTests
             .AddSource(
                 "Models/DocumentLayoutModels.cs",
                 """
+                using System.Collections.Generic;
                 namespace WageClaim.Function.Models;
                 public static class DocumentLayoutQualityStatuses
                 {
@@ -403,6 +404,9 @@ public sealed class MoveSliceServiceTests
                 public sealed record DocumentLayoutPoint(double X, double Y);
                 public sealed record DocumentLayoutRenderedPage(byte[] Content);
                 """)
+            .AddSource(
+                "Models/LegacyMarker.cs",
+                "namespace WageClaim.Function.Models; public sealed record LegacyMarker;")
             .AddSource(
                 "Services/PayslipExtractionWorkerService.cs",
                 "using WageClaim.Function.Models; namespace WageClaim.Function.Services; public sealed class PayslipExtractionWorkerService(DocumentLayoutResult result) { public bool Unusable => DocumentLayoutQualityStatuses.Unusable == \"unusable\"; }")
@@ -453,6 +457,7 @@ public sealed class MoveSliceServiceTests
             .AddSource(
                 "Services/IJsonExtractionModel.cs",
                 """
+                using System.Threading.Tasks;
                 using WageClaim.Function.Models;
                 using WageClaims.Application.Extraction;
 
