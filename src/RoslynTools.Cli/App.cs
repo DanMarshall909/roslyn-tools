@@ -323,7 +323,7 @@ internal static class App
             .AddMiddleware(async (context, next) =>
             {
                 using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
-                    ? RepositoryTrustContext.UseExplicitTrust()
+                    ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
                     : null;
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
@@ -522,6 +522,37 @@ internal static class App
         {
             return null;
         }
+    }
+
+    private static string ResolveTrustedRepositoryRoot(InvocationContext context)
+    {
+        var currentDirectory = Path.GetFullPath(Directory.GetCurrentDirectory());
+        var solutionPath = TryExtractSolutionPath(context);
+        var selectedDirectory = currentDirectory;
+
+        if (!string.IsNullOrWhiteSpace(solutionPath))
+        {
+            try
+            {
+                selectedDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath))
+                                    ?? currentDirectory;
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                selectedDirectory = currentDirectory;
+            }
+        }
+
+        for (var directory = new DirectoryInfo(selectedDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var gitEntry = Path.Combine(directory.FullName, ".git");
+            if (Directory.Exists(gitEntry) || File.Exists(gitEntry))
+                return Path.TrimEndingDirectorySeparator(directory.FullName);
+        }
+
+        return Path.TrimEndingDirectorySeparator(selectedDirectory);
     }
 
     private static Dictionary<string, string?>? TryCaptureParsedOptions(InvocationContext context)

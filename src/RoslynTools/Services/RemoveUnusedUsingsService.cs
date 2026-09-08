@@ -154,11 +154,36 @@ internal sealed class RemoveUnusedUsingsService : IRtService
             }
 
             if (!trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.WhitespaceTrivia))
-                consecutiveLineBreaks = 0;
+                consecutiveLineBreaks = CountTrailingLineBreaks(trivia.ToFullString());
             normalized.Add(trivia);
         }
 
         return compilationUnit.ReplaceToken(firstToken, firstToken.WithLeadingTrivia(normalized));
+    }
+
+    private static int CountTrailingLineBreaks(string text)
+    {
+        var count = 0;
+        for (var index = text.Length - 1; index >= 0; index--)
+        {
+            if (text[index] == '\n')
+            {
+                count++;
+                if (index > 0 && text[index - 1] == '\r')
+                    index--;
+                continue;
+            }
+
+            if (text[index] == '\r')
+            {
+                count++;
+                continue;
+            }
+
+            break;
+        }
+
+        return count;
     }
 
     private static StringComparison PathComparison => OperatingSystem.IsWindows()
