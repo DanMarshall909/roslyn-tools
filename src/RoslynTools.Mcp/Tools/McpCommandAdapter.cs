@@ -46,7 +46,7 @@ internal sealed class McpCommandAdapter(
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
         using var trustScope = _hostOptions.EnterTrustScope();
 
-        if (_hostOptions.TrustedRepositoryRoot is null
+        if (!_hostOptions.HasExplicitTrust
             && !DaemonRuntime.IsDisabled
             && descriptor.Port is not null
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred

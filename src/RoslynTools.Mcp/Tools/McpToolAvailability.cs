@@ -12,7 +12,7 @@ internal static class McpToolAvailability
     {
         return descriptor.McpVisible
                && descriptor.Audience == CommandAudience.Public
-               && (hostOptions.TrustedRepositoryRoot is not null
+               && (hostOptions.HasExplicitTrust
                    || !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite));
     }
 }

@@ -9,7 +9,9 @@ internal static class RepositoryTrustContext
 {
     private static readonly AsyncLocal<TrustAuthorization?> ExplicitTrust = new();
 
-    internal static bool IsExplicitlyTrusted => ExplicitTrust.Value is not null;
+    internal static bool IsExplicitlyTrusted => ExplicitTrust.Value is { } authorization
+                                               && (authorization.RepositoryRoots is null
+                                                   || authorization.RepositoryRoots.Count > 0);
 
     internal static bool IsExplicitlyTrustedFor(string path)
     {
@@ -17,16 +19,11 @@ internal static class RepositoryTrustContext
         if (authorization is null)
             return false;
 
-        if (authorization.RepositoryRoot is null)
+        if (authorization.RepositoryRoots is null)
             return true;
 
         var fullPath = Path.GetFullPath(path);
-        var relativePath = Path.GetRelativePath(authorization.RepositoryRoot, fullPath);
-        return relativePath == "."
-               || !Path.IsPathRooted(relativePath)
-               && relativePath != ".."
-               && !relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-               && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+        return authorization.RepositoryRoots.Any(root => IsWithinRoot(root, fullPath));
     }
 
     internal static IDisposable UseExplicitTrust()
@@ -36,12 +33,33 @@ internal static class RepositoryTrustContext
 
     internal static IDisposable UseExplicitTrust(string repositoryRoot)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
-        if (!Path.IsPathFullyQualified(repositoryRoot))
-            throw new ArgumentException("The trusted repository root must be an absolute path.", nameof(repositoryRoot));
+        return UseExplicitTrust([repositoryRoot]);
+    }
 
-        var canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
-        return UseExplicitTrust(new TrustAuthorization(canonicalRoot));
+    internal static IDisposable UseExplicitTrust(IEnumerable<string> repositoryRoots)
+    {
+        ArgumentNullException.ThrowIfNull(repositoryRoots);
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var roots = repositoryRoots.Select(root =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(root);
+            if (!Path.IsPathFullyQualified(root))
+                throw new ArgumentException("The trusted repository root must be an absolute path.", nameof(repositoryRoots));
+
+            return Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        }).Distinct(comparer).ToArray();
+
+        return UseExplicitTrust(new TrustAuthorization(Array.AsReadOnly(roots)));
+    }
+
+    private static bool IsWithinRoot(string root, string fullPath)
+    {
+        var relativePath = Path.GetRelativePath(root, fullPath);
+        return relativePath == "."
+               || !Path.IsPathRooted(relativePath)
+               && relativePath != ".."
+               && !relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+               && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
     }
 
     private static Scope UseExplicitTrust(TrustAuthorization authorization)
@@ -51,7 +69,7 @@ internal static class RepositoryTrustContext
         return new Scope(() => ExplicitTrust.Value = previous);
     }
 
-    private sealed record TrustAuthorization(string? RepositoryRoot);
+    private sealed record TrustAuthorization(IReadOnlyList<string>? RepositoryRoots);
 
     private sealed class Scope(Action dispose) : IDisposable
     {

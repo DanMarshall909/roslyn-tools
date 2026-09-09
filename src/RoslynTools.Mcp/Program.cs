@@ -6,15 +6,15 @@ using RoslynTools.Mcp;
 if (!McpHostOptions.TryParse(args, out var hostOptions, out var optionError))
 {
     RtLog.Error("{Error}", optionError);
-    RtLog.Info("Usage: roslyn-tools-mcp [--trust-repository <absolute-repository-root>]");
+    RtLog.Info("Usage: roslyn-tools-mcp [--trust-repository <absolute-repository-root>]...");
     return 2;
 }
 
 if (hostOptions.ShowHelp)
 {
-    RtLog.Info("Usage: roslyn-tools-mcp [--trust-repository <absolute-repository-root>]");
+    RtLog.Info("Usage: roslyn-tools-mcp [--trust-repository <absolute-repository-root>]...");
     RtLog.Info(
-        "--trust-repository authorizes this host process to evaluate solutions beneath the reviewed absolute repository root. MCP tool arguments cannot grant trust.");
+        "Repeat --trust-repository to authorize this host process to evaluate solutions beneath each reviewed absolute repository root. Ordinary MCP tool arguments cannot grant trust.");
     return 0;
 }
 

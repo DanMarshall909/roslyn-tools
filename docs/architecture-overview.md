@@ -187,14 +187,18 @@ Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-
 
 The current `0.1-preview` containment is narrower than the accepted durable authority
 design. CLI evaluation uses an invocation-scoped `--trust-repository` opt-in. The MCP
-host accepts `--trust-repository <absolute-repository-root>` only at process startup
-and binds that approval to solutions beneath the normalized root; MCP tool payloads
+host accepts repeatable `--trust-repository <absolute-repository-root>` options only at process startup
+and binds those approvals to solutions beneath the normalized roots; MCP tool payloads
 cannot grant or broaden it. Startup-approved hosts advertise MCP-eligible mutation
 operations, which remain review-first; unapproved hosts advertise only the read-only
 subset. An MCP host without startup approval returns
 `TrustRequired` before semantic workspace loading. This is a practical trusted-local
 preview path, not the durable physical-identity-bound trust registry, revocation, lease,
 or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.
+The allowlist is immutable for the process, deduplicated using platform path comparison,
+and rejected as a whole if any startup root is invalid. An empty allowlist denies trust,
+including inherited ambient authority. Linked worktrees outside an approved root need
+their own explicit approval; sharing Git metadata does not confer trust.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified

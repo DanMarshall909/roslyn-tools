@@ -120,8 +120,12 @@ the separate root-contained handle-relative safe-reader contract.
 The authoritative registry, verified physical binding, evaluator leases, revocation,
 and isolated worker remain unimplemented. The `0.1-preview` containment uses explicit
 trusted-local approval only: CLI approval is invocation-scoped, while MCP approval is
-supplied as `--trust-repository <absolute-repository-root>` at host startup and is
-enforced against the selected solution path. Ordinary MCP tool arguments cannot grant
+supplied as repeatable `--trust-repository <absolute-repository-root>` options at host startup and is
+enforced against the selected solution path using an immutable normalized root allowlist.
+All roots must be absolute existing directories; duplicates collapse and an invalid entry
+rejects the entire startup configuration. Empty allowlists deny inherited trust, and
+linked Git worktrees do not inherit approval from a separate checkout.
+Ordinary MCP tool arguments cannot grant
 or broaden that approval. This makes the preview semantic MCP surface usable without
 representing the P0.1 trust and isolation programme as complete.
 
