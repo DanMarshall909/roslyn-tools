@@ -1,6 +1,7 @@
 using System.CommandLine;
 using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
+using RoslynTools.Cli.Trust;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
@@ -28,7 +29,11 @@ internal sealed class CommandDescriptorRegistry
         FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
         PrimeOperation prime,
-        IGitClient git)
+        IGitClient git,
+        RepositoryTrustService trust,
+        TrustAddOperation trustAdd,
+        TrustListOperation trustList,
+        TrustRemoveOperation trustRemove)
     {
         var portsByName = ports.ToDictionary(
             port => port.Definition.Name,
@@ -138,6 +143,18 @@ internal sealed class CommandDescriptorRegistry
             () => PrimeCommand.Build(prime),
             ["prime"],
             prime);
+        AddTypedMetaCommand(
+            () => TrustCommand.Build(trust).Subcommands.Single(command => command.Name == "add"),
+            ["trust", "add"],
+            trustAdd);
+        AddTypedMetaCommand(
+            () => TrustCommand.Build(trust).Subcommands.Single(command => command.Name == "list"),
+            ["trust", "list"],
+            trustList);
+        AddTypedMetaCommand(
+            () => TrustCommand.Build(trust).Subcommands.Single(command => command.Name == "remove"),
+            ["trust", "remove"],
+            trustRemove);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);

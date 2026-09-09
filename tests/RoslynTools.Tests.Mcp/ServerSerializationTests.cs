@@ -111,6 +111,16 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task large_integer_request_id_keeps_its_exact_value_for_correlation()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"initialize","id":9007199254740993}""");
+
+        using var document = JsonDocument.Parse(output);
+        document.RootElement.GetProperty("id").GetInt64().ShouldBe(9007199254740993L);
+    }
+
+    [Fact]
     public async Task structured_tools_advertise_output_schema()
     {
         var output = await RunSingleRequestAsync(
@@ -162,7 +172,10 @@ public class ServerSerializationTests
             .Select(tool => tool.GetProperty("name").GetString())
             .ToArray();
 
-        names.Length.ShouldBe(58);
+        names.Length.ShouldBe(61);
+        names.ShouldContain("trust_root");
+        names.ShouldContain("list_trusted_roots");
+        names.ShouldContain("untrust_root");
         names.ShouldContain("check");
         names.ShouldContain("prime");
         names.ShouldContain("move");

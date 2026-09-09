@@ -43,8 +43,28 @@ The client starts the server over stdio. Protocol messages stay on stdout; diagn
 
 This approval applies only to solutions beneath the configured root and lasts only for
 that server process. MCP tool arguments cannot grant or broaden trust. Without the
-startup option, semantic tools return `TrustRequired` before MSBuild evaluation. Use a
-separate configured server entry for each reviewed repository.
+startup option or saved-trust opt-in, semantic tools return `TrustRequired` before MSBuild evaluation.
+Repeat `--trust-repository /another/absolute/root` for additional reviewed repositories;
+linked worktrees outside an approved root require separate approval.
+
+## Save and manage reviewed roots
+
+Run `rt trust add /absolute/root`, `rt trust list`, or `rt trust remove /absolute/root`
+without loading a solution. Approvals live in the user's local application data directory,
+not repository configuration. Start the host with `--use-trusted-roots` to consume them;
+each semantic request reloads the registry, so saved changes do not need a restart.
+
+MCP offers `list_trusted_roots`, `trust_root`, and `untrust_root` through the shared typed
+command adapter. Add/remove preview by default; set `"dry-run": false` to request a change.
+Adding trust also requires a separate user confirmation from a client supporting MCP
+form elicitation. A tool argument alone cannot approve a root. Decline, cancellation,
+invalid confirmation, or unsupported clients fail closed; the explicit CLI command is
+the fallback. Review carefully: trusted evaluation can execute repository build inputs.
+
+CLI commands opt into the registry with `--use-trusted-roots`. CI and existing one-shot
+`--trust-repository` commands do not depend on saved approvals. Revocation affects the
+next request, not in-flight evaluation or separate startup grants. This local path-based
+preview does not provide physical-identity binding, evaluator leases, or an untrusted-code sandbox.
 
 ## Give agents semantic tools
 
@@ -62,7 +82,7 @@ These tools return typed results with explicit workspace context. That lets an a
 
 ## Respect the exposed surface
 
-The available tools depend on the host's startup repository approval. An approved host advertises eligible refactoring tools as well as read-only tools; refactor requests default to dry-run unless the caller explicitly applies them. Without startup approval, discovery is limited to the read-only subset, and semantic workspace tools still require trust before evaluation.
+The available tools depend on the host's startup approval or saved-trust opt-in. Such hosts advertise eligible refactoring tools as well as read-only tools; refactor requests default to dry-run unless the caller explicitly applies them. Saved-trust opt-in keeps this catalogue stable even with an empty allowlist, but each semantic invocation still requires approval for its selected root. Without either source, repository-writing tools are hidden while trust administration remains available without workspace authority.
 
 Use the MCP client's tool listing for the current agent surface. MCP exposure is being migrated incrementally; the `rt` CLI command catalogue covers the complete command surface.
 

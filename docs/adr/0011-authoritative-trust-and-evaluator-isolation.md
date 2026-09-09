@@ -129,6 +129,17 @@ Ordinary MCP tool arguments cannot grant
 or broaden that approval. This makes the preview semantic MCP surface usable without
 representing the P0.1 trust and isolation programme as complete.
 
+An optional user-owned path approval store now supports `rt trust add/list/remove` and
+descriptor-backed MCP trust administration. Both hosts require `--use-trusted-roots` to
+consume saved grants; ordinary CLI/CI and explicit one-shot approval do not read it.
+MCP additions require host-mediated user form elicitation in addition to an explicit
+apply request; default-deny approval is enforced outside the request model. Registry
+updates are locked and atomically replaced, and semantic requests reread saved roots.
+Removal affects subsequent requests only and cannot revoke a separate startup grant.
+This convenience registry does not implement the authoritative physical-identity-bound
+registry or active lease revocation described above. Missing or linked saved roots fail
+closed, but same-path replacement without links is not an authenticated identity binding.
+
 ## Alternatives considered
 
 - Trust the request field: rejected because an adapter could self-authorize privileged

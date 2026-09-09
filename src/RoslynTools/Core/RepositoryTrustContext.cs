@@ -55,11 +55,25 @@ internal static class RepositoryTrustContext
     private static bool IsWithinRoot(string root, string fullPath)
     {
         var relativePath = Path.GetRelativePath(root, fullPath);
-        return relativePath == "."
+        var isWithinRoot = relativePath == "."
                || !Path.IsPathRooted(relativePath)
                && relativePath != ".."
                && !relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+        if (!isWithinRoot)
+            return false;
+
+        try
+        {
+            // Reject redirected descendants as well as redirected approved roots. This
+            // is a conservative preview check, not a physical-identity or race-free lease.
+            RepositoryTrustStore.RejectLinkedPath(fullPath);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static Scope UseExplicitTrust(TrustAuthorization authorization)

@@ -112,7 +112,8 @@ public sealed class AppRegistration
                 "decisions",
                 "show-workspace-warnings",
                 "no-suggest",
-                "trust-repository"
+                "trust-repository",
+                "use-trusted-roots"
             });
     }
 

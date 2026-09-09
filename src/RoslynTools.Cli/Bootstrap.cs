@@ -26,6 +26,8 @@ internal static class Bootstrap
         // return the same disposable singleton. The forwarder, not a second
         // AddSingleton<WorkspaceLoader>, is what keeps disposal correct.
         services.AddSingleton(typeof(ILogger<>), typeof(RtConsoleLogger<>));
+        services.AddSingleton(_ => new RepositoryTrustStore());
+        services.AddSingleton<IRepositoryTrustApproval, DenyRepositoryTrustApproval>();
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<GitService>();

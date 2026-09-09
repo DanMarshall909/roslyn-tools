@@ -6,8 +6,10 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli;
 using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
+using RoslynTools.Cli.Trust;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
@@ -259,13 +261,15 @@ internal static class App
         // Compact session-start summary: gate, entry, hot commands. No MSBuild.
         root.AddCommand(PrimeCommand.Build(
             services.GetRequiredService<PrimeOperation>()));
+        root.AddCommand(TrustCommand.Build(
+            services.GetRequiredService<RepositoryTrustService>()));
 
         if (additionalCommands is not null)
             foreach (var cmd in additionalCommands)
                 root.AddCommand(cmd);
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt) = RegisterGlobalOptions(root);
+            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt, useTrustedRootsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -324,9 +328,6 @@ internal static class App
             }, MiddlewareOrder.Configuration)
             .AddMiddleware(async (context, next) =>
             {
-                using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
-                    ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
-                    : null;
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
@@ -339,6 +340,24 @@ internal static class App
                 RtContext.RelaxJson = context.ParseResult.GetValueForOption(relaxJsonOpt);
                 RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
                 RtContext.NoSuggest = context.ParseResult.GetValueForOption(noSuggestOpt);
+
+                var explicitTrust = context.ParseResult.GetValueForOption(trustRepositoryOpt);
+                IDisposable? trustScope;
+                try
+                {
+                    trustScope = RepositoryTrustPolicy.EnterCliScope(
+                        explicitTrust,
+                        explicitTrust ? ResolveTrustedRepositoryRoot(context) : null,
+                        context.ParseResult.GetValueForOption(useTrustedRootsOpt),
+                        services.GetRequiredService<RepositoryTrustStore>());
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    RtErrorPresenter.Surface(context, new RtError(RtErrorKind.TrustRequired,
+                        $"Saved trust could not be loaded: {exception.Message} Use explicit --trust-repository for one-shot approval."));
+                    return;
+                }
+                using var invocationTrustScope = trustScope;
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
@@ -395,7 +414,7 @@ internal static class App
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
         Option<FileInfo?> decisionsOpt, Option<bool> relaxJsonOpt,
         Option<bool> showWorkspaceWarningsOpt, Option<bool> noSuggestOpt,
-        Option<bool> trustRepositoryOpt)
+        Option<bool> trustRepositoryOpt, Option<bool> useTrustedRootsOpt)
         RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
@@ -418,13 +437,16 @@ internal static class App
             "--trust-repository",
             "Permit this CLI invocation to evaluate the selected repository after review. "
             + "This authority is invocation-scoped and is not available through MCP tool requests.");
+        var useTrustedRootsOpt = new Option<bool>(
+            "--use-trusted-roots",
+            "Use user-owned approvals saved by rt trust add. Off by default; explicit --trust-repository takes precedence.");
         foreach (var option in new Option[]
                      { jsonOpt, llmOpt, markdownOpt, yamlOpt, relaxJsonOpt, decisionsOpt,
-                         showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt })
+                         showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt, useTrustedRootsOpt })
             root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt);
+            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt, useTrustedRootsOpt);
     }
 
     private static string TruncateOneLine(string text, int max)

@@ -165,6 +165,7 @@ Common global options:
 | `--no-suggest` | Suppress suggestion tails on not-found errors |
 | `--relax-json` | Use relaxed JSON escaping instead of the strict default |
 | `--trust-repository` | Permit this CLI invocation to evaluate the reviewed repository |
+| `--use-trusted-roots` | Opt into user-owned approvals saved by `rt trust add` |
 
 Strict JSON escaping is the default. Use `--relax-json` only when raw Unicode and
 HTML-sensitive characters are preferable to maximum downstream portability.
@@ -200,7 +201,7 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
-The MCP host requires a deliberate, startup-only repository approval before semantic
+The MCP host requires deliberate repository approval before semantic
 workspace tools can evaluate MSBuild inputs. Configure the reviewed repository as an
 absolute path in the host process arguments:
 
@@ -209,16 +210,40 @@ absolute path in the host process arguments:
   "mcpServers": {
     "roslyn-tools": {
       "command": "roslyn-tools-mcp",
-      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
+      "args": ["--trust-repository", "/absolute/path/to/MyApp", "--trust-repository", "/absolute/path/to/OtherApp"]
     }
   }
 }
 ```
 
-The approval applies only to solutions beneath that root for the lifetime of this MCP
-process. A tool request cannot grant trust. Without the startup option, semantic tools
+The approvals apply only to solutions beneath those roots for the lifetime of this MCP
+process. An ordinary tool request cannot grant trust. Without an explicit trust source, semantic tools
 return `TrustRequired` before MSBuild evaluation; non-evaluating discovery remains
-available. Configure a separate host entry for each reviewed repository.
+available. Linked worktrees outside an approved root need their own approval.
+
+To save approvals outside the repository, use:
+
+```powershell
+rt trust add "D:\code\MyApp"
+rt trust list
+rt inspect outline MyType --solution "D:\code\MyApp\MyApp.slnx" --use-trusted-roots
+rt trust remove "D:\code\MyApp"
+```
+
+Start MCP with `--use-trusted-roots` to opt into the same user-owned registry. It reloads
+saved roots before each semantic request, so additions and removals need no restart.
+MCP also exposes `list_trusted_roots`, `trust_root`, and `untrust_root`. Changes preview
+by default (`"dry-run": false` requests application); adding a root also requires an
+explicit confirmation through a client supporting MCP form elicitation. Unsupported,
+declined, canceled, or invalid confirmation leaves trust unchanged; use `rt trust add`
+from the CLI when the client cannot confirm. Ordinary analysis parameters never grant trust.
+
+The registry is `RoslynTools/trusted-roots.json` beneath the user's local application
+data directory (`%LOCALAPPDATA%` on Windows); `rt trust list` reports the exact location.
+CI does not read it unless explicitly opted in. Existing CLI `--trust-repository` remains
+one-shot approval and takes precedence without reading the registry. Saved removal does
+not remove a startup grant or stop an in-flight request. These are trusted-local path
+approvals, not physical-identity leases or isolated evaluation of untrusted code.
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
@@ -239,7 +264,10 @@ dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-
 Configure an MCP client to launch that command and communicate over stdin/stdout. A host
 started with repository approval advertises eligible refactoring tools as well as read-only
 tools; refactor requests remain dry-run by default unless the caller explicitly applies them.
-Without startup approval, discovery is limited to the read-only tool subset. MCP exposure is
+With saved-trust opt-in, the eligible tool catalogue remains stable even when the saved
+allowlist is empty; every invocation must still pass its root-specific trust check.
+Without either trust source, repository-writing tools are hidden, but trust administration
+remains available without workspace authority. MCP exposure is
 being migrated incrementally; use the CLI command catalogue for the complete command surface.
 
 ## CI rule enforcement

@@ -42,7 +42,7 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public void Untrusted_tool_schema_builder_produces_every_read_only_visible_descriptor()
+    public void Untrusted_tool_schema_builder_exposes_non_repository_writes_with_honest_effects()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
@@ -59,8 +59,12 @@ public sealed class McpDependencyInjectionTests
             string.IsNullOrWhiteSpace(t.description).ShouldBeFalse();
             t.inputSchema.ShouldNotBeNull();
             t.inputSchema["type"].ShouldBe("object");
-            t.annotations.readOnlyHint.ShouldBeTrue();
-            t.annotations.destructiveHint.ShouldBeFalse();
+            var effects = (string[])t.metadata["rt/effects"];
+            effects.ShouldNotContain(nameof(CommandEffects.RepositoryWrite));
+            var writes = effects.Contains(nameof(CommandEffects.LocalStateWrite))
+                         || effects.Contains(nameof(CommandEffects.ExternalWrite));
+            t.annotations.readOnlyHint.ShouldBe(!writes);
+            t.annotations.destructiveHint.ShouldBe(writes);
             t.metadata.ShouldContainKey("rt/maturity");
             t.metadata.ShouldContainKey("rt/effects");
             t.metadata["rt/audience"].ShouldBe("Public");

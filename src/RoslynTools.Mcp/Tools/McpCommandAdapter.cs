@@ -20,7 +20,8 @@ internal sealed class McpCommandAdapter(
     CommandDescriptorRegistry descriptors,
     CliCommandBridge legacyBridge,
     DaemonRpcRecoveryCoordinator daemonRpc,
-    McpHostOptions? hostOptions = null)
+    McpHostOptions? hostOptions = null,
+    RepositoryTrustStore? trustStore = null)
 {
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
@@ -44,9 +45,22 @@ internal sealed class McpCommandAdapter(
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
-        using var trustScope = _hostOptions.EnterTrustScope();
+        IDisposable trustScope;
+        try
+        {
+            // Administrative tools remain usable without loading semantic approvals.
+            trustScope = _hostOptions.EnterTrustScope(trustStore,
+                loadSavedRoots: descriptor.Definition?.Product.TrustRequirement != TrustRequirement.None);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return new ToolResult(true, SerializeError(new RtError(RtErrorKind.TrustRequired,
+                $"Saved trust could not be loaded: {exception.Message}")));
+        }
+        using var invocationTrustScope = trustScope;
 
         if (!_hostOptions.HasExplicitTrust
+            && !_hostOptions.UseTrustedRoots
             && !DaemonRuntime.IsDisabled
             && descriptor.Port is not null
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred

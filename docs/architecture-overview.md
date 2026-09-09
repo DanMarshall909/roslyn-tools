@@ -195,10 +195,26 @@ subset. An MCP host without startup approval returns
 `TrustRequired` before semantic workspace loading. This is a practical trusted-local
 preview path, not the durable physical-identity-bound trust registry, revocation, lease,
 or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.
-The allowlist is immutable for the process, deduplicated using platform path comparison,
+The startup allowlist is immutable for the process, deduplicated using platform path comparison,
 and rejected as a whole if any startup root is invalid. An empty allowlist denies trust,
 including inherited ambient authority. Linked worktrees outside an approved root need
 their own explicit approval; sharing Git metadata does not confer trust.
+
+The opt-in `--use-trusted-roots` path consumes user-owned saved approvals outside repository
+configuration. `rt trust add/list/remove` uses a shared typed configuration service;
+descriptor-backed MCP `trust_root`, `list_trusted_roots`, and `untrust_root` ports use the
+same service. MCP mutation ports preview by default, and additions additionally cross a
+host-owned confirmation interface implemented with negotiated client form elicitation.
+The default implementation denies approval; request fields and tool annotations are not
+authorization. This administrative confirmation boundary is independent of repository
+workspace trust, so it can bootstrap an unapproved host without semantic evaluation.
+
+Saved roots reload per semantic request. A corrupt, unreadable, missing-root, or linked-path
+registry snapshot fails closed. CLI/CI do not read it without opt-in; explicit CLI one-shot
+approval takes precedence and never reads saved state. Persistent revocation does not
+cancel in-flight work or override separately supplied startup approval. The registry uses
+bounded input, cross-process locking, and atomic replacement, but remains a path-based
+trusted-local preview, not ADR-0011's physical identity, lease, or isolated-evaluator design.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified

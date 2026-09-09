@@ -102,13 +102,13 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
-    public void mutation_descriptors_require_startup_repository_trust_for_mcp_discovery()
+    public void repository_write_descriptors_require_host_trust_configuration_for_mcp_discovery()
     {
         using var untrustedProvider = McpTestHost.CreateProvider();
         using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
         var descriptors = trustedProvider.GetRequiredService<CommandDescriptorRegistry>().All;
         var mutations = descriptors
-            .Where(descriptor => descriptor.Definition?.Safety.Effect == CommandEffect.Mutation
+            .Where(descriptor => descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
                                  && descriptor.Audience == CommandAudience.Public)
             .ToList();
         var untrustedTools = untrustedProvider.GetRequiredService<ToolSchemaBuilder>().Build();

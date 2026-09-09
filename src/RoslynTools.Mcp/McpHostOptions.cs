@@ -8,12 +8,12 @@ namespace RoslynTools.Mcp;
 /// </summary>
 internal sealed class McpHostOptions
 {
-    internal McpHostOptions(string? trustedRepositoryRoot = null, bool showHelp = false)
-        : this(trustedRepositoryRoot is null ? [] : new[] { trustedRepositoryRoot }, showHelp)
+    internal McpHostOptions(string? trustedRepositoryRoot = null, bool showHelp = false, bool useTrustedRoots = false)
+        : this(trustedRepositoryRoot is null ? [] : new[] { trustedRepositoryRoot }, showHelp, useTrustedRoots)
     {
     }
 
-    internal McpHostOptions(IEnumerable<string> trustedRepositoryRoots, bool showHelp = false)
+    internal McpHostOptions(IEnumerable<string> trustedRepositoryRoots, bool showHelp = false, bool useTrustedRoots = false)
     {
         ArgumentNullException.ThrowIfNull(trustedRepositoryRoots);
         var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -37,6 +37,7 @@ internal sealed class McpHostOptions
 
         TrustedRepositoryRoots = roots.AsReadOnly();
         ShowHelp = showHelp;
+        UseTrustedRoots = useTrustedRoots;
     }
 
     internal IReadOnlyList<string> TrustedRepositoryRoots { get; }
@@ -45,7 +46,12 @@ internal sealed class McpHostOptions
 
     internal bool ShowHelp { get; }
 
-    internal IDisposable EnterTrustScope() => RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoots);
+    internal bool UseTrustedRoots { get; }
+
+    internal IDisposable EnterTrustScope(RepositoryTrustStore? store = null, bool loadSavedRoots = true)
+        => RepositoryTrustContext.UseExplicitTrust(UseTrustedRoots && loadSavedRoots
+            ? TrustedRepositoryRoots.Concat(RepositoryTrustPolicy.ReadUsableRoots(store ?? new RepositoryTrustStore()))
+            : TrustedRepositoryRoots);
 
     internal static bool TryParse(
         IReadOnlyList<string> arguments,
@@ -65,8 +71,14 @@ internal sealed class McpHostOptions
         }
 
         var roots = new List<string>();
-        for (var index = 0; index < arguments.Count; index += 2)
+        var useTrustedRoots = false;
+        for (var index = 0; index < arguments.Count; index++)
         {
+            if (arguments[index] == "--use-trusted-roots")
+            {
+                useTrustedRoots = true;
+                continue;
+            }
             if (arguments[index] != "--trust-repository")
             {
                 error = $"Unknown option: '{arguments[index]}'.";
@@ -79,12 +91,12 @@ internal sealed class McpHostOptions
                 return false;
             }
 
-            roots.Add(arguments[index + 1]);
+            roots.Add(arguments[++index]);
         }
 
         try
         {
-            options = new McpHostOptions(roots);
+            options = new McpHostOptions(roots, useTrustedRoots: useTrustedRoots);
             return true;
         }
         catch (ArgumentException ex)
