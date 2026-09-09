@@ -56,37 +56,52 @@ internal class FindUnusedService : IRtService
     /// <summary>
     /// Analyzes a solution to find unused symbols.
     /// </summary>
-    internal async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
+    internal async Task<List<UnusedSymbol>> AnalyzeAsync(
+        Solution solution,
+        string scope = "all",
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var results = new List<UnusedSymbol>();
         var rtIgnore = RtIgnore.ForSolution(solution);
-        var reflectivelyScannedProjects = await FindReflectivelyScannedProjectsAsync(solution);
+        var reflectivelyScannedProjects = await FindReflectivelyScannedProjectsAsync(solution, cancellationToken);
 
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (rtIgnore.IsIgnored(document.FilePath))
                     continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (root == null || semanticModel == null)
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
+                if (root == null)
+                    continue;
+
+                // Roslyn recovery can shape unsupported syntax as a method or another familiar
+                // declaration. Never turn that recovery tree into an absence claim: the complete
+                // workspace assessment exposes the parse failure, while this document contributes
+                // no candidates with a fabricated kind.
+                if (root.GetDiagnostics().Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+                    continue;
+
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+                if (semanticModel == null)
                     continue;
 
                 if (scope is "all" or "types")
                     foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                     {
-                        if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
+                        if (semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken) is not INamedTypeSymbol symbol)
                             continue;
 
                         if (ShouldExclude(symbol)) continue;
 
-                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
+                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution, cancellationToken: cancellationToken);
                         var count = refs.Sum(r => r.Locations.Count());
                         if (count != 0)
                             continue;
 
-                        if (await HasReferencedExtensionMethodAsync(symbol, solution))
+                        if (await HasReferencedExtensionMethodAsync(symbol, solution, cancellationToken))
                             continue;
 
                         // A reflective container can construct this type without any source
@@ -105,11 +120,11 @@ internal class FindUnusedService : IRtService
                 if (scope is "all" or "methods")
                     foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                     {
-                        var symbol = semanticModel.GetDeclaredSymbol(methodDecl);
+                        var symbol = semanticModel.GetDeclaredSymbol(methodDecl, cancellationToken);
                         if (symbol == null) continue;
                         if (ShouldExclude(symbol)) continue;
 
-                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
+                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution, cancellationToken: cancellationToken);
                         var count = refs.Sum(r => r.Locations.Count());
                         if (count == 0)
                         {
@@ -158,17 +173,20 @@ internal class FindUnusedService : IRtService
     /// rather than suppressed: the caller — not rt — decides what an uncertain finding means,
     /// and hiding it would only trade a false positive for a false negative.
     /// </summary>
-    private static async Task<Dictionary<ProjectId, string>> FindReflectivelyScannedProjectsAsync(Solution solution)
+    private static async Task<Dictionary<ProjectId, string>> FindReflectivelyScannedProjectsAsync(
+        Solution solution,
+        CancellationToken cancellationToken)
     {
         var projects = new Dictionary<ProjectId, string>();
         foreach (var project in solution.Projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var scans = false;
             var reflects = false;
 
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root == null)
                     continue;
 
@@ -201,11 +219,14 @@ internal class FindUnusedService : IRtService
     /// StringExtensions, which has live callers). Only extension methods need this: a normal
     /// static call writes `Foo.Bar()`, which does reference the type.
     /// </summary>
-    private static async Task<bool> HasReferencedExtensionMethodAsync(INamedTypeSymbol type, Solution solution)
+    private static async Task<bool> HasReferencedExtensionMethodAsync(
+        INamedTypeSymbol type,
+        Solution solution,
+        CancellationToken cancellationToken)
     {
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(m => m.IsExtensionMethod))
         {
-            var refs = await SymbolFinder.FindReferencesAsync(method, solution);
+            var refs = await SymbolFinder.FindReferencesAsync(method, solution, cancellationToken: cancellationToken);
             if (refs.SelectMany(r => r.Locations).Any())
                 return true;
         }
