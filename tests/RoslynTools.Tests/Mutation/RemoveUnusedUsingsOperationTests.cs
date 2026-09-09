@@ -92,6 +92,72 @@ public sealed class RemoveUnusedUsingsOperationTests
     }
 
     [Fact]
+    public async Task solution_wide_cli_trust_excludes_external_documents_loaded_by_multiple_projects()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", "using System;\ninternal sealed class Imports { }");
+        project.AddProject("ImportsApp.Tests");
+        var (workspace, initialSolution) = project.Build();
+        var externalDirectory = Directory.CreateTempSubdirectory("rt-test-sdk-");
+        var externalPath = Path.Combine(externalDirectory.FullName, "Microsoft.NET.Test.Sdk.Program.cs");
+        const string externalSource = "using System;\ninternal static class MicrosoftNetTestSdkProgram { }";
+        await File.WriteAllTextAsync(externalPath, externalSource);
+
+        try
+        {
+            var solution = initialSolution;
+            foreach (var candidate in initialSolution.Projects)
+                solution = solution.AddDocument(
+                    DocumentId.CreateNewId(candidate.Id),
+                    Path.GetFileName(externalPath),
+                    SourceText.From(externalSource),
+                    filePath: externalPath);
+
+            var originalOut = Console.Out;
+            var originalError = Console.Error;
+            using var stdout = new StringWriter();
+            using var stderr = new StringWriter();
+            Console.SetOut(stdout);
+            Console.SetError(stderr);
+
+            try
+            {
+                using var workspaceOverride = WorkspaceLoader.UseOverride(workspace, solution);
+                var services = new ServiceCollection();
+                global::RoslynTools.Bootstrap.RegisterServices(services);
+                await using var provider = services.BuildServiceProvider();
+
+                var exitCode = await App.RunAsync(
+                    [
+                        "remove-unused-usings",
+                        "--solution", project.SolutionPath,
+                        "--json",
+                        "--trust-repository"
+                    ],
+                    provider);
+
+                exitCode.ShouldBe(0, stderr.ToString());
+                using var payload = JsonDocument.Parse(stdout.ToString());
+                var execution = payload.RootElement.GetProperty("data");
+                execution.GetProperty("value").GetProperty("removedCount").GetInt32().ShouldBe(1);
+                execution.GetProperty("changedFiles").GetArrayLength().ShouldBe(1);
+                stderr.ToString().ShouldBeEmpty();
+                (await File.ReadAllTextAsync(externalPath)).ShouldBe(externalSource);
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+                Console.SetError(originalError);
+                workspace.Dispose();
+            }
+        }
+        finally
+        {
+            externalDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task removing_a_block_of_usings_does_not_leave_blank_lines_before_the_namespace()
     {
         using var project = new AdhocProjectBuilder("ImportsApp");
@@ -116,6 +182,39 @@ public sealed class RemoveUnusedUsingsOperationTests
         var changedDocument = writer.NewSolution!.Projects.Single().Documents.Single();
         var changedText = (await changedDocument.GetTextAsync()).ToString();
         changedText.ShouldBe("""
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+    }
+
+    [Fact]
+    public async Task removing_all_usings_preserves_a_file_header_with_one_separator_line()
+    {
+        using var project = new AdhocProjectBuilder("ImportsApp");
+        project.AddSource("Imports.cs", """
+            // Copyright Example
+            #nullable enable
+            using System;
+            using System.Collections.Generic;
+
+            namespace ImportsApp;
+
+            internal sealed class Imports;
+            """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(new RemoveUnusedUsingsRequest(DryRun: false));
+        result.Unwrap().Status.ShouldBe(MutationExecutionStatus.Applied);
+
+        var changedDocument = writer.NewSolution!.Projects.Single().Documents.Single();
+        var changedText = (await changedDocument.GetTextAsync()).ToString();
+        changedText.ShouldBe("""
+            // Copyright Example
+            #nullable enable
+
             namespace ImportsApp;
 
             internal sealed class Imports;
