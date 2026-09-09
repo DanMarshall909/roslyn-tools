@@ -7,6 +7,13 @@ export interface CommandEntry {
   description: string;
 }
 
+export const commandGroups = [...source.matchAll(/^- \*\*`rt ([^`]+)`\*\* [-\u2014] (.+)$/gm)]
+  .map(([, name, description]) => ({
+    name,
+    label: name === 'ci' ? 'CI' : name.charAt(0).toUpperCase() + name.slice(1),
+    description,
+  }));
+
 const declaredCount = Number(source.match(/Total commands: \*\*(\d+)\*\*/)?.[1]);
 const index = source.match(/## Index\r?\n[\s\S]*?(?=\r?\n## )/)?.[0] ?? '';
 
@@ -30,4 +37,8 @@ if (!Number.isFinite(declaredCount) || commands.length !== declaredCount) {
   throw new Error(
     `Generated command catalogue is incomplete: expected ${declaredCount}, parsed ${commands.length}.`,
   );
+}
+
+if (commands.some((command) => !commandGroups.some((group) => group.name === command.group))) {
+  throw new Error('Generated command catalogue contains a command without a navigation group.');
 }

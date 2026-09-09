@@ -53,7 +53,7 @@ public sealed class CommandSurfaceSchemaTests
         var categoryEnum = Schema["$defs"]!["command"]!["properties"]!["category"]!["enum"]!
             .AsArray().Select(n => n!.GetValue<string>());
 
-        categoryEnum.ShouldBe(["inspect", "analyze", "refactor"], ignoreOrder: true);
+        categoryEnum.ShouldBe(App.GroupDescriptions.Keys, ignoreOrder: true);
     }
 
     [Fact]

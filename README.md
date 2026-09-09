@@ -1,10 +1,20 @@
 # roslyn-tools
 
-`rt` is a semantic C# navigation, analysis, and refactoring tool for developers and coding agents. It uses Roslyn to operate across complete `.sln` and `.slnx` workspaces rather than matching text one file at a time.
+`rt` brings Roslyn-powered C# tooling to three use cases: developer workflows in the CLI, coding agents through MCP, and rule enforcement in CI. It operates across complete `.sln` and `.slnx` workspaces with compiler-backed understanding of your code.
 
-Use it to inspect symbols, trace references, analyse architecture, and apply solution-wide refactorings with dry-run previews and machine-readable output. The CLI and MCP host share the same application services and command metadata.
+Inspect symbols, trace references, analyse architecture, preview solution-wide refactorings, and enforce checked-in rules. All three use cases share the same application services and command metadata.
 
 Read the task-oriented documentation at [roslyn-tools.danmarshall.dev](https://roslyn-tools.danmarshall.dev).
+
+## Three ways to use `rt`
+
+| Use case | What it helps you do | Start here |
+|---|---|---|
+| **Developer CLI** | Explore C# solutions, analyse impact, and preview or apply refactorings from your terminal. | [CLI quick start](#quick-start) |
+| **Coding agents through MCP** | Give agents semantic tools with structured results and explicit repository trust. | [Connect the MCP host](#mcp-host) |
+| **CI rule enforcement** | Fail a pipeline when architecture or complexity rules are violated. | [Run CI checks](#ci-rule-enforcement) |
+
+IDE integration is planned as a future fourth use case; it is not available yet.
 
 ## Why `rt`
 
@@ -12,7 +22,7 @@ Read the task-oriented documentation at [roslyn-tools.danmarshall.dev](https://r
 - **Safe mutations** — mutating commands support previews and report the changes they intend to make.
 - **Agent-friendly discovery** — describe a task in plain English with `rt suggest`, or load a compact session primer with `rt prime`.
 - **Structured output** — JSON, YAML, Markdown, and compact LLM-oriented output are available for automation.
-- **Multiple hosts** — use the command-line tool directly, install the Claude Code plugin, or run the MCP host from source.
+- **Shared tooling** — use the CLI locally, connect an MCP client, or run configured checks in your CI pipeline.
 
 ## Requirements
 
@@ -94,16 +104,18 @@ MCP clients invoke `prime` with an empty object and receive the same structured 
 | Goal | Representative commands |
 |---|---|
 | Understand code | `describe`, `outline`, `source` |
-| Navigate relationships | `find-refs`, `find-callers`, `find-impl` |
+| Navigate relationships | `relationships` |
 | Analyse a solution | `find-unused`, `list-smells`, `complexity`, `dependency-graph`, `circular-deps` |
 | Refactor safely | `rename`, `move`, `extract-method`, `delete-unreferenced`, `semantic-diff` |
 | Modernise code | `convert-to-record`, `make-async`, `migrate-to-ioptions`, `replace-xunit-asserts` |
+| Enforce repository rules | `ci check` |
 
-Commands are organised into three groups:
+Commands are organised into four groups:
 
 - `rt inspect <command>` — read-only symbol and file queries
 - `rt analyze <command>` — read-only solution-wide analysis
 - `rt refactor <command>` — source mutations
+- `rt ci check` — enforce configured rules with a failing exit status; see [CI setup](docs/ci.md).
 
 Unambiguous commands are also available directly at the root. These are equivalent:
 
@@ -121,6 +133,7 @@ rt --help
 rt inspect --help
 rt analyze --help
 rt refactor --help
+rt ci --help
 rt dump-help
 rt dump-help --compact
 rt dump-help --json
@@ -228,6 +241,29 @@ started with repository approval advertises eligible refactoring tools as well a
 tools; refactor requests remain dry-run by default unless the caller explicitly applies them.
 Without startup approval, discovery is limited to the read-only tool subset. MCP exposure is
 being migrated incrementally; use the CLI command catalogue for the complete command surface.
+
+## CI rule enforcement
+
+Check in a `.rt/ci.json` policy beside your solution. For example, limit method cyclomatic complexity to 10:
+
+```json
+{
+  "version": 1,
+  "rules": [
+    { "id": "maintainability.complexity", "maxCyclomatic": 10 }
+  ]
+}
+```
+
+After installing `rt`, setting up your solution's SDK, and restoring dependencies, run:
+
+```sh
+rt ci check --solution MyApp.slnx --config .rt/ci.json --json --trust-repository
+```
+
+Exit code `0` means every configured rule passed; violations return `1` with structured findings. Invalid policies, compilation errors, and incomplete workspace loading also fail the command. Use explicit trust only for repository code approved for evaluation by that pipeline.
+
+Add architecture rules alongside complexity checks to enforce project and dependency boundaries. See the [CI guide](docs/ci.md) for policy options and a GitHub Actions example.
 
 ## Feedback capture
 

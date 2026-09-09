@@ -25,6 +25,12 @@ but only the destination contract is eligible for preview support.
 | `solid` | Concrete `check` rules | Preview | Remove SOLID violation branding. |
 | `static-class-inventory` | `inventory static-types` | Experimental -> Preview | Input to a future staticness recipe. |
 
+## CI commands
+
+| Current command | Destination | Target maturity | Decision |
+|---|---|---|---|
+| `check` | `ci check` | Preview | Enforce checked-in architecture and complexity rules through one typed result and failing CLI exit status. |
+
 ## Inspect commands
 
 | Current command | Destination | Target maturity | Decision |

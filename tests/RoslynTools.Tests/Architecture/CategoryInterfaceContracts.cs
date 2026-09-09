@@ -24,6 +24,17 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class CategoryInterfaceContracts
 {
+    [Fact]
+    public void ci_commands_are_read_only_and_structured()
+    {
+        foreach (var command in App.Commands.Where(command => command.Info.Category == "ci"))
+        {
+            Assert.False(command.Info.Mutates);
+            Assert.True(command.Info.JsonOutput);
+        }
+        Assert.Contains(App.Commands, command => command.Info.Category == "ci");
+    }
+
     private static readonly Assembly CliAssembly = typeof(App).Assembly;
     private const BindingFlags StaticPublic = BindingFlags.Static | BindingFlags.Public;
 

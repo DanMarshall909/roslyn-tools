@@ -31,6 +31,7 @@ public sealed class CategoryInterfaceCoverage
         var offenders = AllCommandTypes()
             .Where(t => !typeof(IInspectCommand).IsAssignableFrom(t)
                         && !typeof(IAnalyzeCommand).IsAssignableFrom(t)
+                        && !typeof(ICiCommand).IsAssignableFrom(t)
                         && !typeof(IRefactorCommand).IsAssignableFrom(t))
             .Select(t => t.Name)
             .OrderBy(n => n, StringComparer.Ordinal)
@@ -55,6 +56,7 @@ public sealed class CategoryInterfaceCoverage
                 {
                     typeof(IInspectCommand).IsAssignableFrom(t) ? "IInspectCommand" : null,
                     typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "IAnalyzeCommand" : null,
+                    typeof(ICiCommand).IsAssignableFrom(t) ? "ICiCommand" : null,
                     typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null,
                 }.Where(m => m is not null).ToArray()
             })
@@ -81,6 +83,7 @@ public sealed class CategoryInterfaceCoverage
                 string? expectedFromMarker =
                     typeof(IInspectCommand).IsAssignableFrom(t) ? "inspect"
                     : typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "analyze"
+                    : typeof(ICiCommand).IsAssignableFrom(t) ? "ci"
                     : typeof(IRefactorCommand).IsAssignableFrom(t) ? "refactor"
                     : null;
                 return (Name: t.Name, ExpectedFromMarker: expectedFromMarker, ActualCategory: info?.Category);

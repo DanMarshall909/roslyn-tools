@@ -42,7 +42,8 @@ internal sealed class ComplexityOperation(IWorkspaceSessionFactory sessions)
                     solution,
                     request.Threshold,
                     request.Sort,
-                    request.Top);
+                    request.Top,
+                    cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 return Result<ComplexityResult, RtError>.Ok(Map(report));
             }

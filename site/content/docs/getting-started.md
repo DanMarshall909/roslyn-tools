@@ -1,11 +1,11 @@
 ---
 title: Use the CLI
-description: Use the companion rt command-line interface to inspect a C# solution and preview or apply reviewed refactoring work.
+description: Use the rt command-line interface to inspect C# solutions, analyze impact, and preview or apply reviewed refactoring work.
 order: 2
-section: Companion CLI
+section: Developer CLI
 ---
 
-The MCP server is the primary surface for coding agents. The companion `rt` CLI exposes the same semantic engine to humans and scripts, and is the surface to use when reviewed refactoring work is ready to preview or apply.
+Use the `rt` CLI to explore C# solutions, analyze impact, and preview or apply refactorings. It shares its semantic engine with the [MCP host for coding agents](/docs/automation-and-mcp/) and [CI rule checks](/docs/ci/).
 
 ## Requirements
 
