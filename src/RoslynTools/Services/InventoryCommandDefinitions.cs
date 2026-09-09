@@ -7,14 +7,14 @@ internal static class FindUnusedCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
         "find-unused", false, false, "inspect", Aliases: ["unused"],
-        WhenToUse: "Use this instead of Grep when identifying possible dead code. Findings are candidates within the loaded solution, not proof about reflection, runtime activation, generated use, or external consumers. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
+        WhenToUse: "Use this instead of Grep when identifying possible dead code. Findings are candidates within the loaded solution, not proof about reflection, runtime activation, generated use, or external consumers. Use --scope to select all, types, or methods. Unverified workspace acquisition produces advisory findings without deletion suggestions.",
         Examples: [
             "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect unused --scope methods --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-unused --scope types --solution RoslynTools.slnx"],
         SeeAlso: ["delete-unreferenced", "relationships"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
-    internal static ApplicationCommandDefinition Definition { get; } = new(Info, typeof(FindUnusedRequest), typeof(Results.FindUnusedAnalysisResult), true, CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, [new("delete_unreferenced", "Use only after reviewing a high-confidence candidate from a complete workspace.")]);
+    internal static ApplicationCommandDefinition Definition { get; } = new(Info, typeof(FindUnusedRequest), typeof(RtResultEnvelope<Results.FindUnusedAnalysisResult>), true, CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, [new("delete_unreferenced", "Use only after reviewing a high-confidence candidate from a complete workspace.")]);
 }
 internal static class FindUndocumentedCommandDefinition
 {

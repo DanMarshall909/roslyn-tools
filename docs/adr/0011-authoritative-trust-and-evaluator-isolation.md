@@ -140,6 +140,18 @@ This convenience registry does not implement the authoritative physical-identity
 registry or active lease revocation described above. Missing or linked saved roots fail
 closed, but same-path replacement without links is not an authenticated identity binding.
 
+### Workspace evidence implementation boundary
+
+Workspace completeness now uses a pre-load requested-input manifest, snapshot-bound
+receipts, live typed diagnostics, and a central fail-closed policy. Successful loaded
+compilations cannot close an unknown manifest. The production MSBuild adapter still
+lacks affirmative closure for evaluated contexts, design-time inputs, and required
+generator/analyzer stages; it reports `Partial`, and proof-sensitive deletion and slice
+move operations refuse it. Deterministic test receipts exercise the `Complete` path but
+are not production evidence. This deliberately restricted intermediate state is described
+in [Workspace acquisition evidence](../workspace-acquisition-preview.md); #122 remains
+open until a real collector and complete-production fixture are verified.
+
 ## Alternatives considered
 
 - Trust the request field: rejected because an adapter could self-authorize privileged

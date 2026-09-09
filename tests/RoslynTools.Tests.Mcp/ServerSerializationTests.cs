@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
@@ -325,19 +326,40 @@ public class ServerSerializationTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            WorkspaceLoader.OpenSolutionOverride.Value = (_, _) => Task.FromResult(solution);
+            var fixtureProject = solution.Projects.Single();
+            var solutionPath = Path.Combine(project.Directory, "Invoice.slnx");
+            File.WriteAllText(solutionPath,
+                $"<Solution><Project Path=\"{fixtureProject.Name}/{fixtureProject.Name}.csproj\" /></Solution>");
+            File.WriteAllText(fixtureProject.FilePath!, "<Project />");
+            WorkspaceLoader.OpenSolutionOverride.Value = async (loadedWorkspace, requestedPath) =>
+            {
+                requestedPath.ShouldBe(solutionPath);
+                // Preserve the real loader trust gate and the acquisition workspace identity.
+                // This controlled load has usable source, but supplies no production closure receipt.
+                var loaded = loadedWorkspace.CurrentSolution.AddProject(ProjectInfo.Create(
+                    fixtureProject.Id, fixtureProject.Version, fixtureProject.Name,
+                    fixtureProject.AssemblyName!, fixtureProject.Language, fixtureProject.FilePath,
+                    compilationOptions: fixtureProject.CompilationOptions,
+                    parseOptions: fixtureProject.ParseOptions,
+                    metadataReferences: fixtureProject.MetadataReferences));
+                foreach (var source in fixtureProject.Documents)
+                    loaded = loaded.AddDocument(source.Id, source.Name, await source.GetTextAsync(),
+                        source.Folders, source.FilePath);
+                return loaded;
+            };
             try
             {
-                var repositoryRoot = FindRepoRoot();
-                var request = CreateSearchSymbolsRequest(Path.Combine(repositoryRoot, "RoslynTools.slnx"));
+                var request = CreateSearchSymbolsRequest(solutionPath);
 
                 var output = await RunSingleRequestAsync(
                     request,
-                    new McpHostOptions(repositoryRoot));
+                    new McpHostOptions(project.Directory));
 
                 using var document = JsonDocument.Parse(output);
                 var result = document.RootElement.GetProperty("result");
-                result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+                result.GetProperty("isError").GetBoolean().ShouldBeFalse(result.GetProperty("content").GetRawText());
+                result.GetProperty("structuredContent").GetProperty("workspace").GetProperty("state")
+                    .GetString().ShouldBe("Partial");
                 result.GetProperty("structuredContent").GetProperty("data").GetProperty("items")
                     .EnumerateArray()
                     .ShouldContain(item => item.GetProperty("name").GetString() == "Invoice");

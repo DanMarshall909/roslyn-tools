@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
@@ -26,6 +27,7 @@ public sealed class MoveSliceServiceTests
     {
         using var fixture = BuildCaseFindingFixture();
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application", "Functions"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -77,6 +79,7 @@ public sealed class MoveSliceServiceTests
                 "namespace Legacy.Calculation.Application.Cases; public record Finding(int Value);");
         fixture.AddProject("Application").WithDefaultNamespace("WageClaims.Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Legacy", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -119,6 +122,7 @@ public sealed class MoveSliceServiceTests
                 "namespace Legacy.Feature; public sealed class Service(Policy policy) { }");
         fixture.AddProject("Target").WithDefaultNamespace("App");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -160,6 +164,7 @@ public sealed class MoveSliceServiceTests
                 "Consumer.cs",
                 "namespace Legacy; public sealed class Consumer(Feature.Service service) { }");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target", "Consumer"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -199,6 +204,7 @@ public sealed class MoveSliceServiceTests
                 "namespace Legacy; public class SourcePolicy { }");
         fixture.AddProject("Application").WithDefaultNamespace("App.Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -230,6 +236,7 @@ public sealed class MoveSliceServiceTests
     {
         using var fixture = BuildWageClaimsRuleItemFixture();
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -281,6 +288,7 @@ public sealed class MoveSliceServiceTests
                 "namespace WageClaims.Application.Profiles; public sealed record ProfileHeaderRecord;");
         fixture.AddProject("Infrastructure").ReferenceProject("Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -315,6 +323,7 @@ public sealed class MoveSliceServiceTests
                 "namespace Legacy; public record Selected; public record CoLocated;");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -359,6 +368,8 @@ public sealed class MoveSliceServiceTests
             .ReferenceProject("Infrastructure")
             .ReferenceProject("Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application", "Functions"],
+            new Dictionary<string, string[]> { ["Functions"] = ["EbaCatalogueMapper.g.cs"] });
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -417,6 +428,7 @@ public sealed class MoveSliceServiceTests
             .WithDefaultNamespace("WageClaims.Application");
         fixture.AddProject("Infrastructure").ReferenceProject("Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -475,6 +487,7 @@ public sealed class MoveSliceServiceTests
                 "namespace WageClaims.Application.Extraction; public sealed record JsonExtractionEnvelope;");
         fixture.AddProject("Infrastructure").ReferenceProject("Application");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -513,6 +526,8 @@ public sealed class MoveSliceServiceTests
             "namespace Legacy; public sealed partial class Service { public int Generated => 1; }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"],
+            new Dictionary<string, string[]> { ["Source"] = ["Service.g.cs"] });
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -545,6 +560,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Service.cs", "namespace Legacy; internal sealed class Service { }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -572,12 +588,49 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task unverified_adhoc_workspace_cannot_plan_a_move_even_when_every_loaded_project_compiles()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", "namespace Legacy; public class Service { }");
+        fixture.AddProject("Target");
+        var (workspace, solution) = fixture.Build();
+        using (workspace)
+        {
+            foreach (var project in solution.Projects)
+            {
+                var compilation = (await project.GetCompilationAsync()).ShouldNotBeNull();
+                compilation.GetDiagnostics().ShouldNotContain(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+            }
+            var result = await new MoveSliceService().PrepareAsync(
+                solution,
+                new MoveSliceIntent(
+                    MoveSliceSelectionKind.Types,
+                    ["Legacy.Service"],
+                    SourceNamespace: null,
+                    TargetProject: "Target",
+                    TargetNamespace: "App.Target",
+                    AnalyzeDependencies: false,
+                    UpdateProjectReferences: false,
+                    ProjectReferenceJustification: null,
+                    InternalsVisibleToEdits: [],
+                    InternalsVisibleToJustification: null));
+
+            var error = result.Match(_ => null!, failure => failure);
+            error.ShouldNotBeNull();
+            error.Context!["workspaceState"].ShouldBe("Partial");
+            error.Context["diagnostics"].ShouldContain("Acquisition evidence is absent", Case.Sensitive);
+            (await fixture.ReadSourceAsync("Service.cs")).ShouldBe("namespace Legacy; public class Service { }");
+        }
+    }
+
+    [Fact]
     public async Task incomplete_original_compilation_fails_before_a_manifest_is_prepared()
     {
         using var fixture = new AdhocProjectBuilder("Source")
             .AddSource("Broken.cs", "namespace Legacy; public class Broken { Missing Value; }");
         fixture.AddProject("Target");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -595,7 +648,9 @@ public sealed class MoveSliceServiceTests
                 InternalsVisibleToEdits: [],
                 InternalsVisibleToJustification: null));
 
-        result.Match(_ => false, _ => true).ShouldBeTrue();
+        var error = result.Match(_ => null!, failure => failure);
+        error.ShouldNotBeNull();
+        error.Context!["diagnostics"].ShouldContain("CS0246", Case.Sensitive);
     }
 
     [Fact]
@@ -609,6 +664,7 @@ public sealed class MoveSliceServiceTests
                 "Feature/Service.cs",
                 "namespace App.Target.Feature; public sealed class ExistingService { }");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
         var writer = new RecordingWriter();
@@ -637,6 +693,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Service.cs", "namespace Legacy; public sealed class Service { }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
         var writer = new RecordingWriter();
@@ -665,6 +722,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Service.cs", sourceText);
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         var sourcePath = Path.Combine(fixture.Directory, "Source", "Service.cs");
         var targetPath = Path.Combine(fixture.Directory, "Target", "Feature", "Service.cs");
@@ -716,6 +774,7 @@ public sealed class MoveSliceServiceTests
     {
         using var fixture = BuildWageClaimsRuleItemFixture();
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         var originalOut = Console.Out;
         var originalError = Console.Error;
@@ -768,6 +827,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Service.cs", "namespace Legacy; public sealed class Service { }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
         var writer = new RecordingWriter();
@@ -796,6 +856,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Service.cs", sourceText);
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
         var sourcePath = Path.Combine(fixture.Directory, "Source", "Service.cs");
@@ -832,6 +893,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Policy.cs", "namespace Legacy; public sealed class Policy { }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
         var writer = new RecordingWriter();
@@ -862,6 +924,7 @@ public sealed class MoveSliceServiceTests
             .AddSource("Consumer.cs", "namespace Legacy; public sealed class Consumer(Moved value) { }");
         fixture.AddProject("Target").WithDefaultNamespace("App.Target");
         var (_, solution) = fixture.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
@@ -903,6 +966,7 @@ public sealed class MoveSliceServiceTests
             var externalProjectPath = Path.Combine(externalDirectory.FullName, "External.csproj");
             File.WriteAllText(externalProjectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
             var solution = initialSolution.WithProjectFilePath(externalProject.Id, externalProjectPath);
+            await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target", "External"]);
             using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
 
             var result = await new MoveSliceService().PrepareAsync(

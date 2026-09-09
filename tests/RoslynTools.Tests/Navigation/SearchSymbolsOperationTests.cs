@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
@@ -15,7 +16,7 @@ public sealed class SearchSymbolsOperationTests
         builder.AddProject("Payments")
             .AddSource("Result.cs", "namespace Payments; public sealed class Result { }");
 
-        var envelope = await ExecuteAsync(builder, new SearchSymbolsRequest("Result"));
+        var envelope = await ExecuteAsync(builder, new SearchSymbolsRequest("Result"), ["Orders", "Payments"]);
 
         envelope.Outcome.ShouldBe("Succeeded");
         envelope.Data.Items.Count.ShouldBe(2);
@@ -180,14 +181,18 @@ public sealed class SearchSymbolsOperationTests
 
     private static async Task<RtResultEnvelope<SearchSymbolsResult>> ExecuteAsync(
         AdhocProjectBuilder builder,
-        SearchSymbolsRequest request) =>
-        (await ExecuteResultAsync(builder, request)).Unwrap();
+        SearchSymbolsRequest request,
+        IReadOnlyCollection<string>? expectedProjects = null) =>
+        (await ExecuteResultAsync(builder, request, expectedProjects)).Unwrap();
 
     private static async Task<Result<RtResultEnvelope<SearchSymbolsResult>, RtError>> ExecuteResultAsync(
         AdhocProjectBuilder builder,
-        SearchSymbolsRequest request)
+        SearchSymbolsRequest request,
+        IReadOnlyCollection<string>? expectedProjects = null)
     {
         var (workspace, solution) = builder.Build();
+        if (expectedProjects is not null)
+            await ExplicitWorkspaceAcquisition.AttachAsync(solution, expectedProjects);
         var operation = new SearchSymbolsOperation(
             new FixedSessionFactory(workspace, solution),
             new SymbolCandidateService());

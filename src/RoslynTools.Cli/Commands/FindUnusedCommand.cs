@@ -40,8 +40,7 @@ internal sealed class FindUnusedCommand(
                 new FindUnusedRequest(req.SolutionPath, req.Scope ?? "all"),
                 ctx.GetCancellationToken());
             result.Match(
-                value => RtResultRenderer.Write(RtResult<FindUnusedResult>.Ok(
-                    FindUnusedResult.FromAnalysis(value))),
+                value => RtResultRenderer.Write(RtResult<FindUnusedEnvelopeResult>.Ok(new FindUnusedEnvelopeResult(value))),
                 error => RtErrorPresenter.Surface(ctx, error));
         });
 

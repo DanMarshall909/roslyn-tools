@@ -26,7 +26,7 @@ internal sealed class MoveSliceService : IRtService
         var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
         if (completeness.State != WorkspaceCompletenessState.Complete)
             return Error(
-                "The workspace is incomplete; slice moves require error-free compilations for every project.",
+                "The workspace is incomplete; slice moves require complete acquisition evidence and error-free compilations for every requested project.",
                 new Dictionary<string, string>
                 {
                     ["workspaceState"] = completeness.State.ToString(),

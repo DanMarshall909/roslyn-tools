@@ -8,7 +8,26 @@ internal sealed record RtSourceIdentity(
 internal sealed record RtWorkspaceProvenance(
     string State,
     int ProjectCount,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<string> Diagnostics,
+    IReadOnlyList<RtWorkspaceInput>? Inputs = null,
+    IReadOnlyList<string>? RequestedProjects = null,
+    IReadOnlyList<string>? FailedProjects = null,
+    string? CompilerVersion = null,
+    string? EvaluatorPolicy = null,
+    WorkspaceEvaluatorProvenance? Evaluator = null,
+    string? ManifestState = null);
+
+/// <summary>
+/// A declared semantic input and the outcome of acquiring it. The input list makes a
+/// workspace completeness claim inspectable instead of inferring it from a project count.
+/// </summary>
+internal sealed record RtWorkspaceInput(
+    string Id,
+    string Kind,
+    string State,
+    bool Required,
+    string? Project = null,
+    string? Detail = null);
 
 internal sealed record RtConfidence(
     string Level,

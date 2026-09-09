@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
@@ -84,6 +85,7 @@ public sealed class DoctorOperationTests
         using var project = new AdhocProjectBuilder("DoctorApp");
         project.AddSource("Healthy.cs", "public class Healthy { }");
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["DoctorApp"]);
         var sessions = new CountingSessionFactory(workspace, solution);
         var operation = new DoctorOperation(sessions, new FixedCapabilityCatalog());
 

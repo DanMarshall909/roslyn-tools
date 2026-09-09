@@ -28,18 +28,19 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
                                          }
                                          """;
 
-    private static (AdhocProjectBuilder Project, Workspace Workspace, Solution Solution) BuildFixture()
+    private static async Task<(AdhocProjectBuilder Project, Workspace Workspace, Solution Solution)> BuildFixtureAsync()
     {
         var project = new AdhocProjectBuilder("SafeApp");
         project.AddSource("SafeApp.cs", SafeAppSource);
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["SafeApp"]);
         return (project, workspace, solution);
     }
 
     [Fact]
     public async Task cli_adapter_deletes_the_type_through_the_typed_operation()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -55,7 +56,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task cli_adapter_returns_non_zero_for_a_referenced_type_without_writing()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -71,7 +72,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task rejects_a_referenced_type_with_structured_reference_evidence()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -95,7 +96,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task deletes_the_method()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -116,11 +117,33 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
+    public async Task unverified_adhoc_workspace_cannot_prepare_a_deletion_even_when_its_source_compiles()
+    {
+        using var project = new AdhocProjectBuilder("UnverifiedApp");
+        project.AddSource("Orphan.cs", "public class Orphan { }");
+        var (workspace, solution) = project.Build();
+        var compilation = (await solution.Projects.Single().GetCompilationAsync()).ShouldNotBeNull();
+        compilation.GetDiagnostics().ShouldNotContain(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var result = await ExecuteResultAsync("Orphan", dryRun: true);
+
+            var error = result.Match(_ => null!, failure => failure);
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.WorkspaceLoadFailure);
+            error.Context!["workspaceState"].ShouldBe("Partial");
+            error.Context.Values.ShouldContain(value => value.Contains("Acquisition evidence is absent", StringComparison.Ordinal));
+            (await project.ReadSourceAsync("Orphan.cs")).ShouldBe("public class Orphan { }");
+        }
+    }
+
+    [Fact]
     public async Task refuses_to_plan_from_a_partial_workspace()
     {
         var project = new AdhocProjectBuilder("IncompleteApp");
         project.AddSource("Incomplete.cs", "public class Orphan { MissingType Value = null!; }");
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["IncompleteApp"]);
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -132,15 +155,15 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             error.Message.ShouldContain("Partial workspace", Case.Sensitive);
             error.Context.ShouldNotBeNull();
             error.Context["workspaceState"].ShouldBe("Partial");
-            error.Context["diagnosticCount"].ShouldBe("1");
-            error.Context["diagnostic.0"].ShouldContain("CS0246", Case.Sensitive);
+            error.Context.Values.ShouldContain(value => value.Contains("CS0246", StringComparison.Ordinal));
+            (await project.ReadSourceAsync("Incomplete.cs")).ShouldContain("class Orphan", Case.Sensitive);
         }
     }
 
     [Fact]
     public async Task rejects_a_referenced_method_without_writing()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -158,7 +181,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task dry_run_reports_the_exact_path_without_modifying_files()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -192,6 +215,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
                                          }
                                          """);
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["SafeApp"]);
 
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -217,6 +241,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
                                          }
                                          """);
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["SafeApp"]);
 
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -231,7 +256,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task returns_a_typed_not_found_error_for_an_unknown_symbol()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
@@ -259,7 +284,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     [Fact]
     public async Task cancellation_before_dispatch_cannot_apply_the_deletion()
     {
-        var (project, workspace, solution) = BuildFixture();
+        var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (var cancellation = new CancellationTokenSource())
