@@ -27,7 +27,8 @@ public sealed class CiCheckOperationTests
         {
             result.Findings.Single().File.ShouldBe("Demo/Value.cs");
             result.Findings.Single().Line.ShouldBeGreaterThan(0);
-            result.Findings.Single().Message.ShouldContain("exceeds maximum 1");
+            result.Findings.Single().Message.ShouldBe(
+                "Demo.Value.Run: cyclomatic complexity 2 exceeds maximum 1.");
         }
     }
 

@@ -105,7 +105,7 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                                 rule.Id!,
                                 Path.GetRelativePath(root, method.File).Replace('\\', '/'),
                                 method.Line,
-                                $"{method.Namespace}.{method.Type}.{method.Method}: cyclomatic complexity {method.Cyclomatic} exceeds maximum {maximum}.")));
+                                $"{method.Method}: cyclomatic complexity {method.Cyclomatic} exceeds maximum {maximum}.")));
                     }
                     rules.Add(new CiRuleResult(rule.Id!, findings.Count - before));
                 }
