@@ -527,21 +527,7 @@ internal static class App
     private static string ResolveTrustedRepositoryRoot(InvocationContext context)
     {
         var currentDirectory = Path.GetFullPath(Directory.GetCurrentDirectory());
-        var solutionPath = TryExtractSolutionPath(context);
-        var selectedDirectory = currentDirectory;
-
-        if (!string.IsNullOrWhiteSpace(solutionPath))
-        {
-            try
-            {
-                selectedDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath))
-                                    ?? currentDirectory;
-            }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-            {
-                selectedDirectory = currentDirectory;
-            }
-        }
+        var selectedDirectory = ResolveSelectedDirectory(context, currentDirectory);
 
         for (var directory = new DirectoryInfo(selectedDirectory);
              directory is not null;
@@ -553,6 +539,66 @@ internal static class App
         }
 
         return Path.TrimEndingDirectorySeparator(selectedDirectory);
+    }
+
+    private static string ResolveSelectedDirectory(InvocationContext context, string currentDirectory)
+    {
+        var supportsSolutionSelection = context.ParseResult.CommandResult.Command.Options
+            .Any(option => option.Name == "solution");
+        var solutionPath = TryGetParsedPathOption(context, "solution");
+        var requestedDirectory = TryGetParsedPathOption(context, "directory");
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(solutionPath))
+            {
+                var baseDirectory = string.IsNullOrWhiteSpace(requestedDirectory)
+                    ? currentDirectory
+                    : Path.GetFullPath(requestedDirectory);
+                var resolvedSolution = Path.GetFullPath(solutionPath, baseDirectory);
+                return Path.GetDirectoryName(resolvedSolution) ?? baseDirectory;
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestedDirectory))
+                return Path.GetFullPath(requestedDirectory);
+
+            if (!supportsSolutionSelection)
+                return currentDirectory;
+
+            var discoveredSolution = SolutionPathResolver.Resolve(null);
+            return Path.GetDirectoryName(discoveredSolution) ?? currentDirectory;
+        }
+        catch (Exception ex) when (ex is IOException
+                                   or UnauthorizedAccessException
+                                   or InvalidOperationException
+                                   or ArgumentException
+                                   or NotSupportedException)
+        {
+            return currentDirectory;
+        }
+    }
+
+    private static string? TryGetParsedPathOption(InvocationContext context, string name)
+    {
+        try
+        {
+            var option = context.ParseResult.CommandResult.Command.Options
+                .FirstOrDefault(candidate => candidate.Name == name);
+            if (option is null)
+                return null;
+
+            return context.ParseResult.GetValueForOption(option) switch
+            {
+                DirectoryInfo directory => directory.FullName,
+                FileInfo file => file.FullName,
+                string path => path,
+                _ => null
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Dictionary<string, string?>? TryCaptureParsedOptions(InvocationContext context)
