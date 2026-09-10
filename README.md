@@ -200,6 +200,20 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
+### Codex and portable agent plugin
+
+This repository includes a preview [Agent Plugins 1.0](https://agent-plugins.org/)
+bundle under `plugins/roslyn-tools` and a repository marketplace at
+`.agents/plugins/marketplace.json`. The bundle starts the installed MCP host with the
+portable `roslyn-tools-mcp` command; it carries no checkout path, trust argument, or
+machine-specific launcher path. Install the portable CLI and MCP host before installing
+the plugin.
+
+The portable MCP schema does not currently encode Codex-specific `required` or
+`startup_timeout_sec` settings. Plugin installation therefore owns the portable stdio
+transport, while fail-hard startup enforcement and a custom timeout remain client policy
+when a client exposes those settings.
+
 Persist trust after reviewing the repository. Linked task worktrees share the same Git
 common-directory identity, so this is normally a one-time decision:
 

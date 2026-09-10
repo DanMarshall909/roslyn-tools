@@ -46,6 +46,18 @@ directory do not require client configuration changes:
 
 The client starts the server over stdio. Protocol messages stay on stdout; diagnostics and progress are kept separate.
 
+## Install as a portable agent plugin
+
+The source repository also publishes a preview Agent Plugins 1.0 bundle in
+`plugins/roslyn-tools`, listed by `.agents/plugins/marketplace.json`. Its portable MCP
+configuration launches the bare `roslyn-tools-mcp` command with no arguments, trust path,
+or machine-specific location. Install the portable Roslyn Tools launchers first, then add
+the repository marketplace through your agent client's plugin workflow.
+
+Agent Plugins 1.0 does not currently define Codex-specific `required` or
+`startup_timeout_sec` fields. The bundle therefore cannot require startup success or set a
+longer catalogue timeout portably; those remain client-side settings when supported.
+
 Each call revalidates its solution against the persistent record and Git's current
 registered-worktree inventory. MCP tool arguments cannot grant or broaden trust, and
 trust-management operations are not MCP tools. `--trust-repository <absolute-root>`

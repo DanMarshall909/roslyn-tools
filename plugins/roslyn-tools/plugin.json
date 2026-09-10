@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "roslyn-tools",
+  "version": "0.1.0",
+  "description": "Compiler-backed C# navigation, analysis, and refactoring through the portable Roslyn Tools MCP server.",
+  "author": {
+    "name": "Dan Marshall",
+    "url": "https://github.com/DanMarshall909"
+  },
+  "homepage": "https://roslyn-tools.danmarshall.dev",
+  "repository": "https://github.com/DanMarshall909/roslyn-tools",
+  "license": "MIT",
+  "keywords": [
+    "csharp",
+    "dotnet",
+    "mcp",
+    "roslyn",
+    "semantic-analysis"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Roslyn Tools",
+        "shortDescription": "Compiler-backed C# tools",
+        "longDescription": "Inspect, analyze, and safely refactor C# solutions through a portable MCP server backed by Roslyn semantics.",
+        "developerName": "Dan Marshall",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive",
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://roslyn-tools.danmarshall.dev",
+        "defaultPrompt": [
+          "Inspect this C# solution with Roslyn Tools",
+          "Find the callers of this C# symbol",
+          "Preview a safe solution-wide refactoring"
+        ],
+        "brandColor": "#512BD4"
+      }
+    }
+  }
+}

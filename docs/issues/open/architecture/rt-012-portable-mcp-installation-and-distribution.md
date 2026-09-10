@@ -84,6 +84,13 @@ the official MCP C# SDK rather than extending the handwritten transport.
 - [x] A versioned `server.json` describes the repository, package or bundle,
       stdio transport, runtime requirements, and supported configuration, and is
       validated for eventual MCP Registry publication.
+- [x] A repository marketplace packages a portable Agent Plugins 1.0 manifest and
+      MCP configuration for `roslyn-tools-mcp`, plus a compatibility Codex manifest;
+      the transport has no arguments, trust path, or machine-specific launcher path.
+- [ ] Portable plugin installation enforces required-server startup and a scoped startup
+      timeout. Agent Plugins 1.0 cannot currently encode Codex-specific `required` or
+      `startup_timeout_sec` settings, so these remain client policy rather than bundle
+      guarantees.
 - [ ] An MCP Bundle is evaluated against the self-contained release layout and
       adopted when supported clients can install and update it without weakening
       local filesystem or process-boundary security.
@@ -99,3 +106,4 @@ the official MCP C# SDK rather than extending the handwritten transport.
 | 2026-08-16 | Include official MCP C# SDK migration in the distribution issue | Packaging a long-lived MCP executable should not cement the current handwritten, outdated protocol lifecycle. |
 | 2026-08-16 | Make the daemon the typed local execution host; keep CLI, MCP, and IDE integrations as thin adapters | A persistent MCP bridge can reconnect to an upgraded daemon without replacing the client-facing stdio process, while all hosts share one workspace owner and structured command contract. |
 | 2026-09-10 | Add a preview per-user Git common-directory trust registry | A stable MCP registration can serve newly registered task worktrees. Each request still validates its target, while startup and invocation-scoped trust remain compatible. The Git-object anchor is continuity hardening, not ADR-0011 OS physical identity. |
+| 2026-09-10 | Publish a repo marketplace with a portable Agent Plugins 1.0 MCP bundle | The bundle owns a stable bare-command stdio transport and retains a compatibility Codex manifest. Portable schemas cannot yet express Codex startup-required or timeout policy, so those guarantees remain explicitly incomplete. |
