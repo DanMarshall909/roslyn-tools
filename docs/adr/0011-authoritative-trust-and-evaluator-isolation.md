@@ -117,13 +117,24 @@ the separate root-contained handle-relative safe-reader contract.
 
 ## Implementation status
 
-The authoritative registry, verified physical binding, evaluator leases, revocation,
-and isolated worker remain unimplemented. The `0.1-preview` containment uses explicit
-trusted-local approval only: CLI approval is invocation-scoped, while MCP approval is
-supplied as `--trust-repository <absolute-repository-root>` at host startup and is
-enforced against the selected solution path. Ordinary MCP tool arguments cannot grant
-or broaden that approval. This makes the preview semantic MCP surface usable without
-representing the P0.1 trust and isolation programme as complete.
+The authoritative protected registry, OS-verified physical binding, audit/quotas,
+evaluator leases, revocation, and isolated worker remain unimplemented. The
+`0.1-preview` trusted-local implementation persists deliberate `rt trust add` decisions
+in the current user's local application-data directory. Records are keyed by canonical
+Git common-directory path and carry a root-commit object anchor. Every CLI, MCP, or
+daemon admission verifies that the requested solution remains beneath a currently
+registered worktree with the matching common directory and retained anchor. Missing,
+corrupt, unreadable, unregistered, mismatched, or anchor-stale state fails closed.
+
+The anchor is a best-effort repository-self-asserted continuity check, not the verified
+handle/inode/file-ID binding required by this ADR; a replacement repository containing
+the same object can inherit the preview record. POSIX storage is atomically replaced
+under an exclusive mutation lock and restricted to user-only modes. Windows currently
+relies on inherited per-user Local AppData ACLs rather than installing and verifying an
+explicit DACL. Invocation-scoped CLI approval and startup-scoped MCP approval remain as
+compatibility paths. Ordinary MCP tool arguments cannot grant or broaden trust, and MCP
+never exposes trust-management operations. This makes the preview semantic MCP surface
+usable without representing the P0.1 trust and isolation programme as complete.
 
 ## Alternatives considered
 

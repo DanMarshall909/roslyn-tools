@@ -337,6 +337,113 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task persistent_registry_authorizes_semantic_tools_without_a_startup_path()
+    {
+        using var project = McpTestHost.CreateInvoiceProject();
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var registryDirectory = Path.Combine(
+                Path.GetTempPath(),
+                $"rt-mcp-persistent-trust-{Guid.NewGuid():N}");
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            WorkspaceLoader.OpenSolutionOverride.Value = (_, _) => Task.FromResult(solution);
+            try
+            {
+                var repositoryRoot = FindRepoRoot();
+                registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+                var output = await RunSingleRequestAsync(
+                    CreateSearchSymbolsRequest(Path.Combine(repositoryRoot, "RoslynTools.slnx")),
+                    new McpHostOptions(trustRegistry: registry));
+
+                using var document = JsonDocument.Parse(output);
+                var result = document.RootElement.GetProperty("result");
+                result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+                result.GetProperty("structuredContent").GetProperty("data").GetProperty("items")
+                    .EnumerateArray()
+                    .ShouldContain(item => item.GetProperty("name").GetString() == "Invoice");
+            }
+            finally
+            {
+                WorkspaceLoader.OpenSolutionOverride.Value = null;
+                if (Directory.Exists(registryDirectory))
+                    Directory.Delete(registryDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task persistent_trust_for_one_repository_does_not_authorize_another_target()
+    {
+        var registryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-persistent-trust-{Guid.NewGuid():N}");
+        var otherDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-untrusted-target-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(otherDirectory);
+        try
+        {
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            registry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+            var otherSolution = Path.Combine(otherDirectory, "Other.slnx");
+            File.WriteAllText(otherSolution, "<Solution />");
+
+            var output = await RunSingleRequestAsync(
+                CreateSearchSymbolsRequest(otherSolution),
+                new McpHostOptions(trustRegistry: registry));
+
+            using var document = JsonDocument.Parse(output);
+            var result = document.RootElement.GetProperty("result");
+            result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+            var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+            text.ShouldNotBeNull();
+            using var error = JsonDocument.Parse(text);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
+        }
+        finally
+        {
+            if (Directory.Exists(registryDirectory))
+                Directory.Delete(registryDirectory, recursive: true);
+            Directory.Delete(otherDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task trust_management_ports_are_never_discovered_over_mcp()
+    {
+        var registryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-persistent-trust-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            registry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+
+            var output = await RunSingleRequestAsync(
+                """{"jsonrpc":"2.0","method":"tools/list","id":1}""",
+                new McpHostOptions(trustRegistry: registry));
+
+            using var document = JsonDocument.Parse(output);
+            var names = document.RootElement.GetProperty("result").GetProperty("tools")
+                .EnumerateArray()
+                .Select(tool => tool.GetProperty("name").GetString())
+                .ToArray();
+            names.ShouldContain("move_slice");
+            names.Any(name => name?.StartsWith("trust_", StringComparison.Ordinal) == true)
+                .ShouldBeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(registryDirectory))
+                Directory.Delete(registryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task startup_authorization_does_not_cover_a_solution_outside_its_repository_root()
     {
         var repositoryRoot = FindRepoRoot();

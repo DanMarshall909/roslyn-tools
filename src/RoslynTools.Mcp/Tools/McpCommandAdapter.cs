@@ -119,7 +119,7 @@ internal sealed class McpCommandAdapter(
                     new Dictionary<string, string>
                     {
                         ["solution"] = ex.SolutionPath,
-                        ["grantThrough"] = "trusted CLI invocation or MCP host startup"
+                        ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
                     })));
         }
         catch (Exception ex) when (ex is ArgumentException

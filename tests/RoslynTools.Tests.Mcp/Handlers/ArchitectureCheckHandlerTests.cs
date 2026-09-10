@@ -46,7 +46,7 @@ public sealed class ArchitectureCheckHandlerTests
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("TrustRequired");
-        result.content.ShouldContain("trusted CLI invocation or MCP host startup");
+        result.content.ShouldContain("rt trust add, trusted CLI invocation, or MCP host startup");
     }
 
     [Fact]

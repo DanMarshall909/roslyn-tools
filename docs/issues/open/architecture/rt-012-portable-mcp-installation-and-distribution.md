@@ -57,6 +57,12 @@ the official MCP C# SDK rather than extending the handwritten transport.
       `roslyn-tools-mcp`; it contains no developer-specific absolute path, direct
       `.dll` path, assumed `/usr/share/dotnet` location, or shell-only environment
       expansion.
+- [x] A preview persistent `rt trust add <repository>` registry lets one stable MCP
+      registration authorize the same Git common-directory identity across currently
+      registered task worktrees without a worktree path in client configuration.
+- [x] Missing, corrupt, unreadable, unregistered, mismatched, and stale Git-object
+      continuity records fail closed; MCP payloads and trust-management discovery cannot
+      grant or broaden trust.
 - [x] The standard installation does not require a separately installed .NET
       runtime, SDK, ICU package, source checkout, restore, or compilation merely
       to start the MCP server.
@@ -92,3 +98,4 @@ the official MCP C# SDK rather than extending the handwritten transport.
 | 2026-08-16 | Use one stable launcher in consumer MCP configuration | A stable executable contract removes SDK paths, checkout paths, shell expansion, and per-repository configuration drift. |
 | 2026-08-16 | Include official MCP C# SDK migration in the distribution issue | Packaging a long-lived MCP executable should not cement the current handwritten, outdated protocol lifecycle. |
 | 2026-08-16 | Make the daemon the typed local execution host; keep CLI, MCP, and IDE integrations as thin adapters | A persistent MCP bridge can reconnect to an upgraded daemon without replacing the client-facing stdio process, while all hosts share one workspace owner and structured command contract. |
+| 2026-09-10 | Add a preview per-user Git common-directory trust registry | A stable MCP registration can serve newly registered task worktrees. Each request still validates its target, while startup and invocation-scoped trust remain compatible. The Git-object anchor is continuity hardening, not ADR-0011 OS physical identity. |

@@ -200,25 +200,31 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
-The MCP host requires a deliberate, startup-only repository approval before semantic
-workspace tools can evaluate MSBuild inputs. Configure the reviewed repository as an
-absolute path in the host process arguments:
+Persist trust after reviewing the repository. Linked task worktrees share the same Git
+common-directory identity, so this is normally a one-time decision:
+
+```powershell
+rt trust add /absolute/path/to/MyApp
+rt trust status /absolute/path/to/MyApp
+```
+
+Then configure one stable MCP launcher without a worktree-bound argument:
 
 ```json
 {
   "mcpServers": {
     "roslyn-tools": {
-      "command": "roslyn-tools-mcp",
-      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
+      "command": "roslyn-tools-mcp"
     }
   }
 }
 ```
 
-The approval applies only to solutions beneath that root for the lifetime of this MCP
-process. A tool request cannot grant trust. Without the startup option, semantic tools
-return `TrustRequired` before MSBuild evaluation; non-evaluating discovery remains
-available. Configure a separate host entry for each reviewed repository.
+Each semantic request is checked against the persistent registry and Git's current
+registered-worktree inventory before MSBuild evaluation. A tool request cannot grant or
+broaden trust, and trust-management operations are never exposed through MCP. The old
+`--trust-repository <absolute-root>` startup option remains available as an
+invocation-scoped compatibility path.
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
@@ -233,14 +239,15 @@ Build and run it from the repository root:
 
 ```powershell
 dotnet build RoslynTools.slnx -c Release
-dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build -- --trust-repository /absolute/path/to/MyApp
+dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build
 ```
 
 Configure an MCP client to launch that command and communicate over stdin/stdout. A host
-started with repository approval advertises eligible refactoring tools as well as read-only
-tools; refactor requests remain dry-run by default unless the caller explicitly applies them.
-Without startup approval, discovery is limited to the read-only tool subset. MCP exposure is
-being migrated incrementally; use the CLI command catalogue for the complete command surface.
+with at least one valid persistent record advertises eligible refactoring tools as well as
+read-only tools; every call remains target-gated and refactor requests remain dry-run by
+default unless the caller explicitly applies them. With no valid record, discovery is limited
+to the read-only subset. MCP exposure is being migrated incrementally; use the CLI command
+catalogue for the complete command surface.
 
 ## CI rule enforcement
 

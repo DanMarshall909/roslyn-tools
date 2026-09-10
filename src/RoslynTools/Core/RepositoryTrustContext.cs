@@ -17,6 +17,9 @@ internal static class RepositoryTrustContext
         if (authorization is null)
             return false;
 
+        if (authorization.PersistentRegistry is not null)
+            return authorization.PersistentRegistry.IsTrustedFor(path);
+
         if (authorization.RepositoryRoot is null)
             return true;
 
@@ -31,7 +34,7 @@ internal static class RepositoryTrustContext
 
     internal static IDisposable UseExplicitTrust()
     {
-        return UseExplicitTrust(new TrustAuthorization(null));
+        return UseExplicitTrust(new TrustAuthorization(null, null));
     }
 
     internal static IDisposable UseExplicitTrust(string repositoryRoot)
@@ -41,7 +44,13 @@ internal static class RepositoryTrustContext
             throw new ArgumentException("The trusted repository root must be an absolute path.", nameof(repositoryRoot));
 
         var canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
-        return UseExplicitTrust(new TrustAuthorization(canonicalRoot));
+        return UseExplicitTrust(new TrustAuthorization(canonicalRoot, null));
+    }
+
+    internal static IDisposable UsePersistentTrust(RepositoryTrustRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        return UseExplicitTrust(new TrustAuthorization(null, registry));
     }
 
     private static Scope UseExplicitTrust(TrustAuthorization authorization)
@@ -51,7 +60,9 @@ internal static class RepositoryTrustContext
         return new Scope(() => ExplicitTrust.Value = previous);
     }
 
-    private sealed record TrustAuthorization(string? RepositoryRoot);
+    private sealed record TrustAuthorization(
+        string? RepositoryRoot,
+        RepositoryTrustRegistry? PersistentRegistry);
 
     private sealed class Scope(Action dispose) : IDisposable
     {
@@ -87,8 +98,8 @@ internal sealed class RepositoryTrustRequiredException : InvalidOperationExcepti
 
     internal static RepositoryTrustRequiredException ForSolution(string solutionPath) => new(
         $"Repository evaluation is not trusted for '{solutionPath}'. "
-        + "After review, rerun the CLI command with --trust-repository or start the MCP host with "
-        + "--trust-repository <absolute-repository-root>. MCP tool arguments cannot grant trust.")
+        + "After review, run 'rt trust add <repository>' or use the invocation-scoped "
+        + "--trust-repository option. MCP tool arguments cannot grant trust.")
     {
         SolutionPath = solutionPath
     };

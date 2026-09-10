@@ -326,7 +326,8 @@ internal static class App
             {
                 using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
                     ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
-                    : null;
+                    : RepositoryTrustContext.UsePersistentTrust(
+                        services.GetRequiredService<RepositoryTrustRegistry>());
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);

@@ -186,15 +186,23 @@ the namespace and its capacity rather than making either reusable.
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
 The current `0.1-preview` containment is narrower than the accepted durable authority
-design. CLI evaluation uses an invocation-scoped `--trust-repository` opt-in. The MCP
-host accepts `--trust-repository <absolute-repository-root>` only at process startup
-and binds that approval to solutions beneath the normalized root; MCP tool payloads
-cannot grant or broaden it. Startup-approved hosts advertise MCP-eligible mutation
-operations, which remain review-first; unapproved hosts advertise only the read-only
-subset. An MCP host without startup approval returns
-`TrustRequired` before semantic workspace loading. This is a practical trusted-local
-preview path, not the durable physical-identity-bound trust registry, revocation, lease,
-or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.
+design. `rt trust add <repository>` records a reviewed Git common-directory identity in
+the current user's local application-data directory. CLI, MCP, and daemon boundaries
+enter the same persistent scope and revalidate each requested solution against Git's
+current registered-worktree inventory. A root-commit object retained at grant time is a
+best-effort continuity anchor, so an unrelated repository recreated at the same path
+fails closed. It is repository-self-asserted continuity, not OS handle, inode, or file-ID
+identity: a replacement containing the same Git object can still satisfy it.
+
+The invocation-scoped CLI `--trust-repository` option and MCP startup
+`--trust-repository <absolute-repository-root>` remain compatible. MCP tool payloads
+cannot grant or broaden trust, and trust-management ports are never MCP-discoverable.
+An MCP host advertises MCP-eligible mutation operations only when startup trust exists
+or the persistent registry has at least one currently valid record; each call still
+revalidates its own target and returns `TrustRequired` for any other repository. This is
+a practical trusted-local preview path, not the durable protected physical-binding,
+audit, quota, revocation, lease, or evaluator-isolation guarantee specified by ADR-0011
+and platform hardening.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified

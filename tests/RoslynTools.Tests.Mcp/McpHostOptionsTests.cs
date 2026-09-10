@@ -1,4 +1,5 @@
 using RoslynTools.Mcp;
+using RoslynTools.Core;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp;
@@ -13,6 +14,7 @@ public sealed class McpHostOptionsTests
         parsed.ShouldBeTrue();
         error.ShouldBeNull();
         options.TrustedRepositoryRoot.ShouldBeNull();
+        options.TrustRegistry.ShouldNotBeNull();
     }
 
     [Fact]
@@ -52,6 +54,56 @@ public sealed class McpHostOptionsTests
 
         parsed.ShouldBeFalse();
         error!.ShouldContain("Unknown option");
+    }
+
+    [Fact]
+    public void live_persistent_record_enables_mutation_discovery_without_startup_path()
+    {
+        var registryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-trust-{Guid.NewGuid():N}",
+            "repository-trust.json");
+        try
+        {
+            var registry = new RepositoryTrustRegistry(registryPath);
+            registry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+
+            var options = new McpHostOptions(trustRegistry: registry);
+
+            options.CanDiscoverRepositoryWrites.ShouldBeTrue();
+            using (options.EnterTrustScope())
+                RepositoryTrustContext.IsExplicitlyTrustedFor(
+                    Path.Combine(FindRepoRoot(), "RoslynTools.slnx")).ShouldBeTrue();
+        }
+        finally
+        {
+            var directory = Path.GetDirectoryName(registryPath)!;
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void corrupt_persistent_store_hides_mutations_and_fails_closed()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"rt-mcp-trust-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var registryPath = Path.Combine(directory, "repository-trust.json");
+            File.WriteAllText(registryPath, "{ invalid json");
+            var options = new McpHostOptions(
+                trustRegistry: new RepositoryTrustRegistry(registryPath));
+
+            options.CanDiscoverRepositoryWrites.ShouldBeFalse();
+            using (options.EnterTrustScope())
+                RepositoryTrustContext.IsExplicitlyTrustedFor(
+                    Path.Combine(FindRepoRoot(), "RoslynTools.slnx")).ShouldBeFalse();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static string FindRepoRoot()

@@ -65,8 +65,10 @@ rt inspect doctor --solution MyApp.slnx --trust-repository
 
 The result distinguishes a healthy workspace from partial or failed loading rather than treating warnings as complete semantic evidence.
 
-`--trust-repository` is a deliberate, invocation-scoped approval. Review the repository
-before using it because MSBuild workspace loading may execute repository-controlled
+`--trust-repository` is a deliberate, invocation-scoped approval. For a reviewed
+repository used repeatedly by the MCP host or daemon, use `rt trust add <repository>`;
+linked worktrees share that persistent Git common-directory decision. Review the
+repository first because MSBuild workspace loading may execute repository-controlled
 build logic.
 
 Next, learn how to [discover commands and workflows](/docs/discovery/).

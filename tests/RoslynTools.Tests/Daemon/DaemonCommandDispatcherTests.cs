@@ -149,6 +149,43 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Execute_enters_persistent_trust_scope_inside_the_daemon_process()
+    {
+        var registryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-daemon-trust-{Guid.NewGuid():N}");
+        try
+        {
+            var repositoryRoot = FindRepoRoot();
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+            var dispatcher = new DaemonCommandDispatcher([new TrustProbePort()], registry);
+            using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                path = Path.Combine(repositoryRoot, "RoslynTools.slnx")
+            }));
+
+            var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+                DaemonRpcProtocol.CurrentVersion,
+                "request-persistent-trust",
+                DaemonRpcProtocol.ExecuteCommandMethod,
+                "trust-probe",
+                payload.RootElement.Clone()));
+
+            response.Error.ShouldBeNull();
+            response.Result!.Value.GetProperty("data").GetProperty("trusted")
+                .GetBoolean().ShouldBeTrue();
+            RepositoryTrustContext.IsExplicitlyTrusted.ShouldBeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(registryDirectory))
+                Directory.Delete(registryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Typed_port_rejects_the_wrong_request_as_a_structured_boundary_error()
     {
         ICommandApplicationPort port = new EchoPort();
@@ -208,6 +245,35 @@ public sealed class DaemonCommandDispatcherTests
 
     private sealed record EchoResponse(string Value);
 
+    private sealed record TrustProbeRequest(string Path);
+
+    private sealed record TrustProbeResponse(bool Trusted);
+
+    private sealed class TrustProbePort
+        : CommandApplicationPort<TrustProbeRequest, TrustProbeResponse>
+    {
+        public override ApplicationCommandDefinition Definition { get; } = new(
+            new RtCommandInfo(
+                "trust-probe",
+                false,
+                true,
+                "test",
+                "Test daemon trust scope.",
+                []),
+            typeof(TrustProbeRequest),
+            typeof(TrustProbeResponse),
+            mcpVisible: false,
+            CommandSafety.ReadOnly,
+            CommandExecutionPlacement.DaemonPreferred,
+            []);
+
+        public override Task<Result<TrustProbeResponse, RtError>> ExecuteAsync(
+            TrustProbeRequest request,
+            CancellationToken cancellationToken = default) => Task.FromResult(
+            Result<TrustProbeResponse, RtError>.Ok(new TrustProbeResponse(
+                RepositoryTrustContext.IsExplicitlyTrustedFor(request.Path))));
+    }
+
     private sealed class EchoPort(string commandName = "echo")
         : CommandApplicationPort<EchoRequest, EchoResponse>
     {
@@ -223,6 +289,17 @@ public sealed class DaemonCommandDispatcherTests
             return Task.FromResult(Result<EchoResponse, RtError>.Ok(
                 new EchoResponse(request.Value.ToUpperInvariant())));
         }
+    }
+
+    private static string FindRepoRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+        throw new InvalidOperationException("Could not locate RoslynTools.slnx.");
     }
 
     private sealed class WorkingDirectoryPort

@@ -324,10 +324,14 @@ internal sealed class DaemonCommandDispatcher
     private static readonly SemaphoreSlim WorkingDirectoryGate = new(1, 1);
 
     private readonly Dictionary<string, ICommandApplicationPort> _ports;
+    private readonly RepositoryTrustRegistry? _trustRegistry;
 
-    internal DaemonCommandDispatcher(IEnumerable<ICommandApplicationPort> ports)
+    internal DaemonCommandDispatcher(
+        IEnumerable<ICommandApplicationPort> ports,
+        RepositoryTrustRegistry? trustRegistry = null)
     {
         _ports = ports.ToDictionary(port => port.Definition.Name, StringComparer.Ordinal);
+        _trustRegistry = trustRegistry;
     }
 
     internal async Task<DaemonRpcResponse> ExecuteAsync(
@@ -377,6 +381,9 @@ internal sealed class DaemonCommandDispatcher
                 if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
                     Directory.SetCurrentDirectory(request.WorkingDirectory);
 
+                using var trustScope = _trustRegistry is null
+                    ? null
+                    : RepositoryTrustContext.UsePersistentTrust(_trustRegistry);
                 result = await port.InvokeAsync(typedRequest, cancellationToken);
             }
             finally

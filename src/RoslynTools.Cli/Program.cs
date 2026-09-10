@@ -8,6 +8,7 @@ using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Rendering;
 using RoslynTools.Services;
+using RoslynTools.Trust;
 using System.CommandLine;
 
 /// <summary>
@@ -85,12 +86,19 @@ internal static class Program
             host.Services.GetRequiredService<FeedbackProcessOperation>(),
             host.Services.GetRequiredService<FeedbackReportOperation>()));
 
+        var trust = TrustCommand.Build(
+            host.Services.GetRequiredService<TrustAddOperation>(),
+            host.Services.GetRequiredService<TrustListOperation>(),
+            host.Services.GetRequiredService<TrustStatusOperation>(),
+            host.Services.GetRequiredService<TrustRemoveOperation>());
+
         return await App.RunAsync(
             args,
             host.Services,
             [
                 trusted,
-                maintainer
+                maintainer,
+                trust
             ]);
     }
 
@@ -101,7 +109,7 @@ internal static class Program
 
     private static bool IsInformationalOrLocalProfileInvocation(string[] args)
     {
-        return args.FirstOrDefault() is "trusted" or "maintainer"
+        return args.FirstOrDefault() is "trusted" or "maintainer" or "trust"
                || args.Any(arg => arg is "-h" or "--help" or "--version");
     }
 }
