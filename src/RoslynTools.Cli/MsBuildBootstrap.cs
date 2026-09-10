@@ -100,6 +100,12 @@ internal static class MsBuildBootstrap
         }
     }
 
+    internal static string? FindRequestedSdkVersion(string startDirectory)
+    {
+        var globalJsonPath = FindGlobalJson(startDirectory);
+        return globalJsonPath is null ? null : ReadRequestedSdkVersion(globalJsonPath);
+    }
+
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
     // causes TypeInitializationException when loading .NET 8+ projects.
     /// <summary>

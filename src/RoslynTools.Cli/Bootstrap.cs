@@ -28,6 +28,8 @@ internal static class Bootstrap
         services.AddSingleton(typeof(ILogger<>), typeof(RtConsoleLogger<>));
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
+        services.AddSingleton<IDoctorEnvironmentProbe>(_ => new DoctorEnvironmentProbe());
+        services.AddSingleton<IDoctorWorkspaceBootstrap, DoctorWorkspaceBootstrap>();
         services.AddSingleton(_ => new RepositoryTrustRegistry());
         services.AddSingleton<TrustAddOperation>();
         services.AddSingleton<TrustListOperation>();

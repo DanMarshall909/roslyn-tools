@@ -24,5 +24,14 @@ grep -q '<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     fail "MCP publish does not preserve Roslyn build-host files"
 grep -q 'roslyn-tools-mcp' "$repo_root/server.json" ||
     fail "server.json does not advertise the stable MCP launcher"
+posix_check_line="$(grep -Fn '(cd "$staging" && "$staging/rt" inspect doctor --installation-only' "$repo_root/scripts/install.sh" | cut -d: -f1 || true)"
+posix_activation_line="$(grep -Fn 'rm -rf "$target"' "$repo_root/scripts/install.sh" | cut -d: -f1)"
+[ -n "$posix_check_line" ] && [ "$posix_check_line" -lt "$posix_activation_line" ] ||
+    fail "POSIX installer does not self-check staging before activation"
+
+windows_check_line="$(grep -Fn '& (Join-Path $staging "rt.exe") inspect doctor --installation-only' "$repo_root/scripts/install.ps1" | cut -d: -f1 || true)"
+windows_activation_line="$(grep -Fn 'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $target' "$repo_root/scripts/install.ps1" | cut -d: -f1)"
+[ -n "$windows_check_line" ] && [ "$windows_check_line" -lt "$windows_activation_line" ] ||
+    fail "Windows installer does not self-check staging before activation"
 
 echo "distribution-test: OK" >&2

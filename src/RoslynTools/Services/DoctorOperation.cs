@@ -11,12 +11,57 @@ internal sealed record DoctorRequest(
     [property: CommandPropertyDescription("Absolute repository or workspace directory")]
     string Directory,
     [property: CommandPropertyDescription("Explicit .sln or .slnx path; relative paths resolve under directory")]
-    string? Solution = null);
+    string? Solution = null,
+    [property: CommandPropertyDescription("Validate the installed CLI, MCP host, build host, SDK, and protocol without loading a solution")]
+    bool InstallationOnly = false);
+
+internal sealed record DoctorEnvironmentProbeResult(
+    bool CliLauncherHealthy,
+    bool McpLauncherHealthy,
+    bool BuildHostHealthy,
+    bool CompatibleSdkAvailable,
+    bool McpHandshakeHealthy,
+    string? ProtocolVersion,
+    string? ServerName,
+    int DiscoveredTools,
+    string? RequestedSdk,
+    string? SelectedSdk,
+    IReadOnlyList<string> Diagnostics)
+{
+    internal static DoctorEnvironmentProbeResult Healthy { get; } = new(
+        true, true, true, true, true, "2024-11-05", "roslyn-tools-mcp", 1, null, "10.0.201", []);
+
+    internal bool IsHealthy => CliLauncherHealthy
+                               && McpLauncherHealthy
+                               && BuildHostHealthy
+                               && CompatibleSdkAvailable
+                               && McpHandshakeHealthy
+                               && DiscoveredTools > 0;
+}
+
+internal interface IDoctorEnvironmentProbe
+{
+    Task<DoctorEnvironmentProbeResult> ProbeAsync(string directory, CancellationToken cancellationToken);
+}
+
+internal interface IDoctorWorkspaceBootstrap
+{
+    Result<bool, RtError> Register(string solutionPath);
+}
 
 internal sealed record DoctorInstallation(
     string Version,
     string? ProcessPath,
     bool CliLauncherHealthy,
+    bool McpLauncherHealthy,
+    bool BuildHostHealthy,
+    bool CompatibleSdkAvailable,
+    bool McpHandshakeHealthy,
+    string? ProtocolVersion,
+    string? ServerName,
+    int DiscoveredTools,
+    string? RequestedSdk,
+    string? SelectedSdk,
     bool DaemonRequired);
 
 internal sealed record DoctorRuntime(
@@ -47,11 +92,15 @@ internal sealed record DoctorResult(
 
 internal sealed class DoctorOperation(
     IWorkspaceSessionFactory sessions,
-    IProductCapabilityCatalog capabilities)
+    IProductCapabilityCatalog capabilities,
+    IDoctorEnvironmentProbe environmentProbe,
+    IDoctorWorkspaceBootstrap workspaceBootstrap)
     : CommandApplicationPort<DoctorRequest, RtResultEnvelope<DoctorResult>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessions = sessions;
     private readonly IProductCapabilityCatalog _capabilities = capabilities;
+    private readonly IDoctorEnvironmentProbe _environmentProbe = environmentProbe;
+    private readonly IDoctorWorkspaceBootstrap _workspaceBootstrap = workspaceBootstrap;
 
     public override ApplicationCommandDefinition Definition => DoctorCommandDefinition.Definition;
 
@@ -66,6 +115,20 @@ internal sealed class DoctorOperation(
 
         var stopwatch = Stopwatch.StartNew();
         var root = Path.GetFullPath(request.Directory);
+        var environment = await _environmentProbe.ProbeAsync(root, cancellationToken);
+        if (request.InstallationOnly)
+            return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
+                root,
+                selectedSolution: null,
+                [],
+                environment.IsHealthy ? "Succeeded" : "Failed",
+                "NotRequested",
+                loadedProjects: 0,
+                "NotRequired",
+                environment.Diagnostics,
+                stopwatch.ElapsedMilliseconds,
+                environment));
+
         var candidates = DiscoverCandidates(root, request.Solution);
         if (candidates.Length != 1)
             return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
@@ -75,11 +138,12 @@ internal sealed class DoctorOperation(
                 candidates.Length == 0 ? "Unsupported" : "Ambiguous",
                 "NotLoaded",
                 loadedProjects: 0,
-                RepositoryTrustContext.IsExplicitlyTrustedFor(root) ? "OneShotTrusted" : "TrustRequired",
+                GetTrustOrRequired(root),
                 candidates.Length == 0
                     ? ["No .sln or .slnx candidate was found in the requested directory."]
                     : ["Multiple solution candidates are available; select one explicitly."],
-                stopwatch.ElapsedMilliseconds));
+                stopwatch.ElapsedMilliseconds,
+                environment));
 
         var selected = candidates[0];
         if (!RepositoryTrustContext.IsExplicitlyTrustedFor(selected))
@@ -92,10 +156,30 @@ internal sealed class DoctorOperation(
                 loadedProjects: 0,
                 "TrustRequired",
                 ["Repository evaluation was not performed. After review, use --trust-repository on the CLI invocation or MCP host startup."],
-                stopwatch.ElapsedMilliseconds));
+                stopwatch.ElapsedMilliseconds,
+                environment));
 
         try
         {
+            var bootstrap = _workspaceBootstrap.Register(selected);
+            if (bootstrap.IsErr)
+            {
+                var error = bootstrap.Match(
+                    _ => throw new InvalidOperationException("Expected workspace bootstrap failure."),
+                    value => value);
+                return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
+                    root,
+                    selected,
+                    candidates,
+                    "Failed",
+                    "Failed",
+                    loadedProjects: 0,
+                    GetTrust(selected),
+                    [error.Message],
+                    stopwatch.ElapsedMilliseconds,
+                    environment));
+            }
+
             var (workspace, solution) = await _sessions.LoadWorkspaceAsync(selected);
             using (workspace)
             {
@@ -112,9 +196,10 @@ internal sealed class DoctorOperation(
                         : "Partial",
                     completeness.State.ToString(),
                     solution.ProjectIds.Count,
-                    "OneShotTrusted",
+                    GetTrust(selected),
                     completeness.Diagnostics,
-                    stopwatch.ElapsedMilliseconds));
+                    stopwatch.ElapsedMilliseconds,
+                    environment));
             }
         }
         catch (Exception exception) when (exception is IOException
@@ -129,9 +214,10 @@ internal sealed class DoctorOperation(
                 "Failed",
                 "Failed",
                 loadedProjects: 0,
-                "OneShotTrusted",
+                GetTrust(selected),
                 [exception.Message],
-                stopwatch.ElapsedMilliseconds));
+                stopwatch.ElapsedMilliseconds,
+                environment));
         }
     }
 
@@ -163,7 +249,8 @@ internal sealed class DoctorOperation(
         int loadedProjects,
         string trust,
         IReadOnlyList<string> diagnostics,
-        long elapsedMilliseconds)
+        long elapsedMilliseconds,
+        DoctorEnvironmentProbeResult environment)
     {
         var limits = Definition.Product.Limits;
         var definitions = _capabilities.GetDefinitions();
@@ -171,7 +258,16 @@ internal sealed class DoctorOperation(
             new DoctorInstallation(
                 Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
                 Environment.ProcessPath,
-                !string.IsNullOrWhiteSpace(Environment.ProcessPath),
+                environment.CliLauncherHealthy,
+                environment.McpLauncherHealthy,
+                environment.BuildHostHealthy,
+                environment.CompatibleSdkAvailable,
+                environment.McpHandshakeHealthy,
+                environment.ProtocolVersion,
+                environment.ServerName,
+                environment.DiscoveredTools,
+                environment.RequestedSdk,
+                environment.SelectedSdk,
                 DaemonRequired: false),
             new DoctorRuntime(
                 System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
@@ -185,9 +281,13 @@ internal sealed class DoctorOperation(
                 definitions.Count(definition => definition.Product.Audience == CommandAudience.Public),
                 definitions.Count(definition => definition.McpVisible)),
             limits);
-        var limitations = trust == "OneShotTrusted"
-            ? new[] { "Trust is invocation-scoped; a protected persistent trust registry is not implemented yet." }
-            : new[] { "Repository build inputs were not evaluated without explicit trust." };
+        var limitations = trust switch
+        {
+            "OneShotTrusted" => ["Trust applies only to this invocation."],
+            "PersistentTrusted" => ["Persistent trust uses preview registered-worktree and Git-object continuity checks."],
+            "NotRequired" => Array.Empty<string>(),
+            _ => ["Repository build inputs were not evaluated without explicit trust."]
+        };
 
         return new RtResultEnvelope<DoctorResult>(
             "rt.result.v1",
@@ -211,6 +311,16 @@ internal sealed class DoctorOperation(
             new RtTiming(elapsedMilliseconds),
             new RtPaging(candidates.Length, candidates.Length, false, ContinuationToken: null));
     }
+
+    private static string GetTrust(string path) =>
+        RepositoryTrustContext.IsPersistentlyTrustedFor(path) ? "PersistentTrusted" : "OneShotTrusted";
+
+    private static string GetTrustOrRequired(string path) =>
+        RepositoryTrustContext.IsPersistentlyTrustedFor(path)
+            ? "PersistentTrusted"
+            : RepositoryTrustContext.IsExplicitlyTrustedFor(path)
+                ? "OneShotTrusted"
+                : "TrustRequired";
 }
 
 internal static class DoctorCommandDefinition

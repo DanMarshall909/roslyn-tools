@@ -61,6 +61,17 @@ try {
         if (-not (Test-Path (Join-Path $staging $name))) { throw "Archive does not contain $name" }
     }
 
+    Push-Location $staging
+    try {
+        & (Join-Path $staging "rt.exe") inspect doctor --installation-only | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "The staged Roslyn Tools self-check failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $target
     New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
     Move-Item -Force $staging $target
@@ -70,6 +81,9 @@ try {
 }
 finally {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $tempDir
+    if ($staging) {
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $staging
+    }
 }
 
 Write-Host "Installed Roslyn Tools $Version ($rid)."

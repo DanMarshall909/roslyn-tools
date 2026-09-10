@@ -41,7 +41,8 @@ internal static class Program
             return await App.RunAsync(args);
         }
 
-        MsBuildBootstrap.Register();
+        if (!IsDoctorInvocation(args))
+            MsBuildBootstrap.Register();
 
         using var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices(Bootstrap.RegisterServices)
@@ -106,6 +107,9 @@ internal static class Program
     {
         return args.Length > 1 && args[0] == "maintainer" && args[1] == "daemon";
     }
+
+    private static bool IsDoctorInvocation(string[] args) =>
+        args.Length > 1 && args[0] == "inspect" && args[1] == "doctor";
 
     private static bool IsInformationalOrLocalProfileInvocation(string[] args)
     {

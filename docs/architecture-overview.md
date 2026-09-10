@@ -86,6 +86,15 @@ Every ordinary stable command has one host-neutral application definition and ex
 
 It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. During migration only, descriptors without complete ports enter an isolated compatibility bridge. Apply-capable bridge commands are not part of the stable MCP or daemon surface.
 
+Host diagnostics follow the same boundary. An application operation may consume a
+small typed probe or bootstrap port, but process launching, installed-file discovery,
+SDK selection, and process-global registration stay in the owning host adapter. For
+example, `DoctorOperation` consumes `IDoctorEnvironmentProbe` and
+`IDoctorWorkspaceBootstrap`; the CLI implementations perform the installed MCP
+handshake and defer MSBuild registration until repository trust authorizes solution
+loading. Unit tests replace both ports without starting a host process or registering
+MSBuild globally.
+
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
 ### 2. Explicit request context

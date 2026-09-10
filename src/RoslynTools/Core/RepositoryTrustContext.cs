@@ -11,6 +11,9 @@ internal static class RepositoryTrustContext
 
     internal static bool IsExplicitlyTrusted => ExplicitTrust.Value is not null;
 
+    internal static bool IsPersistentlyTrustedFor(string path) =>
+        ExplicitTrust.Value?.PersistentRegistry?.IsTrustedFor(path) == true;
+
     internal static bool IsExplicitlyTrustedFor(string path)
     {
         var authorization = ExplicitTrust.Value;

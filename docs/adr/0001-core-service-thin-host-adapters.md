@@ -20,6 +20,7 @@ Every feature follows the **Core service + thin host adapters** pattern:
 - **Service layer** (`src/RoslynTools/Services/`) contains the logic. Pure: no `System.CommandLine`, no `Console`, no IO except via injected dependencies. Receives domain request objects; returns `Result<T, RtError>` or `RtResult<T>`.
 - **CLI adapter** (`src/RoslynTools.Cli/Commands/<Foo>Command.cs`) parses args, calls the service via DI, renders text or JSON via `RtResultRenderer.Write<T>`.
 - **MCP adapter** (`src/RoslynTools.Mcp/Handlers/<Foo>Handler.cs`) parses JSON args, calls the same service via DI, returns `ToolResult`.
+- **Host capability ports** expose the smallest typed contract when an operation must orchestrate host-owned behaviour such as process launching, installed-file probing, SDK selection, or process-global registration. Their interfaces and results remain host-neutral; implementations stay in the host project and are injected into the operation. `DoctorOperation` is the reference example: it consumes environment-probe and workspace-bootstrap ports, while the CLI owns the MCP child process and lazy MSBuild registration.
 
 Both hosts resolve the service from the same DI container; neither knows about the other.
 
