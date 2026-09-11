@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Build.Locator;
 using RoslynTools.Core;
+using RoslynTools.Daemon;
 
 namespace RoslynTools;
 
@@ -10,6 +11,7 @@ namespace RoslynTools;
 internal static class MsBuildBootstrap
 {
     private static readonly object RegistrationLock = new();
+    private static VisualStudioInstance? _registeredSdkInstance;
 
     /// <summary>
     /// Method to register MSBuild bootstrapping steps.
@@ -46,8 +48,56 @@ internal static class MsBuildBootstrap
 
             var instance = FindPreferredInstance(startDirectory)
                 ?? throw CreateMissingSdkException(startDirectory);
-            MSBuildLocator.RegisterInstance(instance);
+            RegisterInstance(instance);
             return instance;
+        }
+    }
+
+    internal static VisualStudioInstance? GetRegisteredSdkInstance()
+    {
+        lock (RegistrationLock)
+            return _registeredSdkInstance;
+    }
+
+    internal static MsBuildInstanceIdentity? GetRegisteredSdkIdentity()
+    {
+        var instance = GetRegisteredSdkInstance();
+        return instance is null ? null : MsBuildInstanceIdentity.From(instance);
+    }
+
+    internal static MsBuildInstanceSelection? SelectExactInstance(string directory)
+    {
+        var instance = FindPreferredInstance(directory);
+        return instance is null
+            ? null
+            : new MsBuildInstanceSelection(
+                MsBuildInstanceIdentity.From(instance),
+                () => RegisterExactInstance(instance));
+    }
+
+    internal static void RegisterExactInstance(VisualStudioInstance instance)
+    {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+            {
+                if (_registeredSdkInstance is not null
+                    && _registeredSdkInstance.Version == instance.Version
+                    && string.Equals(
+                        Path.GetFullPath(_registeredSdkInstance.MSBuildPath),
+                        Path.GetFullPath(instance.MSBuildPath),
+                        OperatingSystem.IsWindows()
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException(
+                    "MSBuild was already registered before its exact SDK identity could be verified.");
+            }
+
+            RegisterInstance(instance);
         }
     }
 
@@ -71,7 +121,7 @@ internal static class MsBuildBootstrap
             sdkInstance is not null);
         if (registrationPath == MsBuildRegistrationPath.ScopedInstance)
         {
-            MSBuildLocator.RegisterInstance(sdkInstance!);
+            RegisterInstance(sdkInstance!);
             return;
         }
 
@@ -95,6 +145,12 @@ internal static class MsBuildBootstrap
             throw CreateMissingSdkException(startDirectory);
 
         MSBuildLocator.RegisterMSBuildPath(sdkPath);
+    }
+
+    private static void RegisterInstance(VisualStudioInstance instance)
+    {
+        MSBuildLocator.RegisterInstance(instance);
+        _registeredSdkInstance = instance;
     }
 
     private static InvalidOperationException CreateMissingSdkException(string startDirectory)

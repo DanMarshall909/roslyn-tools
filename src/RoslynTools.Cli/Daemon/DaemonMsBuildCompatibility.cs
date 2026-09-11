@@ -25,6 +25,50 @@ internal sealed record MsBuildInstanceIdentity(string MSBuildPath, Version Versi
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 }
 
+internal sealed record MsBuildInstanceSelection(
+    MsBuildInstanceIdentity Identity,
+    Action Register);
+
+internal static class MsBuildInstanceCompatibility
+{
+    internal static Result<bool, RtError> Validate(
+        MsBuildInstanceIdentity registered,
+        MsBuildInstanceIdentity requested,
+        string directory,
+        string hostName,
+        string restartContextKey)
+    {
+        if (registered.Matches(requested))
+            return Result<bool, RtError>.Ok(true);
+
+        return Result<bool, RtError>.Err(RtError.ExternalToolFailure(
+            $"The requested solution selects MSBuild {requested.Version} at '{requested.MSBuildPath}', "
+            + $"but this {hostName} registered MSBuild {registered.Version} at '{registered.MSBuildPath}'. "
+            + $"Restart the {hostName} from a compatible SDK context.",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [restartContextKey] = "true",
+                ["registeredSdkVersion"] = registered.Version.ToString(),
+                ["registeredMsBuildPath"] = registered.MSBuildPath,
+                ["requestedSdkVersion"] = requested.Version.ToString(),
+                ["requestedMsBuildPath"] = requested.MSBuildPath,
+                ["requestedDirectory"] = directory
+            }));
+    }
+
+    internal static RtError SelectionError(
+        string directory,
+        string diagnostic,
+        string hostName,
+        string restartContextKey) => RtError.ExternalToolFailure(
+        $"{diagnostic} Restart the {hostName} after correcting the SDK configuration for '{directory}'.",
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [restartContextKey] = "true",
+            ["requestedDirectory"] = directory
+        });
+}
+
 internal sealed class DaemonMsBuildCompatibility(
     MsBuildInstanceIdentity registeredIdentity,
     Func<string, MsBuildInstanceIdentity?>? resolveIdentity = null)
@@ -47,22 +91,28 @@ internal sealed class DaemonMsBuildCompatibility(
                                           or IOException
                                           or UnauthorizedAccessException)
         {
-            return Result<bool, RtError>.Err(CreateSelectionError(
+            return Result<bool, RtError>.Err(MsBuildInstanceCompatibility.SelectionError(
                 directory,
-                $"Could not select the .NET SDK: {exception.Message}"));
+                $"Could not select the .NET SDK: {exception.Message}",
+                "daemon",
+                "daemonRestartRequired"));
         }
 
         if (requestedIdentity is null)
         {
-            return Result<bool, RtError>.Err(CreateSelectionError(
+            return Result<bool, RtError>.Err(MsBuildInstanceCompatibility.SelectionError(
                 directory,
-                "No compatible .NET SDK could be selected."));
+                "No compatible .NET SDK could be selected.",
+                "daemon",
+                "daemonRestartRequired"));
         }
 
-        if (_registeredIdentity.Matches(requestedIdentity))
-            return Result<bool, RtError>.Ok(true);
-
-        return Result<bool, RtError>.Err(CreateRestartRequiredError(directory, requestedIdentity));
+        return MsBuildInstanceCompatibility.Validate(
+            _registeredIdentity,
+            requestedIdentity,
+            directory,
+            "daemon",
+            "daemonRestartRequired");
     }
 
     private static MsBuildInstanceIdentity? ResolveIdentity(string directory)
@@ -74,28 +124,4 @@ internal sealed class DaemonMsBuildCompatibility(
     internal static MsBuildInstanceIdentity? CreateIdentity(VisualStudioInstance? instance) =>
         instance is null ? null : MsBuildInstanceIdentity.From(instance);
 
-    private static RtError CreateSelectionError(string directory, string diagnostic) =>
-        RtError.ExternalToolFailure(
-            $"{diagnostic} Restart the daemon after correcting the SDK configuration for '{directory}'.",
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["daemonRestartRequired"] = "true",
-                ["requestedDirectory"] = directory
-            });
-
-    private RtError CreateRestartRequiredError(
-        string directory,
-        MsBuildInstanceIdentity requestedIdentity) => RtError.ExternalToolFailure(
-        $"The requested solution selects MSBuild {requestedIdentity.Version} at '{requestedIdentity.MSBuildPath}', "
-        + $"but this daemon registered MSBuild {_registeredIdentity.Version} at '{_registeredIdentity.MSBuildPath}'. "
-        + "Restart the daemon from a compatible SDK context.",
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["daemonRestartRequired"] = "true",
-            ["registeredSdkVersion"] = _registeredIdentity.Version.ToString(),
-            ["registeredMsBuildPath"] = _registeredIdentity.MSBuildPath,
-            ["requestedSdkVersion"] = requestedIdentity.Version.ToString(),
-            ["requestedMsBuildPath"] = requestedIdentity.MSBuildPath,
-            ["requestedDirectory"] = directory
-        });
 }

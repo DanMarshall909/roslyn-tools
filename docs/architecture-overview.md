@@ -95,7 +95,9 @@ handshake and defer MSBuild registration until repository trust authorizes solut
 loading. The probe reports absent, valid, or invalid `global.json` request state plus
 its path and SDK-selection diagnostic, and follows initialize, initialized-notification,
 then discovery ordering. Unit tests replace both ports without starting a host process
-or registering MSBuild globally.
+or registering MSBuild globally. The MCP adapter likewise invokes installation-only
+doctor requests without registering MSBuild, so a self-contained installation can
+diagnose an absent SDK rather than failing before the doctor operation runs.
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
@@ -213,7 +215,9 @@ or the persistent registry has at least one currently valid record; each call st
 revalidates its own target and returns `TrustRequired` for any other repository. This is
 a practical trusted-local preview path, not the durable protected physical-binding,
 audit, quota, revocation, lease, or evaluator-isolation guarantee specified by ADR-0011
-and platform hardening.
+and platform hardening. For in-process recovery, the adapter deserializes an absolute
+solution or workspace target and revalidates it before SDK selection; request payloads
+therefore cannot make an untrusted `global.json` participate in process-global setup.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified
@@ -604,6 +608,15 @@ context. Linked worktrees are compatible only when they resolve to that same ins
 Daemon startup therefore refuses an unscoped `RegisterDefaults` or manual-path
 fallback whose selected instance cannot be captured; direct in-process execution
 retains those compatibility fallbacks.
+
+The long-lived MCP host applies the same process-global identity invariant when daemon
+execution is unavailable. It binds the first trusted in-process request to the exact
+normalized MSBuild path and version selected from that request's effective solution
+directory, never the server startup directory. Later worktrees may run only when they
+select the same identity; mismatch or unresolved selection returns structured
+`mcpRestartRequired` context before the application port runs. Persistent trust is
+revalidated before SDK selection and registration. The MCP host does not use an
+unscoped registration fallback because its identity could not then be proven.
 
 ## Output pipeline
 
