@@ -32,6 +32,10 @@ internal static class MsBuildBootstrap
 
     private static void RegisterCore(string startDirectory)
     {
+        var sdkRequest = InspectSdkRequest(startDirectory);
+        if (sdkRequest.State == DoctorSdkRequestState.Invalid)
+            throw new InvalidOperationException(sdkRequest.Diagnostic);
+
         VisualStudioInstance? sdkInstance = null;
         try
         {
@@ -41,11 +45,17 @@ internal static class MsBuildBootstrap
         {
         }
 
-        if (sdkInstance != null)
+        var registrationPath = SelectRegistrationPath(
+            sdkRequest.State,
+            sdkInstance is not null);
+        if (registrationPath == MsBuildRegistrationPath.ScopedInstance)
         {
-            MSBuildLocator.RegisterInstance(sdkInstance);
+            MSBuildLocator.RegisterInstance(sdkInstance!);
             return;
         }
+
+        if (registrationPath == MsBuildRegistrationPath.RequestedSdkUnavailable)
+            throw CreateMissingSdkException(startDirectory);
 
         try
         {
@@ -163,6 +173,15 @@ internal static class MsBuildBootstrap
         }
     }
 
+    internal static MsBuildRegistrationPath SelectRegistrationPath(
+        DoctorSdkRequestState requestState,
+        bool scopedInstanceFound) =>
+        scopedInstanceFound
+            ? MsBuildRegistrationPath.ScopedInstance
+            : requestState == DoctorSdkRequestState.Absent
+                ? MsBuildRegistrationPath.UnscopedFallback
+                : MsBuildRegistrationPath.RequestedSdkUnavailable;
+
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
     // causes TypeInitializationException when loading .NET 8+ projects.
     /// <summary>
@@ -247,6 +266,13 @@ internal enum DoctorSdkRequestState
     Absent,
     Valid,
     Invalid
+}
+
+internal enum MsBuildRegistrationPath
+{
+    ScopedInstance,
+    UnscopedFallback,
+    RequestedSdkUnavailable
 }
 
 internal sealed record DoctorSdkRequest(

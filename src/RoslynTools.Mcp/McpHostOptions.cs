@@ -8,8 +8,6 @@ namespace RoslynTools.Mcp;
 /// </summary>
 internal sealed class McpHostOptions
 {
-    private readonly Lazy<bool> _canDiscoverRepositoryWrites;
-
     internal McpHostOptions(
         string? trustedRepositoryRoot = null,
         bool showHelp = false,
@@ -33,9 +31,6 @@ internal sealed class McpHostOptions
 
         ShowHelp = showHelp;
         TrustRegistry = trustRegistry;
-        _canDiscoverRepositoryWrites = new Lazy<bool>(() =>
-            TrustedRepositoryRoot is not null
-            || TrustRegistry?.HasAnyTrustedRepository() == true);
     }
 
     internal string? TrustedRepositoryRoot { get; }
@@ -44,7 +39,9 @@ internal sealed class McpHostOptions
 
     internal RepositoryTrustRegistry? TrustRegistry { get; }
 
-    internal bool CanDiscoverRepositoryWrites => _canDiscoverRepositoryWrites.Value;
+    internal bool CanDiscoverRepositoryWrites =>
+        TrustedRepositoryRoot is not null
+        || TrustRegistry?.HasAnyTrustedRepository() == true;
 
     internal IDisposable? EnterTrustScope() => TrustedRepositoryRoot is not null
         ? RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoot)

@@ -5,6 +5,23 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class MsBuildBootstrap
 {
+    [Theory]
+    [InlineData(nameof(DoctorSdkRequestState.Absent), false, nameof(MsBuildRegistrationPath.UnscopedFallback))]
+    [InlineData(nameof(DoctorSdkRequestState.Valid), false, nameof(MsBuildRegistrationPath.RequestedSdkUnavailable))]
+    [InlineData(nameof(DoctorSdkRequestState.Invalid), false, nameof(MsBuildRegistrationPath.RequestedSdkUnavailable))]
+    [InlineData(nameof(DoctorSdkRequestState.Absent), true, nameof(MsBuildRegistrationPath.ScopedInstance))]
+    [InlineData(nameof(DoctorSdkRequestState.Valid), true, nameof(MsBuildRegistrationPath.ScopedInstance))]
+    public void unscoped_sdk_fallback_is_forbidden_when_global_json_is_authoritative(
+        string requestState,
+        bool scopedInstanceFound,
+        string expected)
+    {
+        RoslynTools.MsBuildBootstrap.SelectRegistrationPath(
+                Enum.Parse<DoctorSdkRequestState>(requestState),
+                scopedInstanceFound)
+            .ShouldBe(Enum.Parse<MsBuildRegistrationPath>(expected));
+    }
+
     [Fact]
     public void finds_preferred_instance_returns_dot_net_sdk_when_available()
     {

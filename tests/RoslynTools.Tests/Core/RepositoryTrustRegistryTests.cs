@@ -411,6 +411,31 @@ public sealed class RepositoryTrustRegistryTests
         registry.IsTrustedFor(repository.PrimaryPath).ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("anchorCommit", false)]
+    [InlineData("anchorCommit", true)]
+    [InlineData("repositoryId", true)]
+    [InlineData("commonDirectory", true)]
+    [InlineData("grantedFromWorktree", true)]
+    public void missing_or_null_required_record_strings_fail_closed(
+        string propertyName,
+        bool explicitNull)
+    {
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        var root = JsonNode.Parse(File.ReadAllText(repository.RegistryPath))!.AsObject();
+        var record = root["records"]![0]!.AsObject();
+        if (explicitNull)
+            record[propertyName] = null;
+        else
+            record.Remove(propertyName);
+        File.WriteAllText(repository.RegistryPath, root.ToJsonString());
+
+        registry.List().IsErr.ShouldBeTrue();
+        registry.IsTrustedFor(repository.PrimaryPath).ShouldBeFalse();
+    }
+
     [Fact]
     public void one_invalid_record_makes_an_otherwise_valid_store_fail_closed()
     {

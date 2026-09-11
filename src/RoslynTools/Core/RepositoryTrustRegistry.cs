@@ -504,8 +504,8 @@ internal sealed class RepositoryTrustRegistry
             $"{anchorCommit}^{{commit}}").IsOk;
     }
 
-    internal static bool IsObjectId(string value) =>
-        value.Length is 40 or 64 && value.All(Uri.IsHexDigit);
+    internal static bool IsObjectId(string? value) =>
+        value is { Length: 40 or 64 } && value.All(Uri.IsHexDigit);
 
     internal static bool MatchesRepositoryIdentity(
         string storedRepositoryId,
@@ -516,11 +516,12 @@ internal sealed class RepositoryTrustRegistry
         && PathsEqual(storedCommonDirectory, resolvedCommonDirectory);
 
     internal static bool IsValidRecord(
-        string repositoryId,
-        string commonDirectory,
-        string grantedFromWorktree,
-        string anchorCommit) =>
-        Path.IsPathFullyQualified(commonDirectory)
+        string? repositoryId,
+        string? commonDirectory,
+        string? grantedFromWorktree,
+        string? anchorCommit) =>
+        commonDirectory is not null
+        && Path.IsPathFullyQualified(commonDirectory)
         && !string.IsNullOrWhiteSpace(grantedFromWorktree)
         && Path.IsPathFullyQualified(grantedFromWorktree)
         && IsObjectId(anchorCommit)
