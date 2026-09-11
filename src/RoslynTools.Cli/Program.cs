@@ -8,7 +8,6 @@ using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Rendering;
 using RoslynTools.Services;
-using RoslynTools.Trust;
 using System.CommandLine;
 
 /// <summary>
@@ -87,19 +86,12 @@ internal static class Program
             host.Services.GetRequiredService<FeedbackProcessOperation>(),
             host.Services.GetRequiredService<FeedbackReportOperation>()));
 
-        var trust = TrustCommand.Build(
-            host.Services.GetRequiredService<TrustAddOperation>(),
-            host.Services.GetRequiredService<TrustListOperation>(),
-            host.Services.GetRequiredService<TrustStatusOperation>(),
-            host.Services.GetRequiredService<TrustRemoveOperation>());
-
         return await App.RunAsync(
             args,
             host.Services,
             [
                 trusted,
-                maintainer,
-                trust
+                maintainer
             ]);
     }
 

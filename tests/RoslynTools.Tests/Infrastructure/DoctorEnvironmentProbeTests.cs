@@ -8,6 +8,22 @@ namespace RoslynTools.Tests.Infrastructure;
 public sealed class DoctorEnvironmentProbeTests
 {
     [Fact]
+    public void workspace_bootstrap_registers_msbuild_from_the_selected_solution_directory()
+    {
+        using var directory = new TemporaryDirectory();
+        var solutionDirectory = Path.Combine(directory.Path, "src");
+        var solutionPath = Path.Combine(solutionDirectory, "Example.slnx");
+        Directory.CreateDirectory(solutionDirectory);
+        string? registeredFrom = null;
+        var bootstrap = new DoctorWorkspaceBootstrap(path => registeredFrom = path);
+
+        var result = bootstrap.Register(solutionPath);
+
+        result.IsOk.ShouldBeTrue();
+        registeredFrom.ShouldBe(solutionDirectory);
+    }
+
+    [Fact]
     public async Task controlled_mcp_process_must_complete_a_pure_initialize_and_tools_list_handshake()
     {
         if (OperatingSystem.IsWindows())

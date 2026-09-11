@@ -83,6 +83,7 @@ public sealed class ResultContractConstraints
     {
         var violations = App.Commands
             .Where(entry => entry.Info.Mutates)
+            .Where(entry => !App.ControlPlaneCommandNames.Contains(entry.Info.Name))
             .Where(entry => !CommandTreeContainsOption(entry.Build(), "dry-run"))
             .Select(entry => entry.Info.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
@@ -90,7 +91,8 @@ public sealed class ResultContractConstraints
 
         Assert.True(
             violations.Count == 0,
-            "Every mutating command must expose --dry-run somewhere on its invocation surface. "
+            "Every repository-source mutation command must expose --dry-run somewhere on its invocation surface; "
+            + "IControlPlaneCommand uses its explicit local verb as the apply decision. "
             + "Mutation planning should be observable before files are written.\n\n"
             + "Offending commands:\n  " + string.Join("\n  ", violations));
     }

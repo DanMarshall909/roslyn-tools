@@ -87,6 +87,7 @@ but only the destination contract is eligible for preview support.
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` | Preview plan-only/high risk | Candidate language; require complete workspace and explicit limitations. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |
+| `trust` | Local repository trust control plane | Preview | Explicit local add/remove verbs are the user authorization boundary; never expose through daemon or MCP discovery. |
 
 ## Ancillary commands and surface conventions
 

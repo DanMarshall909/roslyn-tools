@@ -15,6 +15,17 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 public sealed class CommandDescriptorContracts
 {
     [Fact]
+    public void local_trust_control_plane_is_not_an_mcp_descriptor_or_tool()
+    {
+        using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
+
+        provider.GetRequiredService<CommandDescriptorRegistry>().All
+            .ShouldNotContain(descriptor => descriptor.ToolName == "trust");
+        provider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .ShouldNotContain(tool => tool.name == "trust");
+    }
+
+    [Fact]
     public void every_migrated_descriptor_has_one_port_and_request_schema_parity()
     {
         using var provider = McpTestHost.CreateProvider();

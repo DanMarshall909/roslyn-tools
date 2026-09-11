@@ -348,7 +348,7 @@ internal sealed class RepositoryTrustRegistry
             if (store is null || store.SchemaVersion != SchemaVersion || store.Records is null)
                 return Result<RepositoryTrustStore, RtError>.Err(CorruptStoreError());
 
-            if (store.Records.Any(record => !IsValidRecord(
+            if (store.Records.Any(record => record is null || !IsValidRecord(
                     record.RepositoryId,
                     record.CommonDirectory,
                     record.GrantedFromWorktree,

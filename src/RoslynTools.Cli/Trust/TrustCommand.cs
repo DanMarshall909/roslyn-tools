@@ -7,11 +7,20 @@ using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
-namespace RoslynTools.Trust;
+namespace RoslynTools.Commands;
 
 /// <summary>User-authoritative CLI surface for the preview persistent repository trust registry.</summary>
-internal static class TrustCommand
+internal sealed class TrustCommand(
+    TrustAddOperation add,
+    TrustListOperation list,
+    TrustStatusOperation status,
+    TrustRemoveOperation remove) : IControlPlaneCommand, IStructuredOutputCommand
 {
+    private readonly TrustAddOperation _add = add;
+    private readonly TrustListOperation _list = list;
+    private readonly TrustStatusOperation _status = status;
+    private readonly TrustRemoveOperation _remove = remove;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -19,11 +28,23 @@ internal static class TrustCommand
         Converters = { new JsonStringEnumConverter() }
     };
 
-    internal static Command Build(
-        TrustAddOperation add,
-        TrustListOperation list,
-        TrustStatusOperation status,
-        TrustRemoveOperation remove)
+    public static RtCommandInfo Info => new(
+        "trust",
+        Mutates: true,
+        JsonOutput: true,
+        Category: "refactor",
+        "Managing preview user-scoped trust for a reviewed Git repository. "
+        + "Use trust add/remove only as an explicit local user decision; use list/status to inspect it.",
+        [
+            "rt trust add .",
+            "rt trust list",
+            "rt trust status .",
+            "rt trust remove ."
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
+        SeeAlso: ["doctor"]);
+
+    public Command Build()
     {
         var command = new Command(
             "trust",
@@ -32,20 +53,20 @@ internal static class TrustCommand
             "add",
             "Persist trust for this Git common-directory identity",
             async (repository, context) => await RenderAsync(
-                add.ExecuteAsync(new TrustAddRequest(repository, Apply: true), context.GetCancellationToken()),
+                _add.ExecuteAsync(new TrustAddRequest(repository, Apply: true), context.GetCancellationToken()),
                 context)));
-        command.AddCommand(BuildList(list));
+        command.AddCommand(BuildList(_list));
         command.AddCommand(BuildRepositoryCommand(
             "status",
             "Show trust and registered-worktree Git-object continuity status",
             async (repository, context) => await RenderAsync(
-                status.ExecuteAsync(new TrustStatusRequest(repository), context.GetCancellationToken()),
+                _status.ExecuteAsync(new TrustStatusRequest(repository), context.GetCancellationToken()),
                 context)));
         command.AddCommand(BuildRepositoryCommand(
             "remove",
             "Remove persistent trust for this Git common-directory identity",
             async (repository, context) => await RenderAsync(
-                remove.ExecuteAsync(new TrustRemoveRequest(repository, Apply: true), context.GetCancellationToken()),
+                _remove.ExecuteAsync(new TrustRemoveRequest(repository, Apply: true), context.GetCancellationToken()),
                 context)));
         return command;
     }

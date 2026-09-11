@@ -6,13 +6,18 @@ using RoslynTools.Services;
 
 namespace RoslynTools;
 
-internal sealed class DoctorWorkspaceBootstrap : IDoctorWorkspaceBootstrap
+internal sealed class DoctorWorkspaceBootstrap(Action<string>? register = null) : IDoctorWorkspaceBootstrap
 {
+    private readonly Action<string> _register = register ?? MsBuildBootstrap.Register;
+
     public Result<bool, RtError> Register(string solutionPath)
     {
         try
         {
-            MsBuildBootstrap.Register();
+            var solutionDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath))
+                                    ?? throw new InvalidOperationException(
+                                        $"The selected solution has no parent directory: '{solutionPath}'.");
+            _register(solutionDirectory);
             return Result<bool, RtError>.Ok(true);
         }
         catch (Exception exception) when (exception is InvalidOperationException or DllNotFoundException)

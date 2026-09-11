@@ -1,15 +1,32 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Suggest;
+using RoslynTools.CommandDescriptors;
+using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
-using RoslynTools.Trust;
 using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
 public sealed class RepositoryTrustOperationsTests
 {
+    [Fact]
+    public void trust_is_in_the_canonical_catalog_dump_help_and_suggestions()
+    {
+        var entry = App.Commands.Single(command => command.Info.Name == "trust");
+
+        entry.Info.Mutates.ShouldBeTrue();
+        entry.Info.JsonOutput.ShouldBeTrue();
+        entry.Info.Category.ShouldBe("refactor");
+        App.ControlPlaneCommandNames.ShouldContain("trust");
+        typeof(IControlPlaneCommand).IsAssignableFrom(typeof(TrustCommand)).ShouldBeTrue();
+        new AppCommandCatalog().All.ShouldContain(info => info.Name == "trust");
+        DumpHelpCommand.RenderMarkdown(App.Commands.Select(command => (command.Build(), command.Info)).ToArray())
+            .ShouldContain("trust", Case.Sensitive);
+    }
+
     [Fact]
     public async Task typed_ports_share_the_registry_and_remain_hidden_from_mcp()
     {
@@ -66,11 +83,11 @@ public sealed class RepositoryTrustOperationsTests
             $"rt-trust-command-{Guid.NewGuid():N}",
             "repository-trust.json"));
 
-        var command = TrustCommand.Build(
+        var command = new TrustCommand(
             new TrustAddOperation(registry),
             new TrustListOperation(registry),
             new TrustStatusOperation(registry),
-            new TrustRemoveOperation(registry));
+            new TrustRemoveOperation(registry)).Build();
 
         command.Name.ShouldBe("trust");
         command.Subcommands.Select(subcommand => subcommand.Name)
@@ -97,6 +114,8 @@ public sealed class RepositoryTrustOperationsTests
         names.ShouldNotContain("trust_list");
         names.ShouldNotContain("trust_status");
         names.ShouldNotContain("trust_remove");
+        provider.GetRequiredService<CommandDescriptorRegistry>().All
+            .ShouldNotContain(descriptor => descriptor.ToolName == "trust");
 
         using var payload = JsonDocument.Parse("""{"repository":"."}""");
         var response = await provider.GetRequiredService<DaemonCommandDispatcher>()

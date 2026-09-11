@@ -24,6 +24,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceExists("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceExists("RoslynTools.Core.IBatchMutationCommand");
         AssertInterfaceExists("RoslynTools.Core.ITraceAnalyzeCommand");
+        AssertInterfaceExists("RoslynTools.Core.IControlPlaneCommand");
     }
 
     [Fact]
@@ -35,6 +36,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceIsInternal("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceIsInternal("RoslynTools.Core.IBatchMutationCommand");
         AssertInterfaceIsInternal("RoslynTools.Core.ITraceAnalyzeCommand");
+        AssertInterfaceIsInternal("RoslynTools.Core.IControlPlaneCommand");
     }
 
     [Fact]
@@ -46,6 +48,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceIsEmpty("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceIsEmpty("RoslynTools.Core.IBatchMutationCommand");
         AssertInterfaceIsEmpty("RoslynTools.Core.ITraceAnalyzeCommand");
+        AssertInterfaceIsEmpty("RoslynTools.Core.IControlPlaneCommand");
     }
 
     [Fact]
@@ -79,6 +82,12 @@ public sealed class CategoryInterfacesShape
         // It inherits IAnalyzeCommand transitively so the read-only / JSON-output contract
         // is preserved without re-declaring it on every implementer.
         AssertDirectParents("RoslynTools.Core.ITraceAnalyzeCommand", "RoslynTools.Core.IAnalyzeCommand");
+    }
+
+    [Fact]
+    public void with_icontrolplanecommand_the_direct_parent_is_irefactorcommand()
+    {
+        AssertDirectParents("RoslynTools.Core.IControlPlaneCommand", "RoslynTools.Core.IRefactorCommand");
     }
 
     [Fact]

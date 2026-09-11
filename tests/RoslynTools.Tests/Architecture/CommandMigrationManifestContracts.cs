@@ -28,7 +28,7 @@ public sealed class CommandMigrationManifestContracts
             .Where(command => Categories.Contains(command.Info.Category))
             .ToDictionary(command => command.Info.Name, command => command.Info, StringComparer.Ordinal);
 
-        rows.Length.ShouldBe(63);
+        rows.Length.ShouldBe(64);
         rows.Select(row => row.Command).ShouldBeUnique();
         rows.Select(row => row.Command).OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(commands.Keys.OrderBy(name => name, StringComparer.Ordinal));

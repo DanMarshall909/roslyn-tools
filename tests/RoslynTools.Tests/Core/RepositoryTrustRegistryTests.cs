@@ -394,6 +394,7 @@ public sealed class RepositoryTrustRegistryTests
     [InlineData("null")]
     [InlineData("{\"schemaVersion\":2,\"records\":[]}")]
     [InlineData("{\"schemaVersion\":1,\"records\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"records\":[null]}")]
     public void structurally_invalid_stores_fail_closed(string content)
     {
         using var repository = TestGitRepository.CreateWithLinkedWorktree();

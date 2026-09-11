@@ -9,6 +9,8 @@ public sealed class CliInvocationClassifierTests
     [InlineData("doctor")]
     [InlineData("inspect", "doctor")]
     [InlineData("trust", "list")]
+    [InlineData("refactor", "trust", "list")]
+    [InlineData("--json", "refactor", "trust", "list")]
     [InlineData("maintainer", "daemon", "status")]
     [InlineData("dump-help")]
     [InlineData("prime")]
@@ -66,6 +68,8 @@ public sealed class CliInvocationClassifierTests
     [Theory]
     [InlineData("doctor")]
     [InlineData("trust", "list")]
+    [InlineData("refactor", "trust", "list")]
+    [InlineData("--json", "refactor", "trust", "list")]
     [InlineData("trusted", "probe-di")]
     public void local_and_trusted_invocations_run_in_process(params string[] arguments)
     {

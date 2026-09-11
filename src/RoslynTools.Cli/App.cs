@@ -161,6 +161,19 @@ internal static class App
     /// <summary>Complete implementation inventory, including commands removed from discovery.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> AllCommands { get; } = Discover();
 
+    /// <summary>
+    /// Local user-authoritative commands whose explicit CLI verb is the apply decision rather
+    /// than a repository-source dry-run/apply workflow.
+    /// </summary>
+    internal static IReadOnlySet<string> ControlPlaneCommandNames { get; } =
+        typeof(App).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(IControlPlaneCommand).IsAssignableFrom(type))
+            .Select(type => (RtCommandInfo)type
+                .GetProperty("Info", BindingFlags.Static | BindingFlags.Public)!
+                .GetValue(null)!)
+            .Select(info => info.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
     /// <summary>Commands admitted to the ordinary CLI and adapter product surface.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } =
         AllCommands

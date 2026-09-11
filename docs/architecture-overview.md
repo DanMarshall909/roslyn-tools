@@ -253,6 +253,12 @@ A command implements exactly one category marker:
 - `IAnalyzeCommand` — read-only, broader analysis; or
 - `IRefactorCommand` — prepares or applies source changes.
 
+`IControlPlaneCommand` is a narrow subtype of `IRefactorCommand` for explicit,
+local, user-authoritative control-plane actions such as `rt trust add/remove`.
+Its verb is itself the apply decision, so repository-source `--dry-run` and
+review-first gates exclude only this marker. Control-plane commands remain
+in-process and must not become MCP- or daemon-invocable through catalog inclusion.
+
 Reusable options are capabilities backed by a central catalogue and shared binders, for example `IHasSolutionOption`, `ISupportsDryRun`, and `IHasSymbolTarget`. Services receive domain requests, not parser types. Known flags are not recreated command by command.
 
 The current capability migration is intentionally incremental, but no new command may deepen the ad hoc option model.

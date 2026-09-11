@@ -16,21 +16,26 @@ internal static class MsBuildBootstrap
     /// </summary>
     internal static void Register()
     {
+        Register(Environment.CurrentDirectory);
+    }
+
+    internal static void Register(string startDirectory)
+    {
         lock (RegistrationLock)
         {
             if (MSBuildLocator.IsRegistered)
                 return;
 
-            RegisterCore();
+            RegisterCore(startDirectory);
         }
     }
 
-    private static void RegisterCore()
+    private static void RegisterCore(string startDirectory)
     {
         VisualStudioInstance? sdkInstance = null;
         try
         {
-            sdkInstance = FindPreferredInstance();
+            sdkInstance = FindPreferredInstance(startDirectory);
         }
         catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
         {
@@ -56,14 +61,14 @@ internal static class MsBuildBootstrap
 
         var sdkPath = FindLatestDotnetSdkPath();
         if (sdkPath == null)
-            throw CreateMissingSdkException();
+            throw CreateMissingSdkException(startDirectory);
 
         MSBuildLocator.RegisterMSBuildPath(sdkPath);
     }
 
-    private static InvalidOperationException CreateMissingSdkException()
+    private static InvalidOperationException CreateMissingSdkException(string startDirectory)
     {
-        var globalJsonPath = FindGlobalJson(Environment.CurrentDirectory);
+        var globalJsonPath = FindGlobalJson(startDirectory);
         var requestedVersion = globalJsonPath == null ? null : ReadRequestedSdkVersion(globalJsonPath);
         var requested = requestedVersion == null
             ? string.Empty
@@ -163,9 +168,14 @@ internal static class MsBuildBootstrap
     /// <summary>
     /// Method to find the preferred MSBuild instance.
     /// </summary>
-    internal static VisualStudioInstance? FindPreferredInstance()
+    internal static VisualStudioInstance? FindPreferredInstance(string? startDirectory = null)
     {
-        return MSBuildLocator.QueryVisualStudioInstances()
+        var options = new VisualStudioInstanceQueryOptions
+        {
+            WorkingDirectory = startDirectory ?? Environment.CurrentDirectory,
+            DiscoveryTypes = DiscoveryType.DotNetSdk
+        };
+        return MSBuildLocator.QueryVisualStudioInstances(options)
             .Where(i => i.DiscoveryType == DiscoveryType.DotNetSdk)
             .OrderByDescending(i => i.Version)
             .FirstOrDefault();

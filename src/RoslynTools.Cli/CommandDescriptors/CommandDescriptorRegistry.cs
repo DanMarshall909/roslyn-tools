@@ -33,7 +33,9 @@ internal sealed class CommandDescriptorRegistry
         var portsByName = ports.ToDictionary(
             port => port.Definition.Name,
             StringComparer.Ordinal);
-        var descriptors = App.AllCommands.Select(entry =>
+        var descriptors = App.AllCommands
+            .Where(entry => !App.ControlPlaneCommandNames.Contains(entry.Info.Name))
+            .Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
             portsByName.TryGetValue(toolName, out var port);
