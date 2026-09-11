@@ -5,6 +5,85 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class MsBuildBootstrap
 {
+    [Fact]
+    public void versionless_sdk_object_is_valid_and_can_reach_scoped_resolution()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-versionless-sdk-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var globalJsonPath = Path.Combine(directory, "global.json");
+            File.WriteAllText(globalJsonPath, """
+                {"sdk":{"allowPrerelease":true,"paths":[]}}
+                """);
+
+            var request = RoslynTools.MsBuildBootstrap.InspectSdkRequest(directory);
+
+            request.State.ShouldBe(DoctorSdkRequestState.Valid);
+            request.GlobalJsonPath.ShouldBe(globalJsonPath);
+            request.RequestedVersion.ShouldBeNull();
+            request.Diagnostic.ShouldBeNull();
+            RoslynTools.MsBuildBootstrap.SelectRegistrationPath(request.State, scopedInstanceFound: true)
+                .ShouldBe(MsBuildRegistrationPath.ScopedInstance);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void versioned_sdk_object_preserves_the_requested_version()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-versioned-sdk-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "global.json"), """
+                {"sdk":{"version":"10.0.201","allowPrerelease":true}}
+                """);
+
+            var request = RoslynTools.MsBuildBootstrap.InspectSdkRequest(directory);
+
+            request.State.ShouldBe(DoctorSdkRequestState.Valid);
+            request.RequestedVersion.ShouldBe("10.0.201");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void whitespace_sdk_version_is_invalid()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-whitespace-sdk-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "global.json"), """
+                {"sdk":{"version":"   "}}
+                """);
+
+            var request = RoslynTools.MsBuildBootstrap.InspectSdkRequest(directory);
+
+            request.State.ShouldBe(DoctorSdkRequestState.Invalid);
+            request.RequestedVersion.ShouldBeNull();
+            request.Diagnostic.ShouldNotBeNull();
+            request.Diagnostic!.ShouldContain("non-empty string");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(nameof(DoctorSdkRequestState.Absent), false, nameof(MsBuildRegistrationPath.UnscopedFallback))]
     [InlineData(nameof(DoctorSdkRequestState.Valid), false, nameof(MsBuildRegistrationPath.RequestedSdkUnavailable))]

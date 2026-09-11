@@ -242,6 +242,84 @@ public sealed class DoctorOperationTests
         sessions.InvocationCount.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task trusted_complete_workspace_merges_unhealthy_installation_diagnostics_and_limits_confidence()
+    {
+        using var directory = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(directory.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "");
+        using var project = new AdhocProjectBuilder("DoctorApp");
+        project.AddSource("Healthy.cs", "public class Healthy { }");
+        var (workspace, solution) = project.Build();
+        var sessions = new CountingSessionFactory(workspace, solution);
+        var environment = DoctorEnvironmentProbeResult.Healthy with
+        {
+            McpLauncherHealthy = false,
+            BuildHostHealthy = false,
+            McpHandshakeHealthy = false,
+            Diagnostics =
+            [
+                "MCP launcher is unavailable.",
+                "Roslyn BuildHost contents are incomplete.",
+                "MCP initialize handshake failed."
+            ]
+        };
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(environment),
+            new CountingWorkspaceBootstrap());
+
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
+        var envelope = (await operation.ExecuteAsync(new DoctorRequest(
+            directory.Path,
+            solutionPath))).Unwrap();
+
+        envelope.Data.Workspace.State.ShouldBe("Complete");
+        envelope.Outcome.ShouldBe("Partial");
+        envelope.Confidence.Level.ShouldBe("Limited");
+        foreach (var diagnostic in environment.Diagnostics)
+        {
+            envelope.Diagnostics.ShouldContain(item => item.Message == diagnostic);
+            envelope.Workspace.Diagnostics.ShouldContain(diagnostic);
+        }
+    }
+
+    [Fact]
+    public async Task trusted_partial_workspace_preserves_environment_and_workspace_diagnostics()
+    {
+        using var directory = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(directory.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "");
+        using var project = new AdhocProjectBuilder("DoctorApp");
+        project.AddSource("Broken.cs", "public class Broken { MissingType Value; }");
+        var (workspace, solution) = project.Build();
+        var sessions = new CountingSessionFactory(workspace, solution);
+        const string installationDiagnostic = "MCP launcher is unavailable.";
+        var environment = DoctorEnvironmentProbeResult.Healthy with
+        {
+            McpLauncherHealthy = false,
+            Diagnostics = [installationDiagnostic]
+        };
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(environment),
+            new CountingWorkspaceBootstrap());
+
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
+        var envelope = (await operation.ExecuteAsync(new DoctorRequest(
+            directory.Path,
+            solutionPath))).Unwrap();
+
+        envelope.Outcome.ShouldBe("Partial");
+        envelope.Data.Workspace.State.ShouldBe("Partial");
+        envelope.Diagnostics.ShouldContain(item => item.Message == installationDiagnostic);
+        envelope.Diagnostics.ShouldContain(item => item.Message.Contains("CS0246", StringComparison.Ordinal));
+        envelope.Workspace.Diagnostics.ShouldContain(installationDiagnostic);
+        envelope.Workspace.Diagnostics.ShouldContain(item => item.Contains("CS0246", StringComparison.Ordinal));
+    }
+
     private sealed class FixedCapabilityCatalog : IProductCapabilityCatalog
     {
         public IReadOnlyList<ApplicationCommandDefinition> GetDefinitions() =>

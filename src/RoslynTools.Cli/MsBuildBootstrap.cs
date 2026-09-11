@@ -146,12 +146,21 @@ internal static class MsBuildBootstrap
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(globalJsonPath));
-            var version = document.RootElement
-                .GetProperty("sdk")
-                .GetProperty("version")
-                .GetString();
-            if (string.IsNullOrWhiteSpace(version))
-                throw new JsonException("sdk.version must be a non-empty string.");
+            var sdk = document.RootElement.GetProperty("sdk");
+            if (sdk.ValueKind != JsonValueKind.Object)
+                throw new JsonException("sdk must be an object.");
+
+            string? version = null;
+            if (sdk.TryGetProperty("version", out var versionElement))
+            {
+                if (versionElement.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(versionElement.GetString()))
+                {
+                    throw new JsonException("sdk.version must be a non-empty string when specified.");
+                }
+
+                version = versionElement.GetString();
+            }
 
             return new DoctorSdkRequest(
                 DoctorSdkRequestState.Valid,

@@ -203,18 +203,21 @@ internal sealed class DoctorOperation(
                 var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
                     solution,
                     cancellationToken);
+                var diagnostics = environment.Diagnostics
+                    .Concat(completeness.Diagnostics)
+                    .ToArray();
                 stopwatch.Stop();
                 return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
                     root,
                     selected,
                     candidates,
-                    completeness.State == WorkspaceCompletenessState.Complete
+                    completeness.State == WorkspaceCompletenessState.Complete && environment.IsHealthy
                         ? "Succeeded"
                         : "Partial",
                     completeness.State.ToString(),
                     solution.ProjectIds.Count,
                     GetTrust(selected),
-                    completeness.Diagnostics,
+                    diagnostics,
                     stopwatch.ElapsedMilliseconds,
                     environment));
             }
