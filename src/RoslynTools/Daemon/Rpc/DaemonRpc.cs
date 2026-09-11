@@ -319,19 +319,27 @@ internal sealed class DaemonRpcClient : IDaemonRpcClient
 /// <summary>
 /// Resolves typed command application ports and executes them without entering CLI parsing or output rendering.
 /// </summary>
+internal interface IDaemonSdkContextGuard
+{
+    Result<bool, RtError> Check(string directory);
+}
+
 internal sealed class DaemonCommandDispatcher
 {
     private static readonly SemaphoreSlim WorkingDirectoryGate = new(1, 1);
 
     private readonly Dictionary<string, ICommandApplicationPort> _ports;
     private readonly RepositoryTrustRegistry? _trustRegistry;
+    private readonly IDaemonSdkContextGuard? _sdkContextGuard;
 
     internal DaemonCommandDispatcher(
         IEnumerable<ICommandApplicationPort> ports,
-        RepositoryTrustRegistry? trustRegistry = null)
+        RepositoryTrustRegistry? trustRegistry = null,
+        IDaemonSdkContextGuard? sdkContextGuard = null)
     {
         _ports = ports.ToDictionary(port => port.Definition.Name, StringComparer.Ordinal);
         _trustRegistry = trustRegistry;
+        _sdkContextGuard = sdkContextGuard;
     }
 
     internal async Task<DaemonRpcResponse> ExecuteAsync(
@@ -370,6 +378,30 @@ internal sealed class DaemonCommandDispatcher
 
         if (typedRequest is null)
             return Failure(request, DaemonRpcErrorCodes.InvalidArguments, "Command arguments cannot be null.");
+
+        if (_sdkContextGuard is not null)
+        {
+            string contextDirectory;
+            try
+            {
+                contextDirectory = ResolveSdkContextDirectory(request);
+            }
+            catch (Exception exception) when (exception is ArgumentException
+                                              or IOException
+                                              or NotSupportedException)
+            {
+                return Failure(request, DaemonRpcErrorCodes.InvalidArguments, exception.Message);
+            }
+
+            var compatibility = _sdkContextGuard.Check(contextDirectory);
+            if (compatibility.IsErr)
+            {
+                var error = compatibility.Match(
+                    _ => throw new InvalidOperationException("Expected daemon SDK compatibility failure."),
+                    value => value);
+                return Failure(request, DaemonRpcErrorCodes.CommandFailed, error);
+            }
+        }
 
         try
         {
@@ -422,6 +454,31 @@ internal sealed class DaemonCommandDispatcher
 
     private static DaemonRpcResponse Failure(DaemonRpcRequest request, string code, string message) =>
         new(DaemonRpcProtocol.CurrentVersion, request.RequestId, Error: new DaemonRpcError(code, message));
+
+    private static string ResolveSdkContextDirectory(DaemonRpcRequest request)
+    {
+        var workingDirectory = string.IsNullOrWhiteSpace(request.WorkingDirectory)
+            ? Directory.GetCurrentDirectory()
+            : Path.GetFullPath(request.WorkingDirectory);
+        if (request.Arguments.ValueKind != JsonValueKind.Object)
+            return workingDirectory;
+
+        foreach (var property in request.Arguments.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, "solution", StringComparison.OrdinalIgnoreCase)
+                || property.Value.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(property.Value.GetString()))
+                continue;
+
+            var solution = property.Value.GetString()!;
+            var resolved = Path.IsPathFullyQualified(solution)
+                ? Path.GetFullPath(solution)
+                : Path.GetFullPath(Path.Combine(workingDirectory, solution));
+            return Path.GetDirectoryName(resolved) ?? workingDirectory;
+        }
+
+        return workingDirectory;
+    }
 
     private static DaemonRpcResponse Failure(
         DaemonRpcRequest request,

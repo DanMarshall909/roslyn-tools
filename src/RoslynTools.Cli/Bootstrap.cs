@@ -43,7 +43,8 @@ internal static class Bootstrap
         services.AddSingleton<DaemonRpcRecoveryCoordinator>();
         services.AddSingleton(provider => new DaemonCommandDispatcher(
             provider.GetServices<ICommandApplicationPort>(),
-            provider.GetRequiredService<RepositoryTrustRegistry>()));
+            provider.GetRequiredService<RepositoryTrustRegistry>(),
+            provider.GetService<IDaemonSdkContextGuard>()));
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();

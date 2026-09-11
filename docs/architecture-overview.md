@@ -595,6 +595,16 @@ status indeterminate. No new apply or operation ID is created automatically.
 
 For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
 
+MSBuild registration is process-global, so the daemon captures the exact SDK instance
+it registers: normalized MSBuild path plus version. Each typed request resolves the SDK
+instance for its effective solution directory before invocation. A different path or
+version fails closed with structured `daemonRestartRequired` context naming the
+registered and requested identities; the caller must restart from a compatible SDK
+context. Linked worktrees are compatible only when they resolve to that same instance.
+Daemon startup therefore refuses an unscoped `RegisterDefaults` or manual-path
+fallback whose selected instance cannot be captured; direct in-process execution
+retains those compatibility fallbacks.
+
 ## Output pipeline
 
 ```text

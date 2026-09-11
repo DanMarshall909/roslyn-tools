@@ -92,6 +92,17 @@ receiver. An in-flight receiver is not inferred absent, and no new apply is issu
 
 The daemon carries absolute request context. It does not use or mutate process current directory, global console state, global exit code, or arbitrary environment as operation context.
 
+The daemon registers one process-global MSBuild instance at startup and records its
+normalized MSBuild path and version. Before invoking a typed request, it resolves the
+instance selected by the effective solution directory and requires both identity
+components to match. Mismatch or unresolved selection is a typed, fail-closed error
+with `daemonRestartRequired` and both available identities; it never re-registers
+MSBuild in-process. Different worktree paths are accepted only when selection resolves
+to the same registered instance.
+To keep that identity authoritative, daemon startup refuses unscoped defaults or a
+manual registration fallback when no queryable SDK instance is available. This can
+reduce daemon availability; the direct in-process host retains the existing fallback.
+
 Its local endpoint is per-user, collision-resistant, and access controlled where the operating system permits. The global `rt-daemon` endpoint is a migration target, not the accepted design.
 
 The daemon logs bounded structured metadata and redacted diagnostics. It does not persist raw JSON requests, command-line payloads, piped source/input, arbitrary environment values, or unbounded exception/source data.

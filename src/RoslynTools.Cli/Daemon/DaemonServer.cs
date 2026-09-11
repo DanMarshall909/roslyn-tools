@@ -106,9 +106,15 @@ internal static class DaemonServer
         IHost host;
         try
         {
-            MsBuildBootstrap.Register();
+            var registeredInstance = MsBuildBootstrap.RegisterForDaemon(Environment.CurrentDirectory);
+            var registeredIdentity = MsBuildInstanceIdentity.From(registeredInstance);
             host = Host.CreateDefaultBuilder()
-                .ConfigureServices(Bootstrap.RegisterServices)
+                .ConfigureServices(services =>
+                {
+                    Bootstrap.RegisterServices(services);
+                    services.AddSingleton<IDaemonSdkContextGuard>(
+                        new DaemonMsBuildCompatibility(registeredIdentity));
+                })
                 .Build();
         }
         catch (Exception ex)

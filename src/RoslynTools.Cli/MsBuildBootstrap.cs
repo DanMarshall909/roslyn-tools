@@ -30,6 +30,27 @@ internal static class MsBuildBootstrap
         }
     }
 
+    internal static VisualStudioInstance RegisterForDaemon(string startDirectory)
+    {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+            {
+                throw new InvalidOperationException(
+                    "The daemon cannot capture an authoritative MSBuild identity after registration.");
+            }
+
+            var sdkRequest = InspectSdkRequest(startDirectory);
+            if (sdkRequest.State == DoctorSdkRequestState.Invalid)
+                throw new InvalidOperationException(sdkRequest.Diagnostic);
+
+            var instance = FindPreferredInstance(startDirectory)
+                ?? throw CreateMissingSdkException(startDirectory);
+            MSBuildLocator.RegisterInstance(instance);
+            return instance;
+        }
+    }
+
     private static void RegisterCore(string startDirectory)
     {
         var sdkRequest = InspectSdkRequest(startDirectory);
@@ -146,7 +167,15 @@ internal static class MsBuildBootstrap
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(globalJsonPath));
-            var sdk = document.RootElement.GetProperty("sdk");
+            if (!document.RootElement.TryGetProperty("sdk", out var sdk))
+            {
+                return new DoctorSdkRequest(
+                    DoctorSdkRequestState.Absent,
+                    globalJsonPath,
+                    null,
+                    null);
+            }
+
             if (sdk.ValueKind != JsonValueKind.Object)
                 throw new JsonException("sdk must be an object.");
 

@@ -190,18 +190,21 @@ public sealed class DoctorEnvironmentProbeTests
         selection.Diagnostic.ShouldNotBeNullOrWhiteSpace();
     }
 
-    [Fact]
-    public void incomplete_global_json_is_an_invalid_sdk_request()
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"\":{}}")]
+    public void global_json_without_sdk_is_an_absent_nonfatal_sdk_request(string content)
     {
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.Path, "global.json");
-        File.WriteAllText(path, "{}");
+        File.WriteAllText(path, content);
 
         var selection = DoctorEnvironmentProbe.SelectCompatibleSdk(directory.Path, "missing-dotnet");
 
-        selection.Compatible.ShouldBeFalse();
-        selection.RequestState.ShouldBe(DoctorSdkRequestState.Invalid);
+        selection.Compatible.ShouldBeTrue();
+        selection.RequestState.ShouldBe(DoctorSdkRequestState.Absent);
         selection.GlobalJsonPath.ShouldBe(path);
+        selection.RequestedVersion.ShouldBeNull();
     }
 
     [Fact]

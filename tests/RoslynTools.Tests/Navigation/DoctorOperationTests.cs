@@ -13,25 +13,27 @@ public sealed class DoctorOperationTests
     {
         var sessions = new CountingSessionFactory();
         var bootstrap = new CountingWorkspaceBootstrap();
+        var probe = new FixedEnvironmentProbe(new DoctorEnvironmentProbeResult(
+            CliLauncherHealthy: true,
+            McpLauncherHealthy: true,
+            BuildHostHealthy: true,
+            CompatibleSdkAvailable: true,
+            McpHandshakeHealthy: false,
+            ProtocolVersion: "2024-11-05",
+            ServerName: "roslyn-tools-mcp",
+            DiscoveredTools: 0,
+            RequestedSdk: null,
+            SelectedSdk: "10.0.201",
+            Diagnostics: ["tools/list returned no tools."]));
         var operation = new DoctorOperation(
             sessions,
             new FixedCapabilityCatalog(),
-            new FixedEnvironmentProbe(new DoctorEnvironmentProbeResult(
-                CliLauncherHealthy: true,
-                McpLauncherHealthy: true,
-                BuildHostHealthy: true,
-                CompatibleSdkAvailable: true,
-                McpHandshakeHealthy: false,
-                ProtocolVersion: "2024-11-05",
-                ServerName: "roslyn-tools-mcp",
-                DiscoveredTools: 0,
-                RequestedSdk: null,
-                SelectedSdk: "10.0.201",
-                Diagnostics: ["tools/list returned no tools."])),
+            probe,
             bootstrap);
 
         var envelope = (await operation.ExecuteAsync(new DoctorRequest(
             Directory.GetCurrentDirectory(),
+            Solution: "/ignored/\0/Invalid.slnx",
             InstallationOnly: true))).Unwrap();
 
         envelope.Outcome.ShouldBe("Failed");
@@ -39,6 +41,7 @@ public sealed class DoctorOperationTests
         envelope.Data.Workspace.State.ShouldBe("NotRequested");
         sessions.InvocationCount.ShouldBe(0);
         bootstrap.InvocationCount.ShouldBe(0);
+        probe.ProbedDirectory.ShouldBe(Path.GetFullPath(Directory.GetCurrentDirectory()));
     }
 
     [Fact]
@@ -108,7 +111,16 @@ public sealed class DoctorOperationTests
         var bootstrap = new CountingWorkspaceBootstrap(new RtError(
             RtErrorKind.ExternalToolFailure,
             "SDK 10.0.301 requested by global.json is not installed."));
-        var operation = CreateOperation(sessions, bootstrap);
+        const string installationDiagnostic = "MCP launcher is unavailable.";
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(DoctorEnvironmentProbeResult.Healthy with
+            {
+                McpLauncherHealthy = false,
+                Diagnostics = [installationDiagnostic]
+            }),
+            bootstrap);
 
         using var trust = RepositoryTrustContext.UseExplicitTrust();
         var envelope = (await operation.ExecuteAsync(new DoctorRequest(
@@ -118,8 +130,60 @@ public sealed class DoctorOperationTests
         envelope.Outcome.ShouldBe("Failed");
         envelope.Diagnostics.ShouldContain(diagnostic =>
             diagnostic.Message.Contains("10.0.301", StringComparison.Ordinal));
+        envelope.Diagnostics.ShouldContain(diagnostic => diagnostic.Message == installationDiagnostic);
         bootstrap.InvocationCount.ShouldBe(1);
         sessions.InvocationCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task load_failure_preserves_installation_and_workspace_diagnostics()
+    {
+        using var directory = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(directory.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "");
+        const string installationDiagnostic = "MCP launcher is unavailable.";
+        const string loadDiagnostic = "solution load failed";
+        var sessions = new CountingSessionFactory(loadException: new IOException(loadDiagnostic));
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(DoctorEnvironmentProbeResult.Healthy with
+            {
+                McpLauncherHealthy = false,
+                Diagnostics = [installationDiagnostic]
+            }),
+            new CountingWorkspaceBootstrap());
+
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
+        var envelope = (await operation.ExecuteAsync(new DoctorRequest(
+            directory.Path,
+            solutionPath))).Unwrap();
+
+        envelope.Outcome.ShouldBe("Failed");
+        envelope.Diagnostics.ShouldContain(diagnostic => diagnostic.Message == installationDiagnostic);
+        envelope.Diagnostics.ShouldContain(diagnostic => diagnostic.Message == loadDiagnostic);
+    }
+
+    [Fact]
+    public async Task absolute_solution_outside_directory_is_discovered_before_probing_its_parent()
+    {
+        using var directory = new TemporaryDirectory();
+        using var solutionDirectory = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(solutionDirectory.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "");
+        var probe = new FixedEnvironmentProbe(DoctorEnvironmentProbeResult.Healthy);
+        var operation = new DoctorOperation(
+            new CountingSessionFactory(),
+            new FixedCapabilityCatalog(),
+            probe,
+            new CountingWorkspaceBootstrap());
+
+        var envelope = (await operation.ExecuteAsync(new DoctorRequest(
+            directory.Path,
+            solutionPath))).Unwrap();
+
+        envelope.Outcome.ShouldBe("TrustRequired");
+        probe.ProbedDirectory.ShouldBe(solutionDirectory.Path);
     }
 
     [Fact]
@@ -150,13 +214,23 @@ public sealed class DoctorOperationTests
     {
         using var directory = new TemporaryDirectory();
         var sessions = new CountingSessionFactory();
-        var operation = CreateOperation(sessions);
+        const string installationDiagnostic = "MCP launcher is unavailable.";
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(DoctorEnvironmentProbeResult.Healthy with
+            {
+                McpLauncherHealthy = false,
+                Diagnostics = [installationDiagnostic]
+            }),
+            new CountingWorkspaceBootstrap());
 
         var envelope = (await operation.ExecuteAsync(new DoctorRequest(directory.Path))).Unwrap();
 
         envelope.Outcome.ShouldBe("Unsupported");
         envelope.Data.Workspace.State.ShouldBe("NotLoaded");
         envelope.Data.Workspace.Candidates.ShouldBeEmpty();
+        envelope.Diagnostics.ShouldContain(diagnostic => diagnostic.Message == installationDiagnostic);
         sessions.InvocationCount.ShouldBe(0);
     }
 
@@ -184,13 +258,23 @@ public sealed class DoctorOperationTests
         File.WriteAllText(System.IO.Path.Combine(directory.Path, "App.slnx"), "");
         var sessions = new CountingSessionFactory();
         var bootstrap = new CountingWorkspaceBootstrap();
-        var operation = CreateOperation(sessions, bootstrap);
+        const string installationDiagnostic = "MCP launcher is unavailable.";
+        var operation = new DoctorOperation(
+            sessions,
+            new FixedCapabilityCatalog(),
+            new FixedEnvironmentProbe(DoctorEnvironmentProbeResult.Healthy with
+            {
+                McpLauncherHealthy = false,
+                Diagnostics = [installationDiagnostic]
+            }),
+            bootstrap);
 
         var envelope = (await operation.ExecuteAsync(new DoctorRequest(directory.Path))).Unwrap();
 
         envelope.Outcome.ShouldBe("TrustRequired");
         envelope.Data.Workspace.Trust.ShouldBe("TrustRequired");
         envelope.NextActions.ShouldHaveSingleItem().Capability.ShouldBe("doctor");
+        envelope.Diagnostics.ShouldContain(diagnostic => diagnostic.Message == installationDiagnostic);
         sessions.InvocationCount.ShouldBe(0);
         bootstrap.InvocationCount.ShouldBe(0);
     }
@@ -337,8 +421,13 @@ public sealed class DoctorOperationTests
     private sealed class FixedEnvironmentProbe(DoctorEnvironmentProbeResult result)
         : IDoctorEnvironmentProbe
     {
-        public Task<DoctorEnvironmentProbeResult> ProbeAsync(string directory, CancellationToken cancellationToken) =>
-            Task.FromResult(result);
+        public string? ProbedDirectory { get; private set; }
+
+        public Task<DoctorEnvironmentProbeResult> ProbeAsync(string directory, CancellationToken cancellationToken)
+        {
+            ProbedDirectory = directory;
+            return Task.FromResult(result);
+        }
     }
 
     private sealed class CountingWorkspaceBootstrap(RtError? error = null) : IDoctorWorkspaceBootstrap
@@ -359,7 +448,8 @@ public sealed class DoctorOperationTests
 
     private sealed class CountingSessionFactory(
         Workspace? workspace = null,
-        Solution? solution = null) : IWorkspaceSessionFactory
+        Solution? solution = null,
+        Exception? loadException = null) : IWorkspaceSessionFactory
     {
         public int InvocationCount { get; private set; }
 
@@ -370,6 +460,8 @@ public sealed class DoctorOperationTests
         {
             InvocationCount++;
             CallOrder = Stopwatch.GetTimestamp();
+            if (loadException is not null)
+                throw loadException;
             if (workspace is null || solution is null)
                 throw new InvalidOperationException("Unexpected workspace evaluation.");
             return Task.FromResult((workspace, solution));

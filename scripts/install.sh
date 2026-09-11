@@ -81,7 +81,10 @@ mkdir -p "$staging" "$bin_dir"
 tar -xzf "$temp_dir/$archive" -C "$staging"
 [ -x "$staging/rt" ] || { echo "install: archive does not contain rt" >&2; exit 1; }
 [ -x "$staging/roslyn-tools-mcp" ] || { echo "install: archive does not contain roslyn-tools-mcp" >&2; exit 1; }
-(cd "$staging" && "$staging/rt" inspect doctor --installation-only >/dev/null)
+self_check="$temp_dir/self-check"
+mkdir -p "$self_check"
+printf '%s\n' '{}' > "$self_check/global.json"
+"$staging/rt" inspect doctor --installation-only --directory "$self_check" >/dev/null
 
 rm -rf "$target"
 mkdir -p "$(dirname "$target")"

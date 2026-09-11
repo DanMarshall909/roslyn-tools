@@ -132,7 +132,13 @@ internal sealed class DoctorOperation(
 
         var stopwatch = Stopwatch.StartNew();
         var root = Path.GetFullPath(request.Directory);
-        var environment = await _environmentProbe.ProbeAsync(root, cancellationToken);
+        var candidates = request.InstallationOnly
+            ? []
+            : DiscoverCandidates(root, request.Solution);
+        var probeDirectory = request.InstallationOnly || candidates.Length != 1
+            ? root
+            : Path.GetDirectoryName(candidates[0]) ?? root;
+        var environment = await _environmentProbe.ProbeAsync(probeDirectory, cancellationToken);
         if (request.InstallationOnly)
             return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
                 root,
@@ -146,7 +152,6 @@ internal sealed class DoctorOperation(
                 stopwatch.ElapsedMilliseconds,
                 environment));
 
-        var candidates = DiscoverCandidates(root, request.Solution);
         if (candidates.Length != 1)
             return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
                 root,
@@ -156,9 +161,11 @@ internal sealed class DoctorOperation(
                 "NotLoaded",
                 loadedProjects: 0,
                 GetTrustOrRequired(root),
-                candidates.Length == 0
-                    ? ["No .sln or .slnx candidate was found in the requested directory."]
-                    : ["Multiple solution candidates are available; select one explicitly."],
+                MergeDiagnostics(
+                    environment,
+                    candidates.Length == 0
+                        ? "No .sln or .slnx candidate was found in the requested directory."
+                        : "Multiple solution candidates are available; select one explicitly."),
                 stopwatch.ElapsedMilliseconds,
                 environment));
 
@@ -172,7 +179,9 @@ internal sealed class DoctorOperation(
                 "NotLoaded",
                 loadedProjects: 0,
                 "TrustRequired",
-                ["Repository evaluation was not performed. After review, use --trust-repository on the CLI invocation or MCP host startup."],
+                MergeDiagnostics(
+                    environment,
+                    "Repository evaluation was not performed. After review, use --trust-repository on the CLI invocation or MCP host startup."),
                 stopwatch.ElapsedMilliseconds,
                 environment));
 
@@ -192,7 +201,7 @@ internal sealed class DoctorOperation(
                     "Failed",
                     loadedProjects: 0,
                     GetTrust(selected),
-                    [error.Message],
+                    MergeDiagnostics(environment, error.Message),
                     stopwatch.ElapsedMilliseconds,
                     environment));
             }
@@ -235,11 +244,17 @@ internal sealed class DoctorOperation(
                 "Failed",
                 loadedProjects: 0,
                 GetTrust(selected),
-                [exception.Message],
+                MergeDiagnostics(environment, exception.Message),
                 stopwatch.ElapsedMilliseconds,
                 environment));
         }
     }
+
+    private static string[] MergeDiagnostics(
+        DoctorEnvironmentProbeResult environment,
+        params string[] diagnostics) => environment.Diagnostics
+        .Concat(diagnostics)
+        .ToArray();
 
     private static string[] DiscoverCandidates(string root, string? solution)
     {

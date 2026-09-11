@@ -186,6 +186,71 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Execute_rejects_an_incompatible_solution_sdk_before_port_invocation()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(new RtError(
+            RtErrorKind.ExternalToolFailure,
+            "Requested SDK differs from the daemon MSBuild SDK; restart the daemon.",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["daemonRestartRequired"] = "true"
+            }));
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
+        using var payload = JsonDocument.Parse("""{"value":"hello","solution":"/repo/App.slnx"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-incompatible-sdk",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            "/caller"));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
+        response.Error.Message.ShouldContain("restart", Case.Insensitive);
+        response.Error.Context.ShouldNotBeNull();
+        response.Error.Context["daemonRestartRequired"].ShouldBe("true");
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBe("/repo");
+    }
+
+    [Fact]
+    public async Task Execute_rejects_a_malformed_solution_sdk_context_as_a_structured_error()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            value = "hello",
+            solution = "/repo/\0/App.slnx"
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-malformed-sdk-context",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            "/caller"));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.InvalidArguments);
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Typed_port_rejects_the_wrong_request_as_a_structured_boundary_error()
     {
         ICommandApplicationPort port = new EchoPort();
@@ -329,6 +394,19 @@ public sealed class DaemonCommandDispatcherTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException("missing solution");
+        }
+    }
+
+    private sealed class FixedSdkContextGuard(RtError? error) : IDaemonSdkContextGuard
+    {
+        public string? CheckedDirectory { get; private set; }
+
+        public Result<bool, RtError> Check(string directory)
+        {
+            CheckedDirectory = directory;
+            return error is null
+                ? Result<bool, RtError>.Ok(true)
+                : Result<bool, RtError>.Err(error);
         }
     }
 

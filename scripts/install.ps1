@@ -61,9 +61,12 @@ try {
         if (-not (Test-Path (Join-Path $staging $name))) { throw "Archive does not contain $name" }
     }
 
-    Push-Location $staging
+    $selfCheck = Join-Path $tempDir "self-check"
+    New-Item -ItemType Directory -Force $selfCheck | Out-Null
+    Set-Content -LiteralPath (Join-Path $selfCheck "global.json") -Value "{}"
+    Push-Location $selfCheck
     try {
-        & (Join-Path $staging "rt.exe") inspect doctor --installation-only | Out-Null
+        & (Join-Path $staging "rt.exe") inspect doctor --installation-only --directory $selfCheck | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "The staged Roslyn Tools self-check failed with exit code $LASTEXITCODE."
         }
