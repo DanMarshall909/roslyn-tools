@@ -1,7 +1,5 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -20,13 +18,6 @@ internal sealed class TrustCommand(
     private readonly TrustListOperation _list = list;
     private readonly TrustStatusOperation _status = status;
     private readonly TrustRemoveOperation _remove = remove;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
 
     public static RtCommandInfo Info => new(
         "trust",
@@ -114,15 +105,14 @@ internal sealed class TrustCommand(
     {
         if (RtContext.Format == OutputFormat.Json)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(
-                new TrustListResult(statuses),
-                JsonOptions));
+            RtResultRenderer.Write(RtResult<TrustListResult>.Ok(new TrustListResult(statuses)));
             return;
         }
 
         if (statuses.Count == 0)
         {
             RtConsole.WriteLine(RtOutputContext.Result, "No repositories are persistently trusted.");
+            // Stryker disable once Statement : Falling through only iterates the already-proven empty collection.
             return;
         }
 
@@ -134,9 +124,7 @@ internal sealed class TrustCommand(
     {
         if (RtContext.Format == OutputFormat.Json)
         {
-            RtConsole.WriteLine(
-                RtOutputContext.Result,
-                JsonSerializer.Serialize(status, JsonOptions));
+            RtResultRenderer.Write(RtResult<RepositoryTrustStatus>.Ok(status));
             return;
         }
 
