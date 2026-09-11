@@ -26,10 +26,24 @@ internal sealed record DoctorEnvironmentProbeResult(
     int DiscoveredTools,
     string? RequestedSdk,
     string? SelectedSdk,
-    IReadOnlyList<string> Diagnostics)
+    IReadOnlyList<string> Diagnostics,
+    string SdkRequestState = "Absent",
+    string? GlobalJsonPath = null,
+    string? SdkDiagnostic = null)
 {
     internal static DoctorEnvironmentProbeResult Healthy { get; } = new(
-        true, true, true, true, true, "2024-11-05", "roslyn-tools-mcp", 1, null, "10.0.201", []);
+        true,
+        true,
+        true,
+        true,
+        true,
+        "2024-11-05",
+        "roslyn-tools-mcp",
+        1,
+        null,
+        "10.0.201",
+        [],
+        SdkRequestState: "Absent");
 
     internal bool IsHealthy => CliLauncherHealthy
                                && McpLauncherHealthy
@@ -62,6 +76,9 @@ internal sealed record DoctorInstallation(
     int DiscoveredTools,
     string? RequestedSdk,
     string? SelectedSdk,
+    string SdkRequestState,
+    string? GlobalJsonPath,
+    string? SdkDiagnostic,
     bool DaemonRequired);
 
 internal sealed record DoctorRuntime(
@@ -268,6 +285,9 @@ internal sealed class DoctorOperation(
                 environment.DiscoveredTools,
                 environment.RequestedSdk,
                 environment.SelectedSdk,
+                environment.SdkRequestState,
+                environment.GlobalJsonPath,
+                environment.SdkDiagnostic,
                 DaemonRequired: false),
             new DoctorRuntime(
                 System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,

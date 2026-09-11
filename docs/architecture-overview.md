@@ -92,8 +92,10 @@ SDK selection, and process-global registration stay in the owning host adapter. 
 example, `DoctorOperation` consumes `IDoctorEnvironmentProbe` and
 `IDoctorWorkspaceBootstrap`; the CLI implementations perform the installed MCP
 handshake and defer MSBuild registration until repository trust authorizes solution
-loading. Unit tests replace both ports without starting a host process or registering
-MSBuild globally.
+loading. The probe reports absent, valid, or invalid `global.json` request state plus
+its path and SDK-selection diagnostic, and follows initialize, initialized-notification,
+then discovery ordering. Unit tests replace both ports without starting a host process
+or registering MSBuild globally.
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

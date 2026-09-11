@@ -16,7 +16,10 @@ internal static class RtCliHost
 
     internal static string RtDllPath { get; } = FindRtDll(RepoRoot);
 
-    internal static async Task<CommandResult> RunAsync(string arguments, string? workingDirectory = null)
+    internal static async Task<CommandResult> RunAsync(
+        string arguments,
+        string? workingDirectory = null,
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -27,6 +30,13 @@ internal static class RtCliHost
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        if (environment is not null)
+            foreach (var (name, value) in environment)
+                if (value is null)
+                    startInfo.Environment.Remove(name);
+                else
+                    startInfo.Environment[name] = value;
+
         using var process = Process.Start(startInfo)
                              ?? throw new InvalidOperationException("Failed to start 'dotnet'.");
 

@@ -70,8 +70,10 @@ rt inspect doctor --installation-only --json
 ```
 
 This checks the installed CLI and sibling MCP launcher, Roslyn build-host files, contextual
-SDK selection, and a spawned MCP `initialize` plus `tools/list` handshake. The installers
-run this mode automatically and stop when a launcher or protocol check fails.
+SDK selection, and a spawned MCP `initialize` → `notifications/initialized` → `tools/list`
+handshake. SDK diagnostics distinguish an absent `global.json` from a valid or invalid
+request and report its path. The installers run this mode automatically and stop when a
+launcher or protocol check fails.
 
 The result distinguishes a healthy workspace from partial or failed loading rather than treating warnings as complete semantic evidence.
 

@@ -547,7 +547,10 @@ internal sealed class RepositoryTrustRegistry
         exception is JsonException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
 
     internal static bool IsGitLaunchException(Exception exception) =>
-        exception is InvalidOperationException or IOException or UnauthorizedAccessException;
+        exception is InvalidOperationException
+        || exception is IOException
+        || exception is UnauthorizedAccessException
+        || exception is System.ComponentModel.Win32Exception;
 
     internal static bool ShouldRetryLock(TimeSpan elapsed) => elapsed < LockTimeout;
 

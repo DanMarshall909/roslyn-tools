@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -608,6 +609,7 @@ public sealed class RepositoryTrustRegistryTests
         var unsupported = new NotSupportedException();
         var json = new JsonException();
         var invalidOperation = new InvalidOperationException();
+        var launchFailure = new Win32Exception();
         var unexpected = new ArithmeticException();
 
         RepositoryTrustRegistry.IsStorageException(io).ShouldBeTrue();
@@ -622,7 +624,7 @@ public sealed class RepositoryTrustRegistryTests
             RepositoryTrustRegistry.IsStoreReadException(expected).ShouldBeTrue();
         RepositoryTrustRegistry.IsStoreReadException(unexpected).ShouldBeFalse();
 
-        foreach (var expected in new Exception[] { invalidOperation, io, unauthorized })
+        foreach (var expected in new Exception[] { invalidOperation, io, unauthorized, launchFailure })
             RepositoryTrustRegistry.IsGitLaunchException(expected).ShouldBeTrue();
         RepositoryTrustRegistry.IsGitLaunchException(unexpected).ShouldBeFalse();
     }

@@ -41,7 +41,7 @@ internal static class Program
             return await App.RunAsync(args);
         }
 
-        if (!IsDoctorInvocation(args))
+        if (CliInvocationClassifier.RequiresEagerMsBuildRegistration(args))
             MsBuildBootstrap.Register();
 
         using var host = Host.CreateDefaultBuilder(args)
@@ -61,7 +61,7 @@ internal static class Program
             && !TypedCommandInvocation.IsLegacyMutationMatch(
                 args,
                 App.Commands.Select(command => command.Info))
-            && !IsInformationalOrLocalProfileInvocation(args)
+            && !CliInvocationClassifier.MustRunInProcess(args)
             && !DaemonRuntime.IsDisabled)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
@@ -108,12 +108,4 @@ internal static class Program
         return args.Length > 1 && args[0] == "maintainer" && args[1] == "daemon";
     }
 
-    private static bool IsDoctorInvocation(string[] args) =>
-        args.Length > 1 && args[0] == "inspect" && args[1] == "doctor";
-
-    private static bool IsInformationalOrLocalProfileInvocation(string[] args)
-    {
-        return args.FirstOrDefault() is "trusted" or "maintainer" or "trust"
-               || args.Any(arg => arg is "-h" or "--help" or "--version");
-    }
 }

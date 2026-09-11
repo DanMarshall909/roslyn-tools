@@ -111,6 +111,40 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task initialized_notification_has_no_response_before_tools_list()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"initialize","id":1}
+            {"jsonrpc":"2.0","method":"notifications/initialized"}
+            {"jsonrpc":"2.0","method":"tools/list","id":2}
+            """);
+
+        var responses = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        responses.Length.ShouldBe(2);
+        using var initialize = JsonDocument.Parse(responses[0]);
+        initialize.RootElement.GetProperty("id").GetInt32().ShouldBe(1);
+        using var tools = JsonDocument.Parse(responses[1]);
+        tools.RootElement.GetProperty("id").GetInt32().ShouldBe(2);
+    }
+
+    [Theory]
+    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", true)]
+    [InlineData("{\"jsonrpc\":\"1.0\",\"method\":\"notifications/initialized\"}", false)]
+    [InlineData("{\"method\":\"notifications/initialized\"}", false)]
+    [InlineData("{\"jsonrpc\":\"2.0\"}", false)]
+    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\"}", false)]
+    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"id\":1}", false)]
+    public void initialized_notification_requires_the_exact_notification_shape(
+        string json,
+        bool expected)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        Server.IsInitializedNotification(document.RootElement).ShouldBe(expected);
+    }
+
+    [Fact]
     public async Task structured_tools_advertise_output_schema()
     {
         var output = await RunSingleRequestAsync(

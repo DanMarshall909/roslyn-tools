@@ -36,7 +36,8 @@ internal sealed class DoctorEnvironmentProbe(
     private readonly string? _mcpLauncher = mcpLauncher;
     private readonly string? _buildHostDirectory = buildHostDirectory;
     private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(10);
-    private readonly Func<string, DoctorSdkSelection> _compatibleSdkProbe = compatibleSdkProbe ?? SelectCompatibleSdk;
+    private readonly Func<string, DoctorSdkSelection> _compatibleSdkProbe =
+        compatibleSdkProbe ?? (directory => SelectCompatibleSdk(directory));
 
     public async Task<DoctorEnvironmentProbeResult> ProbeAsync(
         string directory,
@@ -60,7 +61,8 @@ internal sealed class DoctorEnvironmentProbe(
         var sdk = _compatibleSdkProbe(directory);
         if (!sdk.Compatible)
             diagnostics.Add(
-                $"No compatible .NET SDK could be selected for global.json request "
+                sdk.Diagnostic
+                ?? $"No compatible .NET SDK could be selected for global.json request "
                 + $"'{sdk.RequestedVersion ?? "unknown"}' (selected '{sdk.SelectedVersion ?? "none"}'). "
                 + "Install a compatible SDK and ensure dotnet is on PATH.");
 
@@ -80,7 +82,10 @@ internal sealed class DoctorEnvironmentProbe(
             handshake.DiscoveredTools,
             sdk.RequestedVersion,
             sdk.SelectedVersion,
-            diagnostics);
+            diagnostics,
+            sdk.RequestState.ToString(),
+            sdk.GlobalJsonPath,
+            sdk.Diagnostic);
     }
 
     private async Task<McpProbe> ProbeMcpAsync(string mcpPath, CancellationToken cancellationToken)
@@ -101,18 +106,44 @@ internal sealed class DoctorEnvironmentProbe(
             };
             process = Process.Start(startInfo)
                       ?? throw new InvalidOperationException("The MCP process did not start.");
+            var stderrTask = process.StandardError.ReadToEndAsync(timeoutSource.Token);
             await process.StandardInput.WriteLineAsync(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"rt-doctor\",\"version\":\"1.0\"}}}");
+            await process.StandardInput.FlushAsync(timeoutSource.Token);
+            var initializeLine = await process.StandardOutput.ReadLineAsync(timeoutSource.Token);
+            var initializeValidation = ValidateInitializeResponse(initializeLine);
+            if (!initializeValidation.Healthy)
+            {
+                TryKill(process);
+                var initializationStderr = await stderrTask;
+                var initializationDiagnostics = initializeValidation.Diagnostics.ToList();
+                if (!string.IsNullOrWhiteSpace(initializationStderr))
+                    initializationDiagnostics.Add($"MCP stderr: {initializationStderr.Trim()}");
+                return initializeValidation with { Diagnostics = initializationDiagnostics };
+            }
+
+            await process.StandardInput.WriteLineAsync(
+                "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}");
             await process.StandardInput.WriteLineAsync(
                 "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}");
+            await process.StandardInput.FlushAsync(timeoutSource.Token);
+            var toolsLine = await process.StandardOutput.ReadLineAsync(timeoutSource.Token);
             process.StandardInput.Close();
 
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
-            var stderrTask = process.StandardError.ReadToEndAsync(timeoutSource.Token);
+            var remainingStdoutTask = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
             await process.WaitForExitAsync(timeoutSource.Token);
-            var stdout = await stdoutTask;
+            var remainingStdout = await remainingStdoutTask;
             var stderr = await stderrTask;
+            var stdout = string.Join(
+                Environment.NewLine,
+                new[] { initializeLine, toolsLine, remainingStdout }
+                    .Where(line => !string.IsNullOrWhiteSpace(line)));
             return ValidateMcpOutput(stdout, stderr, process.ExitCode);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            TryKill(process);
+            throw;
         }
         catch (OperationCanceledException)
         {
@@ -130,6 +161,43 @@ internal sealed class DoctorEnvironmentProbe(
         finally
         {
             process?.Dispose();
+        }
+    }
+
+    internal static McpProbe ValidateInitializeResponse(string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return new McpProbe(false, null, null, 0, ["MCP initialize returned no JSON-RPC response."]);
+
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.GetProperty("jsonrpc").GetString() != "2.0"
+                || root.GetProperty("id").GetInt32() != 1)
+                throw new JsonException("initialize response identity was invalid.");
+            var result = root.GetProperty("result");
+            var protocol = result.GetProperty("protocolVersion").GetString();
+            var serverName = result.GetProperty("serverInfo").GetProperty("name").GetString();
+            var diagnostics = new List<string>();
+            if (!result.TryGetProperty("capabilities", out var capabilities)
+                || capabilities.ValueKind != JsonValueKind.Object
+                || !capabilities.TryGetProperty("tools", out var toolsCapability)
+                || toolsCapability.ValueKind != JsonValueKind.Object)
+                diagnostics.Add("MCP initialize result did not advertise object capabilities.tools.");
+            if (protocol != ExpectedProtocol)
+                diagnostics.Add($"MCP protocol version was '{protocol ?? "missing"}', expected '{ExpectedProtocol}'.");
+            if (serverName != ExpectedServer)
+                diagnostics.Add($"MCP server name was '{serverName ?? "missing"}', expected '{ExpectedServer}'.");
+            return new McpProbe(diagnostics.Count == 0, protocol, serverName, 0, diagnostics);
+        }
+        catch (Exception exception) when (exception is JsonException
+                                          or InvalidOperationException
+                                          or KeyNotFoundException
+                                          or FormatException)
+        {
+            return new McpProbe(false, null, null, 0, [
+                $"MCP initialize response was not valid JSON-RPC: {exception.Message}"]);
         }
     }
 
@@ -220,15 +288,26 @@ internal sealed class DoctorEnvironmentProbe(
         && File.Exists(Path.Combine(path, "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json"))
         && File.Exists(Path.Combine(path, "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json"));
 
-    private static DoctorSdkSelection SelectCompatibleSdk(string directory)
+    internal static DoctorSdkSelection SelectCompatibleSdk(
+        string directory,
+        string dotnetLauncher = "dotnet")
     {
-        var requestedText = MsBuildBootstrap.FindRequestedSdkVersion(directory);
+        var request = MsBuildBootstrap.InspectSdkRequest(directory);
+        if (request.State == DoctorSdkRequestState.Invalid)
+            return new DoctorSdkSelection(
+                false,
+                null,
+                null,
+                request.State,
+                request.GlobalJsonPath,
+                request.Diagnostic);
+
         Process? process = null;
         try
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = "dotnet",
+                FileName = dotnetLauncher,
                 WorkingDirectory = Directory.Exists(directory) ? directory : AppContext.BaseDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -240,24 +319,48 @@ internal sealed class DoctorEnvironmentProbe(
             if (process is null || !process.WaitForExit((int)TimeSpan.FromSeconds(5).TotalMilliseconds))
             {
                 TryKill(process);
-                return new DoctorSdkSelection(requestedText is null, requestedText, null);
+                return CreateFailedSdkSelection(request, "dotnet SDK selection timed out.");
             }
 
             var selected = process.StandardOutput.ReadToEnd().Trim();
-            var compatible = requestedText is null || process.ExitCode == 0 && !string.IsNullOrWhiteSpace(selected);
-            return new DoctorSdkSelection(compatible, requestedText, string.IsNullOrWhiteSpace(selected) ? null : selected);
+            var stderr = process.StandardError.ReadToEnd().Trim();
+            var compatible = request.State == DoctorSdkRequestState.Absent
+                             || process.ExitCode == 0 && !string.IsNullOrWhiteSpace(selected);
+            var diagnostic = compatible
+                ? null
+                : $"dotnet could not select SDK '{request.RequestedVersion}' requested by "
+                  + $"'{request.GlobalJsonPath}': {stderr}";
+            return new DoctorSdkSelection(
+                compatible,
+                request.RequestedVersion,
+                string.IsNullOrWhiteSpace(selected) ? null : selected,
+                request.State,
+                request.GlobalJsonPath,
+                diagnostic);
         }
         catch (Exception exception) when (exception is InvalidOperationException
                                           or System.ComponentModel.Win32Exception
                                           or IOException)
         {
-            return new DoctorSdkSelection(requestedText is null, requestedText, null);
+            return CreateFailedSdkSelection(
+                request,
+                $"dotnet SDK selection could not start: {exception.Message}");
         }
         finally
         {
             process?.Dispose();
         }
     }
+
+    private static DoctorSdkSelection CreateFailedSdkSelection(
+        DoctorSdkRequest request,
+        string diagnostic) => new(
+        request.State == DoctorSdkRequestState.Absent,
+        request.RequestedVersion,
+        null,
+        request.State,
+        request.GlobalJsonPath,
+        diagnostic);
 
     private static void TryKill(Process? process)
     {
@@ -288,4 +391,7 @@ internal sealed class DoctorEnvironmentProbe(
 internal sealed record DoctorSdkSelection(
     bool Compatible,
     string? RequestedVersion,
-    string? SelectedVersion);
+    string? SelectedVersion,
+    DoctorSdkRequestState RequestState = DoctorSdkRequestState.Absent,
+    string? GlobalJsonPath = null,
+    string? Diagnostic = null);

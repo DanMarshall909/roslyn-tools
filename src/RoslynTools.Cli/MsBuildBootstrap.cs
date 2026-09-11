@@ -102,8 +102,60 @@ internal static class MsBuildBootstrap
 
     internal static string? FindRequestedSdkVersion(string startDirectory)
     {
-        var globalJsonPath = FindGlobalJson(startDirectory);
-        return globalJsonPath is null ? null : ReadRequestedSdkVersion(globalJsonPath);
+        var request = InspectSdkRequest(startDirectory);
+        return request.State == DoctorSdkRequestState.Valid ? request.RequestedVersion : null;
+    }
+
+    internal static DoctorSdkRequest InspectSdkRequest(string startDirectory)
+    {
+        string? globalJsonPath;
+        try
+        {
+            globalJsonPath = FindGlobalJson(startDirectory);
+        }
+        catch (Exception exception) when (exception is ArgumentException
+                                          or IOException
+                                          or UnauthorizedAccessException
+                                          or NotSupportedException)
+        {
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Invalid,
+                null,
+                null,
+                $"Could not search for global.json from '{startDirectory}': {exception.Message}");
+        }
+
+        if (globalJsonPath is null)
+            return new DoctorSdkRequest(DoctorSdkRequestState.Absent, null, null, null);
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(globalJsonPath));
+            var version = document.RootElement
+                .GetProperty("sdk")
+                .GetProperty("version")
+                .GetString();
+            if (string.IsNullOrWhiteSpace(version))
+                throw new JsonException("sdk.version must be a non-empty string.");
+
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Valid,
+                globalJsonPath,
+                version,
+                null);
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or JsonException
+                                          or KeyNotFoundException
+                                          or InvalidOperationException)
+        {
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Invalid,
+                globalJsonPath,
+                null,
+                $"global.json at '{globalJsonPath}' could not be read as an SDK request: {exception.Message}");
+        }
     }
 
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
@@ -179,3 +231,16 @@ internal static class MsBuildBootstrap
             : new Version(0, 0);
     }
 }
+
+internal enum DoctorSdkRequestState
+{
+    Absent,
+    Valid,
+    Invalid
+}
+
+internal sealed record DoctorSdkRequest(
+    DoctorSdkRequestState State,
+    string? GlobalJsonPath,
+    string? RequestedVersion,
+    string? Diagnostic);

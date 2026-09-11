@@ -53,6 +53,9 @@ public sealed class DoctorOperationTests
                 CompatibleSdkAvailable = false,
                 RequestedSdk = "10.0.301",
                 SelectedSdk = "10.0.201",
+                SdkRequestState = "Valid",
+                GlobalJsonPath = "/repo/global.json",
+                SdkDiagnostic = "dotnet could not select SDK 10.0.301 from /repo/global.json.",
                 Diagnostics = ["dotnet could not select SDK 10.0.301 from global.json."]
             }),
             new CountingWorkspaceBootstrap());
@@ -64,6 +67,10 @@ public sealed class DoctorOperationTests
         envelope.Outcome.ShouldBe("Failed");
         envelope.Data.Installation.RequestedSdk.ShouldBe("10.0.301");
         envelope.Data.Installation.SelectedSdk.ShouldBe("10.0.201");
+        envelope.Data.Installation.SdkRequestState.ShouldBe("Valid");
+        envelope.Data.Installation.GlobalJsonPath.ShouldBe("/repo/global.json");
+        envelope.Data.Installation.SdkDiagnostic.ShouldNotBeNull();
+        envelope.Data.Installation.SdkDiagnostic.ShouldContain("10.0.301");
         sessions.InvocationCount.ShouldBe(0);
     }
 

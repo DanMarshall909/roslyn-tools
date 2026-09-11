@@ -74,6 +74,10 @@ the official MCP C# SDK rather than extending the handwritten transport.
       protocol purity, and separately captured stderr. Normal doctor mode additionally
       reports one-shot, persistent, or missing repository trust and optionally loads a
       supplied `.sln` or `.slnx` file after lazy MSBuild registration.
+- [x] Doctor follows the MCP 2024-11-05 initialization lifecycle before discovery,
+      distinguishes caller cancellation from its bounded handshake timeout, and terminates
+      the spawned child in either case. SDK evidence distinguishes absent, valid, and invalid
+      `global.json` requests and reports the request path and selection diagnostic.
 - [x] POSIX and Windows installers run the installed launcher's installation-only
       self-check and fail closed on launcher, build-host, or MCP handshake errors. SDK
       selection is reported; it becomes fatal when an in-scope `global.json` request
