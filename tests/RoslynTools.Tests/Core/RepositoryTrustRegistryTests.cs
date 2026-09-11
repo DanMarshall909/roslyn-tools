@@ -126,6 +126,217 @@ public sealed class RepositoryTrustRegistryTests
     }
 
     [Fact]
+    public void unix_symlink_aliases_use_the_physical_repository_identity_across_the_trust_lifecycle()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var aliasRoot = Path.Combine(Path.GetDirectoryName(repository.PrimaryPath)!, "primary-alias");
+        var aliasHop = Path.Combine(Path.GetDirectoryName(repository.PrimaryPath)!, "primary-alias-hop");
+        Directory.CreateSymbolicLink(aliasHop, repository.PrimaryPath);
+        Directory.CreateSymbolicLink(aliasRoot, aliasHop);
+        var aliasSolution = Path.Combine(aliasRoot, "App.slnx");
+        var directSolutionAlias = Path.Combine(
+            Path.GetDirectoryName(repository.PrimaryPath)!,
+            "App-alias.slnx");
+        File.CreateSymbolicLink(directSolutionAlias, repository.PrimarySolutionPath);
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+
+        var added = registry.Add(aliasRoot).Match(
+            value => value,
+            error => throw new InvalidOperationException(error.Message));
+        var aliasStatus = registry.Status(aliasSolution).Match(
+            value => value,
+            error => throw new InvalidOperationException(error.Message));
+        var physicalStatus = registry.Status(repository.PrimarySolutionPath).Match(
+            value => value,
+            error => throw new InvalidOperationException(error.Message));
+
+        added.WorktreeRoot.ShouldBe(repository.PrimaryPath);
+        aliasStatus.State.ShouldBe(RepositoryTrustState.Trusted);
+        physicalStatus.RepositoryId.ShouldBe(aliasStatus.RepositoryId);
+        registry.IsTrustedFor(aliasSolution).ShouldBeTrue();
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+
+        registry.Remove(aliasRoot).Match(
+                value => value.State,
+                error => throw new InvalidOperationException(error.Message))
+            .ShouldBe(RepositoryTrustState.Untrusted);
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeFalse();
+
+        registry.Add(directSolutionAlias).IsOk.ShouldBeTrue();
+        registry.IsTrustedFor(aliasSolution).ShouldBeTrue();
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void relative_repository_paths_resolve_from_the_current_directory()
+    {
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        var relativeRoot = Path.GetRelativePath(
+            Directory.GetCurrentDirectory(),
+            repository.PrimaryPath);
+
+        registry.Add(relativeRoot).IsOk.ShouldBeTrue();
+        registry.Status(relativeRoot).Match(
+                value => value.State,
+                error => throw new InvalidOperationException(error.Message))
+            .ShouldBe(RepositoryTrustState.Trusted);
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void unix_symlink_parent_segments_that_remain_in_repo_stay_trusted()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        var subdirectory = Path.Combine(repository.PrimaryPath, "sub");
+        var child = Path.Combine(subdirectory, "child");
+        var target = Path.Combine(subdirectory, "X");
+        Directory.CreateDirectory(child);
+        Directory.CreateDirectory(target);
+        var link = Path.Combine(repository.PrimaryPath, "in-repo-link");
+        Directory.CreateSymbolicLink(link, child);
+        var aliasedTarget = Path.Combine(link, "..", "X");
+
+        registry.IsTrustedFor(aliasedTarget).ShouldBeTrue();
+        registry.Status(aliasedTarget).Match(
+                value => value.State,
+                error => throw new InvalidOperationException(error.Message))
+            .ShouldBe(RepositoryTrustState.Trusted);
+    }
+
+    [Fact]
+    public void unix_parent_segments_cannot_walk_above_the_filesystem_root()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        var rootPrefixedPath = $"{Path.DirectorySeparatorChar}..{repository.PrimaryPath}";
+
+        registry.Add(rootPrefixedPath).IsOk.ShouldBeTrue();
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void unix_canonicalization_normalizes_dot_segments_after_physical_components()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var child = Path.Combine(repository.PrimaryPath, "child");
+        Directory.CreateDirectory(child);
+
+        RepositoryTrustRegistry.CanonicalizeExistingPath(
+                Path.Combine(repository.PrimaryPath, ".", "child", ".."))
+            .ShouldBe(repository.PrimaryPath);
+        RepositoryTrustRegistry.CanonicalizeExistingPath("/..").ShouldBe("/");
+    }
+
+    [Fact]
+    public void unix_input_preparation_rejects_null_characters_before_filesystem_access()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        Should.Throw<ArgumentException>(() =>
+                RepositoryTrustRegistry.PrepareInputPath("bad\0path"))
+            .Message.ShouldContain("invalid null character");
+    }
+
+    [Fact]
+    public void unix_broken_looping_and_escaping_symlinks_fail_closed()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        var parent = Path.GetDirectoryName(repository.PrimaryPath)!;
+        var broken = Path.Combine(parent, "broken-alias");
+        Directory.CreateSymbolicLink(broken, Path.Combine(parent, "missing-target"));
+        var loop = Path.Combine(parent, "loop-alias");
+        Directory.CreateSymbolicLink(loop, loop);
+        var outside = Path.Combine(parent, "outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "Outside.slnx"), "<Solution />");
+        var escape = Path.Combine(repository.PrimaryPath, "escape");
+        Directory.CreateSymbolicLink(escape, outside);
+
+        foreach (var path in new[]
+                 {
+                     broken,
+                     loop,
+                     Path.Combine(escape, "Outside.slnx")
+                 })
+        {
+            registry.Add(path).IsErr.ShouldBeTrue();
+            registry.Status(path).IsErr.ShouldBeTrue();
+            registry.IsTrustedFor(path).ShouldBeFalse();
+        }
+
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void unix_symlink_then_parent_segment_cannot_be_lexically_collapsed_into_a_trusted_path()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        var parent = Path.GetDirectoryName(repository.PrimaryPath)!;
+        var trustedX = Path.Combine(repository.PrimaryPath, "X");
+        Directory.CreateDirectory(trustedX);
+        var outside = Path.Combine(parent, "outside-parent-segment");
+        var outsideChild = Path.Combine(outside, "child");
+        Directory.CreateDirectory(outsideChild);
+        Directory.CreateDirectory(Path.Combine(outside, "X"));
+        var link = Path.Combine(repository.PrimaryPath, "link");
+        Directory.CreateSymbolicLink(link, outsideChild);
+        var adversarialPath = Path.Combine(link, "..", "X");
+
+        registry.IsTrustedFor(adversarialPath).ShouldBeFalse();
+        registry.Add(adversarialPath).IsErr.ShouldBeTrue();
+        registry.Status(adversarialPath).IsErr.ShouldBeTrue();
+        registry.IsTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void unix_file_symlinks_cannot_be_traversed_as_directories()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        Directory.CreateDirectory(Path.Combine(repository.PrimaryPath, "X"));
+        var fileLink = Path.Combine(repository.PrimaryPath, "file-link");
+        File.CreateSymbolicLink(fileLink, repository.PrimarySolutionPath);
+        var adversarialPath = Path.Combine(fileLink, "..", "X");
+
+        registry.IsTrustedFor(adversarialPath).ShouldBeFalse();
+        registry.Add(adversarialPath).Match(
+                _ => throw new InvalidOperationException("Expected non-directory traversal failure."),
+                error => error.Message)
+            .ShouldContain("non-directory component");
+        registry.Status(adversarialPath).IsErr.ShouldBeTrue();
+    }
+
+    [Fact]
     public void persistent_context_revalidates_each_requested_path()
     {
         using var repository = TestGitRepository.CreateWithLinkedWorktree();
@@ -207,10 +418,27 @@ public sealed class RepositoryTrustRegistryTests
                 error => error)
             .ShouldSatisfyAllConditions(
                 error => error.Kind.ShouldBe(RtErrorKind.InvalidInput),
-                error => error.Message.ShouldContain("invalid or unreadable"));
+                error => error.Message.ShouldContain("invalid or unreadable"),
+                error => error.Message.ShouldContain("null character"));
         registry.Status("invalid\0path").IsErr.ShouldBeTrue();
         registry.Remove("invalid\0path").IsErr.ShouldBeTrue();
         registry.IsTrustedFor("invalid\0path").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void empty_repository_paths_return_the_required_path_diagnostic()
+    {
+        var registry = new RepositoryTrustRegistry(Path.Combine(
+            Path.GetTempPath(),
+            $"rt-empty-trust-{Guid.NewGuid():N}",
+            "repository-trust.json"));
+
+        registry.Add("").Match(
+                _ => throw new InvalidOperationException("Expected empty path failure."),
+                error => error)
+            .ShouldSatisfyAllConditions(
+                error => error.Kind.ShouldBe(RtErrorKind.InvalidInput),
+                error => error.Message.ShouldBe("A repository path is required."));
     }
 
     [Theory]

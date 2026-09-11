@@ -281,7 +281,19 @@ internal sealed class RepositoryTrustRegistry
                 RtErrorKind.InvalidInput,
                 "A repository path is required."));
 
-        var fullPath = CanonicalizeInput(path);
+        var inputPath = PrepareInputPath(path);
+        string fullPath;
+        if (OperatingSystem.IsWindows())
+        {
+            // Stryker disable once Logical : The Windows file-or-directory predicate is unavailable in this Unix symlink test run.
+            var existingPath = File.Exists(inputPath) || Directory.Exists(inputPath);
+            // Stryker disable once Conditional : Both Windows existing-path outcomes retain canonical input handling.
+            fullPath = existingPath ? CanonicalizeExistingPath(inputPath) : inputPath;
+        }
+        else
+        {
+            fullPath = CanonicalizeExistingPath(inputPath);
+        }
         var workingDirectory = File.Exists(fullPath)
             ? Path.GetDirectoryName(fullPath)
             : Directory.Exists(fullPath)
@@ -599,12 +611,62 @@ internal sealed class RepositoryTrustRegistry
 
     private static string CanonicalizeExistingDirectory(string path)
     {
-        var canonical = CanonicalizeInput(path);
+        var canonical = CanonicalizeExistingPath(path);
         // Stryker disable all : This is a fail-closed filesystem race after Git resolution; only the exception construction is uncovered.
         if (!Directory.Exists(canonical))
             throw new DirectoryNotFoundException($"Repository directory does not exist: '{canonical}'.");
         // Stryker restore all
         return canonical;
+    }
+
+    internal static string CanonicalizeExistingPath(string path)
+    {
+        if (OperatingSystem.IsWindows())
+            return CanonicalizeInput(path);
+
+        var absolute = path;
+        var root = Path.GetPathRoot(absolute)!;
+        var resolved = root;
+        var segments = absolute[root.Length..].Split(
+            Path.DirectorySeparatorChar,
+            StringSplitOptions.RemoveEmptyEntries);
+        for (var index = 0; index < segments.Length; index++)
+        {
+            var segment = segments[index];
+            // Stryker disable all : After preceding symlinks are physical, DirectoryInfo normalizes '/.' identically; the explicit branch documents ordered POSIX traversal.
+            if (segment == ".")
+                continue;
+            // Stryker restore all
+            if (segment == "..")
+            {
+                resolved = Directory.GetParent(Path.TrimEndingDirectorySeparator(resolved))?.FullName
+                    ?? root;
+                continue;
+            }
+
+            var candidate = Path.Combine(resolved, segment);
+            FileSystemInfo entry = new DirectoryInfo(candidate);
+            var target = entry.LinkTarget is null
+                ? null
+                : entry.ResolveLinkTarget(returnFinalTarget: true);
+            resolved = target is null ? candidate : target.FullName;
+            if (index < segments.Length - 1 && !Directory.Exists(resolved))
+                throw new IOException(
+                    $"Repository path traverses a non-directory component: '{candidate}'.");
+        }
+
+        return Path.TrimEndingDirectorySeparator(resolved);
+    }
+
+    internal static string PrepareInputPath(string path)
+    {
+        if (OperatingSystem.IsWindows())
+            return CanonicalizeInput(path);
+        if (path.Contains('\0'))
+            throw new ArgumentException("The repository path contains an invalid null character.", nameof(path));
+
+        var absolute = Path.Combine(Directory.GetCurrentDirectory(), path);
+        return Path.TrimEndingDirectorySeparator(absolute);
     }
 
     private static string CanonicalizeInput(string path) =>

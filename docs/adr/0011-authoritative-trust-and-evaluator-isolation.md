@@ -125,6 +125,11 @@ Git common-directory path and carry a root-commit object anchor. Every CLI, MCP,
 daemon admission verifies that the requested solution remains beneath a currently
 registered worktree with the matching common directory and retained anchor. Missing,
 corrupt, unreadable, unregistered, mismatched, or anchor-stale state fails closed.
+Persistent daemon admission resolves the effective request target and verifies that
+registry binding before its SDK-context guard inspects repository-controlled SDK
+selection inputs. Malformed or untrusted targets therefore fail as `TrustRequired`
+without reaching SDK inspection. Invocation-scoped trusted CLI commands remain an
+in-process compatibility path rather than request-carried daemon authority.
 
 The anchor is a best-effort repository-self-asserted continuity check, not the verified
 handle/inode/file-ID binding required by this ADR; a replacement repository containing
@@ -135,6 +140,10 @@ explicit DACL. Invocation-scoped CLI approval and startup-scoped MCP approval re
 compatibility paths. Ordinary MCP tool arguments cannot grant or broaden trust, and MCP
 never exposes trust-management operations. This makes the preview semantic MCP surface
 usable without representing the P0.1 trust and isolation programme as complete.
+On Unix, the preview resolves existing symlink path components to final physical paths
+before Git containment and identity checks. Broken links, loops, and escapes fail
+closed, but this path-based check remains subject to TOCTOU races and is not the
+OS-verified handle/inode/file-ID binding required by this ADR.
 
 ## Alternatives considered
 

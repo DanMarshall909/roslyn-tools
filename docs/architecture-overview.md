@@ -206,6 +206,11 @@ current registered-worktree inventory. A root-commit object retained at grant ti
 best-effort continuity anchor, so an unrelated repository recreated at the same path
 fails closed. It is repository-self-asserted continuity, not OS handle, inode, or file-ID
 identity: a replacement containing the same Git object can still satisfy it.
+On Unix, existing symlink components in repository roots and requested solution paths
+are resolved to their final physical paths before Git identity and containment checks;
+broken links, loops, and links escaping the trusted worktree fail closed. This closes
+lexical-alias confusion in the preview but does not provide handle-relative, race-free
+TOCTOU protection or the OS-verified identity required by the durable design.
 
 The invocation-scoped CLI `--trust-repository` option and MCP startup
 `--trust-repository <absolute-repository-root>` remain compatible. MCP tool payloads
@@ -218,6 +223,10 @@ audit, quota, revocation, lease, or evaluator-isolation guarantee specified by A
 and platform hardening. For in-process recovery, the adapter deserializes an absolute
 solution or workspace target and revalidates it before SDK selection; request payloads
 therefore cannot make an untrusted `global.json` participate in process-global setup.
+The persistent daemon boundary follows the same ordering: it resolves the effective
+request target, proves current registry trust, and only then allows its SDK-context
+guard to inspect that target. Malformed or untrusted targets return `TrustRequired`
+without SDK inspection; invocation-scoped trusted CLI execution remains in-process.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified

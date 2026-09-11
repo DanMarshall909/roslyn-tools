@@ -381,19 +381,40 @@ internal sealed class DaemonCommandDispatcher
 
         if (_sdkContextGuard is not null)
         {
-            string contextDirectory;
-            try
+            DaemonRequestTarget target;
+            if (_trustRegistry is not null)
             {
-                contextDirectory = ResolveSdkContextDirectory(request);
+                try
+                {
+                    target = ResolveRequestTarget(request);
+                }
+                catch (Exception exception) when (exception is ArgumentException
+                                                  or IOException
+                                                  or NotSupportedException)
+                {
+                    return TrustRequired(request, RequestedTargetText(request));
+                }
+
+                if (!_trustRegistry.IsTrustedFor(target.TrustPath))
+                {
+                    return TrustRequired(request, target.TrustPath);
+                }
             }
-            catch (Exception exception) when (exception is ArgumentException
-                                              or IOException
-                                              or NotSupportedException)
+            else
             {
-                return Failure(request, DaemonRpcErrorCodes.InvalidArguments, exception.Message);
+                try
+                {
+                    target = ResolveRequestTarget(request);
+                }
+                catch (Exception exception) when (exception is ArgumentException
+                                                  or IOException
+                                                  or NotSupportedException)
+                {
+                    return Failure(request, DaemonRpcErrorCodes.InvalidArguments, exception.Message);
+                }
             }
 
-            var compatibility = _sdkContextGuard.Check(contextDirectory);
+            var compatibility = _sdkContextGuard.Check(target.SdkDirectory);
             if (compatibility.IsErr)
             {
                 var error = compatibility.Match(
@@ -455,13 +476,13 @@ internal sealed class DaemonCommandDispatcher
     private static DaemonRpcResponse Failure(DaemonRpcRequest request, string code, string message) =>
         new(DaemonRpcProtocol.CurrentVersion, request.RequestId, Error: new DaemonRpcError(code, message));
 
-    private static string ResolveSdkContextDirectory(DaemonRpcRequest request)
+    private static DaemonRequestTarget ResolveRequestTarget(DaemonRpcRequest request)
     {
         var workingDirectory = string.IsNullOrWhiteSpace(request.WorkingDirectory)
             ? Directory.GetCurrentDirectory()
             : Path.GetFullPath(request.WorkingDirectory);
         if (request.Arguments.ValueKind != JsonValueKind.Object)
-            return workingDirectory;
+            return new DaemonRequestTarget(workingDirectory, workingDirectory);
 
         foreach (var property in request.Arguments.EnumerateObject())
         {
@@ -471,14 +492,46 @@ internal sealed class DaemonCommandDispatcher
                 continue;
 
             var solution = property.Value.GetString()!;
-            var resolved = Path.IsPathFullyQualified(solution)
-                ? Path.GetFullPath(solution)
-                : Path.GetFullPath(Path.Combine(workingDirectory, solution));
-            return Path.GetDirectoryName(resolved) ?? workingDirectory;
+            var resolved = Path.GetFullPath(Path.Combine(workingDirectory, solution));
+            return new DaemonRequestTarget(
+                resolved,
+                Path.GetDirectoryName(resolved) ?? workingDirectory);
         }
 
-        return workingDirectory;
+        return new DaemonRequestTarget(workingDirectory, workingDirectory);
     }
+
+    private static string RequestedTargetText(DaemonRpcRequest request)
+    {
+        if (request.Arguments.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in request.Arguments.EnumerateObject())
+                if (string.Equals(property.Name, "solution", StringComparison.OrdinalIgnoreCase)
+                    && property.Value.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(property.Value.GetString()))
+                    return property.Value.GetString()!;
+        }
+
+        return request.WorkingDirectory ?? Directory.GetCurrentDirectory();
+    }
+
+    private static DaemonRpcResponse TrustRequired(DaemonRpcRequest request, string target)
+    {
+        var exception = RepositoryTrustRequiredException.ForSolution(target);
+        return Failure(
+            request,
+            DaemonRpcErrorCodes.CommandFailed,
+            new RtError(
+                RtErrorKind.TrustRequired,
+                exception.Message,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["solution"] = target,
+                    ["grantThrough"] = "rt trust add or an invocation-scoped trusted CLI command"
+                }));
+    }
+
+    private sealed record DaemonRequestTarget(string TrustPath, string SdkDirectory);
 
     private static DaemonRpcResponse Failure(
         DaemonRpcRequest request,
