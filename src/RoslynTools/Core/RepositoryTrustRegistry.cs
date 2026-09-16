@@ -15,6 +15,7 @@ internal sealed class RepositoryTrustRegistry
     private const int SchemaVersion = 1;
     private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(10);
+    private static int _worktreeListMode;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -230,13 +231,9 @@ internal sealed class RepositoryTrustRegistry
         if (!Directory.Exists(record.CommonDirectory))
             return ToStaleStatus(record, "The recorded Git common directory no longer exists.");
 
-        var worktrees = RunGit(
+        var worktrees = RunGitWorktreeList(
             record.CommonDirectory,
-            $"--git-dir={record.CommonDirectory}",
-            "worktree",
-            "list",
-            "--porcelain",
-            "-z");
+            $"--git-dir={record.CommonDirectory}");
         if (worktrees.IsErr)
             return ToStaleStatus(record, "The recorded Git common directory is no longer readable.");
 
@@ -260,7 +257,7 @@ internal sealed class RepositoryTrustRegistry
         return ToStaleStatus(record, "No registered worktree matches the recorded repository identity.");
     }
 
-    private static Result<RepositoryBinding, RtError> ResolveBinding(string path)
+    internal static Result<RepositoryBinding, RtError> ResolveBinding(string path)
     {
         try
         {
@@ -320,12 +317,7 @@ internal sealed class RepositoryTrustRegistry
                 $"The requested path is outside the resolved Git worktree: '{fullPath}'."));
         }
 
-        var worktreesResult = RunGit(
-            worktreeRoot,
-            "worktree",
-            "list",
-            "--porcelain",
-            "-z");
+        var worktreesResult = RunGitWorktreeList(worktreeRoot);
         if (worktreesResult.IsErr)
             return worktreesResult.Map(_ => default(RepositoryBinding)!);
 
@@ -483,6 +475,36 @@ internal sealed class RepositoryTrustRegistry
         // Stryker restore all
     }
 
+    private static Result<string, RtError> RunGitWorktreeList(
+        string workingDirectory,
+        params string[] gitOptions)
+    {
+        var mode = Volatile.Read(ref _worktreeListMode);
+        if (mode != 2)
+        {
+            var nulArguments = gitOptions
+                .Concat(["worktree", "list", "--porcelain", "-z"])
+                .ToArray();
+            var nulDelimited = RunGit(workingDirectory, nulArguments);
+            if (nulDelimited.IsOk)
+            {
+                Volatile.Write(ref _worktreeListMode, 1);
+                return nulDelimited;
+            }
+
+            if (mode == 1)
+                return nulDelimited;
+        }
+
+        var arguments = gitOptions
+            .Concat(["worktree", "list", "--porcelain"])
+            .ToArray();
+        var lineDelimited = RunGit(workingDirectory, arguments);
+        if (lineDelimited.IsOk)
+            Volatile.Write(ref _worktreeListMode, 2);
+        return lineDelimited;
+    }
+
     private static Result<string, RtError> ResolveAnchorCommit(RepositoryBinding binding)
     {
         var result = RunGit(
@@ -569,11 +591,62 @@ internal sealed class RepositoryTrustRegistry
 
     internal static string[] ParseWorktreeRoots(string porcelain)
     {
+        char[] separators = porcelain.Contains('\0') ? ['\0'] : ['\r', '\n'];
         return porcelain
-            .Split('\0', StringSplitOptions.RemoveEmptyEntries)
+            .Split(separators, StringSplitOptions.RemoveEmptyEntries)
             .Where(field => field.StartsWith("worktree ", StringComparison.Ordinal))
-            .Select(field => CanonicalizeInput(field["worktree ".Length..]))
+            .Select(field => CanonicalizeInput(UnquoteGitPath(field["worktree ".Length..])))
             .ToArray();
+    }
+
+    private static string UnquoteGitPath(string path)
+    {
+        if (path.Length < 2 || path[0] != '"' || path[^1] != '"')
+            return path;
+
+        var bytes = new List<byte>(path.Length);
+        for (var index = 1; index < path.Length - 1; index++)
+        {
+            var value = path[index];
+            if (value != '\\')
+            {
+                bytes.AddRange(Encoding.UTF8.GetBytes(value.ToString()));
+                continue;
+            }
+
+            if (++index >= path.Length - 1)
+                throw new FormatException("Git returned an invalid quoted worktree path.");
+            value = path[index];
+            if (value is >= '0' and <= '7')
+            {
+                var octal = value - '0';
+                for (var count = 1; count < 3
+                                    && index + 1 < path.Length - 1
+                                    && path[index + 1] is >= '0' and <= '7'; count++)
+                {
+                    octal = octal * 8 + path[++index] - '0';
+                }
+
+                bytes.Add((byte)octal);
+                continue;
+            }
+
+            bytes.Add(value switch
+            {
+                'a' => (byte)'\a',
+                'b' => (byte)'\b',
+                'f' => (byte)'\f',
+                'n' => (byte)'\n',
+                'r' => (byte)'\r',
+                't' => (byte)'\t',
+                'v' => (byte)'\v',
+                '\\' => (byte)'\\',
+                '"' => (byte)'"',
+                _ => throw new FormatException("Git returned an unsupported worktree path escape.")
+            });
+        }
+
+        return new UTF8Encoding(false, true).GetString(bytes.ToArray());
     }
 
     internal static string ComputeRepositoryId(string commonDirectory)

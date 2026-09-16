@@ -10,7 +10,7 @@ namespace RoslynTools.Core;
 /// <summary>
 /// Loads and manages workspaces for solution processing.
 /// </summary>
-internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
+internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IWorkspaceSnapshotLoader, IDisposable
 {
     private static readonly SemaphoreSlim SolutionLoadGate = new(1, 1);
 
@@ -97,6 +97,20 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         return (workspace, solution);
     }
 
+    async Task<OwnedWorkspaceSnapshot> IWorkspaceSnapshotLoader.LoadOwnedWorkspaceAsync(
+        string? solutionPath,
+        CancellationToken cancellationToken)
+    {
+        if (Override.Value is { } o)
+            return new OwnedWorkspaceSnapshot(o.Workspace, o.Solution);
+
+        var (workspace, solution) = await LoadCoreAsync(
+            solutionPath,
+            requireTrust: true,
+            cancellationToken);
+        return new OwnedWorkspaceSnapshot(workspace, solution);
+    }
+
     // ── Static API (test-only convenience) ─────────────────────────────────
 
     /// <summary>
@@ -141,7 +155,8 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 
     private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(
         string? solutionPath,
-        bool requireTrust)
+        bool requireTrust,
+        CancellationToken cancellationToken = default)
     {
         solutionPath = SolutionPathResolver.Resolve(solutionPath);
 
@@ -179,12 +194,12 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         Solution solution;
         try
         {
-            await SolutionLoadGate.WaitAsync();
+            await SolutionLoadGate.WaitAsync(cancellationToken);
             try
             {
                 solution = OpenSolutionOverride.Value is { } openSolution
                     ? await openSolution(workspace, solutionPath)
-                    : await workspace.OpenSolutionAsync(solutionPath);
+                    : await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
             }
             finally
             {

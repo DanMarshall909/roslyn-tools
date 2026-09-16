@@ -1085,7 +1085,7 @@ For this phase the daemon is optional typed transport only. It:
 - preserves request/operation IDs, cancellation, diagnostics, provenance, confidence, and safety state; and
 - may be bypassed before dispatch when unavailable.
 
-It has no workspace cache, global current-directory semantics, command-line argument bridge for mutations, output capture, idempotency authority, retry policy, or command-specific semantic mapping. It does not log raw request payloads; structured logs use redacted fields and bounded diagnostics.
+Except for the separately accepted ADR-0017 bounded read-only lease cache for doctor, outline, describe, search_symbols, source, and relationships, it has no workspace cache. It has no mutation workspace, global current-directory semantics, command-line argument bridge for mutations, output capture, idempotency authority, retry policy, or command-specific semantic mapping. It does not log raw request payloads; structured logs use redacted fields and bounded diagnostics.
 
 Endpoint authorization uses OS-enforced peer identity and endpoint/container ACLs, or
 a cryptographically equivalent mutually authenticated local channel with user-private

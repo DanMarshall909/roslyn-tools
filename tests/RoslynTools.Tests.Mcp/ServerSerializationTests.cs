@@ -496,6 +496,7 @@ public class ServerSerializationTests
             result.GetProperty("isError").GetBoolean().ShouldBeTrue();
             var text = result.GetProperty("content")[0].GetProperty("text").GetString();
             text.ShouldNotBeNull();
+            text.ShouldStartWith("{");
             using var error = JsonDocument.Parse(text);
             error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
         }

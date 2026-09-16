@@ -838,6 +838,17 @@ public sealed class RepositoryTrustRegistryTests
     }
 
     [Fact]
+    public void worktree_porcelain_parser_accepts_line_delimited_output_from_older_git()
+    {
+        var first = Path.Combine(Path.GetTempPath(), "rt porcelain first");
+        var second = Path.Combine(Path.GetTempPath(), "rt-porcelain-second");
+        var porcelain = $"worktree {first}\nHEAD abc123\nbranch refs/heads/main\n\n"
+                        + $"worktree {second}\nHEAD def456\ndetached\n";
+
+        RepositoryTrustRegistry.ParseWorktreeRoots(porcelain).ShouldBe([first, second]);
+    }
+
+    [Fact]
     public void local_application_data_resolution_prefers_local_then_absolute_xdg_then_profile()
     {
         var root = Path.Combine(Path.GetTempPath(), $"rt-profile-{Guid.NewGuid():N}");

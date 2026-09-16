@@ -96,6 +96,7 @@ public sealed class DoctorOperationTests
             solutionPath))).Unwrap();
 
         envelope.Outcome.ShouldBe("Succeeded");
+        envelope.Source.Revision.ShouldNotBeNullOrWhiteSpace();
         bootstrap.InvocationCount.ShouldBe(1);
         sessions.InvocationCount.ShouldBe(1);
         bootstrap.CallOrder.ShouldBeLessThan(sessions.CallOrder);

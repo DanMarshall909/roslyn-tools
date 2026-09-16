@@ -108,13 +108,13 @@ internal sealed record DoctorResult(
     CommandResourceLimits Limits);
 
 internal sealed class DoctorOperation(
-    IWorkspaceSessionFactory sessions,
+    IReadOnlyWorkspaceSessions sessions,
     IProductCapabilityCatalog capabilities,
     IDoctorEnvironmentProbe environmentProbe,
     IDoctorWorkspaceBootstrap workspaceBootstrap)
     : CommandApplicationPort<DoctorRequest, RtResultEnvelope<DoctorResult>>, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessions = sessions;
+    private readonly IReadOnlyWorkspaceSessions _sessions = sessions;
     private readonly IProductCapabilityCatalog _capabilities = capabilities;
     private readonly IDoctorEnvironmentProbe _environmentProbe = environmentProbe;
     private readonly IDoctorWorkspaceBootstrap _workspaceBootstrap = workspaceBootstrap;
@@ -206,9 +206,9 @@ internal sealed class DoctorOperation(
                     environment));
             }
 
-            var (workspace, solution) = await _sessions.LoadWorkspaceAsync(selected);
-            using (workspace)
+            using (var lease = await _sessions.AcquireAsync(selected, cancellationToken))
             {
+                var solution = lease.Solution;
                 var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
                     solution,
                     cancellationToken);
@@ -228,7 +228,8 @@ internal sealed class DoctorOperation(
                     GetTrust(selected),
                     diagnostics,
                     stopwatch.ElapsedMilliseconds,
-                    environment));
+                    environment,
+                    lease.SourceRevision));
             }
         }
         catch (Exception exception) when (exception is IOException
@@ -285,7 +286,8 @@ internal sealed class DoctorOperation(
         string trust,
         IReadOnlyList<string> diagnostics,
         long elapsedMilliseconds,
-        DoctorEnvironmentProbeResult environment)
+        DoctorEnvironmentProbeResult environment,
+        string? sourceRevision = null)
     {
         var limits = Definition.Product.Limits;
         var definitions = _capabilities.GetDefinitions();
@@ -331,7 +333,7 @@ internal sealed class DoctorOperation(
             "rt.result.v1",
             "doctor",
             outcome,
-            new RtSourceIdentity(root, selectedSolution, Revision: null),
+            new RtSourceIdentity(root, selectedSolution, sourceRevision),
             new RtWorkspaceProvenance(workspaceState, loadedProjects, diagnostics),
             result,
             new RtConfidence(
@@ -381,7 +383,7 @@ internal static class DoctorCommandDefinition
         typeof(RtResultEnvelope<DoctorResult>),
         mcpVisible: true,
         CommandSafety.ReadOnly,
-        CommandExecutionPlacement.InProcess,
+        CommandExecutionPlacement.DaemonPreferred,
         [],
         product: CommandProductMetadata.FromLegacy(
             Info,

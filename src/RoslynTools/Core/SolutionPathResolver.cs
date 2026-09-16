@@ -8,14 +8,35 @@ internal static class SolutionPathResolver
     internal static string Resolve(string? solutionPath)
     {
         if (!string.IsNullOrWhiteSpace(solutionPath))
-            return Path.GetFullPath(solutionPath);
+        {
+            if (!Path.IsPathFullyQualified(solutionPath)
+                && RepositoryTrustContext.UsesPersistentTrust)
+            {
+                throw new InvalidOperationException(
+                    "A persistent multi-repository host requires an absolute solution path.");
+            }
 
-        var currentDirectory = new DirectoryInfo(Directory.GetCurrentDirectory());
-        var configuredDefault = ResolveRepoDefaultPath(currentDirectory);
+            var explicitRoot = RepositoryTrustContext.TrustedRepositoryRoot;
+            var resolved = Path.IsPathFullyQualified(solutionPath)
+                ? Path.GetFullPath(solutionPath)
+                : Path.GetFullPath(solutionPath, explicitRoot ?? Directory.GetCurrentDirectory());
+            ValidateTrustedRoot(explicitRoot, resolved);
+            return resolved;
+        }
+
+        if (RepositoryTrustContext.UsesPersistentTrust)
+        {
+            throw new InvalidOperationException(
+                "A persistent multi-repository host requires an absolute solution path.");
+        }
+
+        var trustedRoot = RepositoryTrustContext.TrustedRepositoryRoot;
+        var startDirectory = new DirectoryInfo(trustedRoot ?? Directory.GetCurrentDirectory());
+        var configuredDefault = ResolveRepoDefaultPath(startDirectory, trustedRoot);
         if (configuredDefault is not null)
             return configuredDefault;
 
-        for (var directory = currentDirectory; directory is not null; directory = directory.Parent)
+        for (var directory = startDirectory; directory is not null; directory = directory.Parent)
         {
             var candidates = EnumerateSolutionFiles(directory.FullName)
                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
@@ -30,6 +51,9 @@ internal static class SolutionPathResolver
                 throw new InvalidOperationException(
                     $"Multiple .sln/.slnx files found in '{directory.FullName}' ({names}). Pass --solution explicitly.");
             }
+
+            if (trustedRoot is not null)
+                break;
         }
 
         throw new FileNotFoundException(
@@ -45,21 +69,36 @@ internal static class SolutionPathResolver
             yield return solution;
     }
 
-    private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)
+    private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory, string? trustedRoot)
     {
         for (var directory = currentDirectory; directory is not null; directory = directory.Parent)
         {
             var repoDefaultPath = Path.Combine(directory.FullName, ".rt-solution");
-            if (!File.Exists(repoDefaultPath))
-                continue;
+            if (File.Exists(repoDefaultPath))
+            {
+                var configuredPath = File.ReadAllText(repoDefaultPath).Trim();
+                var resolvedPath = Path.GetFullPath(configuredPath, directory.FullName);
+                ValidateRepoDefaultTarget(directory.FullName, configuredPath, resolvedPath);
+                ValidateTrustedRoot(trustedRoot, resolvedPath);
+                return resolvedPath;
+            }
 
-            var configuredPath = File.ReadAllText(repoDefaultPath).Trim();
-            var resolvedPath = Path.GetFullPath(configuredPath, directory.FullName);
-            ValidateRepoDefaultTarget(directory.FullName, configuredPath, resolvedPath);
-            return resolvedPath;
+            if (trustedRoot is not null)
+                break;
         }
 
         return null;
+    }
+
+    private static void ValidateTrustedRoot(string? trustedRoot, string resolvedPath)
+    {
+        if (trustedRoot is null)
+            return;
+
+        var canonicalRoot = RepositoryTrustRegistry.CanonicalizeExistingPath(trustedRoot);
+        var canonicalPath = RepositoryTrustRegistry.CanonicalizeExistingPath(resolvedPath);
+        if (!RepositoryTrustRegistry.IsContained(canonicalRoot, canonicalPath))
+            throw RepositoryTrustRequiredException.ForSolution(resolvedPath);
     }
 
     private static void ValidateRepoDefaultTarget(string repoRoot, string configuredPath, string resolvedPath)

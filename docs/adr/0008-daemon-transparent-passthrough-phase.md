@@ -1,6 +1,6 @@
 # ADR-0008: Transparent daemon passthrough phase
 
-- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication, [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution, and [ADR-0015](0015-operation-lifecycle-authorization.md) for lifecycle authorization
+- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication, [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution, [ADR-0015](0015-operation-lifecycle-authorization.md) for lifecycle authorization, and [ADR-0017](0017-bounded-read-only-workspace-reuse.md) for the bounded read-only workspace exception
 - Date: 2026-08-27
 - Updated: 2026-08-30
 - Supersedes: the daemon-execution portions of [ADR-0005](0005-daemon-centred-local-execution.md), the warm-workspace and fallback portions of [ADR-0006](0006-mcp-lazy-daemon-lifetime.md), and daemon placement guidance in [ADR-0007](0007-host-neutral-command-contracts.md) for the current hardening phase
@@ -8,6 +8,7 @@
 - Endpoint authentication: [ADR-0009](0009-authenticated-daemon-endpoints.md)
 - Dispatch-plan resolution: [ADR-0013](0013-fenced-plan-unavailability-resolution.md)
 - Operation lifecycle authorization: [ADR-0015](0015-operation-lifecycle-authorization.md)
+- Bounded read-only workspace exception: [ADR-0017](0017-bounded-read-only-workspace-reuse.md)
 
 ## Context
 

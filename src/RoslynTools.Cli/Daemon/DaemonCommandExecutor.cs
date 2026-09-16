@@ -34,7 +34,7 @@ internal static class DaemonCommandExecutor
 
         if (!recoveryResult.ShouldFallback)
             return Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
-                "The daemon accepted this mutation but its result is indeterminate; "
+                "The daemon accepted this request but its result is indeterminate; "
                 + "inspect the target before retrying."));
 
         return await port.ExecuteAsync(request, cancellationToken);
@@ -94,7 +94,7 @@ internal static class DaemonCommandExecutor
         if (!result.ShouldFallback)
         {
             RtLog.Error(
-                "The daemon accepted this mutation but its result is indeterminate; inspect the target before retrying.");
+                "The daemon accepted this request but its result is indeterminate; inspect the target before retrying.");
             context.ExitCode = 1;
             return;
         }

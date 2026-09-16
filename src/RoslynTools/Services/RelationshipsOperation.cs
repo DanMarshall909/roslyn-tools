@@ -40,14 +40,14 @@ internal sealed record RelationshipsResult(
 ///     Additional graph modes can extend this result without restoring one command per edge kind.
 /// </summary>
 internal sealed class RelationshipsOperation(
-    IWorkspaceSessionFactory sessions,
+    IReadOnlyWorkspaceSessions sessions,
     FindRefsService references,
     FindCallersService callers,
     FindImplementationsService implementations,
     ISymbolCandidateService symbols)
     : CommandApplicationPort<RelationshipsRequest, RtResultEnvelope<RelationshipsResult>>, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessions = sessions;
+    private readonly IReadOnlyWorkspaceSessions _sessions = sessions;
     private readonly FindRefsService _references = references;
     private readonly FindCallersService _callers = callers;
     private readonly FindImplementationsService _implementations = implementations;
@@ -69,11 +69,11 @@ internal sealed class RelationshipsOperation(
                 $"Limit must be between 1 and {Definition.Product.Limits.MaximumItems}."));
 
         var stopwatch = Stopwatch.StartNew();
-        var (workspace, solution) = await _sessions.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
+            var solution = lease.Solution;
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
-            var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+            var sourceRevision = lease.SourceRevision;
             var queried = await QueryAsync(solution, request, cancellationToken);
             if (queried.IsErr)
                 return queried.Map(_ => default(RtResultEnvelope<RelationshipsResult>)!);
@@ -287,6 +287,6 @@ internal static class RelationshipsCommandDefinition
         typeof(RtResultEnvelope<RelationshipsResult>),
         true,
         CommandSafety.ReadOnly,
-        CommandExecutionPlacement.InProcess,
+        CommandExecutionPlacement.DaemonPreferred,
         []);
 }

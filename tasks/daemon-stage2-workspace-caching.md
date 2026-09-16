@@ -1,14 +1,14 @@
 # Daemon Stage 2 — Workspace caching
 
-- **Status:** Parked
+- **Status:** Narrow read-only slice accepted; broader roadmap parked
 - **Superseded for the current phase by:** [ADR-0008](../docs/adr/0008-daemon-transparent-passthrough-phase.md)
-- **Governing change:** [critical platform hardening OpenSpec](../openspec/changes/critical-platform-hardening/proposal.md)
+- **Governing changes:** [critical platform hardening OpenSpec](../openspec/changes/critical-platform-hardening/proposal.md) and [read-only workspace reuse](../openspec/changes/daemon-read-only-workspace-cache/proposal.md)
 
 ## Decision
 
-Do not implement daemon-owned workspace caching while the current hardening change is active.
+Do not implement the broader daemon-owned workspace roadmap while the current hardening change is active. ADR-0017 permits only the bounded read-only lease cache for doctor, outline, describe, search_symbols, source, and relationships.
 
-For this phase the daemon is only an optional transparent typed transport adapter. It does not own workspaces, repository trust, source revisions, mutation state, operation idempotency, retry policy, or command semantics.
+Outside that explicit slice the daemon remains an optional transparent typed transport adapter. The read-only cache does not own repository trust, mutation state, operation idempotency, retry policy, or command semantics, and it is structurally unavailable to mutation operations.
 
 The earlier sketch based cache validity on solution path, Git HEAD, dirty state, and index modification time. That is not a sufficient semantic cache key. It can miss or mishandle:
 
