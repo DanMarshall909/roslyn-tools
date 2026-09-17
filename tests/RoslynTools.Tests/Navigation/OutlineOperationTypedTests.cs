@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -51,6 +52,91 @@ public sealed class OutlineOperationTypedTests
             envelope.Paging.Truncated.ShouldBeFalse();
             operation.Definition.ResponseType.ShouldBe(typeof(RtResultEnvelope<OutlineResult>));
         }
+    }
+
+    [Fact]
+    public async Task relative_file_target_resolves_from_the_solution_directory()
+    {
+        using var fixture = new AdhocProjectBuilder("OutlineApp");
+        var sourceDirectory = Directory.CreateDirectory(Path.Combine(fixture.Directory, "src"));
+        var sourcePath = Path.Combine(sourceDirectory.FullName, "Order.cs");
+        const string source = "namespace OutlineApp; public class Order { }";
+        File.WriteAllText(sourcePath, source);
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(),
+            VersionStamp.Create(),
+            filePath: Path.Combine(fixture.Directory, "OutlineApp.slnx")));
+        var projectId = ProjectId.CreateNewId();
+        var solution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "OutlineApp",
+                "OutlineApp",
+                LanguageNames.CSharp,
+                filePath: Path.Combine(fixture.Directory, "OutlineApp.csproj")))
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Order.cs",
+                SourceText.From(source),
+                filePath: sourcePath);
+        var operation = new OutlineOperation(
+            new FixedSessionFactory(workspace, solution),
+            new OutlineService());
+
+        var result = await operation.ExecuteAsync(
+            new OutlineRequest(Path.Combine("src", "Order.cs")));
+
+        result.Unwrap().Data.Types!
+            .ShouldContain(type => type.Name == "Order");
+    }
+
+    [Theory]
+    [InlineData("*.cs", "RootType")]
+    [InlineData("src", "NestedType")]
+    public async Task relative_path_shaped_targets_resolve_from_the_solution_directory(
+        string target,
+        string expectedType)
+    {
+        using var fixture = new AdhocProjectBuilder("OutlineApp");
+        var sourceDirectory = Directory.CreateDirectory(Path.Combine(fixture.Directory, "src"));
+        var rootSourcePath = Path.Combine(fixture.Directory, "Root.cs");
+        var nestedSourcePath = Path.Combine(sourceDirectory.FullName, "Nested.cs");
+        File.WriteAllText(rootSourcePath, "public class RootType { }");
+        File.WriteAllText(nestedSourcePath, "public class NestedType { }");
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(),
+            VersionStamp.Create(),
+            filePath: Path.Combine(fixture.Directory, "OutlineApp.slnx")));
+        var projectId = ProjectId.CreateNewId();
+        var solution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "OutlineApp",
+                "OutlineApp",
+                LanguageNames.CSharp,
+                filePath: Path.Combine(fixture.Directory, "OutlineApp.csproj")))
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Root.cs",
+                SourceText.From(File.ReadAllText(rootSourcePath)),
+                filePath: rootSourcePath)
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Nested.cs",
+                SourceText.From(File.ReadAllText(nestedSourcePath)),
+                filePath: nestedSourcePath);
+        var operation = new OutlineOperation(
+            new FixedSessionFactory(workspace, solution),
+            new OutlineService());
+
+        var result = await operation.ExecuteAsync(new OutlineRequest(target));
+
+        result.Unwrap().Data.Types!
+            .ShouldContain(type => type.Name == expectedType);
     }
 
     [Fact]

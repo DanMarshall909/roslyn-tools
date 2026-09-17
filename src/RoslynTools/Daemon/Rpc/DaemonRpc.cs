@@ -379,7 +379,8 @@ internal sealed class DaemonCommandDispatcher
         if (typedRequest is null)
             return Failure(request, DaemonRpcErrorCodes.InvalidArguments, "Command arguments cannot be null.");
 
-        if (_sdkContextGuard is not null)
+        var requiresWorkspaceAdmission = typedRequest is not DoctorRequest { InstallationOnly: true };
+        if (_sdkContextGuard is not null && requiresWorkspaceAdmission)
         {
             DaemonRequestTarget target;
             if (_trustRegistry is not null)
@@ -428,7 +429,9 @@ internal sealed class DaemonCommandDispatcher
         {
             using var trustScope = _trustRegistry is null
                 ? null
-                : RepositoryTrustContext.UsePersistentTrust(_trustRegistry);
+                : RepositoryTrustContext.UsePersistentTrust(
+                    _trustRegistry,
+                    requireAbsoluteSolutionPath: true);
             var result = await port.InvokeAsync(typedRequest, cancellationToken);
 
             if (result.IsError)

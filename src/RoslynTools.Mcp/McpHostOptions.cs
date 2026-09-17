@@ -46,7 +46,9 @@ internal sealed class McpHostOptions
     internal IDisposable? EnterTrustScope() => TrustedRepositoryRoot is not null
         ? RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoot)
         : TrustRegistry is not null
-            ? RepositoryTrustContext.UsePersistentTrust(TrustRegistry)
+            ? RepositoryTrustContext.UsePersistentTrust(
+                TrustRegistry,
+                requireAbsoluteSolutionPath: true)
             : null;
 
     internal static bool TryParse(

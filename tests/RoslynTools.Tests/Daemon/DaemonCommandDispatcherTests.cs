@@ -159,6 +159,31 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Execute_allows_installation_only_doctor_without_trust_or_sdk_admission()
+    {
+        using var trust = new TemporaryTrustRegistry("installation-doctor");
+        var port = new InstallationDoctorPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], trust.Registry, compatibility);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            directory = Path.GetTempPath(),
+            installationOnly = true
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-installation-doctor",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            DoctorCommandDefinition.Info.Name,
+            payload.RootElement.Clone()));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Execute_enters_persistent_trust_scope_inside_the_daemon_process()
     {
         var registryDirectory = Path.Combine(
@@ -609,6 +634,29 @@ public sealed class DaemonCommandDispatcherTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException("missing solution");
+        }
+    }
+
+    private sealed class InstallationDoctorPort
+        : CommandApplicationPort<DoctorRequest, EchoResponse>
+    {
+        public int InvocationCount { get; private set; }
+
+        public override ApplicationCommandDefinition Definition { get; } = new(
+            DoctorCommandDefinition.Info,
+            typeof(DoctorRequest),
+            typeof(EchoResponse),
+            mcpVisible: true,
+            CommandSafety.ReadOnly,
+            CommandExecutionPlacement.DaemonPreferred,
+            []);
+
+        public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
+            DoctorRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            InvocationCount++;
+            return Task.FromResult(Result<EchoResponse, RtError>.Ok(new EchoResponse("ok")));
         }
     }
 

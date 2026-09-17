@@ -5,12 +5,20 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class SolutionPathResolver
 {
-    internal static string Resolve(string? solutionPath)
+    internal static string Resolve(string? solutionPath) => ResolveCore(solutionPath, baseDirectory: null);
+
+    internal static string ResolveFrom(string? solutionPath, string baseDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        return ResolveCore(solutionPath, Path.GetFullPath(baseDirectory));
+    }
+
+    private static string ResolveCore(string? solutionPath, string? baseDirectory)
     {
         if (!string.IsNullOrWhiteSpace(solutionPath))
         {
             if (!Path.IsPathFullyQualified(solutionPath)
-                && RepositoryTrustContext.UsesPersistentTrust)
+                && RepositoryTrustContext.RequiresAbsoluteSolutionPath)
             {
                 throw new InvalidOperationException(
                     "A persistent multi-repository host requires an absolute solution path.");
@@ -19,19 +27,24 @@ internal static class SolutionPathResolver
             var explicitRoot = RepositoryTrustContext.TrustedRepositoryRoot;
             var resolved = Path.IsPathFullyQualified(solutionPath)
                 ? Path.GetFullPath(solutionPath)
-                : Path.GetFullPath(solutionPath, explicitRoot ?? Directory.GetCurrentDirectory());
+                : Path.GetFullPath(
+                    solutionPath,
+                    baseDirectory ?? explicitRoot ?? Directory.GetCurrentDirectory());
             ValidateTrustedRoot(explicitRoot, resolved);
             return resolved;
         }
 
-        if (RepositoryTrustContext.UsesPersistentTrust)
+        if (RepositoryTrustContext.RequiresAbsoluteSolutionPath)
         {
             throw new InvalidOperationException(
                 "A persistent multi-repository host requires an absolute solution path.");
         }
 
         var trustedRoot = RepositoryTrustContext.TrustedRepositoryRoot;
-        var startDirectory = new DirectoryInfo(trustedRoot ?? Directory.GetCurrentDirectory());
+        var startDirectory = new DirectoryInfo(
+            baseDirectory ?? trustedRoot ?? Directory.GetCurrentDirectory());
+        if (trustedRoot is not null)
+            ValidateTrustedRoot(trustedRoot, startDirectory.FullName);
         var configuredDefault = ResolveRepoDefaultPath(startDirectory, trustedRoot);
         if (configuredDefault is not null)
             return configuredDefault;
@@ -52,7 +65,7 @@ internal static class SolutionPathResolver
                     $"Multiple .sln/.slnx files found in '{directory.FullName}' ({names}). Pass --solution explicitly.");
             }
 
-            if (trustedRoot is not null)
+            if (trustedRoot is not null && PathsEqual(directory.FullName, trustedRoot))
                 break;
         }
 
@@ -83,12 +96,17 @@ internal static class SolutionPathResolver
                 return resolvedPath;
             }
 
-            if (trustedRoot is not null)
+            if (trustedRoot is not null && PathsEqual(directory.FullName, trustedRoot))
                 break;
         }
 
         return null;
     }
+
+    private static bool PathsEqual(string left, string right) => string.Equals(
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private static void ValidateTrustedRoot(string? trustedRoot, string resolvedPath)
     {

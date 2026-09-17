@@ -10,7 +10,8 @@ namespace RoslynTools.Core;
 /// <summary>
 /// Loads and manages workspaces for solution processing.
 /// </summary>
-internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IWorkspaceSnapshotLoader, IDisposable
+internal sealed class WorkspaceLoader
+    : IWorkspaceSessionFactory, IWorkspaceSnapshotLoader, IWorkspaceLoadConfiguration, IDisposable
 {
     private static readonly SemaphoreSlim SolutionLoadGate = new(1, 1);
 
@@ -150,6 +151,8 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IWorkspaceSnap
         // Trailing separator: MSBuild requires it on directory-shaped properties.
         return path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
     }
+
+    string? IWorkspaceLoadConfiguration.BaseIntermediateOutputPath => ResolveIsolatedObjPath();
 
     // ── Shared load logic ───────────────────────────────────────────────────
 

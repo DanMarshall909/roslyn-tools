@@ -176,6 +176,259 @@ public sealed class DaemonCommandExecutorRecoveryTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("App.slnx")]
+    [InlineData(null)]
+    public async Task Daemon_dispatch_normalizes_relative_or_omitted_solution_before_the_persistent_boundary(
+        string? requestedSolution)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        var port = new FakeSolutionPort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            DaemonRpcJson.SerializeExecution(new CommandExecutionResult(
+                new FakeResponse("from daemon"),
+                [])));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+        var previousDirectory = Directory.GetCurrentDirectory();
+
+        try
+        {
+            Directory.SetCurrentDirectory(root.Path);
+            await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new FakeSolutionRequest("hello", requestedSolution));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
+        }
+
+        rpc.LastArguments.ShouldNotBeNull();
+        rpc.LastArguments.Value.GetProperty("Solution").GetString().ShouldBe(solutionPath);
+    }
+
+    [Fact]
+    public async Task Invocation_scoped_trust_keeps_read_only_execution_local()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        var port = new FakeSolutionPort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            DaemonRpcJson.SerializeExecution(new CommandExecutionResult(
+                new FakeResponse("from daemon"),
+                [])));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new FakeSolutionRequest("hello", solutionPath));
+
+        port.ObservedSolution.ShouldBe(solutionPath);
+        rpc.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Doctor_without_an_explicit_solution_stays_local_for_directory_diagnostics()
+    {
+        using var root = new TemporaryDirectory();
+        File.WriteAllText(Path.Combine(root.Path, "Ancestor.slnx"), "<Solution />");
+        var requestedDirectory = Directory.CreateDirectory(Path.Combine(root.Path, "empty")).FullName;
+        var port = new FakeDoctorPort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            DaemonRpcJson.SerializeExecution(new CommandExecutionResult(
+                new FakeResponse("from daemon"),
+                [])));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new DoctorRequest(requestedDirectory));
+
+        port.InvocationCount.ShouldBe(1);
+        rpc.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Direct_read_only_execution_receives_the_same_normalized_solution_request()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        var invocationDirectory = Directory.CreateDirectory(Path.Combine(root.Path, "src")).FullName;
+        var previousDirectory = Directory.GetCurrentDirectory();
+        using var localOnly = DaemonRuntime.UseExperimentOverride(false);
+        var port = new FakeSolutionPort(ReadOnlyDefinition());
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.UnavailableBeforeDispatch,
+            null,
+            DispatchStarted: false));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        try
+        {
+            Directory.SetCurrentDirectory(invocationDirectory);
+            await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new FakeSolutionRequest("hello", "../App.slnx"));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
+        }
+
+        port.ObservedSolution.ShouldBe(solutionPath);
+        rpc.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Pre_dispatch_fallback_receives_the_same_normalized_solution_as_daemon_dispatch()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        var invocationDirectory = Directory.CreateDirectory(Path.Combine(root.Path, "src")).FullName;
+        var previousDirectory = Directory.GetCurrentDirectory();
+        var port = new FakeSolutionPort(ReadOnlyDefinition());
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.UnavailableBeforeDispatch,
+            null,
+            DispatchStarted: false));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        try
+        {
+            Directory.SetCurrentDirectory(invocationDirectory);
+            await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new FakeSolutionRequest("hello", "../App.slnx"));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
+        }
+
+        rpc.LastArguments.ShouldNotBeNull();
+        rpc.LastArguments.Value.GetProperty("Solution").GetString().ShouldBe(solutionPath);
+        port.ObservedSolution.ShouldBe(solutionPath);
+    }
+
+    [Fact]
+    public async Task Direct_CLI_outline_keeps_relative_path_targets_invocation_relative()
+    {
+        using var root = new TemporaryDirectory();
+        var invocationDirectory = Directory.CreateDirectory(Path.Combine(root.Path, "src")).FullName;
+        var previousDirectory = Directory.GetCurrentDirectory();
+        using var localOnly = DaemonRuntime.UseExperimentOverride(false);
+        var port = new FakeOutlinePort(ReadOnlyDefinition());
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.UnavailableBeforeDispatch,
+            null,
+            DispatchStarted: false));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        try
+        {
+            Directory.SetCurrentDirectory(invocationDirectory);
+            await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new OutlineRequest("Widget.cs", Solution: Path.Combine(root.Path, "App.slnx")));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
+        }
+
+        port.ObservedTarget.ShouldBe(Path.Combine(invocationDirectory, "Widget.cs"));
+        rpc.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Daemon_CLI_outline_normalizes_solution_and_target_from_the_invocation_directory()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        var invocationDirectory = Directory.CreateDirectory(Path.Combine(root.Path, "src")).FullName;
+        var previousDirectory = Directory.GetCurrentDirectory();
+        var port = new FakeOutlinePort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            DaemonRpcJson.SerializeExecution(new CommandExecutionResult(
+                new FakeResponse("from daemon"),
+                [])));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        try
+        {
+            Directory.SetCurrentDirectory(invocationDirectory);
+            await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new OutlineRequest("Widget.cs", Solution: "../App.slnx"));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousDirectory);
+        }
+
+        rpc.LastArguments.ShouldNotBeNull();
+        rpc.LastArguments.Value.GetProperty("Target").GetString()
+            .ShouldBe(Path.Combine(invocationDirectory, "Widget.cs"));
+        rpc.LastArguments.Value.GetProperty("Solution").GetString().ShouldBe(solutionPath);
+    }
+
+    [Fact]
+    public async Task Mutation_solution_arguments_remain_on_the_local_path_without_daemon_normalization()
+    {
+        var port = new FakeSolutionPort(MutationDefinition());
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.IndeterminateAfterDispatch,
+            null,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: true));
+
+        await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new FakeSolutionRequest("hello", "relative/App.slnx"));
+
+        port.ObservedSolution.ShouldBe("relative/App.slnx");
+        rpc.CallCount.ShouldBe(0);
+    }
+
     private static InvocationContext CreateInvocationContext() =>
         new(new RootCommand().Parse([]));
 
@@ -198,6 +451,7 @@ public sealed class DaemonCommandExecutorRecoveryTests : IDisposable
         []);
 
     private sealed record FakeRequest(string Value);
+    private sealed record FakeSolutionRequest(string Value, string? Solution);
     private sealed record FakeResponse(string Value);
 
     private sealed class FakePort(ApplicationCommandDefinition definition)
@@ -215,9 +469,55 @@ public sealed class DaemonCommandExecutorRecoveryTests : IDisposable
         }
     }
 
+    private sealed class FakeSolutionPort(ApplicationCommandDefinition definition)
+        : CommandApplicationPort<FakeSolutionRequest, FakeResponse>
+    {
+        internal string? ObservedSolution { get; private set; }
+        public override ApplicationCommandDefinition Definition => definition;
+
+        public override Task<Result<FakeResponse, RtError>> ExecuteAsync(
+            FakeSolutionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ObservedSolution = request.Solution;
+            return Task.FromResult(Result<FakeResponse, RtError>.Ok(new FakeResponse(request.Value)));
+        }
+    }
+
+    private sealed class FakeDoctorPort(ApplicationCommandDefinition definition)
+        : CommandApplicationPort<DoctorRequest, FakeResponse>
+    {
+        internal int InvocationCount { get; private set; }
+        public override ApplicationCommandDefinition Definition => definition;
+
+        public override Task<Result<FakeResponse, RtError>> ExecuteAsync(
+            DoctorRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            InvocationCount++;
+            return Task.FromResult(Result<FakeResponse, RtError>.Ok(new FakeResponse(request.Directory)));
+        }
+    }
+
+    private sealed class FakeOutlinePort(ApplicationCommandDefinition definition)
+        : CommandApplicationPort<OutlineRequest, FakeResponse>
+    {
+        internal string? ObservedTarget { get; private set; }
+        public override ApplicationCommandDefinition Definition => definition;
+
+        public override Task<Result<FakeResponse, RtError>> ExecuteAsync(
+            OutlineRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ObservedTarget = request.Target;
+            return Task.FromResult(Result<FakeResponse, RtError>.Ok(new FakeResponse(request.Target ?? string.Empty)));
+        }
+    }
+
     private sealed class StubRpcClient(DaemonRpcAttempt attempt) : IDaemonRpcClient
     {
         internal int CallCount { get; private set; }
+        internal JsonElement? LastArguments { get; private set; }
 
         public Task<DaemonRpcAttempt> ExecuteAsync(
             string commandName,
@@ -226,7 +526,27 @@ public sealed class DaemonCommandExecutorRecoveryTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             CallCount++;
+            LastArguments = arguments.Clone();
             return Task.FromResult(attempt);
+        }
+    }
+
+    private sealed class TemporaryDirectory : IDisposable
+    {
+        internal TemporaryDirectory()
+        {
+            Path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"rt-daemon-executor-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(Path);
+        }
+
+        internal string Path { get; }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+                Directory.Delete(Path, recursive: true);
         }
     }
 

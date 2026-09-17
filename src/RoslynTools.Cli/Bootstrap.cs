@@ -29,13 +29,16 @@ internal static class Bootstrap
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<IWorkspaceSnapshotLoader>(sp => sp.GetRequiredService<WorkspaceLoader>());
+        services.AddSingleton<IWorkspaceLoadConfiguration>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<IWorkspaceEnvironmentIdentity>(_ => new WorkspaceEnvironmentIdentity(() =>
         {
             var identity = MsBuildBootstrap.GetRegisteredSdkIdentity();
             return identity is null ? null : $"{identity.Version}\0{identity.MSBuildPath}";
         }));
         services.AddSingleton<IWorkspaceInputFingerprint>(sp => new WorkspaceInputFingerprint(
-            sp.GetRequiredService<IWorkspaceEnvironmentIdentity>()));
+            sp.GetRequiredService<IWorkspaceEnvironmentIdentity>(),
+            sp.GetRequiredService<IWorkspaceLoadConfiguration>(),
+            () => MsBuildBootstrap.GetRegisteredSdkIdentity()?.MSBuildPath));
         services.AddSingleton<IWorkspaceCacheTelemetry>(_ => new WorkspaceCacheTelemetry());
         services.AddSingleton(sp => new ReadOnlyWorkspaceSessionCache(
             sp.GetRequiredService<IWorkspaceSnapshotLoader>(),

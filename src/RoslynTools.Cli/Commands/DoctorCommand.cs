@@ -2,13 +2,17 @@ using System.CommandLine;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class DoctorCommand(DoctorOperation operation)
+internal sealed class DoctorCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    DoctorOperation operation)
     : IRtCommand, IInspectCommand, IStructuredOutputCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly DoctorOperation _operation = operation;
 
     public static RtCommandInfo Info => DoctorCommandDefinition.Info;
@@ -40,7 +44,13 @@ internal sealed class DoctorCommand(DoctorOperation operation)
                 context.ParseResult.GetValueForOption(directory)!.FullName,
                 context.ParseResult.GetValueForOption(solution),
                 context.ParseResult.GetValueForOption(installationOnly));
-            var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
+            var result = request.InstallationOnly
+                ? await _operation.ExecuteAsync(request, context.GetCancellationToken())
+                : await DaemonCommandExecutor.ExecuteTypedAsync(
+                    _daemon,
+                    _operation,
+                    request,
+                    context.GetCancellationToken());
             result.Match(
                 value =>
                 {

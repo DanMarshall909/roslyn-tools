@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Reflection;
 
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
@@ -14,7 +16,7 @@ namespace RoslynTools.Tests.Infrastructure;
 public sealed class ReadOnlyWorkspaceSessionCacheTests
 {
     [Fact]
-    public async Task physical_fingerprint_tracks_relevant_untracked_inputs_and_ignores_unrelated_files()
+    public async Task physical_fingerprint_tracks_potential_sources_and_ignores_unrelated_extensions()
     {
         using var root = new TemporaryDirectory();
         var solutionPath = root.CreateSolution("App.slnx");
@@ -32,14 +34,20 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
             original = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
         }
         File.WriteAllText(System.IO.Path.Combine(root.Path, "notes.txt"), "unrelated");
-        var ignoredDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "bin"));
-        File.WriteAllText(System.IO.Path.Combine(ignoredDirectory.FullName, "Ignored.cs"), "ignored");
-
-        var afterIgnoredChanges = await fingerprint.CaptureAsync(
+        var afterUnrelatedChange = await fingerprint.CaptureAsync(
             identity,
             solution: null,
             CancellationToken.None);
-        afterIgnoredChanges.ShouldBe(original);
+        afterUnrelatedChange.ShouldBe(original);
+
+        var potentialDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "bin"));
+        File.WriteAllText(System.IO.Path.Combine(potentialDirectory.FullName, "Potential.cs"), "class Potential;");
+
+        var afterPotentialSource = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+        afterPotentialSource.Value.ShouldNotBe(original.Value);
 
         var nested = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "Nested"));
         File.WriteAllText(System.IO.Path.Combine(nested.FullName, "Untracked.cs"), "class Added;");
@@ -48,7 +56,1184 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
             solution: null,
             CancellationToken.None);
 
-        afterRelevantChange.Value.ShouldNotBe(original.Value);
+        afterRelevantChange.Value.ShouldNotBe(afterPotentialSource.Value);
+    }
+
+    [Fact]
+    public async Task newly_applicable_project_assembly_candidate_changes_the_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var externalAssembly = System.IO.Path.Combine(external.Path, "Dependency.dll");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup>
+                <Reference Include="Dependency"><HintPath>{externalAssembly}</HintPath></Reference>
+              </ItemGroup>
+            </Project>
+            """);
+        File.WriteAllText(externalAssembly, "original-reference");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Dependency.dll"),
+            "new-higher-precedence-candidate");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task explicit_external_none_assembly_candidate_changes_the_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var externalAssembly = System.IO.Path.Combine(external.Path, "Dependency.dll");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><ItemGroup><None Include=\"{externalAssembly}\" /></ItemGroup></Project>");
+        File.WriteAllText(externalAssembly, "original-reference");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(externalAssembly, "changed-reference");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("AssemblySearchPaths")]
+    [InlineData("DesignTimeAssemblySearchPaths")]
+    public async Task custom_assembly_search_path_is_not_claimed_reusable(string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><{propertyName}>/external</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task external_ruleset_configuration_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var includedRuleset = System.IO.Path.Combine(external.Path, "Included.ruleset");
+        var ruleset = System.IO.Path.Combine(external.Path, "App.ruleset");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><CodeAnalysisRuleSet>{ruleset}</CodeAnalysisRuleSet></PropertyGroup></Project>");
+        File.WriteAllText(
+            ruleset,
+            $"<RuleSet><Include Path=\"{includedRuleset}\" /></RuleSet>");
+        File.WriteAllText(includedRuleset, "<RuleSet />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("ResolvedCodeAnalysisRuleSet")]
+    [InlineData("AllowedReferenceAssemblyFileExtensions")]
+    public async Task resolved_ruleset_and_custom_reference_extensions_are_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><{propertyName}>/external/value</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("SignAssembly")]
+    [InlineData("AssemblyOriginatorKeyFile")]
+    [InlineData("KeyOriginatorFile")]
+    [InlineData("KeyContainerName")]
+    [InlineData("CryptoKeyFile")]
+    [InlineData("CryptoKeyContainer")]
+    [InlineData("DelaySign")]
+    [InlineData("PublicSign")]
+    public async Task authored_signing_configuration_is_not_claimed_reusable(string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><{propertyName}>external-key</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task git_head_ref_change_changes_the_fingerprint_without_an_authored_file_change()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        var refDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            gitDirectory.FullName,
+            "refs",
+            "heads"));
+        var refPath = System.IO.Path.Combine(refDirectory.FullName, "main");
+        File.WriteAllText(System.IO.Path.Combine(gitDirectory.FullName, "HEAD"), "ref: refs/heads/main\n");
+        File.WriteAllText(refPath, new string('1', 40) + "\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(refPath, new string('2', 40) + "\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task linked_worktree_head_uses_its_private_git_directory_and_common_refs()
+    {
+        using var root = new TemporaryDirectory();
+        using var common = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var privateGitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            common.Path,
+            "worktrees",
+            "linked"));
+        Directory.CreateDirectory(System.IO.Path.Combine(common.Path, "objects"));
+        var refDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            common.Path,
+            "refs",
+            "heads"));
+        var refPath = System.IO.Path.Combine(refDirectory.FullName, "linked");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, ".git"),
+            $"gitdir: {privateGitDirectory.FullName}\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(privateGitDirectory.FullName, "commondir"),
+            "../..\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(privateGitDirectory.FullName, "HEAD"),
+            "ref: refs/heads/linked\n");
+        File.WriteAllText(refPath, new string('3', 40) + "\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(refPath, new string('4', 40) + "\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task git_repository_config_change_changes_the_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        var refDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            gitDirectory.FullName,
+            "refs",
+            "heads"));
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "HEAD"),
+            "ref: refs/heads/main\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(refDirectory.FullName, "main"),
+            new string('1', 40) + "\n");
+        var configPath = System.IO.Path.Combine(gitDirectory.FullName, "config");
+        File.WriteAllText(
+            configPath,
+            "[remote \"origin\"]\n\turl = https://example.test/one.git\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            configPath,
+            "[remote \"origin\"]\n\turl = https://example.test/two.git\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task included_git_config_change_changes_the_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        var refDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            gitDirectory.FullName,
+            "refs",
+            "heads"));
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "HEAD"),
+            "ref: refs/heads/main\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(refDirectory.FullName, "main"),
+            new string('1', 40) + "\n");
+        var includedConfigPath = System.IO.Path.Combine(external.Path, "included.gitconfig");
+        File.WriteAllText(
+            includedConfigPath,
+            "[remote \"origin\"]\n\turl = https://example.test/one.git\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "config"),
+            $"[include]\n\tpath = {includedConfigPath.Replace("\\", "/", StringComparison.Ordinal)}\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            includedConfigPath,
+            "[remote \"origin\"]\n\turl = https://example.test/two.git\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task invalid_git_marker_does_not_hide_a_valid_ancestor_repository()
+    {
+        using var outer = new TemporaryDirectory();
+        var repositoryRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "repository")).FullName;
+        var nestedRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(repositoryRoot, "nested")).FullName;
+        var solutionPath = System.IO.Path.Combine(nestedRoot, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution />");
+        Directory.CreateDirectory(System.IO.Path.Combine(nestedRoot, ".git"));
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(repositoryRoot, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        var refDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            gitDirectory.FullName,
+            "refs",
+            "heads"));
+        var refPath = System.IO.Path.Combine(refDirectory.FullName, "main");
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "HEAD"),
+            "ref: refs/heads/main\n");
+        File.WriteAllText(refPath, new string('1', 40) + "\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", nestedRoot);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(refPath, new string('2', 40) + "\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task minimal_source_link_repository_metadata_tracks_head_and_config_without_objects()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        var headPath = System.IO.Path.Combine(gitDirectory.FullName, "HEAD");
+        var configPath = System.IO.Path.Combine(gitDirectory.FullName, "config");
+        File.WriteAllText(headPath, new string('1', 40) + "\n");
+        File.WriteAllText(
+            configPath,
+            "[remote \"origin\"]\n\turl = https://example.test/one.git\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(headPath, new string('2', 40) + "\n");
+        var afterHead = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            configPath,
+            "[remote \"origin\"]\n\turl = https://example.test/two.git\n");
+        var afterConfig = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        afterHead.Reusable.ShouldBeTrue();
+        afterConfig.Reusable.ShouldBeTrue();
+        afterHead.Value.ShouldNotBe(before.Value);
+        afterConfig.Value.ShouldNotBe(afterHead.Value);
+    }
+
+    [Fact]
+    public async Task source_link_user_profile_config_change_changes_the_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        using var profile = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "HEAD"),
+            new string('1', 40) + "\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "config"),
+            "[core]\n\trepositoryformatversion = 0\n");
+        var profileConfigPath = System.IO.Path.Combine(profile.Path, ".gitconfig");
+        File.WriteAllText(
+            profileConfigPath,
+            "[remote \"origin\"]\n\turl = https://example.test/one.git\n");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            loadConfiguration: null,
+            getEnvironmentVariable: static _ => null,
+            getRegisteredMsBuildPath: static () => null,
+            enumerateEnvironmentVariables: static () => [],
+            getUserProfileDirectory: () => profile.Path);
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            profileConfigPath,
+            "[remote \"origin\"]\n\turl = https://example.test/two.git\n");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task git_config_override_disables_reuse_when_source_link_parity_is_unproven()
+    {
+        using var root = new TemporaryDirectory();
+        using var profile = new TemporaryDirectory();
+        using var redirected = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var gitDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, ".git"));
+        Directory.CreateDirectory(System.IO.Path.Combine(gitDirectory.FullName, "objects"));
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "HEAD"),
+            new string('1', 40) + "\n");
+        File.WriteAllText(
+            System.IO.Path.Combine(gitDirectory.FullName, "config"),
+            "[core]\n\trepositoryformatversion = 0\n");
+        var overridePath = System.IO.Path.Combine(redirected.Path, "override.gitconfig");
+        File.WriteAllText(overridePath, "[remote \"origin\"]\n\turl = https://override.test/repo.git\n");
+        var variables = new Dictionary<string, string?>
+        {
+            ["GIT_CONFIG_GLOBAL"] = overridePath
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            loadConfiguration: null,
+            getEnvironmentVariable: variables.GetValueOrDefault,
+            getRegisteredMsBuildPath: static () => null,
+            enumerateEnvironmentVariables: () => variables,
+            getUserProfileDirectory: () => profile.Path);
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task implicit_razor_view_addition_changes_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk.Razor\" />");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var views = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "Views"));
+        File.WriteAllText(
+            System.IO.Path.Combine(views.FullName, "Index.cshtml"),
+            "@model string");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("MSBuildUserExtensionsPath", true)]
+    [InlineData("MSBuildExtensionsPath", false)]
+    public async Task default_msbuild_hook_addition_changes_fingerprint(
+        string activeRootVariable,
+        bool remainsReusable)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var activeRoot = variables[activeRootVariable]!;
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            activeRoot,
+            "Current",
+            "Imports",
+            "Microsoft.Common.props",
+            "ImportBefore"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.props"),
+            "<Project><PropertyGroup><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBe(remainsReusable);
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task default_msbuild_hook_dependencies_are_fingerprinted()
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var dependencyPath = System.IO.Path.Combine(external.Path, "Feature.props");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            userExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets"),
+            $"<Project><Import Project=\"{dependencyPath}\" /></Project>");
+        File.WriteAllText(
+            dependencyPath,
+            "<Project><PropertyGroup><DefineConstants>ONE</DefineConstants></PropertyGroup></Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            dependencyPath,
+            "<Project><PropertyGroup><DefineConstants>TWO</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task late_msbuild_registration_establishes_one_stable_system_hook_baseline()
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path
+        };
+        string? registeredMsBuildPath = null;
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            new StubLoadConfiguration(null),
+            name => variables.GetValueOrDefault(name),
+            () => registeredMsBuildPath);
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var beforeRegistration = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+        registeredMsBuildPath = systemExtensions.Path;
+        var afterRegistration = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+        var stable = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+
+        beforeRegistration.Reusable.ShouldBeTrue();
+        afterRegistration.Reusable.ShouldBeTrue();
+        stable.ShouldBe(afterRegistration);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task registered_system_hook_change_or_removal_is_not_claimed_reusable(
+        bool remove)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        var hookPath = System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets");
+        File.WriteAllText(hookPath, "<Project><PropertyGroup><Flag>ONE</Flag></PropertyGroup></Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        if (remove)
+            File.Delete(hookPath);
+        else
+            File.WriteAllText(hookPath, "<Project><PropertyGroup><Flag>TWO</Flag></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeFalse();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task registered_system_hook_literal_dependency_is_fingerprinted()
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var dependencyPath = System.IO.Path.Combine(external.Path, "Feature.props");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets"),
+            $"<Project><Import Project=\"{dependencyPath}\" /></Project>");
+        File.WriteAllText(
+            dependencyPath,
+            "<Project><PropertyGroup><DefineConstants>ONE</DefineConstants></PropertyGroup></Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            dependencyPath,
+            "<Project><PropertyGroup><DefineConstants>TWO</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("<PropertyGroup><DefineConstants>$([System.IO.File]::ReadAllText('/external/flags.txt'))</DefineConstants></PropertyGroup>")]
+    [InlineData("<Target Name=\"ReadFlags\"><ReadLinesFromFile File=\"/external/flags.txt\" /></Target>")]
+    [InlineData("<ItemGroup><Compile Include=\"../Generated.cs\" /></ItemGroup>")]
+    [InlineData("<PropertyGroup><VSTestTargets>/external/Feature.targets</VSTestTargets></PropertyGroup>")]
+    [InlineData("<PropertyGroup><BaseOutputPath>out</BaseOutputPath></PropertyGroup>")]
+    [InlineData("<PropertyGroup><ArtifactsPath>artifacts</ArtifactsPath></PropertyGroup>")]
+    [InlineData("<PropertyGroup><MSBuildProjectExtensionsPath>generated</MSBuildProjectExtensionsPath></PropertyGroup>")]
+    [InlineData("<PropertyGroup><ProjectAssetsFile>/external/project.assets.json</ProjectAssetsFile></PropertyGroup>")]
+    [InlineData("<PropertyGroup><NuGetPackageRoot>/external/packages</NuGetPackageRoot></PropertyGroup>")]
+    [InlineData("<PropertyGroup><TargetFramework>net48</TargetFramework></PropertyGroup>")]
+    [InlineData("<UsingTask TaskName=\"CustomTask\" AssemblyFile=\"/external/Tasks.dll\" />")]
+    [InlineData("<Import Project=\"Sdk.props\" Sdk=\"Company.Sdk\" />")]
+    [InlineData("<PropertyGroup><CompilePrerequisite>VSTest</CompilePrerequisite><CoreCompileDependsOn>$(CompilePrerequisite);$(CoreCompileDependsOn)</CoreCompileDependsOn></PropertyGroup>")]
+    public async Task unsafe_registered_system_hook_body_is_not_claimed_reusable(
+        string hookBody)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets"),
+            $"<Project>{hookBody}</Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("<Import Project=\"Sdk.props\" Sdk=\"Company.Sdk\" />")]
+    [InlineData("<PropertyGroup><CompilePrerequisite>VSTest</CompilePrerequisite><CoreCompileDependsOn>$(CompilePrerequisite);$(CoreCompileDependsOn)</CoreCompileDependsOn></PropertyGroup>")]
+    public async Task unsafe_registered_system_hook_dependency_is_not_claimed_reusable(
+        string dependencyBody)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var dependencyPath = System.IO.Path.Combine(external.Path, "Dependency.targets");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets"),
+            $"<Project><Import Project=\"{dependencyPath}\" /></Project>");
+        File.WriteAllText(dependencyPath, $"<Project>{dependencyBody}</Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task imported_legacy_target_framework_assignment_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var importedPath = System.IO.Path.Combine(external.Path, "Legacy.props");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><Import Project=\"{importedPath}\" /></Project>");
+        File.WriteAllText(
+            importedPath,
+            "<Project><PropertyGroup><TargetFramework>net48</TargetFramework></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task unsafe_registered_sdk_selector_dependency_is_not_claimed_reusable(
+        bool transitive,
+        bool usingTask)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(
+                hookDirectory.FullName,
+                "Microsoft.TestPlatform.ImportAfter.targets"),
+            """
+            <Project>
+              <PropertyGroup>
+                <VSTestTargets Condition="'$(VSTestTargets)'==''">$(MSBuildExtensionsPath)\Microsoft.TestPlatform.targets</VSTestTargets>
+              </PropertyGroup>
+              <Import Condition="Exists('$(VSTestTargets)')" Project="$(VSTestTargets)" />
+            </Project>
+            """);
+        var selectorPath = System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Microsoft.TestPlatform.targets");
+        var unsafeBody = usingTask
+            ? "<UsingTask TaskName=\"CustomTask\" AssemblyFile=\"/external/Tasks.dll\" />"
+            : "<PropertyGroup><DefineConstants>$([System.IO.File]::ReadAllText('/external/flags.txt'))</DefineConstants></PropertyGroup>";
+        if (transitive)
+        {
+            File.WriteAllText(
+                selectorPath,
+                "<Project><Import Project=\"Injected.targets\" /></Project>");
+            File.WriteAllText(
+                System.IO.Path.Combine(systemExtensions.Path, "Injected.targets"),
+                $"<Project>{unsafeBody}</Project>");
+        }
+        else
+        {
+            File.WriteAllText(selectorPath, $"<Project>{unsafeBody}</Project>");
+        }
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task unknown_sdk_declaration_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Company.Sdk/1.0.0\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Company.Sdk")]
+    [InlineData("Microsoft.NET.Sdk")]
+    public async Task sdk_qualified_import_without_a_proven_location_is_not_claimed_reusable(
+        string sdk)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><Import Project=\"Sdk.props\" Sdk=\"{sdk}\" /><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("VSTest")]
+    [InlineData("$(FirstTarget)")]
+    public async Task initial_targets_are_not_claimed_reusable(string initialTargets)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project Sdk=\"Microsoft.NET.Sdk\" InitialTargets=\"{initialTargets}\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task registered_system_hook_initial_targets_are_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(hookDirectory.FullName, "Feature.targets"),
+            "<Project InitialTargets=\"$(FirstTarget)\"><PropertyGroup><FirstTarget>VSTest</FirstTarget></PropertyGroup></Project>");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task test_platform_task_override_and_compile_scheduling_are_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var taskAssembly = System.IO.Path.Combine(external.Path, "Tasks.dll");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(taskAssembly, "custom task implementation");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"""
+             <Project Sdk="Microsoft.NET.Sdk">
+               <PropertyGroup>
+                 <TargetFramework>net10.0</TargetFramework>
+                 <VSTestTaskAssemblyFile>{taskAssembly}</VSTestTaskAssemblyFile>
+                 <CoreCompileDependsOn>$(CoreCompileDependsOn);VSTest</CoreCompileDependsOn>
+                 <VSTestNoBuild>true</VSTestNoBuild>
+               </PropertyGroup>
+             </Project>
+             """);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task indirect_compile_scheduling_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <CompilePrerequisite>VSTest</CompilePrerequisite>
+                <CoreCompileDependsOn>$(CompilePrerequisite);$(CoreCompileDependsOn)</CoreCompileDependsOn>
+                <VSTestNoBuild>true</VSTestNoBuild>
+              </PropertyGroup>
+            </Project>
+            """);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net48</TargetFramework></PropertyGroup></Project>",
+        "Microsoft.NET.Build.Extensions.NETFramework.targets",
+        "<Project><Target Name=\"Expand\"><PropertyGroup><NETStandardInbox Condition=\"Exists('%(_InboxNETStandardFolders.Identity)\\netstandard.dll')\">true</NETStandardInbox></PropertyGroup></Target></Project>")]
+    [InlineData(
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net48</TargetFramework><MicrosoftNETBuildExtensionsTasksAssembly>/external/Tasks.dll</MicrosoftNETBuildExtensionsTasksAssembly></PropertyGroup></Project>",
+        "Microsoft.NET.Build.Extensions.NETFramework.targets",
+        "<Project><UsingTask TaskName=\"GetDependsOnNETStandard\" AssemblyFile=\"$(MicrosoftNETBuildExtensionsTasksAssembly)\" /><Target Name=\"Expand\"><GetDependsOnNETStandard References=\"@(Reference)\" /></Target></Project>")]
+    [InlineData(
+        "<Project><Import Project=\"Microsoft.Common.targets\" /><ItemGroup><PackageConflictPlatformManifests Include=\"/external/manifest.json\" /></ItemGroup></Project>",
+        "Microsoft.NET.Build.Extensions.ConflictResolution.targets",
+        "<Project><Target Name=\"Resolve\"><ResolvePackageFileConflicts PackageConflictPlatformManifests=\"@(PackageConflictPlatformManifests)\" /></Target></Project>")]
+    public async Task unproven_stock_sdk_task_inputs_are_not_claimed_reusable(
+        string projectXml,
+        string importedFileName,
+        string importedXml)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), projectXml);
+        var hookDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            "Microsoft.Common.targets",
+            "ImportAfter"));
+        File.WriteAllText(
+            System.IO.Path.Combine(
+                hookDirectory.FullName,
+                "Microsoft.NET.Build.Extensions.targets"),
+            """
+            <Project>
+              <PropertyGroup>
+                <MicrosoftNETBuildExtensionsTargets Condition="'$(MicrosoftNETBuildExtensionsTargets)' == ''">$(MSBuildExtensionsPath)\Microsoft\Microsoft.NET.Build.Extensions\Microsoft.NET.Build.Extensions.targets</MicrosoftNETBuildExtensionsTargets>
+              </PropertyGroup>
+              <Import Condition="Exists('$(MicrosoftNETBuildExtensionsTargets)')" Project="$(MicrosoftNETBuildExtensionsTargets)" />
+            </Project>
+            """);
+        var extensionDirectory = Directory.CreateDirectory(System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Microsoft",
+            "Microsoft.NET.Build.Extensions"));
+        var condition = importedFileName.Contains("NETFramework", StringComparison.Ordinal)
+            ? "'$(TargetFrameworkIdentifier)' == '.NETFramework'"
+            : "'$(ResolveAssemblyConflicts)' == 'true' AND '$(UsingMicrosoftNETSdk)' != 'true'";
+        File.WriteAllText(
+            System.IO.Path.Combine(extensionDirectory.FullName, "Microsoft.NET.Build.Extensions.targets"),
+            $"<Project><Import Project=\"{importedFileName}\" Condition=\"{condition}\" /></Project>");
+        File.WriteAllText(
+            System.IO.Path.Combine(extensionDirectory.FullName, importedFileName),
+            importedXml);
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("MSBuildUserExtensionsPath")]
+    [InlineData("MSBuildExtensionsPath")]
+    [InlineData("MSBuildToolsVersion")]
+    [InlineData("VSTestTargets")]
+    [InlineData("MicrosoftNETBuildExtensionsTargets")]
+    public async Task build_defined_hook_root_or_selector_is_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Directory.Build.props"),
+            $"<Project><PropertyGroup><{propertyName}>{external.Path}</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Microsoft.Common.CrossTargeting.targets/ImportBefore/Feature.targets")]
+    [InlineData("Microsoft.VisualStudioVersion.v99.Common.props")]
+    public async Task omitted_standard_system_hook_addition_is_detected(string relativePath)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var hookPath = System.IO.Path.Combine(
+            systemExtensions.Path,
+            "Current",
+            relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(hookPath)!);
+        File.WriteAllText(hookPath, "<Project />");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeFalse();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("Custom.After.Microsoft.Common.targets")]
+    [InlineData("Custom.Before.Microsoft.CSharp.targets")]
+    [InlineData("Custom.After.Microsoft.CSharp.targets")]
+    [InlineData("Custom.Before.Microsoft.VisualBasic.targets")]
+    [InlineData("Custom.After.Microsoft.VisualBasic.targets")]
+    public async Task default_custom_language_hook_addition_is_detected(string fileName)
+    {
+        using var root = new TemporaryDirectory();
+        using var userExtensions = new TemporaryDirectory();
+        using var systemExtensions = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var variables = new Dictionary<string, string?>
+        {
+            ["MSBuildToolsVersion"] = "Current",
+            ["MSBuildUserExtensionsPath"] = userExtensions.Path,
+            ["MSBuildExtensionsPath"] = systemExtensions.Path
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var customDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(systemExtensions.Path, "vCurrent"));
+        File.WriteAllText(
+            System.IO.Path.Combine(customDirectory.FullName, fileName),
+            "<Project><PropertyGroup><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeFalse();
+        after.Value.ShouldNotBe(before.Value);
     }
 
     [Fact]
@@ -113,6 +1298,119 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
 
         second.ShouldNotBe(first);
         third.ShouldNotBe(second);
+    }
+
+    [Theory]
+    [InlineData("ImportByWildcardBeforeMicrosoftCSharpTargets")]
+    [InlineData("ImportUserLocationsByWildcardAfterMicrosoftVisualBasicTargets")]
+    [InlineData("ImportByWildcardBeforeMicrosoftNETFrameworkProps")]
+    [InlineData("ImportUserLocationsByWildcardAfterMicrosoftNETFrameworkTargets")]
+    [InlineData("CustomBeforeMicrosoftCSharpTargets")]
+    [InlineData("DirectoryBuildPropsPath")]
+    [InlineData("ProjectAssetsFile")]
+    public void environment_fingerprint_includes_standard_hook_controls(string variable)
+    {
+        var variables = new Dictionary<string, string?>();
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+
+        var before = fingerprint.CaptureEnvironmentIdentity();
+        variables[variable] = "false";
+        var after = fingerprint.CaptureEnvironmentIdentity();
+
+        after.ShouldNotBe(before);
+    }
+
+    [Theory]
+    [InlineData("CustomBeforeMicrosoftCSharpTargets")]
+    [InlineData("DirectoryBuildPropsPath")]
+    [InlineData("BaseOutputPath")]
+    [InlineData("ProjectAssetsFile")]
+    [InlineData("MicrosoftNETBuildExtensionsTasksAssembly")]
+    [InlineData("VSTestTaskAssemblyFile")]
+    [InlineData("MicrosoftBuildTasksGitAssemblyFile")]
+    [InlineData("AssemblySearchPaths")]
+    [InlineData("DesignTimeAssemblySearchPaths")]
+    [InlineData("CodeAnalysisRuleSet")]
+    [InlineData("CodeAnalysisRuleSetDirectories")]
+    [InlineData("ResolvedCodeAnalysisRuleSet")]
+    [InlineData("AllowedReferenceAssemblyFileExtensions")]
+    [InlineData("SignAssembly")]
+    [InlineData("AssemblyOriginatorKeyFile")]
+    [InlineData("KeyOriginatorFile")]
+    [InlineData("KeyContainerName")]
+    [InlineData("CryptoKeyFile")]
+    [InlineData("CryptoKeyContainer")]
+    [InlineData("DelaySign")]
+    [InlineData("PublicSign")]
+    [InlineData("CoreCompileDependsOn")]
+    [InlineData("GIT_DIR")]
+    public async Task environment_path_override_is_not_claimed_reusable(string variable)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var variables = new Dictionary<string, string?>
+        {
+            [variable] = "/external/value"
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            name => variables.GetValueOrDefault(name));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task environment_property_names_use_msbuild_case_insensitive_semantics()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["baseoutputpath"] = "/external/value"
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            loadConfiguration: null,
+            name => variables.GetValueOrDefault(name),
+            getRegisteredMsBuildPath: static () => null,
+            () => variables);
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = fingerprint.CaptureEnvironmentIdentity();
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        variables["baseoutputpath"] = "/external/changed";
+        var after = fingerprint.CaptureEnvironmentIdentity();
+
+        result.Reusable.ShouldBeFalse();
+        after.ShouldNotBe(before);
+    }
+
+    [Fact]
+    public async Task ambiguous_environment_property_case_variants_are_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["BaseOutputPath"] = "/external/one",
+            ["baseoutputpath"] = "/external/two"
+        };
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            loadConfiguration: null,
+            name => variables.GetValueOrDefault(name),
+            getRegisteredMsBuildPath: static () => null,
+            () => variables);
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
     }
 
     [Fact]
@@ -317,6 +1615,1094 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         File.WriteAllText(
             System.IO.Path.Combine(obj.FullName, "generated.props"),
             "<Project />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task implicit_nuget_restore_and_generated_import_inputs_are_fingerprinted()
+    {
+        using var outer = new TemporaryDirectory();
+        var repositoryRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "repository")).FullName;
+        var packageRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "packages")).FullName;
+        var packageBuildRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(packageRoot, "sample", "1.0.0", "build")).FullName;
+        var solutionPath = System.IO.Path.Combine(repositoryRoot, "App.slnx");
+        var projectPath = System.IO.Path.Combine(repositoryRoot, "App.csproj");
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(repositoryRoot, "obj"));
+        var assetsPath = System.IO.Path.Combine(obj.FullName, "project.assets.json");
+        var generatedPropsPath = System.IO.Path.Combine(obj.FullName, "App.csproj.nuget.g.props");
+        var generatedTargetsPath = System.IO.Path.Combine(obj.FullName, "App.csproj.nuget.g.targets");
+        var packageTargetDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(packageBuildRoot, "net10.0"));
+        var packageTargetsPath = System.IO.Path.Combine(packageTargetDirectory.FullName, "Package.targets");
+        var siblingTargetsPath = System.IO.Path.Combine(packageBuildRoot, "Sibling.targets");
+        var externalPropsPath = System.IO.Path.Combine(outer.Path, "External.props");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        File.WriteAllText(assetsPath, "{\"version\":1}");
+        File.WriteAllText(
+            generatedPropsPath,
+            $"<Project><PropertyGroup><NuGetPackageRoot>{packageRoot}</NuGetPackageRoot></PropertyGroup></Project>");
+        File.WriteAllText(
+            generatedTargetsPath,
+            "<Project><Import Project=\"$(NuGetPackageRoot)sample/1.0.0/build/net10.0/Package.targets\" Condition=\"Exists('$(NuGetPackageRoot)sample/1.0.0/build/net10.0/Package.targets')\" /></Project>");
+        File.WriteAllText(
+            packageTargetsPath,
+            $"<Project><Import Project=\"{externalPropsPath}\" /><PropertyGroup><Flag>one</Flag></PropertyGroup></Project>");
+        File.WriteAllText(siblingTargetsPath, "<Project><PropertyGroup><Sibling>one</Sibling></PropertyGroup></Project>");
+        File.WriteAllText(externalPropsPath, "<Project><PropertyGroup><External>one</External></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", repositoryRoot);
+
+        var original = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(assetsPath, "{\"version\":2}");
+        var afterAssets = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            packageTargetsPath,
+            $"<Project><Import Project=\"{externalPropsPath}\" /><PropertyGroup><Flag>two</Flag></PropertyGroup></Project>");
+        var afterPackageTargets = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+        File.WriteAllText(siblingTargetsPath, "<Project><PropertyGroup><Sibling>two</Sibling></PropertyGroup></Project>");
+        var afterSiblingTargets = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+        File.WriteAllText(externalPropsPath, "<Project><PropertyGroup><External>two</External></PropertyGroup></Project>");
+        var afterExternalProps = await fingerprint.CaptureAsync(
+            identity,
+            solution: null,
+            CancellationToken.None);
+
+        original.Reusable.ShouldBeTrue();
+        afterAssets.Reusable.ShouldBeTrue();
+        afterPackageTargets.Reusable.ShouldBeTrue();
+        afterSiblingTargets.Reusable.ShouldBeTrue();
+        afterExternalProps.Reusable.ShouldBeTrue();
+        afterAssets.Value.ShouldNotBe(original.Value);
+        afterPackageTargets.Value.ShouldNotBe(afterAssets.Value);
+        afterSiblingTargets.Value.ShouldNotBe(afterPackageTargets.Value);
+        afterExternalProps.Value.ShouldNotBe(afterSiblingTargets.Value);
+    }
+
+    [Fact]
+    public async Task imported_nuget_package_root_override_is_not_claimed_reusable()
+    {
+        using var outer = new TemporaryDirectory();
+        var repositoryRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "repository")).FullName;
+        var packageRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "packages-a")).FullName;
+        var fallbackRoot = Directory.CreateDirectory(
+            System.IO.Path.Combine(outer.Path, "packages-b")).FullName;
+        var solutionPath = System.IO.Path.Combine(repositoryRoot, "App.slnx");
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(repositoryRoot, "obj"));
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(repositoryRoot, "App.csproj"), "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(repositoryRoot, "Directory.Build.props"),
+            $"<Project><PropertyGroup><NuGetPackageRoot>{packageRoot}</NuGetPackageRoot></PropertyGroup></Project>");
+        File.WriteAllText(
+            System.IO.Path.Combine(obj.FullName, "App.csproj.nuget.g.props"),
+            $"<Project><PropertyGroup><NuGetPackageRoot Condition=\"'$(NuGetPackageRoot)' == ''\">{fallbackRoot}</NuGetPackageRoot></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", repositoryRoot);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task loaded_project_implicit_restore_inputs_are_fingerprinted_when_not_declared_by_the_solution()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var projectPath = System.IO.Path.Combine(root.Path, "Loaded.csproj");
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "obj"));
+        var assetsPath = System.IO.Path.Combine(obj.FullName, "project.assets.json");
+        File.WriteAllText(assetsPath, "{\"version\":1}");
+        using var workspace = new AdhocWorkspace();
+        var solution = workspace.CurrentSolution.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(),
+            VersionStamp.Create(),
+            "Loaded",
+            "Loaded",
+            LanguageNames.CSharp,
+            filePath: projectPath));
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var original = await fingerprint.CaptureAsync(identity, solution, CancellationToken.None);
+        File.WriteAllText(assetsPath, "{\"version\":2}");
+        var changed = await fingerprint.CaptureAsync(identity, solution, CancellationToken.None);
+
+        original.Reusable.ShouldBeTrue();
+        changed.Reusable.ShouldBeTrue();
+        changed.Value.ShouldNotBe(original.Value);
+    }
+
+    [Theory]
+    [InlineData("key-file")]
+    [InlineData("key-container")]
+    [InlineData("public-key")]
+    [InlineData("delay-sign")]
+    [InlineData("public-sign")]
+    public async Task loaded_compiler_signing_options_are_not_claimed_reusable(string setting)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
+        compilationOptions = setting switch
+        {
+            "key-file" => compilationOptions.WithCryptoKeyFile(
+                System.IO.Path.Combine(root.Path, "Key.snk")),
+            "key-container" => compilationOptions.WithCryptoKeyContainer("external-key"),
+            "public-key" => compilationOptions.WithCryptoPublicKey(ImmutableArray.Create<byte>(1)),
+            "delay-sign" => compilationOptions.WithDelaySign(true),
+            "public-sign" => compilationOptions.WithPublicSign(true),
+            _ => throw new InvalidOperationException($"Unexpected signing setting: {setting}")
+        };
+        var solution = workspace.CurrentSolution.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Create(),
+            "Loaded",
+            "Loaded",
+            LanguageNames.CSharp,
+            filePath: System.IO.Path.Combine(root.Path, "Loaded.csproj"),
+            compilationOptions: compilationOptions));
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("AssemblyKey\\u0046ileAttribute")]
+    [InlineData("AssemblyKeyNameAttribute")]
+    public async Task source_signing_attributes_are_not_claimed_reusable(string attributeName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var projectPath = System.IO.Path.Combine(root.Path, "Loaded.csproj");
+        var sourcePath = System.IO.Path.Combine(root.Path, "Signing.cs");
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var solution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "Loaded",
+                "Loaded",
+                LanguageNames.CSharp,
+                filePath: projectPath))
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Signing.cs",
+                SourceText.From($"[assembly: System.Reflection.{attributeName}(\"external-key\")]"),
+                filePath: sourcePath)
+            .AddMetadataReference(
+                projectId,
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task signing_attribute_name_in_a_string_does_not_disable_reuse()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var projectPath = System.IO.Path.Combine(root.Path, "Loaded.csproj");
+        var sourcePath = System.IO.Path.Combine(root.Path, "Literal.cs");
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var solution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "Loaded",
+                "Loaded",
+                LanguageNames.CSharp,
+                filePath: projectPath))
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Literal.cs",
+                SourceText.From("class Literal { const string Value = \"AssemblyKeyFile\"; }"),
+                filePath: sourcePath);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution, CancellationToken.None);
+
+        result.Reusable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task generated_source_signing_attribute_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var projectPath = System.IO.Path.Combine(root.Path, "Loaded.csproj");
+        var sourcePath = System.IO.Path.Combine(root.Path, "Marker.cs");
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var baselineSolution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "Loaded",
+                "Loaded",
+                LanguageNames.CSharp,
+                filePath: projectPath))
+            .AddDocument(
+                DocumentId.CreateNewId(projectId),
+                "Marker.cs",
+                SourceText.From("class Marker;"),
+                filePath: sourcePath)
+            .AddMetadataReference(
+                projectId,
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
+        var generatedSolution = baselineSolution.AddAnalyzerReference(
+            projectId,
+            new FixedSourceGeneratorReference(
+                "[assembly: System.Reflection.AssemblyKeyNameAttribute(\"external-key\")]")
+        );
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var baseline = await fingerprint.CaptureAsync(
+            identity,
+            baselineSolution,
+            CancellationToken.None);
+        var result = await fingerprint.CaptureAsync(
+            identity,
+            generatedSolution,
+            CancellationToken.None);
+
+        baseline.Reusable.ShouldBeTrue();
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task literal_filesystem_condition_inputs_are_fingerprinted()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var conditionPath = System.IO.Path.Combine(root.Path, "feature.flag");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><PropertyGroup Condition=\"Exists('$(MSBuildProjectDirectory)/feature.flag')\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var missing = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(conditionPath, "enabled");
+        var present = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        missing.Reusable.ShouldBeTrue();
+        present.Reusable.ShouldBeTrue();
+        present.Value.ShouldNotBe(missing.Value);
+    }
+
+    [Fact]
+    public async Task literal_directory_existence_condition_distinguishes_missing_and_directory_states()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var conditionPath = System.IO.Path.Combine(root.Path, "feature-directory");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><PropertyGroup Condition=\"Exists('feature-directory')\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var missing = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        Directory.CreateDirectory(conditionPath);
+        var present = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        missing.Reusable.ShouldBeTrue();
+        present.Reusable.ShouldBeTrue();
+        present.Value.ShouldNotBe(missing.Value);
+    }
+
+    [Fact]
+    public async Task imported_relative_exists_condition_is_not_claimed_reusable_without_project_context()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><Import Project=\"build/Imported.props\" /></Project>");
+        var buildDirectory = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "build"));
+        File.WriteAllText(
+            System.IO.Path.Combine(buildDirectory.FullName, "Imported.props"),
+            "<Project><PropertyGroup Condition=\"Exists('feature.flag')\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task literal_custom_project_extensions_path_tracks_restore_inputs()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><PropertyGroup><MSBuildProjectExtensionsPath>.build/cache</MSBuildProjectExtensionsPath></PropertyGroup></Project>");
+        var extensions = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, ".build", "cache"));
+        var assetsPath = System.IO.Path.Combine(extensions.FullName, "project.assets.json");
+        File.WriteAllText(assetsPath, "{\"version\":1}");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var original = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(assetsPath, "{\"version\":2}");
+        var changed = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        original.Reusable.ShouldBeTrue();
+        changed.Reusable.ShouldBeTrue();
+        changed.Value.ShouldNotBe(original.Value);
+    }
+
+    [Fact]
+    public async Task imported_project_extensions_path_is_not_guessed_from_the_conventional_obj_directory()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Directory.Build.props"),
+            "<Project><PropertyGroup><MSBuildProjectExtensionsPath>../external-obj</MSBuildProjectExtensionsPath></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task loader_redirected_restore_path_is_not_claimed_reusable_from_project_obj()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var redirectedObj = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, "redirected-obj")).FullName;
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity(),
+            new StubLoadConfiguration(redirectedObj));
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task dynamic_project_extensions_path_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><PropertyGroup><BaseIntermediateOutputPath>$(UnprovenRoot)/obj</BaseIntermediateOutputPath></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("<MSBuildProjectExtensionsPath Condition=\"'$(Configuration)' == 'Debug'\">.build/cache</MSBuildProjectExtensionsPath>")]
+    [InlineData("<MSBuildProjectExtensionsPath>*cache</MSBuildProjectExtensionsPath>")]
+    [InlineData("<MSBuildProjectExtensionsPath>cache%20space</MSBuildProjectExtensionsPath>")]
+    [InlineData("<baseintermediateoutputpath>$(UnprovenRoot)/obj</baseintermediateoutputpath>")]
+    [InlineData("<ProjectAssetsFile>$(RestoreRoot)/project.assets.json</ProjectAssetsFile>")]
+    [InlineData("<ProjectAssetsFile>cache%20space/project.assets.json</ProjectAssetsFile>")]
+    public async Task conditional_or_dynamic_restore_path_is_not_claimed_reusable(
+        string property)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup>{property}</PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task literal_project_assets_file_override_is_fingerprinted()
+    {
+        using var root = new TemporaryDirectory();
+        using var restore = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var assetsPath = System.IO.Path.Combine(restore.Path, "project.assets.json");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><ProjectAssetsFile>{assetsPath}</ProjectAssetsFile></PropertyGroup></Project>");
+        File.WriteAllText(assetsPath, "{ \"version\": 1 }");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(assetsPath, "{ \"version\": 2 }");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task generated_nuget_assets_assignment_remains_reusable_and_fingerprinted()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var projectPath = System.IO.Path.Combine(root.Path, "App.csproj");
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "obj")).FullName;
+        var assetsPath = System.IO.Path.Combine(obj, "project.assets.json");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(projectPath, "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(obj, "App.csproj.nuget.g.props"),
+            """
+            <Project>
+              <PropertyGroup>
+                <ProjectAssetsFile Condition="'$(ProjectAssetsFile)' == ''">$(MSBuildThisFileDirectory)project.assets.json</ProjectAssetsFile>
+              </PropertyGroup>
+            </Project>
+            """);
+        File.WriteAllText(assetsPath, "{ \"version\": 1 }");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(assetsPath, "{ \"version\": 2 }");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("Condition", "<PropertyGroup Condition=\"Exists('../feature.flag')\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup>")]
+    [InlineData("Item", "<ItemGroup><Compile Include=\"../Generated.cs\" /></ItemGroup>")]
+    public async Task generated_nuget_relative_project_context_is_not_claimed_reusable(
+        string _,
+        string generatedBody)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "obj")).FullName;
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(obj, "App.csproj.nuget.g.props"),
+            $"<Project>{generatedBody}</Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("ProjectAssetsFile")]
+    [InlineData("MSBuildProjectExtensionsPath")]
+    public async Task conditionally_ancestral_restore_assignment_is_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        using var restore = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var activePath = System.IO.Path.Combine(restore.Path, "active");
+        var inactivePath = System.IO.Path.Combine(restore.Path, "inactive");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"""
+            <Project>
+              <PropertyGroup><{propertyName}>{activePath}</{propertyName}></PropertyGroup>
+              <PropertyGroup Condition="'$(Configuration)' == 'Never'">
+                <{propertyName}>{inactivePath}</{propertyName}>
+              </PropertyGroup>
+            </Project>
+            """);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("ProjectAssetsFile")]
+    [InlineData("MSBuildProjectExtensionsPath")]
+    public async Task target_scoped_restore_assignment_is_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        using var restore = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var activePath = System.IO.Path.Combine(restore.Path, "active");
+        var inactivePath = System.IO.Path.Combine(restore.Path, "inactive");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"""
+            <Project>
+              <PropertyGroup><{propertyName}>{activePath}</{propertyName}></PropertyGroup>
+              <Target Name="NeverRuns">
+                <PropertyGroup><{propertyName}>{inactivePath}</{propertyName}></PropertyGroup>
+              </Target>
+            </Project>
+            """);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("artifacts")]
+    [InlineData("examples/bin")]
+    [InlineData("examples/obj")]
+    [InlineData("node_modules")]
+    [InlineData("TestResults")]
+    public async Task source_addition_in_non_universal_exclusion_changes_fingerprint(
+        string directoryName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var addedDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, directoryName)).FullName;
+        File.WriteAllText(System.IO.Path.Combine(addedDirectory, "NewType.cs"), "class NewType;");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("bin")]
+    [InlineData("obj")]
+    public async Task generated_file_in_default_project_output_directory_does_not_change_fingerprint(
+        string directoryName)
+    {
+        using var root = new TemporaryDirectory();
+        var projectDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, "src", "App")).FullName;
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(
+            solutionPath,
+            "<Solution><Project Path=\"src/App/App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(projectDirectory, "App.csproj"), "<Project />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var generatedDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(projectDirectory, directoryName, "Debug", "net10.0")).FullName;
+        File.WriteAllText(
+            System.IO.Path.Combine(generatedDirectory, "Generated.cs"),
+            "class Generated;");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.ShouldBe(before);
+    }
+
+    [Theory]
+    [InlineData("BaseOutputPath")]
+    [InlineData("OutputPath")]
+    [InlineData("BaseIntermediateOutputPath")]
+    [InlineData("MSBuildProjectExtensionsPath")]
+    [InlineData("DefaultItemExcludes")]
+    [InlineData("DefaultExcludesInProjectFolder")]
+    [InlineData("EnableDefaultItems")]
+    [InlineData("EnableDefaultCompileItems")]
+    [InlineData("defaultitemexcludes")]
+    public async Task imported_default_output_customization_is_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Directory.Build.props"),
+            $"<Project><PropertyGroup><{propertyName}>custom</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task nested_project_output_visible_to_ancestor_project_changes_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        var innerDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, "Inner")).FullName;
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(
+            solutionPath,
+            "<Solution><Project Path=\"Outer.csproj\" /><Project Path=\"Inner/Inner.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Outer.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><Compile Remove=\"Inner/obj/**/*.cs\" /></ItemGroup></Project>");
+        File.WriteAllText(
+            System.IO.Path.Combine(innerDirectory, "Inner.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var generatedDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(innerDirectory, "bin")).FullName;
+        File.WriteAllText(
+            System.IO.Path.Combine(generatedDirectory, "NewType.cs"),
+            "class NewType;");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task imported_artifacts_output_configuration_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Directory.Build.props"),
+            $"<Project><PropertyGroup><ArtifactsPath>{external.Path}</ArtifactsPath></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("DirectoryBuildPropsPath")]
+    [InlineData("DirectoryBuildTargetsPath")]
+    [InlineData("CustomBeforeDirectoryBuildProps")]
+    [InlineData("CustomAfterDirectoryBuildProps")]
+    [InlineData("CustomBeforeDirectoryBuildTargets")]
+    [InlineData("CustomAfterDirectoryBuildTargets")]
+    [InlineData("CustomBeforeMicrosoftCommonProps")]
+    [InlineData("CustomAfterMicrosoftCommonProps")]
+    [InlineData("CustomBeforeMicrosoftCommonTargets")]
+    [InlineData("CustomAfterMicrosoftCommonTargets")]
+    [InlineData("directorybuildtargetspath")]
+    public async Task sdk_implicit_import_path_override_is_not_claimed_reusable(
+        string propertyName)
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var externalBuildInput = System.IO.Path.Combine(external.Path, "Build.targets");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(externalBuildInput, "<Project />");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><{propertyName}>{externalBuildInput}</{propertyName}></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("@(SharedSources)")]
+    [InlineData("%(SharedSources.Identity)")]
+    public async Task msbuild_item_or_metadata_expression_is_not_claimed_reusable(
+        string expression)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><ItemGroup><Compile Include=\"{expression}\" /></ItemGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task msbuild_percent_escaped_import_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><Import Project=\"Build%20Flags.props\" /></Project>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "Build Flags.props"), "<Project />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("compile", "Source.cs")]
+    [InlineData("import", "Build.props")]
+    public async Task semantic_item_and_import_names_are_case_insensitive(
+        string elementName,
+        string externalFileName)
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var externalPath = System.IO.Path.Combine(external.Path, externalFileName);
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            elementName == "import"
+                ? $"<Project><{elementName} Project=\"{externalPath}\" /></Project>"
+                : $"<Project><ItemGroup><{elementName} Include=\"{externalPath}\" /></ItemGroup></Project>");
+        File.WriteAllText(
+            externalPath,
+            elementName == "import"
+                ? "<Project><PropertyGroup><DefineConstants>ONE</DefineConstants></PropertyGroup></Project>"
+                : "class Source;");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            externalPath,
+            elementName == "import"
+                ? "<Project><PropertyGroup><DefineConstants>TWO</DefineConstants></PropertyGroup></Project>"
+                : "class Changed;");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task explicit_project_extensions_path_precedes_base_intermediate_output_path()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var implicitProps = System.IO.Path.Combine(external.Path, "App.csproj.Feature.props");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup><MSBuildProjectExtensionsPath>{external.Path}</MSBuildProjectExtensionsPath><BaseIntermediateOutputPath>obj</BaseIntermediateOutputPath></PropertyGroup></Project>");
+        File.WriteAllText(implicitProps, "<Project><PropertyGroup><DefineConstants>ONE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            implicitProps,
+            "<Project><PropertyGroup><DefineConstants>TWO</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        before.Reusable.ShouldBeTrue();
+        after.Reusable.ShouldBeTrue();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Theory]
+    [InlineData("Compile", "Source.cs")]
+    [InlineData("ProjectReference", "Referenced.csproj")]
+    [InlineData("Analyzer", "Analyzer.dll")]
+    public async Task relative_item_in_import_without_project_context_is_not_claimed_reusable(
+        string itemName,
+        string relativePath)
+    {
+        using var root = new TemporaryDirectory();
+        var buildDirectory = Directory.CreateDirectory(
+            System.IO.Path.Combine(root.Path, "build")).FullName;
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><Import Project=\"build/Shared.props\" /></Project>");
+        File.WriteAllText(
+            System.IO.Path.Combine(buildDirectory, "Shared.props"),
+            $"<Project><ItemGroup><{itemName} Include=\"{relativePath}\" /></ItemGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task implicit_project_extension_import_addition_changes_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(root.Path, "App.csproj"), "<Project />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var obj = Directory.CreateDirectory(System.IO.Path.Combine(root.Path, "obj")).FullName;
+        File.WriteAllText(
+            System.IO.Path.Combine(obj, "App.csproj.Feature.props"),
+            "<Project><PropertyGroup><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        after.Reusable.ShouldBeFalse();
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task worktree_globalconfig_addition_changes_fingerprint()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, ".globalconfig"),
+            "is_global = true");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task ancestor_editorconfig_addition_changes_fingerprint()
+    {
+        using var outer = new TemporaryDirectory();
+        var repository = Directory.CreateDirectory(System.IO.Path.Combine(outer.Path, "repository")).FullName;
+        var solutionPath = System.IO.Path.Combine(repository, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(System.IO.Path.Combine(repository, "App.csproj"), "<Project />");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", repository);
+
+        var before = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        File.WriteAllText(
+            System.IO.Path.Combine(outer.Path, ".editorconfig"),
+            "root = true");
+        var after = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        after.Value.ShouldNotBe(before.Value);
+    }
+
+    [Fact]
+    public async Task authored_target_task_with_unenumerated_input_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        using var external = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        var flagsPath = System.IO.Path.Combine(external.Path, "flags.txt");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><Import Project=\"Build.targets\" /></Project>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "Build.targets"),
+            $"""
+            <Project>
+              <Target Name="ReadFlags" BeforeTargets="CoreCompile">
+                <ReadLinesFromFile File="{flagsPath}">
+                  <Output TaskParameter="Lines" PropertyName="DefineConstants" />
+                </ReadLinesFromFile>
+              </Target>
+            </Project>
+            """);
+        File.WriteAllText(flagsPath, "FEATURE");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task authored_source_link_task_assembly_override_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(root.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <MicrosoftBuildTasksGitAssemblyFile>/external/Tasks.dll</MicrosoftBuildTasksGitAssemblyFile>
+              </PropertyGroup>
+            </Project>
+            """);
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task dynamic_filesystem_condition_is_not_claimed_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project><PropertyGroup Condition=\"Exists('$(UnprovenRoot)/feature.flag')\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("$([System.IO.File]::Exists('feature.flag'))")]
+    [InlineData("'$([MSBuild]::GetPathOfFileAbove(Directory.Build.props))' != ''")]
+    [InlineData("Exists($(UnquotedPath))")]
+    public async Task unprovable_filesystem_condition_forms_are_not_claimed_reusable(string condition)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup Condition=\"{condition}\"><DefineConstants>FEATURE</DefineConstants></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        result.Reusable.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("<DefineConstants>$([System.IO.File]::ReadAllText('/shared/flags.txt'))</DefineConstants>")]
+    [InlineData("<ReadLinesFromFile File=\"$([MSBuild]::GetPathOfFileAbove('flags.txt'))\" />")]
+    [InlineData("<DefineConstants>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildThisFileDirectory)', 'feature.flag'))</DefineConstants>")]
+    public async Task filesystem_dependent_values_outside_conditions_are_not_claimed_reusable(
+        string expression)
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            $"<Project><PropertyGroup>{expression}</PropertyGroup></Project>");
         var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
             new StubEnvironmentIdentity());
         var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
@@ -821,7 +3207,97 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
     }
 
     [Fact]
-    public async Task eviction_waits_for_a_cold_load_before_retiring_its_published_entry()
+    public async Task successful_eviction_releases_the_candidate_for_later_retirement()
+    {
+        using var root = new TemporaryDirectory();
+        var firstPath = root.CreateSolution("First.slnx");
+        var secondPath = root.CreateSolution("Second.slnx");
+        var thirdPath = root.CreateSolution("Third.slnx");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        var telemetry = new RecordingTelemetry();
+        using var cache = new ReadOnlyWorkspaceSessionCache(
+            new StubLoader(),
+            new StubFingerprint(),
+            telemetry,
+            capacity: 1);
+
+        using (await cache.AcquireAsync(firstPath))
+        {
+        }
+
+        using (await cache.AcquireAsync(secondPath))
+        {
+        }
+
+        using (await cache.AcquireAsync(thirdPath))
+        {
+        }
+
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Evict).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task successful_eviction_releases_waiters_already_queued_on_the_retired_slot()
+    {
+        using var root = new TemporaryDirectory();
+        var firstPath = root.CreateSolution("First.slnx");
+        var secondPath = root.CreateSolution("Second.slnx");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        using var candidateHeld = new ManualResetEventSlim();
+        using var continueRetirement = new ManualResetEventSlim();
+        using var queuedWaitStarted = new ManualResetEventSlim();
+        var blockRetirement = 0;
+        var hooks = new ReadOnlyWorkspaceSessionCache.ReadOnlyWorkspaceCacheTestHooks
+        {
+            BeforeSlotWait = () =>
+            {
+                if (candidateHeld.IsSet)
+                    queuedWaitStarted.Set();
+            },
+            AfterRetirementCandidateWait = () =>
+            {
+                if (Volatile.Read(ref blockRetirement) == 0)
+                    return;
+
+                candidateHeld.Set();
+                continueRetirement.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+            }
+        };
+        using var cache = new ReadOnlyWorkspaceSessionCache(
+            new StubLoader(),
+            new StubFingerprint(),
+            new RecordingTelemetry(),
+            capacity: 1,
+            testHooks: hooks);
+        using (await cache.AcquireAsync(firstPath))
+        {
+        }
+
+        Volatile.Write(ref blockRetirement, 1);
+        var evictionTask = Task.Run(() => cache.AcquireAsync(secondPath));
+        candidateHeld.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+        using var cancellation = new CancellationTokenSource();
+        var queuedTask = Task.Run(() => cache.AcquireAsync(firstPath, cancellation.Token));
+        queuedWaitStarted.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+        continueRetirement.Set();
+        using var evictionLease = await evictionTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        ReadOnlyWorkspaceLease queuedLease;
+        try
+        {
+            queuedLease = await queuedTask.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        catch
+        {
+            cancellation.Cancel();
+            throw;
+        }
+
+        queuedLease.Dispose();
+    }
+
+    [Fact]
+    public async Task completed_acquisition_does_not_wait_for_another_identity_cold_load()
     {
         using var root = new TemporaryDirectory();
         var firstPath = root.CreateSolution("First.slnx");
@@ -839,18 +3315,85 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         await loader.BlockedLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var secondTask = cache.AcquireAsync(secondPath);
         await loader.UnblockedLoadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        ReadOnlyWorkspaceLease? secondLease = null;
+        Exception? completionFailure = null;
+        try
+        {
+            secondLease = await secondTask.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        catch (Exception exception)
+        {
+            completionFailure = exception;
+        }
         loader.ReleaseBlockedLoad.SetResult();
         var firstLease = await firstTask;
-        var secondLease = await secondTask;
+        secondLease ??= await secondTask;
 
         telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(0);
-        firstLease.Dispose();
-        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
         secondLease.Dispose();
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
+        firstLease.Dispose();
+        completionFailure.ShouldBeNull();
     }
 
     [Fact]
-    public async Task eviction_waits_for_a_warm_acquisition_before_retiring_its_entry()
+    public async Task cancellation_during_trim_releases_the_unreturned_lease()
+    {
+        using var root = new TemporaryDirectory();
+        var firstPath = root.CreateSolution("First.slnx");
+        var secondPath = root.CreateSolution("Second.slnx");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        using var trimAdmitted = new ManualResetEventSlim();
+        using var continueTrim = new ManualResetEventSlim();
+        var blockTrim = 0;
+        var telemetry = new RecordingTelemetry();
+        var hooks = new ReadOnlyWorkspaceSessionCache.ReadOnlyWorkspaceCacheTestHooks
+        {
+            BeforeRetirementWait = () =>
+            {
+                if (Volatile.Read(ref blockTrim) == 0)
+                    return;
+
+                trimAdmitted.Set();
+                continueTrim.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+            }
+        };
+        var cache = new ReadOnlyWorkspaceSessionCache(
+            new StubLoader(),
+            new StubFingerprint(),
+            telemetry,
+            capacity: 1,
+            testHooks: hooks);
+        using (await cache.AcquireAsync(firstPath))
+        {
+        }
+        using var cancellation = new CancellationTokenSource();
+        Volatile.Write(ref blockTrim, 1);
+
+        var secondTask = Task.Run(() => cache.AcquireAsync(secondPath, cancellation.Token));
+        trimAdmitted.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+        cancellation.Cancel();
+        continueTrim.Set();
+
+        ReadOnlyWorkspaceLease? returnedLease = null;
+        Exception? observed = null;
+        try
+        {
+            returnedLease = await secondTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception exception)
+        {
+            observed = exception;
+        }
+
+        returnedLease?.Dispose();
+        ((IDisposable)cache).Dispose();
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(2);
+        observed.ShouldBeAssignableTo<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task busy_warm_entry_is_skipped_and_idle_overflow_entry_is_retired_later()
     {
         using var root = new TemporaryDirectory();
         var firstPath = root.CreateSolution("First.slnx");
@@ -879,12 +3422,76 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
 
         telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(0);
         warmLease.Dispose();
-        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(0);
         secondLease.Dispose();
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
     }
 
     [Fact]
-    public async Task acquisition_queued_behind_eviction_retries_the_replacement_slot()
+    public async Task busy_oldest_entry_does_not_prevent_eviction_of_an_idle_candidate()
+    {
+        using var root = new TemporaryDirectory();
+        var firstPath = root.CreateSolution("First.slnx");
+        var secondPath = root.CreateSolution("Second.slnx");
+        var thirdPath = root.CreateSolution("Third.slnx");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        var fingerprint = new BlockingWarmFingerprint();
+        var telemetry = new RecordingTelemetry();
+        using var cache = new ReadOnlyWorkspaceSessionCache(
+            new StubLoader(),
+            fingerprint,
+            telemetry,
+            capacity: 1);
+        using (await cache.AcquireAsync(firstPath))
+        {
+        }
+        fingerprint.BlockNextWarmCapture = true;
+        var busyTask = cache.AcquireAsync(firstPath);
+        await fingerprint.WarmCaptureStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondLease = await cache.AcquireAsync(secondPath);
+
+        var thirdLease = await cache.AcquireAsync(thirdPath);
+
+        var evictionCountBeforeRelease = telemetry.Events.Count(
+            item => item.Kind == WorkspaceCacheEventKind.Evict);
+        fingerprint.ReleaseWarmCapture.SetResult();
+        var busyLease = await busyTask.WaitAsync(TimeSpan.FromSeconds(5));
+        busyLease.Dispose();
+        secondLease.Dispose();
+        thirdLease.Dispose();
+        evictionCountBeforeRelease.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task failed_cold_publication_does_not_consume_retained_capacity()
+    {
+        using var root = new TemporaryDirectory();
+        var firstPath = root.CreateSolution("First.slnx");
+        var failingPath = root.CreateSolution("Failing.slnx");
+        var thirdPath = root.CreateSolution("Third.slnx");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(root.Path);
+        var telemetry = new RecordingTelemetry();
+        using var cache = new ReadOnlyWorkspaceSessionCache(
+            new PathFailingLoader(failingPath),
+            new StubFingerprint(),
+            telemetry,
+            capacity: 1);
+        using (await cache.AcquireAsync(firstPath))
+        {
+        }
+
+        await Should.ThrowAsync<IOException>(() => cache.AcquireAsync(failingPath));
+        using (await cache.AcquireAsync(thirdPath))
+        {
+        }
+
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Evict).ShouldBe(1);
+        telemetry.Events.ShouldNotContain(item => item.Kind == WorkspaceCacheEventKind.Evict
+                                                  && item.SourceRevision == null);
+    }
+
+    [Fact]
+    public async Task acquisition_queued_behind_a_busy_entry_reuses_its_published_snapshot()
     {
         using var root = new TemporaryDirectory();
         var firstPath = root.CreateSolution("First.slnx");
@@ -912,14 +3519,14 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         var evictionLease = await evictionTask;
         var queuedLease = await queuedTask;
 
-        loader.LoadCount.ShouldBe(3);
+        loader.LoadCount.ShouldBe(2);
         warmLease.Dispose();
         evictionLease.Dispose();
         queuedLease.Dispose();
     }
 
     [Fact]
-    public async Task eviction_waits_for_a_refresh_before_retiring_its_replacement_entry()
+    public async Task busy_refresh_is_skipped_and_its_replacement_remains_current()
     {
         using var root = new TemporaryDirectory();
         var firstPath = root.CreateSolution("First.slnx");
@@ -948,8 +3555,9 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
 
         telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
         refreshLease.Dispose();
-        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(2);
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(1);
         secondLease.Dispose();
+        telemetry.Events.Count(item => item.Kind == WorkspaceCacheEventKind.Dispose).ShouldBe(2);
     }
 
     [Fact]
@@ -1236,6 +3844,25 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref _loadCount);
+            var workspace = new AdhocWorkspace();
+            workspace.AddSolution(SolutionInfo.Create(
+                SolutionId.CreateNewId(),
+                VersionStamp.Create(),
+                filePath: solutionPath));
+            return Task.FromResult(new OwnedWorkspaceSnapshot(workspace, workspace.CurrentSolution));
+        }
+    }
+
+    private sealed class PathFailingLoader(string failingPath) : IWorkspaceSnapshotLoader
+    {
+        public Task<OwnedWorkspaceSnapshot> LoadOwnedWorkspaceAsync(
+            string? solutionPath,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(solutionPath, failingPath, StringComparison.Ordinal))
+                throw new IOException("load failed");
+
             var workspace = new AdhocWorkspace();
             workspace.AddSolution(SolutionInfo.Create(
                 SolutionId.CreateNewId(),
@@ -1588,6 +4215,12 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         public string Capture() => "sdk";
     }
 
+    private sealed class StubLoadConfiguration(string? baseIntermediateOutputPath)
+        : IWorkspaceLoadConfiguration
+    {
+        public string? BaseIntermediateOutputPath => baseIntermediateOutputPath;
+    }
+
     private sealed class MutableEnvironmentIdentity(string value) : IWorkspaceEnvironmentIdentity
     {
         internal string Value { get; set; } = value;
@@ -1603,6 +4236,37 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
 
         public Assembly LoadFromPath(string fullPath) => Assembly.LoadFrom(fullPath);
     }
+
+    private sealed class FixedSourceGeneratorReference(string source) : AnalyzerReference
+    {
+        private readonly ImmutableArray<ISourceGenerator> _generators =
+            [new FixedSourceGenerator(source)];
+
+        public override string FullPath => string.Empty;
+
+        public override object Id { get; } = new();
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => [];
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() => [];
+
+        public override ImmutableArray<ISourceGenerator> GetGenerators(string language) =>
+            language == LanguageNames.CSharp ? _generators : [];
+
+        public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => _generators;
+    }
+
+#pragma warning disable RS1042 // Test-only in-memory generator; it is never distributed as an analyzer.
+    private sealed class FixedSourceGenerator(string source) : ISourceGenerator
+    {
+        public void Initialize(GeneratorInitializationContext context)
+        {
+        }
+
+        public void Execute(GeneratorExecutionContext context) =>
+            context.AddSource("Signing.g.cs", source);
+    }
+#pragma warning restore RS1042
 
     private sealed class RecordingTelemetry : IWorkspaceCacheTelemetry
     {

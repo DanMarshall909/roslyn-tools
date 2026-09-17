@@ -47,8 +47,29 @@ that cannot be enumerated make the resulting entry non-reusable. Imports with an
 unsupported file role or context-dependent project-directory expansion are likewise
 non-reusable rather than resolved approximately. A loaded project
 outside the trusted worktree is likewise non-reusable because a newly added file in
-its implicit SDK compile glob cannot be inferred from the previous snapshot. Git HEAD and
-timestamps alone are never freshness proof. The repository fingerprint is checked
+its implicit SDK compile glob cannot be inferred from the previous snapshot. Default
+Content/None items can precede a reference hint path, so project-tree DLL, executable,
+and Windows metadata candidates plus explicitly declared external None inputs also
+participate in the fingerprint. Custom assembly search paths, custom allowed-reference
+extensions, and configured or directly resolved rulesets remain non-reusable because their
+precedence-sensitive candidates and recursive external includes are not proven by this
+slice. Strong-name signing selectors, loaded signing options, and semantically resolved
+key-file or key-container assembly attributes—including generated attributes—likewise
+remain non-reusable because their external key material cannot be proven by this slice.
+Because the supported SDK can embed the source revision in generated assembly
+information,
+the fingerprint also follows the nearest Git marker, worktree-private HEAD, common
+loose-ref candidates, packed refs, Git's effective configuration view, and the SDK
+Source Link reader's program-data, system, XDG, user-profile, repository, and recursive
+include inputs. Minimal Source Link metadata does not need an object database.
+Definitively invalid inner markers do not hide a valid ancestor repository. Unsupported
+ref storage, unreadable or ambiguous metadata, failed configuration capture, native-Git
+overrides that prevent Source Link parity, environment-based Git redirection, or a
+custom Source Link task-assembly selector make the entry non-reusable. This Git state
+is only an additional semantic input: Git HEAD and timestamps alone are never freshness
+proof. Unproven build scheduling, including `InitialTargets`, likewise makes the entry
+non-reusable.
+The repository fingerprint is checked
 before load, after load, and again after the full snapshot fingerprint. Loaded source,
 additional, and analyzer-configuration document text is also compared with a stable
 physical read before publication and on every hit. These checks prevent newly changed

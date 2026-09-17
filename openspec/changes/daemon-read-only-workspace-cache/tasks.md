@@ -34,3 +34,24 @@
 - [x] 6.2 Modify fixture source and prove the next MCP call refreshes to a new revision without changing Git HEAD.
 - [x] 6.3 Run focused tests, strict OpenSpec validation, formatting, and the platform-equivalent full local gate (`pwsh` was unavailable; `bash scripts/check-local.sh --full` passed).
 - [x] 6.4 Freeze the candidate, obtain independent completion review, repair any findings, then commit the exact reviewed slice without pushing, merging, publishing, or deleting worktrees.
+
+## 7. Astra review remediation
+
+- [x] 7.1 Reopen the accepted change with explicit compatibility, freshness, liveness, and canonical-root scenarios from the Astra review.
+- [x] 7.2 RED/GREEN ordinary CLI solution resolution, installation-only doctor routing, and request-relative outline targets without restoring process-wide current-directory mutation.
+- [x] 7.3 RED/GREEN conservative implicit NuGet/evaluated build inputs and filesystem-dependent MSBuild conditions.
+- [x] 7.4 RED/GREEN non-blocking cancellable cache maintenance and canonical explicit symlink trust roots.
+- [x] 7.5 Run focused coverage and changed-scope mutation analysis, the strict OpenSpec validations, formatting, and the full local gate.
+- [x] 7.6 RED/GREEN daemon-boundary CLI solution/outline normalization and bounded eviction past busy identities.
+- [x] 7.7 RED/GREEN effective restore paths, recursive package imports, filesystem-valued build expressions, and file/directory existence transitions.
+- [x] 7.8 Rerun focused coverage, strict OpenSpec validation, formatting, the full local gate, and real MCP/daemon acceptance.
+- [x] 7.9 RED/GREEN conservative property-function evaluation, effective `ProjectAssetsFile`, and identical normalized CLI requests across daemon, direct, and pre-dispatch fallback execution.
+- [x] 7.10 RED/GREEN conditional restore ancestry, SDK-glob source additions, unsupported task inputs, diagnostic doctor discovery, and invocation-scoped trust locality from the final Astra review.
+- [x] 7.11 RED/GREEN analyzer-config discovery, implicit project-extension imports, nested output-name sources, target-scoped restore assignments, and local diagnostic doctor admission from the second final Astra review.
+- [x] 7.12 RED/GREEN exact default project-output exclusions and fail-closed imported output customization so live build artifacts cannot destabilize cache admission.
+- [x] 7.13 RED/GREEN overlapping project output discovery, SDK artifacts-output redirects, and implicit SDK import-path overrides from the third final Astra review.
+- [x] 7.14 RED/GREEN MSBuild expressions/escaping, case-insensitive semantic names, restore-property precedence, and imported item path context from the fourth final Astra review.
+- [x] 7.15 RED/GREEN Razor view discovery, default MSBuild wildcard hooks, restore-path escaping, and generated NuGet path context from the fifth final Astra review.
+- [x] 7.16 RED/GREEN system-hook dependencies, build-defined hook roots/selectors, cross-targeting hooks, and Visual Studio-version wildcards from the sixth final Astra review.
+- [x] 7.17 RED/GREEN baseline and transitive system-hook validation, NuGet package-root precedence, default custom Common/language hooks, unknown and import-qualified SDK declarations across every parser, test-platform and initial-target scheduling, MSBuild-case environment properties, worktree-specific Git revision inputs, effective native and Source Link Git configuration, minimal Git metadata, invalid-marker ancestor discovery, Source Link task-assembly overrides, project-tree and explicit external assembly-candidate precedence, custom reference extensions, direct or configured ruleset graphs, and semantic strong-name signing inputs from the seventh through eighteenth final Astra reviews.
+- [x] 7.18 Freeze the repaired candidate, obtain final Astra PASS, then commit and push the accepted slice without publishing or deleting worktrees; merge only to the user-confirmed target.

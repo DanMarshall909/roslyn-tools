@@ -80,6 +80,7 @@ internal sealed class OutlineOperation
             && !target.Contains('\\'))
             return await _outline.OutlineNamespaceAsync(
                 solution, target, request.Summary, request.WithLocations);
+        target = ResolvePathTarget(solution, target);
         if (target.Contains('*') || target.Contains('?'))
             return await _outline.OutlineGlobAsync(
                 solution, target, request.Summary, request.WithLocations);
@@ -91,6 +92,25 @@ internal sealed class OutlineOperation
                 solution, target, request.Summary, request.WithLocations);
         return await _outline.OutlineNamespaceAsync(
             solution, target, request.Summary, request.WithLocations);
+    }
+
+    private static string ResolvePathTarget(Solution solution, string target)
+    {
+        if (Path.IsPathFullyQualified(target) || solution.FilePath is null)
+            return target;
+
+        var solutionDirectory = Path.GetDirectoryName(solution.FilePath);
+        if (solutionDirectory is null)
+            return target;
+
+        var candidate = Path.GetFullPath(target, solutionDirectory);
+        var isPath = target.Contains('*')
+                     || target.Contains('?')
+                     || target.Contains(Path.DirectorySeparatorChar)
+                     || target.Contains(Path.AltDirectorySeparatorChar)
+                     || target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                     || Path.Exists(candidate);
+        return isPath ? candidate : target;
     }
 
     private static RtResultEnvelope<OutlineResult> CreateEnvelope(

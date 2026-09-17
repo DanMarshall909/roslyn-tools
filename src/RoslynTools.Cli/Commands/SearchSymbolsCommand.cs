@@ -2,13 +2,17 @@ using System.CommandLine;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class SearchSymbolsCommand(SearchSymbolsOperation operation)
+internal sealed class SearchSymbolsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    SearchSymbolsOperation operation)
     : IRtCommand, IInspectCommand, IStructuredOutputCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly SearchSymbolsOperation _operation = operation;
 
     public static RtCommandInfo Info => SearchSymbolsCommandDefinition.Info;
@@ -52,7 +56,11 @@ internal sealed class SearchSymbolsCommand(SearchSymbolsOperation operation)
                 context.ParseResult.GetValueForOption(signature),
                 context.ParseResult.GetValueForOption(limit),
                 context.ParseResult.GetValueForOption(fuzzy));
-            var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                request,
+                context.GetCancellationToken());
             result.Match(
                 value => RtResultRenderer.Write(RtResult<RtResultEnvelope<SearchSymbolsResult>>.Ok(value)),
                 error => RtErrorPresenter.Surface(context, error));
