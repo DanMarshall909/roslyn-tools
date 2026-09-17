@@ -25,15 +25,20 @@ The installer exposes the `roslyn-tools-mcp` launcher. Semantic operations still
 
 ## Configure your MCP client
 
-After reviewing the repository, pass its absolute root as startup-only host
-configuration:
+After reviewing the repository, persist trust once:
+
+```powershell
+rt trust add /absolute/path/to/MyApp
+```
+
+Then configure one stable launcher. New registered worktrees for the same Git common
+directory do not require client configuration changes:
 
 ```json
 {
   "mcpServers": {
     "roslyn-tools": {
-      "command": "roslyn-tools-mcp",
-      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
+      "command": "roslyn-tools-mcp"
     }
   }
 }
@@ -41,10 +46,22 @@ configuration:
 
 The client starts the server over stdio. Protocol messages stay on stdout; diagnostics and progress are kept separate.
 
-This approval applies only to solutions beneath the configured root and lasts only for
-that server process. MCP tool arguments cannot grant or broaden trust. Without the
-startup option, semantic tools return `TrustRequired` before MSBuild evaluation. Use a
-separate configured server entry for each reviewed repository.
+## Install as a portable agent plugin
+
+The source repository also publishes a preview Agent Plugins 1.0 bundle in
+`plugins/roslyn-tools`, listed by `.agents/plugins/marketplace.json`. Its portable MCP
+configuration launches the bare `roslyn-tools-mcp` command with no arguments, trust path,
+or machine-specific location. Install the portable Roslyn Tools launchers first, then add
+the repository marketplace through your agent client's plugin workflow.
+
+Agent Plugins 1.0 does not currently define Codex-specific `required` or
+`startup_timeout_sec` fields. The bundle therefore cannot require startup success or set a
+longer catalogue timeout portably; those remain client-side settings when supported.
+
+Each call revalidates its solution against the persistent record and Git's current
+registered-worktree inventory. MCP tool arguments cannot grant or broaden trust, and
+trust-management operations are not MCP tools. `--trust-repository <absolute-root>`
+remains available as a startup-scoped compatibility option.
 
 ## Give agents semantic tools
 
@@ -62,7 +79,11 @@ These tools return typed results with explicit workspace context. That lets an a
 
 ## Respect the exposed surface
 
-The available tools depend on the host's startup repository approval. An approved host advertises eligible refactoring tools as well as read-only tools; refactor requests default to dry-run unless the caller explicitly applies them. Without startup approval, discovery is limited to the read-only subset, and semantic workspace tools still require trust before evaluation.
+The available tools depend on current host authority. A host with startup trust or at
+least one live persistent record advertises eligible refactoring tools as well as
+read-only tools; each call still validates its own repository, and refactor requests
+default to dry-run unless the caller explicitly applies them. With no live record,
+discovery is limited to the read-only subset.
 
 Use the MCP client's tool listing for the current agent surface. MCP exposure is being migrated incrementally; the `rt` CLI command catalogue covers the complete command surface.
 

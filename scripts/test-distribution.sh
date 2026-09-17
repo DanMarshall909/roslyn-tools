@@ -24,5 +24,30 @@ grep -q '<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     fail "MCP publish does not preserve Roslyn build-host files"
 grep -q 'roslyn-tools-mcp' "$repo_root/server.json" ||
     fail "server.json does not advertise the stable MCP launcher"
+posix_check_line="$(grep -Fn '"$staging/rt" inspect doctor --installation-only --directory "$self_check"' "$repo_root/scripts/install.sh" | cut -d: -f1 || true)"
+posix_activation_line="$(grep -Fn 'rm -rf "$target"' "$repo_root/scripts/install.sh" | cut -d: -f1)"
+[ -n "$posix_check_line" ] && [ "$posix_check_line" -lt "$posix_activation_line" ] ||
+    fail "POSIX installer does not self-check staging before activation"
+grep -Fq 'self_check="$temp_dir/self-check"' "$repo_root/scripts/install.sh" ||
+    fail "POSIX installer does not isolate its doctor self-check directory"
+grep -Fq "printf '%s\n' '{}' > \"\$self_check/global.json\"" "$repo_root/scripts/install.sh" ||
+    fail "POSIX installer does not shadow ambient global.json for its doctor self-check"
+
+windows_check_line="$(grep -Fn '& (Join-Path $staging "rt.exe") inspect doctor --installation-only --directory $selfCheck' "$repo_root/scripts/install.ps1" | cut -d: -f1 || true)"
+windows_activation_line="$(grep -Fn 'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $target' "$repo_root/scripts/install.ps1" | cut -d: -f1)"
+[ -n "$windows_check_line" ] && [ "$windows_check_line" -lt "$windows_activation_line" ] ||
+    fail "Windows installer does not self-check staging before activation"
+grep -Fq '$selfCheck = Join-Path $tempDir "self-check"' "$repo_root/scripts/install.ps1" ||
+    fail "Windows installer does not isolate its doctor self-check directory"
+grep -Fq 'Set-Content -LiteralPath (Join-Path $selfCheck "global.json") -Value "{}"' "$repo_root/scripts/install.ps1" ||
+    fail "Windows installer does not shadow ambient global.json for its doctor self-check"
+
+isolation_root="$(mktemp -d)"
+trap 'rm -rf "$isolation_root"' EXIT
+mkdir -p "$isolation_root/self-check"
+printf '%s\n' '{"sdk":{"version":"0.0.0","rollForward":"disable"}}' > "$isolation_root/global.json"
+printf '%s\n' '{}' > "$isolation_root/self-check/global.json"
+(cd "$isolation_root/self-check" && dotnet --version >/dev/null) ||
+    fail "neutral self-check global.json does not shadow an ambient ancestor SDK request"
 
 echo "distribution-test: OK" >&2

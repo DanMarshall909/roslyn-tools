@@ -15,6 +15,8 @@ if (hostOptions.ShowHelp)
     RtLog.Info("Usage: roslyn-tools-mcp [--trust-repository <absolute-repository-root>]");
     RtLog.Info(
         "--trust-repository authorizes this host process to evaluate solutions beneath the reviewed absolute repository root. MCP tool arguments cannot grant trust.");
+    RtLog.Info(
+        "Without that compatibility option, the host uses repositories approved by `rt trust add <repository>`.");
     return 0;
 }
 

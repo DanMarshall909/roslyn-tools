@@ -63,10 +63,24 @@ Use `doctor` when solution selection, SDK loading, repository trust, or output l
 rt inspect doctor --solution MyApp.slnx --trust-repository
 ```
 
+To verify an installed release without selecting or evaluating a repository solution:
+
+```powershell
+rt inspect doctor --installation-only --json
+```
+
+This checks the installed CLI and sibling MCP launcher, Roslyn build-host files, contextual
+SDK selection, and a spawned MCP `initialize` → `notifications/initialized` → `tools/list`
+handshake. SDK diagnostics distinguish an absent `global.json` from a valid or invalid
+request and report its path. The installers run this mode automatically and stop when a
+launcher or protocol check fails.
+
 The result distinguishes a healthy workspace from partial or failed loading rather than treating warnings as complete semantic evidence.
 
-`--trust-repository` is a deliberate, invocation-scoped approval. Review the repository
-before using it because MSBuild workspace loading may execute repository-controlled
+`--trust-repository` is a deliberate, invocation-scoped approval. For a reviewed
+repository used repeatedly by the MCP host or daemon, use `rt trust add <repository>`;
+linked worktrees share that persistent Git common-directory decision. Review the
+repository first because MSBuild workspace loading may execute repository-controlled
 build logic.
 
 Next, learn how to [discover commands and workflows](/docs/discovery/).

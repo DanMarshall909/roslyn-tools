@@ -319,15 +319,27 @@ internal sealed class DaemonRpcClient : IDaemonRpcClient
 /// <summary>
 /// Resolves typed command application ports and executes them without entering CLI parsing or output rendering.
 /// </summary>
+internal interface IDaemonSdkContextGuard
+{
+    Result<bool, RtError> Check(string directory);
+}
+
 internal sealed class DaemonCommandDispatcher
 {
     private static readonly SemaphoreSlim WorkingDirectoryGate = new(1, 1);
 
     private readonly Dictionary<string, ICommandApplicationPort> _ports;
+    private readonly RepositoryTrustRegistry? _trustRegistry;
+    private readonly IDaemonSdkContextGuard? _sdkContextGuard;
 
-    internal DaemonCommandDispatcher(IEnumerable<ICommandApplicationPort> ports)
+    internal DaemonCommandDispatcher(
+        IEnumerable<ICommandApplicationPort> ports,
+        RepositoryTrustRegistry? trustRegistry = null,
+        IDaemonSdkContextGuard? sdkContextGuard = null)
     {
         _ports = ports.ToDictionary(port => port.Definition.Name, StringComparer.Ordinal);
+        _trustRegistry = trustRegistry;
+        _sdkContextGuard = sdkContextGuard;
     }
 
     internal async Task<DaemonRpcResponse> ExecuteAsync(
@@ -367,6 +379,51 @@ internal sealed class DaemonCommandDispatcher
         if (typedRequest is null)
             return Failure(request, DaemonRpcErrorCodes.InvalidArguments, "Command arguments cannot be null.");
 
+        if (_sdkContextGuard is not null)
+        {
+            DaemonRequestTarget target;
+            if (_trustRegistry is not null)
+            {
+                try
+                {
+                    target = ResolveRequestTarget(request);
+                }
+                catch (Exception exception) when (exception is ArgumentException
+                                                  or IOException
+                                                  or NotSupportedException)
+                {
+                    return TrustRequired(request, RequestedTargetText(request));
+                }
+
+                if (!_trustRegistry.IsTrustedFor(target.TrustPath))
+                {
+                    return TrustRequired(request, target.TrustPath);
+                }
+            }
+            else
+            {
+                try
+                {
+                    target = ResolveRequestTarget(request);
+                }
+                catch (Exception exception) when (exception is ArgumentException
+                                                  or IOException
+                                                  or NotSupportedException)
+                {
+                    return Failure(request, DaemonRpcErrorCodes.InvalidArguments, exception.Message);
+                }
+            }
+
+            var compatibility = _sdkContextGuard.Check(target.SdkDirectory);
+            if (compatibility.IsErr)
+            {
+                var error = compatibility.Match(
+                    _ => throw new InvalidOperationException("Expected daemon SDK compatibility failure."),
+                    value => value);
+                return Failure(request, DaemonRpcErrorCodes.CommandFailed, error);
+            }
+        }
+
         try
         {
             await WorkingDirectoryGate.WaitAsync(cancellationToken);
@@ -377,6 +434,9 @@ internal sealed class DaemonCommandDispatcher
                 if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
                     Directory.SetCurrentDirectory(request.WorkingDirectory);
 
+                using var trustScope = _trustRegistry is null
+                    ? null
+                    : RepositoryTrustContext.UsePersistentTrust(_trustRegistry);
                 result = await port.InvokeAsync(typedRequest, cancellationToken);
             }
             finally
@@ -415,6 +475,63 @@ internal sealed class DaemonCommandDispatcher
 
     private static DaemonRpcResponse Failure(DaemonRpcRequest request, string code, string message) =>
         new(DaemonRpcProtocol.CurrentVersion, request.RequestId, Error: new DaemonRpcError(code, message));
+
+    private static DaemonRequestTarget ResolveRequestTarget(DaemonRpcRequest request)
+    {
+        var workingDirectory = string.IsNullOrWhiteSpace(request.WorkingDirectory)
+            ? Directory.GetCurrentDirectory()
+            : Path.GetFullPath(request.WorkingDirectory);
+        if (request.Arguments.ValueKind != JsonValueKind.Object)
+            return new DaemonRequestTarget(workingDirectory, workingDirectory);
+
+        foreach (var property in request.Arguments.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, "solution", StringComparison.OrdinalIgnoreCase)
+                || property.Value.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(property.Value.GetString()))
+                continue;
+
+            var solution = property.Value.GetString()!;
+            var resolved = Path.GetFullPath(Path.Combine(workingDirectory, solution));
+            return new DaemonRequestTarget(
+                resolved,
+                Path.GetDirectoryName(resolved) ?? workingDirectory);
+        }
+
+        return new DaemonRequestTarget(workingDirectory, workingDirectory);
+    }
+
+    private static string RequestedTargetText(DaemonRpcRequest request)
+    {
+        if (request.Arguments.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in request.Arguments.EnumerateObject())
+                if (string.Equals(property.Name, "solution", StringComparison.OrdinalIgnoreCase)
+                    && property.Value.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(property.Value.GetString()))
+                    return property.Value.GetString()!;
+        }
+
+        return request.WorkingDirectory ?? Directory.GetCurrentDirectory();
+    }
+
+    private static DaemonRpcResponse TrustRequired(DaemonRpcRequest request, string target)
+    {
+        var exception = RepositoryTrustRequiredException.ForSolution(target);
+        return Failure(
+            request,
+            DaemonRpcErrorCodes.CommandFailed,
+            new RtError(
+                RtErrorKind.TrustRequired,
+                exception.Message,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["solution"] = target,
+                    ["grantThrough"] = "rt trust add or an invocation-scoped trusted CLI command"
+                }));
+    }
+
+    private sealed record DaemonRequestTarget(string TrustPath, string SdkDirectory);
 
     private static DaemonRpcResponse Failure(
         DaemonRpcRequest request,

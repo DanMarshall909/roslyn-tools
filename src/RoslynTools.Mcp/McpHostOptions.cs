@@ -8,7 +8,10 @@ namespace RoslynTools.Mcp;
 /// </summary>
 internal sealed class McpHostOptions
 {
-    internal McpHostOptions(string? trustedRepositoryRoot = null, bool showHelp = false)
+    internal McpHostOptions(
+        string? trustedRepositoryRoot = null,
+        bool showHelp = false,
+        RepositoryTrustRegistry? trustRegistry = null)
     {
         if (trustedRepositoryRoot is not null)
         {
@@ -27,15 +30,24 @@ internal sealed class McpHostOptions
         }
 
         ShowHelp = showHelp;
+        TrustRegistry = trustRegistry;
     }
 
     internal string? TrustedRepositoryRoot { get; }
 
     internal bool ShowHelp { get; }
 
-    internal IDisposable? EnterTrustScope() => TrustedRepositoryRoot is null
-        ? null
-        : RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoot);
+    internal RepositoryTrustRegistry? TrustRegistry { get; }
+
+    internal bool CanDiscoverRepositoryWrites =>
+        TrustedRepositoryRoot is not null
+        || TrustRegistry?.HasAnyTrustedRepository() == true;
+
+    internal IDisposable? EnterTrustScope() => TrustedRepositoryRoot is not null
+        ? RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoot)
+        : TrustRegistry is not null
+            ? RepositoryTrustContext.UsePersistentTrust(TrustRegistry)
+            : null;
 
     internal static bool TryParse(
         IReadOnlyList<string> arguments,
@@ -46,7 +58,10 @@ internal sealed class McpHostOptions
         error = null;
 
         if (arguments.Count == 0)
+        {
+            options = new McpHostOptions(trustRegistry: new RepositoryTrustRegistry());
             return true;
+        }
 
         if (arguments.Count == 1 && arguments[0] is "--help" or "-h")
         {

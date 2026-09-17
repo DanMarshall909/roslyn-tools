@@ -12,6 +12,17 @@ namespace RoslynTools.Tests.Mcp.Handlers;
 
 public sealed class MoveSliceHandlerTests
 {
+    private static string FindRepoRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+        throw new InvalidOperationException("Could not locate RoslynTools.slnx.");
+    }
+
     [Fact]
     public void Descriptor_is_a_typed_review_default_mutation_hidden_from_untrusted_hosts()
     {
@@ -74,6 +85,52 @@ public sealed class MoveSliceHandlerTests
             payload.GetProperty("value").GetProperty("applicable").GetBoolean().ShouldBeTrue();
             File.ReadAllText(sourcePath).ShouldBe(sourceText);
             File.Exists(targetPath).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task persistent_trust_discovery_does_not_authorize_a_different_repository_target()
+    {
+        using var builder = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", "namespace Legacy; public sealed class Service { }");
+        builder.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (workspace, solution) = builder.Build();
+        WriteProjectFiles(solution);
+        var registryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-mutation-trust-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            registry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+            var untrustedSolution = Path.Combine(registryDirectory, "Other.sln");
+            File.WriteAllText(untrustedSolution, string.Empty);
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustRegistry: registry));
+            provider.GetRequiredService<ToolSchemaBuilder>().Build()
+                .ShouldContain(tool => tool.name == MoveSliceCommandDefinition.Definition.Name);
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["types"] = new List<string> { "Legacy.Service" },
+                ["to-project"] = "Target",
+                ["to-namespace"] = "App.Target.Feature",
+                ["solution"] = untrustedSolution
+            }));
+            using (workspace)
+            {
+                var result = await provider.GetRequiredService<ToolRegistry>()
+                    .InvokeAsync(MoveSliceCommandDefinition.Definition.Name, arguments.RootElement);
+
+                result.isError.ShouldBeTrue();
+                result.content.ShouldContain(nameof(RtErrorKind.TrustRequired));
+                result.content.ShouldNotContain("Unknown tool");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(registryDirectory))
+                Directory.Delete(registryDirectory, recursive: true);
         }
     }
 

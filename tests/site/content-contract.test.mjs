@@ -76,6 +76,53 @@ test('the public examples cover CLI, MCP and CI with canonical commands', () => 
   assert.match(discovery, /rt dump-help --compact/);
 });
 
+test('the repository marketplace packages the portable Roslyn Tools MCP plugin', () => {
+  const marketplace = JSON.parse(read('.agents/plugins/marketplace.json'));
+  const portableManifest = JSON.parse(read('plugins/roslyn-tools/plugin.json'));
+  const mcp = JSON.parse(read('plugins/roslyn-tools/mcp.json'));
+  const codexManifest = JSON.parse(read('plugins/roslyn-tools/.codex-plugin/plugin.json'));
+
+  const marketplacePlugin = marketplace.plugins.find(plugin => plugin.name === 'roslyn-tools');
+  assert.ok(marketplacePlugin, 'the repository marketplace must list roslyn-tools');
+  assert.deepEqual(marketplacePlugin.source, {
+    source: 'local',
+    path: './plugins/roslyn-tools',
+  });
+  assert.deepEqual(marketplacePlugin.policy, {
+    installation: 'AVAILABLE',
+    authentication: 'ON_INSTALL',
+  });
+  assert.equal(marketplacePlugin.category, 'Developer Tools');
+
+  assert.equal(
+    portableManifest.$schema,
+    'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+  );
+  assert.equal(portableManifest.name, 'roslyn-tools');
+  assert.match(portableManifest.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(portableManifest.author.name, 'Dan Marshall');
+  assert.equal(portableManifest.author.url, 'https://github.com/DanMarshall909');
+  assert.equal(portableManifest.homepage, 'https://roslyn-tools.danmarshall.dev');
+  assert.equal(portableManifest.repository, 'https://github.com/DanMarshall909/roslyn-tools');
+  assert.equal(portableManifest.license, 'MIT');
+  assert.ok(portableManifest.keywords.includes('roslyn'));
+  assert.equal(portableManifest.extensions['com.openai'].interface.developerName, 'Dan Marshall');
+
+  assert.deepEqual(Object.keys(mcp).sort(), ['$schema', 'mcpServers']);
+  assert.equal(mcp.$schema, 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json');
+  assert.deepEqual(mcp.mcpServers['roslyn-tools'], {
+    type: 'stdio',
+    command: 'roslyn-tools-mcp',
+  });
+  assert.doesNotMatch(JSON.stringify(mcp), /trust-repository|required|startup_timeout_sec/);
+
+  assert.equal(codexManifest.name, portableManifest.name);
+  assert.equal(codexManifest.version, portableManifest.version);
+  assert.equal(codexManifest.author.name, portableManifest.author.name);
+  assert.equal(codexManifest.interface.developerName, 'Dan Marshall');
+  assert.equal(codexManifest.mcpServers, undefined);
+});
+
 test('the website command catalogue is derived from the generated command reference', () => {
   const component = read('site/components/CommandCatalogue.astro');
   const catalogue = read('site/lib/commandCatalogue.ts');

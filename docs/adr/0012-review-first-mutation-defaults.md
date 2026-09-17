@@ -36,6 +36,13 @@ durable plan, ledger, recovery, failure-injection, and host-parity gates demonst
 that an implicit apply is an accepted product policy. Completing an application-port
 migration alone is not that evidence.
 
+Local user-authoritative control-plane actions are distinct from repository mutation.
+An `IControlPlaneCommand` inherits the refactor category so its mutability remains
+visible in the canonical catalog, but the explicit local verb (for example,
+`rt trust add` or `rt trust remove`) is the apply decision. These commands are the
+only exception to repository-source review/dry-run flags and remain unavailable to
+MCP and daemon request surfaces unless a later decision admits them explicitly.
+
 The recovery gate includes revocable effect admission, not only a ledger fencing
 number. A mutation worker does not hold bypassable repository-write authority: each
 one-use journalled intent is admitted by an OS-enforced broker/fence at the actual
@@ -55,6 +62,9 @@ drains, guards release, and an exclusive rescan proves the operation root empty.
 - Migration groups M0 through M4 cannot land a new implicit-write default.
 - Existing `apply-default` manifest rows remain visible as containment debt until their
   runtime definitions are changed and verified.
+- `IControlPlaneCommand` records local user authority directly and is excluded narrowly
+  from repository-source review/dry-run gates; catalog inclusion does not broaden its
+  MCP or daemon availability.
 - Automation can still request apply explicitly, but omission is non-mutating.
 - Explicit apply cannot pass the safety gate with ledger-only fencing or an unverified
   stale writer.

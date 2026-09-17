@@ -127,6 +127,41 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
+    public async Task Tool_registry_tracks_persistent_trust_changes_during_one_host_lifetime()
+    {
+        var registryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-live-trust-{Guid.NewGuid():N}",
+            "repository-trust.json");
+        try
+        {
+            var trustRegistry = new RepositoryTrustRegistry(registryPath);
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustRegistry: trustRegistry));
+            var tools = provider.GetRequiredService<ToolRegistry>();
+            using var arguments = JsonDocument.Parse("{}");
+
+            tools.GetTools().ShouldNotContain(tool => tool.name == "move");
+            trustRegistry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+            tools.GetTools().ShouldContain(tool => tool.name == "move");
+            var admitted = await tools.InvokeAsync("move", arguments.RootElement);
+            admitted.content.ShouldNotContain("Unknown tool");
+
+            trustRegistry.Remove(FindRepoRoot()).IsOk.ShouldBeTrue();
+            tools.GetTools().ShouldNotContain(tool => tool.name == "move");
+            var rejected = await tools.InvokeAsync("move", arguments.RootElement);
+            rejected.isError.ShouldBeTrue();
+            rejected.content.ShouldContain("Unknown tool");
+        }
+        finally
+        {
+            var directory = Path.GetDirectoryName(registryPath)!;
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Mcp_runtime_does_not_use_static_service_locator_or_static_workspace_loading()
     {
         var repoRoot = FindRepoRoot();

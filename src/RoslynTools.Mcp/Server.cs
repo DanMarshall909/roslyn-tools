@@ -38,6 +38,9 @@ internal sealed class Server(ToolRegistry toolRegistry, TextReader input, TextWr
                 using var doc = JsonDocument.Parse(line);
                 var request = doc.RootElement;
 
+                if (IsInitializedNotification(request))
+                    continue;
+
                 if (!request.TryGetProperty("jsonrpc", out _) ||
                     !request.TryGetProperty("method", out var methodProp) ||
                     !request.TryGetProperty("id", out var idProp))
@@ -70,6 +73,13 @@ internal sealed class Server(ToolRegistry toolRegistry, TextReader input, TextWr
             }
         }
     }
+
+    internal static bool IsInitializedNotification(JsonElement request) =>
+        request.TryGetProperty("jsonrpc", out var jsonRpc)
+        && jsonRpc.GetString() == "2.0"
+        && request.TryGetProperty("method", out var notificationMethod)
+        && notificationMethod.GetString() == "notifications/initialized"
+        && !request.TryGetProperty("id", out _);
 
     /// <summary>
     /// Materializes a JSON-RPC id <see cref="JsonElement"/> into a CLR

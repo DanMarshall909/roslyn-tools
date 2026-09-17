@@ -175,7 +175,9 @@ public sealed class FlagCapabilityMigrationTests
     {
         var offenders = new List<string>();
 
-        foreach (var entry in App.AllCommands.Where(entry => entry.Info.Mutates))
+        foreach (var entry in App.AllCommands
+                     .Where(entry => entry.Info.Mutates)
+                     .Where(entry => !App.ControlPlaneCommandNames.Contains(entry.Info.Name)))
         {
             var command = entry.Build();
             var root = new RootCommand();
@@ -207,7 +209,8 @@ public sealed class FlagCapabilityMigrationTests
 
         Assert.True(
             offenders.Count == 0,
-            "Every mutation leaf must default to review/dry-run and require an explicit apply choice.\n"
+            "Every repository mutation leaf must default to review/dry-run and require an explicit apply choice; "
+            + "IControlPlaneCommand uses its explicit local verb as the apply decision.\n"
             + string.Join("\n", offenders.OrderBy(value => value, StringComparer.Ordinal)));
     }
 

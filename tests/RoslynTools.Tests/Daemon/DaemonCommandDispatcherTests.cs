@@ -149,6 +149,314 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Execute_enters_persistent_trust_scope_inside_the_daemon_process()
+    {
+        var registryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-daemon-trust-{Guid.NewGuid():N}");
+        try
+        {
+            var repositoryRoot = FindRepoRoot();
+            var registry = new RepositoryTrustRegistry(
+                Path.Combine(registryDirectory, "repository-trust.json"));
+            registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+            var dispatcher = new DaemonCommandDispatcher([new TrustProbePort()], registry);
+            using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                path = Path.Combine(repositoryRoot, "RoslynTools.slnx")
+            }));
+
+            var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+                DaemonRpcProtocol.CurrentVersion,
+                "request-persistent-trust",
+                DaemonRpcProtocol.ExecuteCommandMethod,
+                "trust-probe",
+                payload.RootElement.Clone()));
+
+            response.Error.ShouldBeNull();
+            response.Result!.Value.GetProperty("data").GetProperty("trusted")
+                .GetBoolean().ShouldBeTrue();
+            RepositoryTrustContext.IsExplicitlyTrusted.ShouldBeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(registryDirectory))
+                Directory.Delete(registryDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Execute_rejects_an_incompatible_solution_sdk_before_port_invocation()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(new RtError(
+            RtErrorKind.ExternalToolFailure,
+            "Requested SDK differs from the daemon MSBuild SDK; restart the daemon.",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["daemonRestartRequired"] = "true"
+            }));
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
+        using var payload = JsonDocument.Parse("""{"value":"hello","solution":"/repo/App.slnx"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-incompatible-sdk",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            "/caller"));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
+        response.Error.Message.ShouldContain("restart", Case.Insensitive);
+        response.Error.Context.ShouldNotBeNull();
+        response.Error.Context["daemonRestartRequired"].ShouldBe("true");
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBe("/repo");
+    }
+
+    [Fact]
+    public async Task Execute_rejects_an_untrusted_persistent_solution_before_sdk_inspection()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        using var registryFixture = new TemporaryTrustRegistry("untrusted");
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            registryFixture.Registry,
+            compatibility);
+        var solution = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            value = "hello",
+            solution
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-untrusted-persistent",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            FindRepoRoot()));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
+        response.Error.Kind.ShouldBe(RtErrorKind.TrustRequired);
+        response.Error.Context.ShouldNotBeNull();
+        response.Error.Context["solution"].ShouldBe(solution);
+        response.Error.Context["grantThrough"].ShouldContain("rt trust add");
+        response.Error.Context["grantThrough"].ShouldContain("invocation-scoped");
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Execute_resolves_a_trusted_relative_solution_once_before_sdk_inspection()
+    {
+        var repositoryRoot = FindRepoRoot();
+        using var registryFixture = new TemporaryTrustRegistry("relative");
+        var registry = registryFixture.Registry;
+        registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], registry, compatibility);
+        using var payload = JsonDocument.Parse(
+            """{"value":"hello","solution":"RoslynTools.slnx"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-trusted-relative",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            repositoryRoot));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBe(repositoryRoot);
+    }
+
+    [Fact]
+    public async Task Execute_uses_a_trusted_working_directory_when_solution_is_omitted()
+    {
+        var repositoryRoot = FindRepoRoot();
+        using var registryFixture = new TemporaryTrustRegistry("working-directory");
+        var registry = registryFixture.Registry;
+        registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], registry, compatibility);
+        using var payload = JsonDocument.Parse("""{"value":"hello"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-trusted-working-directory",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            repositoryRoot));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBe(repositoryRoot);
+    }
+
+    [Fact]
+    public async Task Execute_uses_the_current_directory_when_working_directory_is_omitted()
+    {
+        var currentDirectory = Directory.GetCurrentDirectory();
+        using var registryFixture = new TemporaryTrustRegistry("current-directory");
+        var registry = registryFixture.Registry;
+        registry.Add(currentDirectory).IsOk.ShouldBeTrue();
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], registry, compatibility);
+        using var payload = JsonDocument.Parse("""{"value":"hello"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-current-directory",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone()));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBe(currentDirectory);
+    }
+
+    [Fact]
+    public async Task Execute_uses_the_working_directory_when_a_solution_has_no_parent()
+    {
+        var repositoryRoot = FindRepoRoot();
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            value = "hello",
+            solution = Path.GetPathRoot(repositoryRoot)
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-root-solution",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            repositoryRoot));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBe(repositoryRoot);
+    }
+
+    [Fact]
+    public async Task Execute_rejects_a_malformed_untrusted_persistent_solution_before_sdk_inspection()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        using var registryFixture = new TemporaryTrustRegistry("malformed-untrusted");
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            registryFixture.Registry,
+            compatibility);
+        const string solution = "/repo/\0/App.slnx";
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            value = "hello",
+            solution
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-malformed-untrusted-persistent",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            "/caller"));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
+        response.Error.Kind.ShouldBe(RtErrorKind.TrustRequired);
+        response.Error.Context.ShouldNotBeNull();
+        response.Error.Context["solution"].ShouldBe(solution);
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Execute_rejects_a_malformed_persistent_working_directory_before_sdk_inspection()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        using var registryFixture = new TemporaryTrustRegistry("malformed-working-directory");
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            registryFixture.Registry,
+            compatibility);
+        const string workingDirectory = "/caller\0";
+        using var payload = JsonDocument.Parse("""{"value":"hello"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-malformed-persistent-working-directory",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            workingDirectory));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Kind.ShouldBe(RtErrorKind.TrustRequired);
+        response.Error.Context.ShouldNotBeNull();
+        response.Error.Context["solution"].ShouldBe(workingDirectory);
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Execute_rejects_a_malformed_solution_sdk_context_as_a_structured_error()
+    {
+        var port = new EchoPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            value = "hello",
+            solution = "/repo/\0/App.slnx"
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-malformed-sdk-context",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "echo",
+            payload.RootElement.Clone(),
+            "/caller"));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.InvalidArguments);
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Typed_port_rejects_the_wrong_request_as_a_structured_boundary_error()
     {
         ICommandApplicationPort port = new EchoPort();
@@ -208,6 +516,35 @@ public sealed class DaemonCommandDispatcherTests
 
     private sealed record EchoResponse(string Value);
 
+    private sealed record TrustProbeRequest(string Path);
+
+    private sealed record TrustProbeResponse(bool Trusted);
+
+    private sealed class TrustProbePort
+        : CommandApplicationPort<TrustProbeRequest, TrustProbeResponse>
+    {
+        public override ApplicationCommandDefinition Definition { get; } = new(
+            new RtCommandInfo(
+                "trust-probe",
+                false,
+                true,
+                "test",
+                "Test daemon trust scope.",
+                []),
+            typeof(TrustProbeRequest),
+            typeof(TrustProbeResponse),
+            mcpVisible: false,
+            CommandSafety.ReadOnly,
+            CommandExecutionPlacement.DaemonPreferred,
+            []);
+
+        public override Task<Result<TrustProbeResponse, RtError>> ExecuteAsync(
+            TrustProbeRequest request,
+            CancellationToken cancellationToken = default) => Task.FromResult(
+            Result<TrustProbeResponse, RtError>.Ok(new TrustProbeResponse(
+                RepositoryTrustContext.IsExplicitlyTrustedFor(request.Path))));
+    }
+
     private sealed class EchoPort(string commandName = "echo")
         : CommandApplicationPort<EchoRequest, EchoResponse>
     {
@@ -223,6 +560,17 @@ public sealed class DaemonCommandDispatcherTests
             return Task.FromResult(Result<EchoResponse, RtError>.Ok(
                 new EchoResponse(request.Value.ToUpperInvariant())));
         }
+    }
+
+    private static string FindRepoRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+        throw new InvalidOperationException("Could not locate RoslynTools.slnx.");
     }
 
     private sealed class WorkingDirectoryPort
@@ -252,6 +600,41 @@ public sealed class DaemonCommandDispatcherTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException("missing solution");
+        }
+    }
+
+    private sealed class FixedSdkContextGuard(RtError? error) : IDaemonSdkContextGuard
+    {
+        public string? CheckedDirectory { get; private set; }
+
+        public Result<bool, RtError> Check(string directory)
+        {
+            CheckedDirectory = directory;
+            return error is null
+                ? Result<bool, RtError>.Ok(true)
+                : Result<bool, RtError>.Err(error);
+        }
+    }
+
+    private sealed class TemporaryTrustRegistry : IDisposable
+    {
+        private readonly string _directory;
+
+        public TemporaryTrustRegistry(string name)
+        {
+            _directory = Path.Combine(
+                Path.GetTempPath(),
+                $"rt-daemon-{name}-{Guid.NewGuid():N}");
+            Registry = new RepositoryTrustRegistry(
+                Path.Combine(_directory, "repository-trust.json"));
+        }
+
+        public RepositoryTrustRegistry Registry { get; }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(_directory))
+                Directory.Delete(_directory, recursive: true);
         }
     }
 

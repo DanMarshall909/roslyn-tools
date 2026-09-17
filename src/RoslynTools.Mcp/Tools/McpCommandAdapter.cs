@@ -20,7 +20,8 @@ internal sealed class McpCommandAdapter(
     CommandDescriptorRegistry descriptors,
     CliCommandBridge legacyBridge,
     DaemonRpcRecoveryCoordinator daemonRpc,
-    McpHostOptions? hostOptions = null)
+    McpHostOptions? hostOptions = null,
+    IMcpMsBuildBinding? msBuildBinding = null)
 {
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
@@ -33,6 +34,7 @@ internal sealed class McpCommandAdapter(
     private readonly CliCommandBridge _legacyBridge = legacyBridge;
     private readonly DaemonRpcRecoveryCoordinator _daemonRpc = daemonRpc;
     private readonly McpHostOptions _hostOptions = hostOptions ?? new McpHostOptions();
+    private readonly IMcpMsBuildBinding _msBuildBinding = msBuildBinding ?? new McpMsBuildBinding();
 
     public async Task<ToolResult> InvokeAsync(
         string toolName,
@@ -74,20 +76,14 @@ internal sealed class McpCommandAdapter(
             // in-process recovery path described by ADR-0005.
         }
 
-        try
-        {
-            MsBuildBootstrap.Register();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return new ToolResult(true, ex.Message);
-        }
-
         if (descriptor.Port is null)
-            return await _legacyBridge.InvokeAsync(
-                descriptor,
-                safeArguments,
-                cancellationToken);
+        {
+            var admission = AdmitWorkspaceRequest(descriptor, safeArguments, request: null);
+            if (admission is not null)
+                return admission;
+
+            return await _legacyBridge.InvokeAsync(descriptor, safeArguments, cancellationToken);
+        }
 
         try
         {
@@ -97,6 +93,13 @@ internal sealed class McpCommandAdapter(
                 RequestOptions);
             if (request is null)
                 return new ToolResult(true, $"Invalid input for tool '{toolName}'.");
+
+            if (request is not DoctorRequest { InstallationOnly: true })
+            {
+                var admission = AdmitWorkspaceRequest(descriptor, safeArguments, request);
+                if (admission is not null)
+                    return admission;
+            }
 
             var result = await descriptor.Port.InvokeAsync(request, cancellationToken);
             if (result.IsError)
@@ -119,7 +122,7 @@ internal sealed class McpCommandAdapter(
                     new Dictionary<string, string>
                     {
                         ["solution"] = ex.SolutionPath,
-                        ["grantThrough"] = "trusted CLI invocation or MCP host startup"
+                        ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
                     })));
         }
         catch (Exception ex) when (ex is ArgumentException
@@ -130,6 +133,146 @@ internal sealed class McpCommandAdapter(
             return new ToolResult(true, ex.Message);
         }
     }
+
+    private ToolResult? AdmitWorkspaceRequest(
+        ApplicationCommandDescriptor descriptor,
+        JsonElement arguments,
+        object? request)
+    {
+        if (!RequiresWorkspace(descriptor))
+            return null;
+
+        var trustRegistry = _hostOptions.TrustRegistry;
+        if (trustRegistry is null
+            || _hostOptions.TrustedRepositoryRoot is not null)
+        {
+            try
+            {
+                MsBuildBootstrap.Register(
+                    _hostOptions.TrustedRepositoryRoot ?? Environment.CurrentDirectory);
+                return null;
+            }
+            catch (InvalidOperationException exception)
+            {
+                return new ToolResult(true, exception.Message);
+            }
+        }
+
+        var target = ResolveWorkspaceTarget(arguments, request);
+        if (target.IsErr)
+            return new ToolResult(true, SerializeError(target.Match(
+                _ => throw new InvalidOperationException("Expected workspace target resolution failure."),
+                error => error)));
+
+        var context = target.Match(
+            value => value,
+            _ => throw new InvalidOperationException("Expected a resolved workspace target."));
+        if (!trustRegistry.IsTrustedFor(context.TrustPath))
+        {
+            return new ToolResult(true, SerializeError(new RtError(
+                RtErrorKind.TrustRequired,
+                $"Repository evaluation is not trusted for '{context.TrustPath}'.",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["solution"] = context.TrustPath,
+                    ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
+                })));
+        }
+
+        var binding = _msBuildBinding.EnsureRegistered(context.Directory);
+        if (binding.IsErr)
+        {
+            return new ToolResult(true, SerializeError(binding.Match(
+                _ => throw new InvalidOperationException("Expected MSBuild binding failure."),
+                error => error)));
+        }
+
+        return binding.Unwrap()
+            ? null
+            : new ToolResult(true, SerializeError(RtError.ExternalToolFailure(
+                "The MCP host did not confirm process-global MSBuild registration.",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["mcpRestartRequired"] = "true",
+                    ["requestedDirectory"] = context.Directory
+                })));
+    }
+
+    internal static Result<WorkspaceTarget, RtError> ResolveWorkspaceTarget(
+        JsonElement arguments,
+        object? request)
+    {
+        try
+        {
+            if (request is DoctorRequest doctor)
+            {
+                if (!Path.IsPathFullyQualified(doctor.Directory))
+                    return InvalidWorkspaceTarget();
+
+                var fullDirectory = Path.GetFullPath(doctor.Directory);
+                if (string.IsNullOrWhiteSpace(doctor.Solution))
+                {
+                    return Result<WorkspaceTarget, RtError>.Ok(new WorkspaceTarget(
+                        fullDirectory,
+                        fullDirectory));
+                }
+
+                var fullSolution = Path.GetFullPath(Path.Combine(fullDirectory, doctor.Solution));
+                return Result<WorkspaceTarget, RtError>.Ok(new WorkspaceTarget(
+                    fullSolution,
+                    DirectoryForSolution(fullSolution)));
+            }
+
+            var requestedTarget = TryGetSolution(arguments);
+            if (string.IsNullOrWhiteSpace(requestedTarget)
+                || !Path.IsPathFullyQualified(requestedTarget))
+                return InvalidWorkspaceTarget();
+
+            var fullRequestedTarget = Path.GetFullPath(requestedTarget);
+            return Result<WorkspaceTarget, RtError>.Ok(new WorkspaceTarget(
+                fullRequestedTarget,
+                DirectoryForSolution(fullRequestedTarget)));
+        }
+        catch (Exception exception) when (exception is ArgumentException
+                                          or IOException
+                                          or NotSupportedException)
+        {
+            return Result<WorkspaceTarget, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"The requested solution or workspace path is invalid: {exception.Message}"));
+        }
+    }
+
+    private static Result<WorkspaceTarget, RtError> InvalidWorkspaceTarget() =>
+        Result<WorkspaceTarget, RtError>.Err(new RtError(
+            RtErrorKind.InvalidInput,
+            "Persistent MCP execution requires an absolute solution or workspace directory."));
+
+    private static string? TryGetSolution(JsonElement arguments)
+    {
+        if (arguments.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var property in arguments.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "solution", StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.String)
+                return property.Value.GetString();
+        }
+
+        return null;
+    }
+
+    private static string DirectoryForSolution(string path) =>
+        Path.GetDirectoryName(path)
+        ?? throw new ArgumentException("The requested solution has no parent directory.", nameof(path));
+
+    private static bool RequiresWorkspace(ApplicationCommandDescriptor descriptor) =>
+        descriptor.Effects.HasFlag(CommandEffects.RepositoryRead)
+        || descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
+        || descriptor.Effects.HasFlag(CommandEffects.RepositoryCodeExecution);
+
+    internal sealed record WorkspaceTarget(string TrustPath, string Directory);
 
     private static ToolResult ToToolResult(
         DaemonRpcResponse response,

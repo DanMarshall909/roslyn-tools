@@ -28,6 +28,13 @@ internal static class Bootstrap
         services.AddSingleton(typeof(ILogger<>), typeof(RtConsoleLogger<>));
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
+        services.AddSingleton<IDoctorEnvironmentProbe>(_ => new DoctorEnvironmentProbe());
+        services.AddSingleton<IDoctorWorkspaceBootstrap, DoctorWorkspaceBootstrap>();
+        services.AddSingleton(_ => new RepositoryTrustRegistry());
+        services.AddSingleton<TrustAddOperation>();
+        services.AddSingleton<TrustListOperation>();
+        services.AddSingleton<TrustStatusOperation>();
+        services.AddSingleton<TrustRemoveOperation>();
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<DaemonRpcClient>();
@@ -35,7 +42,9 @@ internal static class Bootstrap
         services.AddSingleton<IDaemonLauncher>(_ => new DaemonLauncher());
         services.AddSingleton<DaemonRpcRecoveryCoordinator>();
         services.AddSingleton(provider => new DaemonCommandDispatcher(
-            provider.GetServices<ICommandApplicationPort>()));
+            provider.GetServices<ICommandApplicationPort>(),
+            provider.GetRequiredService<RepositoryTrustRegistry>(),
+            provider.GetService<IDaemonSdkContextGuard>()));
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();

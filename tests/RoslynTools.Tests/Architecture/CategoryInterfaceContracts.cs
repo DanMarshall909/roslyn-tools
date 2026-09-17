@@ -174,6 +174,7 @@ public sealed class CategoryInterfaceContracts
         // is the canonical resolution path; we do NOT hand-construct command instances.
         var refactorBuilders = App.Commands
             .Where(c => string.Equals(c.Info.Category, "refactor", StringComparison.Ordinal))
+            .Where(c => !App.ControlPlaneCommandNames.Contains(c.Info.Name))
             .ToList();
 
         Assert.True(refactorBuilders.Count > 0, "Expected at least one refactor command in App.Commands.");
@@ -211,8 +212,9 @@ public sealed class CategoryInterfaceContracts
 
         Assert.True(
             offenders.Count == 0,
-            "Every IRefactorCommand's Build() must register a --dry-run option (the refactor-category "
-            + "contract — every mutation must be previewable). Add new offenders to KnownDryRunExceptions "
+            "Every repository-source IRefactorCommand's Build() must register a --dry-run option. "
+            + "IControlPlaneCommand is excluded because its explicit local verb is the apply decision. "
+            + "Add new offenders to KnownDryRunExceptions "
             + "ONLY with a tracking story; the default is to fix the command. "
             + $"Offenders ({offenders.Count}): "
             + string.Join("; ", offenders));

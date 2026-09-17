@@ -35,4 +35,4 @@ Baselines are optional and never suppress findings. A baseline is a JSON file co
 
 Set `baselineFile` in the policy or pass `--baseline`. The result labels matching violations `existing` and every unmatched violation `new`, while `violations` and `violationCount` still include both. The CLI remains non-zero for either kind, and `newViolationCount` makes newly introduced debt unmistakable to CI without allowing a baseline to hide it.
 
-The MCP tool name is `check_architecture`; it accepts `solution`, `config`, and `baseline`. An untrusted MCP host can discover this read-only operation, but semantic invocation returns RT's typed trust-required error. Start the MCP host with `--trust-repository <absolute-root>` to evaluate a repository.
+The MCP tool name is `check_architecture`; it accepts `solution`, `config`, and `baseline`. An untrusted MCP host can discover this read-only operation, but semantic invocation returns RT's typed trust-required error. After review, run `rt trust add <repository>` for persistent CLI/MCP/daemon authorization, or use the compatibility `--trust-repository` scope for one CLI invocation or MCP host process.

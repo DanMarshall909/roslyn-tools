@@ -86,6 +86,19 @@ Every ordinary stable command has one host-neutral application definition and ex
 
 It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. During migration only, descriptors without complete ports enter an isolated compatibility bridge. Apply-capable bridge commands are not part of the stable MCP or daemon surface.
 
+Host diagnostics follow the same boundary. An application operation may consume a
+small typed probe or bootstrap port, but process launching, installed-file discovery,
+SDK selection, and process-global registration stay in the owning host adapter. For
+example, `DoctorOperation` consumes `IDoctorEnvironmentProbe` and
+`IDoctorWorkspaceBootstrap`; the CLI implementations perform the installed MCP
+handshake and defer MSBuild registration until repository trust authorizes solution
+loading. The probe reports absent, valid, or invalid `global.json` request state plus
+its path and SDK-selection diagnostic, and follows initialize, initialized-notification,
+then discovery ordering. Unit tests replace both ports without starting a host process
+or registering MSBuild globally. The MCP adapter likewise invokes installation-only
+doctor requests without registering MSBuild, so a self-contained installation can
+diagnose an absent SDK rather than failing before the doctor operation runs.
+
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
 ### 2. Explicit request context
@@ -186,15 +199,34 @@ the namespace and its capacity rather than making either reusable.
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
 The current `0.1-preview` containment is narrower than the accepted durable authority
-design. CLI evaluation uses an invocation-scoped `--trust-repository` opt-in. The MCP
-host accepts `--trust-repository <absolute-repository-root>` only at process startup
-and binds that approval to solutions beneath the normalized root; MCP tool payloads
-cannot grant or broaden it. Startup-approved hosts advertise MCP-eligible mutation
-operations, which remain review-first; unapproved hosts advertise only the read-only
-subset. An MCP host without startup approval returns
-`TrustRequired` before semantic workspace loading. This is a practical trusted-local
-preview path, not the durable physical-identity-bound trust registry, revocation, lease,
-or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.
+design. `rt trust add <repository>` records a reviewed Git common-directory identity in
+the current user's local application-data directory. CLI, MCP, and daemon boundaries
+enter the same persistent scope and revalidate each requested solution against Git's
+current registered-worktree inventory. A root-commit object retained at grant time is a
+best-effort continuity anchor, so an unrelated repository recreated at the same path
+fails closed. It is repository-self-asserted continuity, not OS handle, inode, or file-ID
+identity: a replacement containing the same Git object can still satisfy it.
+On Unix, existing symlink components in repository roots and requested solution paths
+are resolved to their final physical paths before Git identity and containment checks;
+broken links, loops, and links escaping the trusted worktree fail closed. This closes
+lexical-alias confusion in the preview but does not provide handle-relative, race-free
+TOCTOU protection or the OS-verified identity required by the durable design.
+
+The invocation-scoped CLI `--trust-repository` option and MCP startup
+`--trust-repository <absolute-repository-root>` remain compatible. MCP tool payloads
+cannot grant or broaden trust, and trust-management ports are never MCP-discoverable.
+An MCP host advertises MCP-eligible mutation operations only when startup trust exists
+or the persistent registry has at least one currently valid record; each call still
+revalidates its own target and returns `TrustRequired` for any other repository. This is
+a practical trusted-local preview path, not the durable protected physical-binding,
+audit, quota, revocation, lease, or evaluator-isolation guarantee specified by ADR-0011
+and platform hardening. For in-process recovery, the adapter deserializes an absolute
+solution or workspace target and revalidates it before SDK selection; request payloads
+therefore cannot make an untrusted `global.json` participate in process-global setup.
+The persistent daemon boundary follows the same ordering: it resolves the effective
+request target, proves current registry trust, and only then allows its SDK-context
+guard to inspect that target. Malformed or untrusted targets return `TrustRequired`
+without SDK inspection; invocation-scoped trusted CLI execution remains in-process.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified
@@ -233,6 +265,12 @@ A command implements exactly one category marker:
 - `IInspectCommand` — read-only, focused inspection;
 - `IAnalyzeCommand` — read-only, broader analysis; or
 - `IRefactorCommand` — prepares or applies source changes.
+
+`IControlPlaneCommand` is a narrow subtype of `IRefactorCommand` for explicit,
+local, user-authoritative control-plane actions such as `rt trust add/remove`.
+Its verb is itself the apply decision, so repository-source `--dry-run` and
+review-first gates exclude only this marker. Control-plane commands remain
+in-process and must not become MCP- or daemon-invocable through catalog inclusion.
 
 Reusable options are capabilities backed by a central catalogue and shared binders, for example `IHasSolutionOption`, `ISupportsDryRun`, and `IHasSymbolTarget`. Services receive domain requests, not parser types. Known flags are not recreated command by command.
 
@@ -569,6 +607,25 @@ operation; a winning `NotRecorded` fences the receiver, and an in-flight receive
 status indeterminate. No new apply or operation ID is created automatically.
 
 For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
+
+MSBuild registration is process-global, so the daemon captures the exact SDK instance
+it registers: normalized MSBuild path plus version. Each typed request resolves the SDK
+instance for its effective solution directory before invocation. A different path or
+version fails closed with structured `daemonRestartRequired` context naming the
+registered and requested identities; the caller must restart from a compatible SDK
+context. Linked worktrees are compatible only when they resolve to that same instance.
+Daemon startup therefore refuses an unscoped `RegisterDefaults` or manual-path
+fallback whose selected instance cannot be captured; direct in-process execution
+retains those compatibility fallbacks.
+
+The long-lived MCP host applies the same process-global identity invariant when daemon
+execution is unavailable. It binds the first trusted in-process request to the exact
+normalized MSBuild path and version selected from that request's effective solution
+directory, never the server startup directory. Later worktrees may run only when they
+select the same identity; mismatch or unresolved selection returns structured
+`mcpRestartRequired` context before the application port runs. Persistent trust is
+revalidated before SDK selection and registration. The MCP host does not use an
+unscoped registration fallback because its identity could not then be proven.
 
 ## Output pipeline
 

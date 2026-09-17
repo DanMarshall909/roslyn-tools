@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Build.Locator;
 using RoslynTools.Core;
+using RoslynTools.Daemon;
 
 namespace RoslynTools;
 
@@ -10,37 +11,122 @@ namespace RoslynTools;
 internal static class MsBuildBootstrap
 {
     private static readonly object RegistrationLock = new();
+    private static VisualStudioInstance? _registeredSdkInstance;
 
     /// <summary>
     /// Method to register MSBuild bootstrapping steps.
     /// </summary>
     internal static void Register()
     {
+        Register(Environment.CurrentDirectory);
+    }
+
+    internal static void Register(string startDirectory)
+    {
         lock (RegistrationLock)
         {
             if (MSBuildLocator.IsRegistered)
                 return;
 
-            RegisterCore();
+            RegisterCore(startDirectory);
         }
     }
 
-    private static void RegisterCore()
+    internal static VisualStudioInstance RegisterForDaemon(string startDirectory)
     {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+            {
+                throw new InvalidOperationException(
+                    "The daemon cannot capture an authoritative MSBuild identity after registration.");
+            }
+
+            var sdkRequest = InspectSdkRequest(startDirectory);
+            if (sdkRequest.State == DoctorSdkRequestState.Invalid)
+                throw new InvalidOperationException(sdkRequest.Diagnostic);
+
+            var instance = FindPreferredInstance(startDirectory)
+                ?? throw CreateMissingSdkException(startDirectory);
+            RegisterInstance(instance);
+            return instance;
+        }
+    }
+
+    internal static VisualStudioInstance? GetRegisteredSdkInstance()
+    {
+        lock (RegistrationLock)
+            return _registeredSdkInstance;
+    }
+
+    internal static MsBuildInstanceIdentity? GetRegisteredSdkIdentity()
+    {
+        var instance = GetRegisteredSdkInstance();
+        return instance is null ? null : MsBuildInstanceIdentity.From(instance);
+    }
+
+    internal static MsBuildInstanceSelection? SelectExactInstance(string directory)
+    {
+        var instance = FindPreferredInstance(directory);
+        return instance is null
+            ? null
+            : new MsBuildInstanceSelection(
+                MsBuildInstanceIdentity.From(instance),
+                () => RegisterExactInstance(instance));
+    }
+
+    internal static void RegisterExactInstance(VisualStudioInstance instance)
+    {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+            {
+                if (_registeredSdkInstance is not null
+                    && _registeredSdkInstance.Version == instance.Version
+                    && string.Equals(
+                        Path.GetFullPath(_registeredSdkInstance.MSBuildPath),
+                        Path.GetFullPath(instance.MSBuildPath),
+                        OperatingSystem.IsWindows()
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException(
+                    "MSBuild was already registered before its exact SDK identity could be verified.");
+            }
+
+            RegisterInstance(instance);
+        }
+    }
+
+    private static void RegisterCore(string startDirectory)
+    {
+        var sdkRequest = InspectSdkRequest(startDirectory);
+        if (sdkRequest.State == DoctorSdkRequestState.Invalid)
+            throw new InvalidOperationException(sdkRequest.Diagnostic);
+
         VisualStudioInstance? sdkInstance = null;
         try
         {
-            sdkInstance = FindPreferredInstance();
+            sdkInstance = FindPreferredInstance(startDirectory);
         }
         catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
         {
         }
 
-        if (sdkInstance != null)
+        var registrationPath = SelectRegistrationPath(
+            sdkRequest.State,
+            sdkInstance is not null);
+        if (registrationPath == MsBuildRegistrationPath.ScopedInstance)
         {
-            MSBuildLocator.RegisterInstance(sdkInstance);
+            RegisterInstance(sdkInstance!);
             return;
         }
+
+        if (registrationPath == MsBuildRegistrationPath.RequestedSdkUnavailable)
+            throw CreateMissingSdkException(startDirectory);
 
         try
         {
@@ -56,14 +142,20 @@ internal static class MsBuildBootstrap
 
         var sdkPath = FindLatestDotnetSdkPath();
         if (sdkPath == null)
-            throw CreateMissingSdkException();
+            throw CreateMissingSdkException(startDirectory);
 
         MSBuildLocator.RegisterMSBuildPath(sdkPath);
     }
 
-    private static InvalidOperationException CreateMissingSdkException()
+    private static void RegisterInstance(VisualStudioInstance instance)
     {
-        var globalJsonPath = FindGlobalJson(Environment.CurrentDirectory);
+        MSBuildLocator.RegisterInstance(instance);
+        _registeredSdkInstance = instance;
+    }
+
+    private static InvalidOperationException CreateMissingSdkException(string startDirectory)
+    {
+        var globalJsonPath = FindGlobalJson(startDirectory);
         var requestedVersion = globalJsonPath == null ? null : ReadRequestedSdkVersion(globalJsonPath);
         var requested = requestedVersion == null
             ? string.Empty
@@ -100,14 +192,103 @@ internal static class MsBuildBootstrap
         }
     }
 
+    internal static string? FindRequestedSdkVersion(string startDirectory)
+    {
+        var request = InspectSdkRequest(startDirectory);
+        return request.State == DoctorSdkRequestState.Valid ? request.RequestedVersion : null;
+    }
+
+    internal static DoctorSdkRequest InspectSdkRequest(string startDirectory)
+    {
+        string? globalJsonPath;
+        try
+        {
+            globalJsonPath = FindGlobalJson(startDirectory);
+        }
+        catch (Exception exception) when (exception is ArgumentException
+                                          or IOException
+                                          or UnauthorizedAccessException
+                                          or NotSupportedException)
+        {
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Invalid,
+                null,
+                null,
+                $"Could not search for global.json from '{startDirectory}': {exception.Message}");
+        }
+
+        if (globalJsonPath is null)
+            return new DoctorSdkRequest(DoctorSdkRequestState.Absent, null, null, null);
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(globalJsonPath));
+            if (!document.RootElement.TryGetProperty("sdk", out var sdk))
+            {
+                return new DoctorSdkRequest(
+                    DoctorSdkRequestState.Absent,
+                    globalJsonPath,
+                    null,
+                    null);
+            }
+
+            if (sdk.ValueKind != JsonValueKind.Object)
+                throw new JsonException("sdk must be an object.");
+
+            string? version = null;
+            if (sdk.TryGetProperty("version", out var versionElement))
+            {
+                if (versionElement.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(versionElement.GetString()))
+                {
+                    throw new JsonException("sdk.version must be a non-empty string when specified.");
+                }
+
+                version = versionElement.GetString();
+            }
+
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Valid,
+                globalJsonPath,
+                version,
+                null);
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or JsonException
+                                          or KeyNotFoundException
+                                          or InvalidOperationException)
+        {
+            return new DoctorSdkRequest(
+                DoctorSdkRequestState.Invalid,
+                globalJsonPath,
+                null,
+                $"global.json at '{globalJsonPath}' could not be read as an SDK request: {exception.Message}");
+        }
+    }
+
+    internal static MsBuildRegistrationPath SelectRegistrationPath(
+        DoctorSdkRequestState requestState,
+        bool scopedInstanceFound) =>
+        scopedInstanceFound
+            ? MsBuildRegistrationPath.ScopedInstance
+            : requestState == DoctorSdkRequestState.Absent
+                ? MsBuildRegistrationPath.UnscopedFallback
+                : MsBuildRegistrationPath.RequestedSdkUnavailable;
+
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
     // causes TypeInitializationException when loading .NET 8+ projects.
     /// <summary>
     /// Method to find the preferred MSBuild instance.
     /// </summary>
-    internal static VisualStudioInstance? FindPreferredInstance()
+    internal static VisualStudioInstance? FindPreferredInstance(string? startDirectory = null)
     {
-        return MSBuildLocator.QueryVisualStudioInstances()
+        var options = new VisualStudioInstanceQueryOptions
+        {
+            WorkingDirectory = startDirectory ?? Environment.CurrentDirectory,
+            DiscoveryTypes = DiscoveryType.DotNetSdk
+        };
+        return MSBuildLocator.QueryVisualStudioInstances(options)
             .Where(i => i.DiscoveryType == DiscoveryType.DotNetSdk)
             .OrderByDescending(i => i.Version)
             .FirstOrDefault();
@@ -173,3 +354,23 @@ internal static class MsBuildBootstrap
             : new Version(0, 0);
     }
 }
+
+internal enum DoctorSdkRequestState
+{
+    Absent,
+    Valid,
+    Invalid
+}
+
+internal enum MsBuildRegistrationPath
+{
+    ScopedInstance,
+    UnscopedFallback,
+    RequestedSdkUnavailable
+}
+
+internal sealed record DoctorSdkRequest(
+    DoctorSdkRequestState State,
+    string? GlobalJsonPath,
+    string? RequestedVersion,
+    string? Diagnostic);
