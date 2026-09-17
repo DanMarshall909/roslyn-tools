@@ -1,6 +1,8 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -9,6 +11,18 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class ApplicationCommandFoundationContracts
 {
     private static readonly Assembly ApplicationAssembly = typeof(OutlineOperation).Assembly;
+
+    [Theory]
+    [InlineData(typeof(DoctorCommand))]
+    [InlineData(typeof(SearchSymbolsCommand))]
+    [InlineData(typeof(RelationshipsCommand))]
+    public void Daemon_preferred_semantic_commands_use_the_recovery_executor(Type commandType)
+    {
+        commandType.GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .ShouldContain(typeof(DaemonRpcRecoveryCoordinator));
+    }
 
     [Fact]
     public void Application_ports_expose_definition_request_and_response_types()

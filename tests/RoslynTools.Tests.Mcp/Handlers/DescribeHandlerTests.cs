@@ -39,6 +39,7 @@ public class DescribeToolTests
             using var payload = JsonDocument.Parse(result.content);
             payload.RootElement.GetProperty("fqn").GetString().ShouldBe("TestApp.Widget");
             payload.RootElement.GetProperty("kind").GetString().ShouldBe("Class");
+            payload.RootElement.GetProperty("sourceRevision").GetString().ShouldNotBeNullOrWhiteSpace();
             var signatures = payload.RootElement.GetProperty("signatures")
                 .EnumerateArray().Select(e => e.GetString()).ToList();
             signatures.ShouldContain("void Activate()");
@@ -72,6 +73,7 @@ public class DescribeToolTests
             using var payload = JsonDocument.Parse(result.content);
             payload.RootElement.GetProperty("name").GetString().ShouldBe("Widget");
             payload.RootElement.TryGetProperty("locations", out _).ShouldBeTrue();
+            payload.RootElement.GetProperty("sourceRevision").GetString().ShouldNotBeNullOrWhiteSpace();
         }
     }
 

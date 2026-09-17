@@ -59,7 +59,7 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task Read_only_indeterminate_attempt_may_recover_then_fall_back_safely()
+    public async Task Read_only_indeterminate_attempt_never_retries_or_falls_back()
     {
         var rpc = new StubRpcClient(
             new DaemonRpcAttempt(
@@ -79,10 +79,10 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
             CancellationToken.None);
 
         result.Response.ShouldBeNull();
-        result.ShouldFallback.ShouldBeTrue();
-        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.UnavailableBeforeDispatch);
-        rpc.CallCount.ShouldBe(2);
-        launcher.CallCount.ShouldBe(1);
+        result.ShouldFallback.ShouldBeFalse();
+        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.IndeterminateAfterDispatch);
+        rpc.CallCount.ShouldBe(1);
+        launcher.CallCount.ShouldBe(0);
     }
 
     [Fact]

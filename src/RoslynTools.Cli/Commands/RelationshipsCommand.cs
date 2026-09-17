@@ -2,13 +2,17 @@ using System.CommandLine;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class RelationshipsCommand(RelationshipsOperation operation)
+internal sealed class RelationshipsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    RelationshipsOperation operation)
     : IRtCommand, IInspectCommand, IStructuredOutputCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly RelationshipsOperation _operation = operation;
 
     public static RtCommandInfo Info => RelationshipsCommandDefinition.Info;
@@ -40,7 +44,11 @@ internal sealed class RelationshipsCommand(RelationshipsOperation operation)
                 context.ParseResult.GetValueForOption(kind),
                 context.ParseResult.GetValueForOption(includeTests),
                 context.ParseResult.GetValueForOption(limit));
-            var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                request,
+                context.GetCancellationToken());
             result.Match(
                 value => RtResultRenderer.Write(RtResult<RtResultEnvelope<RelationshipsResult>>.Ok(value)),
                 error => RtErrorPresenter.Surface(context, error));

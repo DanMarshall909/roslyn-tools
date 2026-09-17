@@ -16,7 +16,7 @@ semantic-diff	analyze	R0	complete	in-process	read-only
 solid	analyze	R3	complete	daemon-preferred	read-only
 static-class-inventory	analyze	R1	complete	daemon-preferred	read-only
 describe	inspect	R0	complete	daemon-preferred	read-only
-doctor	inspect	R0	complete	in-process	read-only
+doctor	inspect	R0	complete	daemon-preferred	read-only
 find-callers	inspect	R0	complete	daemon-preferred	read-only
 find-impl	inspect	R0	complete	daemon-preferred	read-only
 find-pattern	inspect	R4	complete	daemon-preferred	read-only
@@ -24,8 +24,8 @@ find-refs	inspect	R0	complete	daemon-preferred	read-only
 find-undocumented	inspect	R1	complete	daemon-preferred	read-only
 find-unused	inspect	R1	complete	daemon-preferred	read-only
 outline	inspect	R0	complete	daemon-preferred	read-only
-relationships	inspect	R0	complete	in-process	read-only
-search-symbols	inspect	R0	complete	in-process	read-only
+relationships	inspect	R0	complete	daemon-preferred	read-only
+search-symbols	inspect	R0	complete	daemon-preferred	read-only
 source	inspect	R0	complete	daemon-preferred	read-only
 add-dependency	refactor	M0	complete	in-process	review-default
 add-dynamic-dependency	refactor	M1	complete	in-process	review-default

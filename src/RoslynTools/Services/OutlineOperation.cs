@@ -11,12 +11,12 @@ namespace RoslynTools.Services;
 internal sealed class OutlineOperation
     : CommandApplicationPort<OutlineRequest, RtResultEnvelope<OutlineResult>>, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly IReadOnlyWorkspaceSessions _sessions;
     private readonly OutlineService _outline;
 
-    public OutlineOperation(IWorkspaceSessionFactory sessionFactory, OutlineService outline)
+    public OutlineOperation(IReadOnlyWorkspaceSessions sessions, OutlineService outline)
     {
-        _sessionFactory = sessionFactory;
+        _sessions = sessions;
         _outline = outline;
     }
 
@@ -34,10 +34,9 @@ internal sealed class OutlineOperation
                 "Specify a target (file, directory, glob, or namespace) or regex pattern."));
 
         var stopwatch = Stopwatch.StartNew();
-        var (workspace, solution) =
-            await _sessionFactory.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
+            var solution = lease.Solution;
             cancellationToken.ThrowIfCancellationRequested();
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
                 solution,
@@ -61,6 +60,7 @@ internal sealed class OutlineOperation
             return Result<RtResultEnvelope<OutlineResult>, RtError>.Ok(CreateEnvelope(
                 result,
                 solution,
+                lease.SourceRevision,
                 completeness,
                 totalItems,
                 boundedItems.Length,
@@ -80,6 +80,7 @@ internal sealed class OutlineOperation
             && !target.Contains('\\'))
             return await _outline.OutlineNamespaceAsync(
                 solution, target, request.Summary, request.WithLocations);
+        target = ResolvePathTarget(solution, target);
         if (target.Contains('*') || target.Contains('?'))
             return await _outline.OutlineGlobAsync(
                 solution, target, request.Summary, request.WithLocations);
@@ -93,9 +94,29 @@ internal sealed class OutlineOperation
             solution, target, request.Summary, request.WithLocations);
     }
 
+    private static string ResolvePathTarget(Solution solution, string target)
+    {
+        if (Path.IsPathFullyQualified(target) || solution.FilePath is null)
+            return target;
+
+        var solutionDirectory = Path.GetDirectoryName(solution.FilePath);
+        if (solutionDirectory is null)
+            return target;
+
+        var candidate = Path.GetFullPath(target, solutionDirectory);
+        var isPath = target.Contains('*')
+                     || target.Contains('?')
+                     || target.Contains(Path.DirectorySeparatorChar)
+                     || target.Contains(Path.AltDirectorySeparatorChar)
+                     || target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                     || Path.Exists(candidate);
+        return isPath ? candidate : target;
+    }
+
     private static RtResultEnvelope<OutlineResult> CreateEnvelope(
         OutlineResult data,
         Solution solution,
+        string sourceRevision,
         WorkspaceCompleteness completeness,
         int totalItems,
         int returnedItems,
@@ -114,7 +135,7 @@ internal sealed class OutlineOperation
             "rt.result.v1",
             "outline",
             completeness.State == WorkspaceCompletenessState.Complete ? "Succeeded" : "Partial",
-            new RtSourceIdentity(repositoryRoot, solutionPath, Revision: null),
+            new RtSourceIdentity(repositoryRoot, solutionPath, sourceRevision),
             new RtWorkspaceProvenance(
                 completeness.State.ToString(),
                 solution.ProjectIds.Count,

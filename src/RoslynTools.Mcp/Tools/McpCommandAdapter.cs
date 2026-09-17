@@ -69,7 +69,7 @@ internal sealed class McpCommandAdapter(
             if (!recovery.ShouldFallback)
                 return new ToolResult(
                     true,
-                    "The daemon accepted this mutation but its result is indeterminate; inspect the target before retrying.");
+                    "The daemon accepted this request but its result is indeterminate; inspect the target before retrying.");
 
             // The portable stdio host must remain usable before a daemon has been started,
             // and while a stale daemon is being replaced. The same typed port is the narrow
@@ -334,15 +334,20 @@ internal sealed class McpCommandAdapter(
 
     private static string SerializeDescribe(DescribeResult result)
     {
-        return result switch
+        var serialized = result switch
         {
             { Kind: DescribeResultKind.Compact, Compact: not null } =>
-                JsonSerializer.Serialize(result.Compact, CreateResponseOptions()),
+                JsonSerializer.SerializeToNode(result.Compact, CreateResponseOptions()),
             { Kind: DescribeResultKind.Verbose, Verbose: { } verbose } =>
-                JsonSerializer.Serialize(verbose, CreateResponseOptions()),
+                JsonNode.Parse(verbose.GetRawText()),
             _ => throw new InvalidOperationException(
                 "The describe result did not contain its declared value.")
         };
+        var payload = serialized?.AsObject()
+            ?? throw new InvalidOperationException("The describe result was not a JSON object.");
+        if (!string.IsNullOrWhiteSpace(result.SourceRevision))
+            payload["sourceRevision"] = result.SourceRevision;
+        return payload.ToJsonString(CreateResponseOptions());
     }
 
     private static string SerializeRename(MutationExecutionResult<RenameOperationResult> execution)

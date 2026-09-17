@@ -171,6 +171,24 @@ public sealed class RepositoryTrustRegistryTests
     }
 
     [Fact]
+    public void explicit_symlink_root_admits_its_physical_solution_identity()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var aliasRoot = Path.Combine(Path.GetDirectoryName(repository.PrimaryPath)!, "explicit-alias");
+        Directory.CreateSymbolicLink(aliasRoot, repository.PrimaryPath);
+
+        using var trust = RepositoryTrustContext.UseExplicitTrust(aliasRoot);
+        var identity = RepositoryTrustContext.ResolveWorkspaceIdentity(
+            repository.PrimarySolutionPath);
+
+        identity.SolutionPath.ShouldBe(repository.PrimarySolutionPath);
+        identity.WorktreeRoot.ShouldBe(repository.PrimaryPath);
+    }
+
+    [Fact]
     public void relative_repository_paths_resolve_from_the_current_directory()
     {
         using var repository = TestGitRepository.CreateWithLinkedWorktree();
@@ -350,6 +368,22 @@ public sealed class RepositoryTrustRegistryTests
             RepositoryTrustContext.IsExplicitlyTrustedFor(repository.LinkedSolutionPath).ShouldBeFalse();
             RepositoryTrustContext.IsExplicitlyTrustedFor(repository.PrimarySolutionPath).ShouldBeTrue();
         }
+    }
+
+    [Fact]
+    public void ordinary_persistent_cli_context_resolves_a_relative_solution()
+    {
+        using var repository = TestGitRepository.CreateWithLinkedWorktree();
+        var registry = new RepositoryTrustRegistry(repository.RegistryPath);
+        registry.Add(repository.PrimaryPath).IsOk.ShouldBeTrue();
+        var relativeSolution = Path.GetRelativePath(
+            Directory.GetCurrentDirectory(),
+            repository.PrimarySolutionPath);
+
+        using var trust = RepositoryTrustContext.UsePersistentTrust(registry);
+        var resolved = SolutionPathResolver.Resolve(relativeSolution);
+
+        resolved.ShouldBe(Path.GetFullPath(relativeSolution));
     }
 
     [Fact]
@@ -833,6 +867,17 @@ public sealed class RepositoryTrustRegistryTests
         var second = Path.Combine(Path.GetTempPath(), "rt-porcelain-second");
         var porcelain = $"worktree {first}\0HEAD abc123\0branch refs/heads/main\0\0" +
                         $"worktree {second}\0HEAD def456\0detached\0";
+
+        RepositoryTrustRegistry.ParseWorktreeRoots(porcelain).ShouldBe([first, second]);
+    }
+
+    [Fact]
+    public void worktree_porcelain_parser_accepts_line_delimited_output_from_older_git()
+    {
+        var first = Path.Combine(Path.GetTempPath(), "rt porcelain first");
+        var second = Path.Combine(Path.GetTempPath(), "rt-porcelain-second");
+        var porcelain = $"worktree {first}\nHEAD abc123\nbranch refs/heads/main\n\n"
+                        + $"worktree {second}\nHEAD def456\ndetached\n";
 
         RepositoryTrustRegistry.ParseWorktreeRoots(porcelain).ShouldBe([first, second]);
     }

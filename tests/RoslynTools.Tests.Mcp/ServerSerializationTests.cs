@@ -358,7 +358,8 @@ public class ServerSerializationTests
 
                 using var document = JsonDocument.Parse(output);
                 var result = document.RootElement.GetProperty("result");
-                result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+                result.GetProperty("isError").GetBoolean().ShouldBeFalse(
+                    result.GetProperty("content").GetRawText());
                 result.GetProperty("structuredContent").GetProperty("data").GetProperty("items")
                     .EnumerateArray()
                     .ShouldContain(item => item.GetProperty("name").GetString() == "Invoice");
@@ -393,7 +394,8 @@ public class ServerSerializationTests
 
                 using var document = JsonDocument.Parse(output);
                 var result = document.RootElement.GetProperty("result");
-                result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+                result.GetProperty("isError").GetBoolean().ShouldBeFalse(
+                    result.GetProperty("content").GetRawText());
                 result.GetProperty("structuredContent").GetProperty("data").GetProperty("items")
                     .EnumerateArray()
                     .ShouldContain(item => item.GetProperty("name").GetString() == "Invoice");
@@ -496,6 +498,7 @@ public class ServerSerializationTests
             result.GetProperty("isError").GetBoolean().ShouldBeTrue();
             var text = result.GetProperty("content")[0].GetProperty("text").GetString();
             text.ShouldNotBeNull();
+            text.ShouldStartWith("{");
             using var error = JsonDocument.Parse(text);
             error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
         }

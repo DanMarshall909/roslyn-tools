@@ -9,6 +9,17 @@ namespace RoslynTools.Tests.Daemon;
 public sealed class DaemonCommandDispatcherTests
 {
     [Fact]
+    public void Rpc_json_accepts_the_public_string_enum_shape()
+    {
+        var request = JsonSerializer.Deserialize<RelationshipsRequest>(
+            """{"symbol":"Project1.Class1","mode":"References"}""",
+            DaemonRpcJson.RequestOptions);
+
+        request.ShouldNotBeNull();
+        request.Mode.ShouldBe(RelationshipMode.References);
+    }
+
+    [Fact]
     public async Task Execute_deserializes_and_invokes_the_typed_application_port()
     {
         var port = new EchoPort();
@@ -108,7 +119,7 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Execute_applies_and_then_restores_the_request_working_directory()
+    public async Task Execute_never_changes_process_working_directory_for_a_request()
     {
         var originalWorkingDirectory = Directory.GetCurrentDirectory();
         var port = new WorkingDirectoryPort();
@@ -124,8 +135,7 @@ public sealed class DaemonCommandDispatcherTests
             Path.GetTempPath()));
 
         response.Error.ShouldBeNull();
-        Path.TrimEndingDirectorySeparator(Path.GetFullPath(port.ObservedWorkingDirectory!)).ShouldBe(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())));
+        port.ObservedWorkingDirectory.ShouldBe(originalWorkingDirectory);
         Directory.GetCurrentDirectory().ShouldBe(originalWorkingDirectory);
     }
 
@@ -146,6 +156,31 @@ public sealed class DaemonCommandDispatcherTests
         response.Error.ShouldNotBeNull();
         response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
         response.Error.Message.ShouldBe("missing solution");
+    }
+
+    [Fact]
+    public async Task Execute_allows_installation_only_doctor_without_trust_or_sdk_admission()
+    {
+        using var trust = new TemporaryTrustRegistry("installation-doctor");
+        var port = new InstallationDoctorPort();
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], trust.Registry, compatibility);
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            directory = Path.GetTempPath(),
+            installationOnly = true
+        }));
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-installation-doctor",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            DoctorCommandDefinition.Info.Name,
+            payload.RootElement.Clone()));
+
+        response.Error.ShouldBeNull();
+        port.InvocationCount.ShouldBe(1);
+        compatibility.CheckedDirectory.ShouldBeNull();
     }
 
     [Fact]
@@ -258,15 +293,15 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Execute_resolves_a_trusted_relative_solution_once_before_sdk_inspection()
+    public async Task Execute_rejects_a_relative_solution_in_a_multi_repository_daemon()
     {
         var repositoryRoot = FindRepoRoot();
-        using var registryFixture = new TemporaryTrustRegistry("relative");
-        var registry = registryFixture.Registry;
-        registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
         var port = new EchoPort();
         var compatibility = new FixedSdkContextGuard(error: null);
-        var dispatcher = new DaemonCommandDispatcher([port], registry, compatibility);
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
         using var payload = JsonDocument.Parse(
             """{"value":"hello","solution":"RoslynTools.slnx"}""");
 
@@ -278,9 +313,9 @@ public sealed class DaemonCommandDispatcherTests
             payload.RootElement.Clone(),
             repositoryRoot));
 
-        response.Error.ShouldBeNull();
-        port.InvocationCount.ShouldBe(1);
-        compatibility.CheckedDirectory.ShouldBe(repositoryRoot);
+        response.Error.ShouldNotBeNull();
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
     }
 
     [Fact]
@@ -309,15 +344,14 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Execute_uses_the_current_directory_when_working_directory_is_omitted()
+    public async Task Execute_rejects_missing_target_instead_of_using_the_process_directory()
     {
-        var currentDirectory = Directory.GetCurrentDirectory();
-        using var registryFixture = new TemporaryTrustRegistry("current-directory");
-        var registry = registryFixture.Registry;
-        registry.Add(currentDirectory).IsOk.ShouldBeTrue();
         var port = new EchoPort();
         var compatibility = new FixedSdkContextGuard(error: null);
-        var dispatcher = new DaemonCommandDispatcher([port], registry, compatibility);
+        var dispatcher = new DaemonCommandDispatcher(
+            [port],
+            trustRegistry: null,
+            sdkContextGuard: compatibility);
         using var payload = JsonDocument.Parse("""{"value":"hello"}""");
 
         var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
@@ -327,9 +361,9 @@ public sealed class DaemonCommandDispatcherTests
             "echo",
             payload.RootElement.Clone()));
 
-        response.Error.ShouldBeNull();
-        port.InvocationCount.ShouldBe(1);
-        compatibility.CheckedDirectory.ShouldBe(currentDirectory);
+        response.Error.ShouldNotBeNull();
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
     }
 
     [Fact]
@@ -600,6 +634,29 @@ public sealed class DaemonCommandDispatcherTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException("missing solution");
+        }
+    }
+
+    private sealed class InstallationDoctorPort
+        : CommandApplicationPort<DoctorRequest, EchoResponse>
+    {
+        public int InvocationCount { get; private set; }
+
+        public override ApplicationCommandDefinition Definition { get; } = new(
+            DoctorCommandDefinition.Info,
+            typeof(DoctorRequest),
+            typeof(EchoResponse),
+            mcpVisible: true,
+            CommandSafety.ReadOnly,
+            CommandExecutionPlacement.DaemonPreferred,
+            []);
+
+        public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
+            DoctorRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            InvocationCount++;
+            return Task.FromResult(Result<EchoResponse, RtError>.Ok(new EchoResponse("ok")));
         }
     }
 

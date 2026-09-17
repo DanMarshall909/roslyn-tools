@@ -140,13 +140,13 @@ cross-host acceptance tests pass.
 
 ## P1.5 daemon passthrough boundary
 
-- [ ] Mark workspace caching/session ownership as parked and superseded for this phase in all active architecture documents.
+- [ ] Keep generic workspace sessions, mutation workspaces, incremental workspace mutation, durable/cross-machine caching, and the broader daemon state model parked; permit only the separately accepted ADR-0017 bounded read-only lease cache.
 - [ ] Remove legacy CLI argument-array routing for mutations and eventually for every converted spine command.
 - [ ] Use a per-user, collision-resistant endpoint that authenticates both client principal and daemon instance through OS-enforced peer identity and ACLs or cryptographically equivalent mutually authenticated local transport; protect discovery/instance-rotated credentials outside repository control, refuse startup when any boundary is unavailable, and test cross-principal denial, rogue servers, stale credentials, ACL failure, restart rotation, and pre-auth disclosure rather than relying on endpoint-name secrecy.
 - [ ] Remove request use of process current directory, global environment/exit code, and console capture.
 - [ ] Replace raw request/piped-input logging with bounded structured, redacted diagnostics and retention controls.
-- [ ] Add tests proving no cache, no operation ownership, no mutation retry, no global-state leakage, and exact observable parity.
-- [ ] Require a separate approved OpenSpec change and ADR before daemon workspace caching or semantic ownership is proposed.
+- [ ] Add tests proving the ADR-0017 cache is read-only, bounded, freshness-proven, trust/worktree isolated, and unavailable to mutation; retain no operation ownership, no indeterminate fallback/retry, no global-state leakage, and exact observable parity.
+- [x] Require a separate approved OpenSpec change and ADR before daemon workspace caching or semantic ownership is proposed. Satisfied narrowly by `daemon-read-only-workspace-cache` and ADR-0017; broader ownership remains parked.
 
 ## P1.6 hermetic build and developer workflow
 

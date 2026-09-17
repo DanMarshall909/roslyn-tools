@@ -606,7 +606,7 @@ same intake fence. A winning `Received` is cancelled idempotently through the ca
 operation; a winning `NotRecorded` fences the receiver, and an in-flight receiver keeps
 status indeterminate. No new apply or operation ID is created automatically.
 
-For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
+For the current hardening phase, the daemon is an optional typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). [ADR-0017](adr/0017-bounded-read-only-workspace-reuse.md) permits one narrow stateful exception: a bounded, content-fingerprint-validated lease cache for doctor, outline, describe, search_symbols, source, and relationships. It has no mutation workspace, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
 
 MSBuild registration is process-global, so the daemon captures the exact SDK instance
 it registers: normalized MSBuild path plus version. Each typed request resolves the SDK
@@ -731,7 +731,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.
-- **A real workspace daemon is parked.** Reconsider it only after trust, mutation, protocol, and canonical-operation gates pass and measured cold-start cost justifies the added state model.
+- **The broader workspace daemon remains parked.** ADR-0017 admits only bounded read-only reuse for six named semantic operations. Generic sessions, incremental mutation, durable/cross-machine state, hot-upgrade draining, and daemon-owned mutation still require the remaining trust, mutation, protocol, and canonical-operation gates plus a separate decision.
 
 ## Updating this document
 

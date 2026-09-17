@@ -36,11 +36,11 @@ internal sealed record SymbolCandidate(
 internal sealed record SearchSymbolsResult(IReadOnlyList<SymbolCandidate> Items);
 
 internal sealed class SearchSymbolsOperation(
-    IWorkspaceSessionFactory sessions,
+    IReadOnlyWorkspaceSessions sessions,
     ISymbolCandidateService candidates)
     : CommandApplicationPort<SearchSymbolsRequest, RtResultEnvelope<SearchSymbolsResult>>, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessions = sessions;
+    private readonly IReadOnlyWorkspaceSessions _sessions = sessions;
     private readonly ISymbolCandidateService _candidates = candidates;
 
     public override ApplicationCommandDefinition Definition => SearchSymbolsCommandDefinition.Definition;
@@ -62,13 +62,13 @@ internal sealed class SearchSymbolsOperation(
                 RtErrorKind.InvalidInput,
                 "Generic arity cannot be negative."));
         var stopwatch = Stopwatch.StartNew();
-        var (workspace, solution) = await _sessions.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
+            var solution = lease.Solution;
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
                 solution,
                 cancellationToken);
-            var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+            var sourceRevision = lease.SourceRevision;
             var ordered = (await _candidates.SearchAsync(
                     solution,
                     new SymbolCandidateQuery(
@@ -168,6 +168,6 @@ internal static class SearchSymbolsCommandDefinition
         typeof(RtResultEnvelope<SearchSymbolsResult>),
         mcpVisible: true,
         CommandSafety.ReadOnly,
-        CommandExecutionPlacement.InProcess,
+        CommandExecutionPlacement.DaemonPreferred,
         []);
 }
