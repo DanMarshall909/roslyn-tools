@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Build.Locator;
 using RoslynTools.Core;
@@ -12,6 +13,7 @@ internal static class MsBuildBootstrap
 {
     private static readonly object RegistrationLock = new();
     private static VisualStudioInstance? _registeredSdkInstance;
+    private static MsBuildInstanceIdentity? _registeredSdkIdentity;
 
     /// <summary>
     /// Method to register MSBuild bootstrapping steps.
@@ -32,7 +34,7 @@ internal static class MsBuildBootstrap
         }
     }
 
-    internal static VisualStudioInstance RegisterForDaemon(string startDirectory)
+    internal static MsBuildInstanceIdentity RegisterForDaemon(string startDirectory)
     {
         lock (RegistrationLock)
         {
@@ -46,10 +48,10 @@ internal static class MsBuildBootstrap
             if (sdkRequest.State == DoctorSdkRequestState.Invalid)
                 throw new InvalidOperationException(sdkRequest.Diagnostic);
 
-            var instance = FindPreferredInstance(startDirectory)
+            var selection = SelectExactInstance(startDirectory)
                 ?? throw CreateMissingSdkException(startDirectory);
-            RegisterInstance(instance);
-            return instance;
+            selection.Register();
+            return selection.Identity;
         }
     }
 
@@ -61,18 +63,13 @@ internal static class MsBuildBootstrap
 
     internal static MsBuildInstanceIdentity? GetRegisteredSdkIdentity()
     {
-        var instance = GetRegisteredSdkInstance();
-        return instance is null ? null : MsBuildInstanceIdentity.From(instance);
+        lock (RegistrationLock)
+            return _registeredSdkIdentity;
     }
 
     internal static MsBuildInstanceSelection? SelectExactInstance(string directory)
     {
-        var instance = FindPreferredInstance(directory);
-        return instance is null
-            ? null
-            : new MsBuildInstanceSelection(
-                MsBuildInstanceIdentity.From(instance),
-                () => RegisterExactInstance(instance));
+        return FindPreferredSelection(directory);
     }
 
     internal static void RegisterExactInstance(VisualStudioInstance instance)
@@ -107,10 +104,10 @@ internal static class MsBuildBootstrap
         if (sdkRequest.State == DoctorSdkRequestState.Invalid)
             throw new InvalidOperationException(sdkRequest.Diagnostic);
 
-        VisualStudioInstance? sdkInstance = null;
+        MsBuildInstanceSelection? sdkSelection = null;
         try
         {
-            sdkInstance = FindPreferredInstance(startDirectory);
+            sdkSelection = FindPreferredSelection(startDirectory);
         }
         catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
         {
@@ -118,10 +115,10 @@ internal static class MsBuildBootstrap
 
         var registrationPath = SelectRegistrationPath(
             sdkRequest.State,
-            sdkInstance is not null);
+            sdkSelection is not null);
         if (registrationPath == MsBuildRegistrationPath.ScopedInstance)
         {
-            RegisterInstance(sdkInstance!);
+            sdkSelection!.Register();
             return;
         }
 
@@ -151,6 +148,7 @@ internal static class MsBuildBootstrap
     {
         MSBuildLocator.RegisterInstance(instance);
         _registeredSdkInstance = instance;
+        _registeredSdkIdentity = MsBuildInstanceIdentity.From(instance);
     }
 
     private static InvalidOperationException CreateMissingSdkException(string startDirectory)
@@ -283,15 +281,116 @@ internal static class MsBuildBootstrap
     /// </summary>
     internal static VisualStudioInstance? FindPreferredInstance(string? startDirectory = null)
     {
+        var workingDirectory = startDirectory ?? Environment.CurrentDirectory;
+        return QueryPreferredInstance(workingDirectory);
+    }
+
+    internal static MsBuildInstanceSelection? SelectPreferredSelection(
+        Func<MsBuildInstanceSelection?> queryNativeLocator,
+        Func<MsBuildInstanceSelection?> findManualFallback)
+    {
+        try
+        {
+            return queryNativeLocator() ?? findManualFallback();
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
+        {
+            return findManualFallback();
+        }
+    }
+
+    private static MsBuildInstanceSelection? FindPreferredSelection(string workingDirectory) =>
+        SelectPreferredSelection(
+            () =>
+            {
+                var instance = QueryPreferredInstance(workingDirectory);
+                return instance is null
+                    ? null
+                    : new MsBuildInstanceSelection(
+                        MsBuildInstanceIdentity.From(instance),
+                        () => RegisterExactInstance(instance));
+            },
+            () => FindDotnetSelectedSelection(workingDirectory));
+
+    private static VisualStudioInstance? QueryPreferredInstance(string workingDirectory)
+    {
         var options = new VisualStudioInstanceQueryOptions
         {
-            WorkingDirectory = startDirectory ?? Environment.CurrentDirectory,
+            WorkingDirectory = workingDirectory,
             DiscoveryTypes = DiscoveryType.DotNetSdk
         };
         return MSBuildLocator.QueryVisualStudioInstances(options)
             .Where(i => i.DiscoveryType == DiscoveryType.DotNetSdk)
             .OrderByDescending(i => i.Version)
             .FirstOrDefault();
+    }
+
+    private static MsBuildInstanceSelection? FindDotnetSelectedSelection(string workingDirectory)
+    {
+        string? selectedVersion;
+        try
+        {
+            var startInfo = new ProcessStartInfo("dotnet", "--version")
+            {
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var process = Process.Start(startInfo);
+            if (process is null)
+                return null;
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                return null;
+            }
+
+            selectedVersion = process.ExitCode == 0
+                ? process.StandardOutput.ReadToEnd().Trim()
+                : null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException
+                                   or IOException
+                                   or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedVersion))
+            return null;
+
+        var sdkPath = GetDotnetRoots()
+            .Select(root => Path.Combine(root, "sdk", selectedVersion))
+            .FirstOrDefault(path => File.Exists(Path.Combine(path, "MSBuild.dll")));
+        if (sdkPath is null)
+            return null;
+
+        var identity = MsBuildInstanceIdentity.Create(
+            sdkPath,
+            ParseVersion(selectedVersion));
+        return new MsBuildInstanceSelection(
+            identity,
+            () => RegisterExactPath(identity));
+    }
+
+    private static void RegisterExactPath(MsBuildInstanceIdentity identity)
+    {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+            {
+                if (_registeredSdkIdentity?.Matches(identity) == true)
+                    return;
+
+                throw new InvalidOperationException(
+                    "MSBuild was already registered before its exact SDK identity could be verified.");
+            }
+
+            MSBuildLocator.RegisterMSBuildPath(identity.MSBuildPath);
+            _registeredSdkIdentity = identity;
+        }
     }
 
     private static string? FindLatestDotnetSdkPath()

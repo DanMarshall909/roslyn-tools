@@ -106,8 +106,7 @@ internal static class DaemonServer
         IHost host;
         try
         {
-            var registeredInstance = MsBuildBootstrap.RegisterForDaemon(Environment.CurrentDirectory);
-            var registeredIdentity = MsBuildInstanceIdentity.From(registeredInstance);
+            var registeredIdentity = MsBuildBootstrap.RegisterForDaemon(Environment.CurrentDirectory);
             host = Host.CreateDefaultBuilder()
                 .ConfigureServices(services =>
                 {

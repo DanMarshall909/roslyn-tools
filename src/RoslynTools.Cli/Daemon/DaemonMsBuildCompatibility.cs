@@ -117,8 +117,7 @@ internal sealed class DaemonMsBuildCompatibility(
 
     private static MsBuildInstanceIdentity? ResolveIdentity(string directory)
     {
-        var instance = MsBuildBootstrap.FindPreferredInstance(directory);
-        return CreateIdentity(instance);
+        return MsBuildBootstrap.SelectExactInstance(directory)?.Identity;
     }
 
     internal static MsBuildInstanceIdentity? CreateIdentity(VisualStudioInstance? instance) =>

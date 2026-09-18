@@ -1,4 +1,5 @@
 using Microsoft.Build.Locator;
+using RoslynTools.Daemon;
 using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
@@ -124,5 +125,39 @@ public class MsBuildBootstrap
 
         var highest = allSdk.Max(i => i.Version);
         instance.Version.ShouldBe(highest);
+    }
+
+    [Fact]
+    public void Native_locator_failure_uses_the_exact_dotnet_selected_sdk_fallback()
+    {
+        var expected = new MsBuildInstanceSelection(
+            MsBuildInstanceIdentity.Create(Path.GetTempPath(), new Version(10, 0, 303)),
+            () => { });
+
+        var selected = RoslynTools.MsBuildBootstrap.SelectPreferredSelection(
+            () => throw new DllNotFoundException("hostfxr"),
+            () => expected);
+
+        selected.ShouldBeSameAs(expected);
+    }
+
+    [Fact]
+    public void Successful_native_locator_does_not_run_the_manual_fallback()
+    {
+        var expected = new MsBuildInstanceSelection(
+            MsBuildInstanceIdentity.Create(Path.GetTempPath(), new Version(10, 0, 303)),
+            () => { });
+        var fallbackCalled = false;
+
+        var selected = RoslynTools.MsBuildBootstrap.SelectPreferredSelection(
+            () => expected,
+            () =>
+            {
+                fallbackCalled = true;
+                return null;
+            });
+
+        selected.ShouldBeSameAs(expected);
+        fallbackCalled.ShouldBeFalse();
     }
 }
