@@ -89,6 +89,43 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
+    public async Task Mcp_tool_policy_filters_discovery_and_invocation_through_the_same_boundary()
+    {
+        var policy = new McpToolPolicy(
+            new HashSet<string>(["prime", "outline"], StringComparer.Ordinal),
+            new HashSet<string>(["outline"], StringComparer.Ordinal),
+            ["test-config.json"]);
+        using var provider = McpTestHost.CreateProvider(
+            new McpHostOptions(toolPolicy: policy));
+        var registry = provider.GetRequiredService<ToolRegistry>();
+        using var arguments = JsonDocument.Parse("{}");
+
+        registry.GetTools().Select(tool => tool.name).ShouldBe(["prime"]);
+        var denied = await registry.InvokeAsync("outline", arguments.RootElement);
+
+        denied.isError.ShouldBeTrue();
+        denied.content.ShouldContain("Unknown tool");
+    }
+
+    [Fact]
+    public void Unknown_exact_tool_name_reports_the_configuration_source()
+    {
+        var policy = new McpToolPolicy(
+            new HashSet<string>(["not_a_real_tool"], StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal),
+            ["C:/repo/.rt/config.json"]);
+        using var provider = McpTestHost.CreateProvider();
+
+        var error = McpToolAvailability.ValidatePolicy(
+            provider.GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>().All,
+            policy);
+
+        error.ShouldNotBeNull();
+        error.ShouldContain("not_a_real_tool", Case.Sensitive);
+        error.ShouldContain("C:/repo/.rt/config.json", Case.Sensitive);
+    }
+
+    [Fact]
     public void Tool_schema_builder_excludes_removed_debug_surface()
     {
         using var provider = McpTestHost.CreateProvider();

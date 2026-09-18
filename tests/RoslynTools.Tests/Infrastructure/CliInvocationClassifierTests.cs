@@ -12,6 +12,7 @@ public sealed class CliInvocationClassifierTests
     [InlineData("refactor", "trust", "list")]
     [InlineData("--json", "refactor", "trust", "list")]
     [InlineData("maintainer", "daemon", "status")]
+    [InlineData("config")]
     [InlineData("dump-help")]
     [InlineData("prime")]
     [InlineData("suggest", "rename a symbol")]
@@ -83,5 +84,30 @@ public sealed class CliInvocationClassifierTests
     public void ordinary_and_unrecognized_invocations_can_use_the_daemon(params string[] arguments)
     {
         CliInvocationClassifier.MustRunInProcess(arguments).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Configuration_follows_the_selected_solution_repository()
+    {
+        var currentDirectory = Path.Combine(Path.GetTempPath(), "caller");
+        var selectedDirectory = Path.Combine(Path.GetTempPath(), "selected");
+        var solution = Path.Combine(selectedDirectory, "App.slnx");
+
+        CliInvocationClassifier.ResolveConfigurationDirectory(
+                ["inspect", "outline", "--solution", solution],
+                currentDirectory)
+            .ShouldBe(selectedDirectory);
+    }
+
+    [Fact]
+    public void Relative_solution_resolves_under_the_selected_directory()
+    {
+        var currentDirectory = Path.Combine(Path.GetTempPath(), "caller");
+        var selectedDirectory = Path.Combine(Path.GetTempPath(), "selected");
+
+        CliInvocationClassifier.ResolveConfigurationDirectory(
+                ["inspect", "outline", "--directory", selectedDirectory, "--solution=src/App.slnx"],
+                currentDirectory)
+            .ShouldBe(Path.Combine(selectedDirectory, "src"));
     }
 }

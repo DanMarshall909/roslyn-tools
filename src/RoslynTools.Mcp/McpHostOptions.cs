@@ -11,7 +11,8 @@ internal sealed class McpHostOptions
     internal McpHostOptions(
         string? trustedRepositoryRoot = null,
         bool showHelp = false,
-        RepositoryTrustRegistry? trustRegistry = null)
+        RepositoryTrustRegistry? trustRegistry = null,
+        McpToolPolicy? toolPolicy = null)
     {
         if (trustedRepositoryRoot is not null)
         {
@@ -31,6 +32,7 @@ internal sealed class McpHostOptions
 
         ShowHelp = showHelp;
         TrustRegistry = trustRegistry;
+        ToolPolicy = toolPolicy ?? McpToolPolicy.Unrestricted;
     }
 
     internal string? TrustedRepositoryRoot { get; }
@@ -38,6 +40,8 @@ internal sealed class McpHostOptions
     internal bool ShowHelp { get; }
 
     internal RepositoryTrustRegistry? TrustRegistry { get; }
+
+    internal McpToolPolicy ToolPolicy { get; }
 
     internal bool CanDiscoverRepositoryWrites =>
         TrustedRepositoryRoot is not null
@@ -51,23 +55,32 @@ internal sealed class McpHostOptions
                 requireAbsoluteSolutionPath: true)
             : null;
 
+    internal McpHostOptions WithToolPolicy(McpToolPolicy toolPolicy) => new(
+        TrustedRepositoryRoot,
+        ShowHelp,
+        TrustRegistry,
+        toolPolicy);
+
     internal static bool TryParse(
         IReadOnlyList<string> arguments,
         out McpHostOptions options,
-        out string? error)
+        out string? error,
+        McpToolPolicy? toolPolicy = null)
     {
-        options = new McpHostOptions();
+        options = new McpHostOptions(toolPolicy: toolPolicy);
         error = null;
 
         if (arguments.Count == 0)
         {
-            options = new McpHostOptions(trustRegistry: new RepositoryTrustRegistry());
+            options = new McpHostOptions(
+                trustRegistry: new RepositoryTrustRegistry(),
+                toolPolicy: toolPolicy);
             return true;
         }
 
         if (arguments.Count == 1 && arguments[0] is "--help" or "-h")
         {
-            options = new McpHostOptions(showHelp: true);
+            options = new McpHostOptions(showHelp: true, toolPolicy: toolPolicy);
             return true;
         }
 
@@ -85,7 +98,7 @@ internal sealed class McpHostOptions
 
         try
         {
-            options = new McpHostOptions(arguments[1]);
+            options = new McpHostOptions(arguments[1], toolPolicy: toolPolicy);
             return true;
         }
         catch (ArgumentException ex)

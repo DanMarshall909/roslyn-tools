@@ -65,6 +65,28 @@ public sealed class DaemonRpcRecoveryTests
         launcher.CallCount.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Disabled_auto_start_falls_back_without_launching_a_missing_daemon()
+    {
+        using var configuration = DaemonRuntime.UseConfiguration(new RtDaemonSettings(
+            Enabled: true,
+            AutoStart: false,
+            TimeSpan.FromMinutes(10)));
+        var rpc = new StubRpcClient(Unavailable());
+        var launcher = new StubLauncher(started: true);
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, launcher);
+
+        var result = await recovery.ExecuteLegacyAsync(
+            "find_callers",
+            JsonSerializer.SerializeToElement(new { symbol = "Run" }),
+            CommandSafety.ReadOnly);
+
+        result.Response.ShouldBeNull();
+        result.ShouldFallback.ShouldBeTrue();
+        rpc.CallCount.ShouldBe(1);
+        launcher.CallCount.ShouldBe(0);
+    }
+
     private static DaemonRpcAttempt Unavailable() => new(
         DaemonRpcAttemptState.UnavailableBeforeDispatch,
         null,

@@ -1,18 +1,28 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
+using RoslynTools.Core;
 
 namespace RoslynTools.Daemon.Rpc;
 
 internal sealed record DaemonLaunchOptions(TimeSpan IdleTimeout)
 {
-    internal const string IdleTimeoutEnvironmentVariable = "RT_DAEMON_IDLE_TIMEOUT_SECONDS";
+    internal const string IdleTimeoutEnvironmentVariable =
+        RtConfigurationLoader.DaemonIdleTimeoutEnvironmentVariable;
     internal static readonly TimeSpan DefaultIdleTimeout = TimeSpan.FromMinutes(10);
 
     internal static DaemonLaunchOptions FromEnvironment(
+        Func<string, string?> getEnvironmentVariable) =>
+        FromConfiguration(RtDaemonSettings.Default, getEnvironmentVariable);
+
+    internal static DaemonLaunchOptions FromConfiguration(
+        RtDaemonSettings configuration,
         Func<string, string?> getEnvironmentVariable)
     {
         var configured = getEnvironmentVariable(IdleTimeoutEnvironmentVariable);
+        if (configured is null)
+            return new DaemonLaunchOptions(configuration.IdleTimeout);
+
         return double.TryParse(
                    configured,
                    NumberStyles.Float,
@@ -33,7 +43,12 @@ internal sealed class DaemonLauncher : IDaemonLauncher
     private readonly DaemonLaunchOptions _options;
 
     internal DaemonLauncher()
-        : this(DaemonLaunchOptions.FromEnvironment(Environment.GetEnvironmentVariable))
+        : this(DaemonLaunchOptions.FromConfiguration(
+            new RtDaemonSettings(
+                DaemonRuntime.IsExperimentEnabled,
+                DaemonRuntime.AutoStartEnabled,
+                DaemonRuntime.IdleTimeout),
+            Environment.GetEnvironmentVariable))
     {
     }
 

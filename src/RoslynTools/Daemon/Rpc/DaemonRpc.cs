@@ -74,14 +74,29 @@ internal static class DaemonTransport
 /// <summary>Process-level daemon routing controls shared by every host adapter.</summary>
 internal static class DaemonRuntime
 {
-    internal const string ExperimentEnvironmentVariable = "RT_DAEMON_EXPERIMENT";
+    internal const string ExperimentEnvironmentVariable =
+        RtConfigurationLoader.DaemonEnabledEnvironmentVariable;
     private static readonly AsyncLocal<bool?> ExperimentOverride = new();
+    private static readonly AsyncLocal<RtDaemonSettings?> Configuration = new();
 
     internal static bool IsDisabled => !IsExperimentEnabled;
 
     internal static bool IsExperimentEnabled =>
         ExperimentOverride.Value
+        ?? Configuration.Value?.Enabled
         ?? Environment.GetEnvironmentVariable(ExperimentEnvironmentVariable) is "1" or "true";
+
+    internal static bool AutoStartEnabled => Configuration.Value?.AutoStart ?? true;
+
+    internal static TimeSpan IdleTimeout =>
+        Configuration.Value?.IdleTimeout ?? RtDaemonSettings.Default.IdleTimeout;
+
+    internal static IDisposable UseConfiguration(RtDaemonSettings configuration)
+    {
+        var previous = Configuration.Value;
+        Configuration.Value = configuration;
+        return new DelegateDisposable(() => Configuration.Value = previous);
+    }
 
     internal static IDisposable UseExperimentOverride(bool enabled)
     {
@@ -201,6 +216,9 @@ internal sealed class DaemonRpcRecoveryCoordinator(
 
         if (attempt.State == DaemonRpcAttemptState.IndeterminateAfterDispatch)
             return new DaemonRpcRecoveryResult(null, false, attempt);
+
+        if (!DaemonRuntime.AutoStartEnabled)
+            return new DaemonRpcRecoveryResult(null, true, attempt);
 
         if (!await _daemonLauncher.EnsureStartedAsync(cancellationToken))
             return new DaemonRpcRecoveryResult(null, true, attempt);

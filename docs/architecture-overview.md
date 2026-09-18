@@ -627,6 +627,22 @@ select the same identity; mismatch or unresolved selection returns structured
 revalidated before SDK selection and registration. The MCP host does not use an
 unscoped registration fallback because its identity could not then be proven.
 
+### Layered host configuration
+
+CLI and MCP startup resolve the versioned host configuration defined by
+[ADR-0018](adr/0018-layered-host-configuration.md). User defaults come from
+`~/.rt/config.json`; a Git worktree may add `.rt/config.json`. Daemon scalar values use
+normal overlay precedence, followed by compatible environment and explicit host
+overrides. MCP policy is monotonic instead: allowlists intersect and denylists
+accumulate, so repository content can reduce but cannot widen a user policy.
+
+Configuration controls transport preference and MCP visibility, not authority. The
+repository trust registry and invocation-scoped trust gate continue to authorize
+workspace evaluation independently. Exact tool names are validated against the public
+descriptor registry at MCP startup, and the one effective availability predicate gates
+both schema discovery and dispatch. Invalid configuration fails closed; the local
+`rt config` diagnostic command remains in-process and does not initialize MSBuild.
+
 ## Output pipeline
 
 ```text

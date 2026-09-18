@@ -243,11 +243,17 @@ invocation-scoped compatibility path.
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
 The experimental daemon is disabled by default; CLI and MCP operations run through
-their canonical in-process application ports. Set `RT_DAEMON_EXPERIMENT=1` to opt in.
-When enabled, a daemon-preferred read-only call starts the sibling `rt` daemon when
-needed. It remains warm for ten minutes after the latest request, then exits. Override
-the idle period with `RT_DAEMON_IDLE_TIMEOUT_SECONDS`. Manage an explicit resident
-instance with `rt maintainer daemon start`, `status`, and `stop`.
+their canonical in-process application ports. Enable and tune it in
+`~/.rt/config.json` or the current worktree's `.rt/config.json`. The same files can
+restrict the MCP tool surface with exact-name allowlists and denylists. Repository
+policy may narrow a global tool policy but cannot widen it or grant repository trust.
+See the [configuration reference](docs/configuration.md) and inspect the effective state
+with `rt config --json`.
+
+`RT_DAEMON_EXPERIMENT` and `RT_DAEMON_IDLE_TIMEOUT_SECONDS` remain higher-precedence
+compatibility overrides. When routing and auto-start are enabled, a daemon-preferred
+read-only call starts the sibling `rt` daemon when needed. Manage an explicit instance
+with `rt maintainer daemon start`, `status`, `logs`, and `stop`.
 
 Build and run it from the repository root:
 

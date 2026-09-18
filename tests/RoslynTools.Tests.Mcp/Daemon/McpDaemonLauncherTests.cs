@@ -1,3 +1,4 @@
+using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
 using Shouldly;
 
@@ -18,6 +19,18 @@ public sealed class McpDaemonLauncherTests
         DaemonLaunchOptions.FromEnvironment(
                 name => name == DaemonLaunchOptions.IdleTimeoutEnvironmentVariable ? "45" : null)
             .IdleTimeout.ShouldBe(TimeSpan.FromSeconds(45));
+    }
+
+    [Fact]
+    public void Effective_configuration_supplies_idle_timeout_when_environment_is_absent()
+    {
+        var daemon = new RtDaemonSettings(
+            Enabled: true,
+            AutoStart: true,
+            TimeSpan.FromSeconds(75));
+
+        DaemonLaunchOptions.FromConfiguration(daemon, _ => null).IdleTimeout
+            .ShouldBe(TimeSpan.FromSeconds(75));
     }
 
     [Fact]

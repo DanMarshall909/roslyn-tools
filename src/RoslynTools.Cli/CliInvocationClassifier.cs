@@ -16,6 +16,7 @@ internal static class CliInvocationClassifier
 
     private static readonly HashSet<string> LocalOnlyRoots = new(StringComparer.Ordinal)
     {
+        "config",
         "doctor",
         "dump-help",
         "maintainer",
@@ -29,6 +30,25 @@ internal static class CliInvocationClassifier
 
     internal static bool MustRunInProcess(string[] arguments) =>
         IsLocalOnly(arguments) || HasTrustedRoot(arguments);
+
+    internal static bool IsConfigurationInvocation(string[] arguments) =>
+        ExtractCommandTokens(arguments).FirstOrDefault() == "config";
+
+    internal static string ResolveConfigurationDirectory(
+        IReadOnlyList<string> arguments,
+        string currentDirectory)
+    {
+        var requestedDirectory = FindOptionValue(arguments, "--directory");
+        var baseDirectory = string.IsNullOrWhiteSpace(requestedDirectory)
+            ? Path.GetFullPath(currentDirectory)
+            : Path.GetFullPath(requestedDirectory, currentDirectory);
+        var solution = FindOptionValue(arguments, "--solution", "-s");
+        if (string.IsNullOrWhiteSpace(solution))
+            return baseDirectory;
+
+        var fullSolution = Path.GetFullPath(solution, baseDirectory);
+        return Path.GetDirectoryName(fullSolution) ?? baseDirectory;
+    }
 
     private static bool IsLocalOnly(string[] arguments)
     {
@@ -81,5 +101,24 @@ internal static class CliInvocationClassifier
         }
 
         return commands;
+    }
+
+    private static string? FindOptionValue(
+        IReadOnlyList<string> arguments,
+        params string[] names)
+    {
+        for (var index = 0; index < arguments.Count; index++)
+        {
+            var argument = arguments[index];
+            foreach (var name in names)
+            {
+                if (argument.StartsWith($"{name}=", StringComparison.Ordinal))
+                    return argument[(name.Length + 1)..];
+                if (argument == name && index + 1 < arguments.Count)
+                    return arguments[index + 1];
+            }
+        }
+
+        return null;
     }
 }

@@ -20,7 +20,7 @@ internal static class DaemonCommand
     {
         var cmd = new Command(
             "daemon",
-            $"Manage the experimental background daemon (requires {DaemonRuntime.ExperimentEnvironmentVariable}=1 for command routing)");
+            "Manage the experimental background daemon (routing is controlled by rt configuration or RT_DAEMON_EXPERIMENT)");
         cmd.AddCommand(BuildStart());
         cmd.AddCommand(BuildStop());
         cmd.AddCommand(BuildStatus());
@@ -52,11 +52,18 @@ internal static class DaemonCommand
                       ?? throw new InvalidOperationException(
                           "Cannot locate rt executable — use a published binary to start the daemon.");
 
-            Process.Start(new ProcessStartInfo(exe, "--daemon-serve")
+            var startInfo = new ProcessStartInfo(exe)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true
-            });
+            };
+            startInfo.ArgumentList.Add("--daemon-serve");
+            startInfo.ArgumentList.Add("--idle-timeout-seconds");
+            startInfo.ArgumentList.Add(
+                DaemonRuntime.IdleTimeout.TotalSeconds.ToString(
+                    "0.###",
+                    System.Globalization.CultureInfo.InvariantCulture));
+            Process.Start(startInfo);
 
             // Poll until daemon.json appears — the server writes it after MSBuild + DI init,
             // so its presence is a real readiness signal, not just "process spawned".

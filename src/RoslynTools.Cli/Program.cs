@@ -17,10 +17,29 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        var configurationResult = RtConfigurationLoader.Load(
+            CliInvocationClassifier.ResolveConfigurationDirectory(
+                args,
+                Directory.GetCurrentDirectory()),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable);
+        if (!configurationResult.IsSuccess
+            && !CliInvocationClassifier.IsConfigurationInvocation(args))
+        {
+            RtLog.Error("{Error}", configurationResult.Error);
+            return 2;
+        }
+
+        using var daemonConfiguration = configurationResult.Configuration is null
+            ? null
+            : DaemonRuntime.UseConfiguration(configurationResult.Configuration.Daemon);
+
         // Internal mode: spawned by `rt maintainer daemon start`, runs as the background pipe server.
         // The daemon installs DaemonPipeConsole per request, so do not pre-register Spectre.
         if (args.Length > 0 && args[0] == "--daemon-serve")
-            return await DaemonServer.RunAsync(DaemonServer.ParseIdleTimeout(args));
+            return await DaemonServer.RunAsync(
+                DaemonServer.ParseIdleTimeout(args)
+                ?? configurationResult.Configuration!.Daemon.IdleTimeout);
 
         // Install the CLI-side Spectre.Console adapter so every RtConsole call from
         // here on renders with colour + syntax highlighting. The override propagates
@@ -90,6 +109,7 @@ internal static class Program
             args,
             host.Services,
             [
+                ConfigurationCommand.Build(configurationResult),
                 trusted,
                 maintainer
             ]);

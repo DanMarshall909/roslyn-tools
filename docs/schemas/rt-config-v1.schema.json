@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roslyn-tools.danmarshall.dev/schemas/rt-config-v1.schema.json",
+  "title": "rt configuration version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "daemon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "autoStart": { "type": "boolean" },
+        "idleTimeoutSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 86400
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabledTools": {
+          "$ref": "#/$defs/toolNames"
+        },
+        "disabledTools": {
+          "$ref": "#/$defs/toolNames"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "toolNames": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^\\S(?:.*\\S)?$"
+      }
+    }
+  }
+}
