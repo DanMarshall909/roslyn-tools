@@ -36,17 +36,17 @@
 
 ## 5. Evaluation and documentation
 
-- [ ] 5.1 Produce a fixture evaluation comparing raw precision/recall, semantic ranking,
+- [x] 5.1 Produce a fixture evaluation comparing raw precision/recall, semantic ranking,
   and review burden without introducing a CI gate.
-- [ ] 5.2 Document privacy, configuration, cost, no-cache behavior, model/question drift,
+- [x] 5.2 Document privacy, configuration, cost, no-cache behavior, model/question drift,
   probability interpretation, and human review.
-- [ ] 5.3 Update the architecture overview and add an ADR for the external advisory
+- [x] 5.3 Update the architecture overview and add an ADR for the external advisory
   provider boundary.
 
 ## 6. Verification
 
-- [ ] 6.1 Strictly validate this OpenSpec change.
-- [ ] 6.2 Run focused unit/integration and JSON-contract tests with the fake provider.
-- [ ] 6.3 Verify CLI help/dry-run and generic MCP descriptor projection.
+- [x] 6.1 Strictly validate this OpenSpec change.
+- [x] 6.2 Run focused unit/integration and JSON-contract tests with the fake provider.
+- [x] 6.3 Verify CLI help/dry-run and generic MCP descriptor projection.
 - [ ] 6.4 Run format verification, Release build/tests, and the repository local gate.
 - [ ] 6.5 Run a live provider smoke test only with explicit opt-in and an available key.
