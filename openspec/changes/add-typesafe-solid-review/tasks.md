@@ -26,8 +26,9 @@
 
 ## 4. Host surfaces and output
 
-- [ ] 4.1 Add `rt analyze solid-review` with dry-run, provider/model, candidate limit,
-  principle, threshold, solution, and repository-trust behavior.
+- [ ] 4.1 Add `rt analyze solid-review` with preview-by-default, mutually exclusive
+  `--dry-run`/`--transmit-source`, provider/model, candidate limit, principle,
+  threshold, solution, and repository-trust behavior.
 - [ ] 4.2 Add the host-neutral in-process application definition for generic MCP
   projection.
 - [ ] 4.3 Emit the versioned raw-plus-semantic envelope and a nonzero live-review exit

@@ -36,10 +36,12 @@ errors, telemetry, feedback, hashes, or files.
 
 ### Make dry-run and transmission separate states
 
-Invoking `solid-review` is the explicit semantic-review opt-in. `--dry-run` performs
-deterministic analysis and bounded source preparation but sends no network request and
-does not require a credential. A non-dry-run invocation sends only candidates selected
-by the displayed plan. Both paths require repository trust because both read source.
+Invoking `solid-review` opts into semantic-review planning, but preview remains the
+default. `--dry-run` is accepted as an explicit preview spelling and performs
+deterministic analysis and bounded source preparation without a network request or
+credential. A separate `--transmit-source` flag is required for live review and sends
+only candidates selected by the displayed plan. The mutually exclusive flags prevent an
+ambiguous request. Both paths require repository trust because both read source.
 
 ### Use one bounded candidate per request
 
@@ -99,9 +101,10 @@ a later cache can use the complete required key without changing assessment iden
 
 ## Migration
 
-No migration is required. Existing callers continue using `solid`. New callers opt into
-`solid-review`, begin with `--dry-run`, review the plan, configure `TYPESAFE_API_KEY`, and
-then rerun without `--dry-run` if transmission is acceptable.
+No migration is required. Existing callers continue using `solid`. New callers run
+`solid-review` or `solid-review --dry-run`, review the plan, configure
+`TYPESAFE_API_KEY`, and then rerun with `--transmit-source` if transmission is
+acceptable.
 
 ## Open Questions
 

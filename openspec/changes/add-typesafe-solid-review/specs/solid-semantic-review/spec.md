@@ -25,12 +25,13 @@ retain every raw deterministic finding in a versioned envelope.
 ### Requirement: Source transmission is explicit and previewable
 
 The system SHALL require repository trust before preparing candidate source and SHALL
-transmit source only during a non-dry-run `solid-review` invocation. Before transmission,
-the plan SHALL identify candidate symbols, source byte counts, provider, requested model,
-and estimated request count.
+default `solid-review` to preview. Source SHALL be transmitted only when the caller also
+supplies `--transmit-source`. Before transmission, the plan SHALL identify candidate
+symbols, source byte counts, provider, requested model, and estimated request count.
 
-#### Scenario: dry run has no external effect
-- **WHEN** a trusted caller invokes `solid-review --dry-run`
+#### Scenario: preview has no external effect
+- **WHEN** a trusted caller invokes `solid-review` with or without `--dry-run` and without
+  `--transmit-source`
 - **THEN** the system returns the exact review plan without reading a provider credential
   or making a network request
 
@@ -39,8 +40,12 @@ and estimated request count.
 - **THEN** source preparation and transmission are rejected before any provider request
 
 #### Scenario: live opt-in
-- **WHEN** a trusted caller invokes `solid-review` without `--dry-run`
+- **WHEN** a trusted caller invokes `solid-review --transmit-source`
 - **THEN** only candidates listed as eligible in the plan are transmitted
+
+#### Scenario: conflicting transmission modes
+- **WHEN** a caller supplies both `--dry-run` and `--transmit-source`
+- **THEN** the request is rejected before source preparation or provider access
 
 #### Scenario: candidate limit
 - **WHEN** deterministic analysis returns more eligible candidates than the configured
