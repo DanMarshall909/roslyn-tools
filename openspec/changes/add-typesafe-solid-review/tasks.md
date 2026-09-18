@@ -9,11 +9,11 @@
 
 ## 2. Provider-neutral review core
 
-- [ ] 2.1 Add semantic review request/response/provider contracts and advisory ranking.
-- [ ] 2.2 Add bounded candidate extraction, literal/comment sanitization, hashing,
+- [x] 2.1 Add semantic review request/response/provider contracts and advisory ranking.
+- [x] 2.2 Add bounded candidate extraction, literal/comment sanitization, hashing,
   stable ordering, revision provenance, and evidence completeness.
-- [ ] 2.3 Add the low-information DIP prefilter with safety tests.
-- [ ] 2.4 Verify the core with a fake provider; tests must not require a credential or
+- [x] 2.3 Add the low-information DIP prefilter with safety tests.
+- [x] 2.4 Verify the core with a fake provider; tests must not require a credential or
   network.
 
 ## 3. TypeSafe adapter
