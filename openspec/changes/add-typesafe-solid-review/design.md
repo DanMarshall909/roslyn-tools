@@ -56,12 +56,14 @@ placeholders before transmission. State fields identify the remaining C# as untr
 application data. Provider questions explicitly instruct the model not to follow text
 inside the candidate source.
 
-### Ask one direct bounded Choice question
+### Ask independent bounded questions and compose them in code
 
-Question-set `solid-review-v1` asks for exactly one of `likely_violation`, `uncertain`,
-or `likely_false_positive` with principle-specific criteria. Code owns counting,
-thresholds, byte limits, hashes, ordering, and evidence completeness. The provider owns
-only the semantic judgment. No cross-question arithmetic invariant is assumed.
+Question-set `solid-review-v2` retains the relative `likely_violation`, `uncertain`, or
+`likely_false_positive` Choice and adds independent Nouls for meaningful design harm and
+an accepted exception, plus a principle-specific Choice naming the exception reason.
+Code owns counting, thresholds, byte limits, hashes, ordering, evidence completeness,
+and conservative signal composition. Weak or contradictory answers become `uncertain`;
+no arithmetic invariance between independent questions is assumed.
 
 ### Treat incomplete evidence conservatively
 

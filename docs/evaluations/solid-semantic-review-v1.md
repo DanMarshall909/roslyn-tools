@@ -1,7 +1,7 @@
 # SOLID semantic review V1 evaluation
 
 - Date: 2026-09-18
-- Question set: `solid-review-v1`
+- Question set: `solid-review-v2`
 - Corpus: 30 executable fixtures, six per SOLID principle
 - Status: contract-corpus evaluation; no live 30-fixture Jev run was authorized
 
@@ -27,6 +27,25 @@ define the intended ranking and the fake provider returns those labels. Its usef
 result is the prospective review-burden shape—11 accepted exceptions can be
 deprioritized while nine ambiguous cases remain visible—not evidence that a live model
 achieves those metrics.
+
+## False-positive diagnosis policy
+
+Question set `solid-review-v2` addresses a weakness in the original broad Choice: a
+relative winner can still be a poor automatic decision, and high Choice confidence only
+describes concentration of the supplied options. The request now asks independent
+questions about meaningful design harm and accepted exceptions, plus a typed
+principle-specific exception reason. Deterministic policy tests establish three safety
+properties:
+
+- an accepted-exception signal conflicts with a likely-violation label and routes to
+  `uncertain`;
+- an unexplained likely-false-positive label routes to `uncertain`;
+- an agreed false-positive label, exception signal, and concrete reason remains
+  `likely_false_positive` and records why.
+
+These tests validate composition behavior, not live-model accuracy. The `0.60`
+automatic-decision thresholds remain provisional until a labelled live run can plot
+probabilities against correctness.
 
 ## Live evidence available before implementation
 

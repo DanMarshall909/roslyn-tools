@@ -54,7 +54,7 @@ public sealed class TypeSafeLiveSemanticReviewTests(ITestOutputHelper output)
             "synthetic-smoke-v1",
             hash,
             "jev-latest",
-            SemanticReviewQuestionSets.SolidV1));
+            SemanticReviewQuestionSets.SolidV2));
         var response = result.Match(
             value => value,
             failure => throw new InvalidOperationException(
@@ -109,24 +109,34 @@ public sealed class TypeSafeLiveSemanticReviewTests(ITestOutputHelper output)
                 "fixture-corpus-v1",
                 hash,
                 "jev-latest",
-                SemanticReviewQuestionSets.SolidV1);
+                SemanticReviewQuestionSets.SolidV2);
 
             var result = await provider.ReviewAsync(request);
             var response = result.Match(
                 value => value,
                 failure => throw new InvalidOperationException(
                     $"{fixture.Name}: {failure.Kind}: {failure.Message}"));
-            var displayed = SolidReviewPolicy.ApplyEvidenceGuard(
-                fixture.Principle,
+            var decision = SolidReviewPolicy.Evaluate(
                 response.Classification,
-                fixture.EvidenceComplete);
-            classifications[displayed] = classifications.GetValueOrDefault(displayed) + 1;
+                response.Probabilities.GetValueOrDefault(response.Classification),
+                fixture.EvidenceComplete,
+                response.MeaningfulDesignProblem,
+                response.AcceptedException,
+                response.FalsePositiveReason,
+                response.FalsePositiveReasonProbabilities.GetValueOrDefault(
+                    response.FalsePositiveReason));
+            classifications[decision.Classification] = classifications.GetValueOrDefault(
+                decision.Classification) + 1;
             _output.WriteLine(
-                "{0}|expected={1}|actual={2}|confidence={3:0.000}|model={4}|request={5}",
+                "{0}|expected={1}|actual={2}|confidence={3:0.000}|problem={4:0.000}|exception={5:0.000}|reason={6}|policy={7}|model={8}|request={9}",
                 fixture.Name,
                 fixture.ExpectedClassification,
-                displayed,
+                decision.Classification,
                 response.Confidence,
+                response.MeaningfulDesignProblem,
+                response.AcceptedException,
+                response.FalsePositiveReason,
+                string.Join(",", decision.Reasons),
                 response.ResolvedModel,
                 response.RequestId);
         }

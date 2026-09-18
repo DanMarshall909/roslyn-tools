@@ -6,7 +6,7 @@ namespace RoslynTools.Services.SemanticReview;
 
 internal static class SemanticReviewQuestionSets
 {
-    internal const string SolidV1 = "solid-review-v1";
+    internal const string SolidV2 = "solid-review-v2";
 }
 
 internal static class SemanticReviewClassifications
@@ -17,6 +17,30 @@ internal static class SemanticReviewClassifications
 
     internal static IReadOnlySet<string> All { get; } = new HashSet<string>(
         [LikelyViolation, Uncertain, LikelyFalsePositive],
+        StringComparer.Ordinal);
+}
+
+internal static class SemanticReviewFalsePositiveReasons
+{
+    internal const string NoAcceptedException = "no_accepted_exception";
+
+    private static readonly Dictionary<string, HashSet<string>> ReasonsByPrinciple =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SRP"] = Set("cohesive_workflow", "application_orchestration", "boundary_adapter", "generated_or_framework_code"),
+            ["ISP"] = Set("cohesive_protocol", "framework_contract", "marker_or_capability_contract", "shared_consumer_usage"),
+            ["DIP"] = Set("composition_root", "immutable_value", "framework_construction", "exception_construction"),
+            ["OCP"] = Set("closed_set_classification", "boundary_dispatch", "serializer_or_protocol_mapping", "generated_or_framework_code"),
+            ["LSP"] = Set("explicitly_constrained_adapter", "platform_guard", "optional_framework_member", "base_contract_permits_behavior")
+        };
+
+    internal static IReadOnlySet<string> ForPrinciple(string principle) =>
+        ReasonsByPrinciple.TryGetValue(principle, out var reasons)
+            ? reasons
+            : Set();
+
+    private static HashSet<string> Set(params string[] reasons) => new(
+        [.. reasons, NoAcceptedException],
         StringComparer.Ordinal);
 }
 
@@ -50,6 +74,11 @@ internal sealed record SemanticReviewProviderResponse(
     string Classification,
     IReadOnlyDictionary<string, double> Probabilities,
     double Confidence,
+    double MeaningfulDesignProblem,
+    double AcceptedException,
+    string FalsePositiveReason,
+    IReadOnlyDictionary<string, double> FalsePositiveReasonProbabilities,
+    double FalsePositiveReasonConfidence,
     string Provider,
     string RequestedModel,
     string ResolvedModel,
@@ -103,9 +132,16 @@ internal sealed record SolidReviewAssessment(
     [property: JsonPropertyName("filePath")] string FilePath,
     [property: JsonPropertyName("line")] int Line,
     [property: JsonPropertyName("classification")] string Classification,
+    [property: JsonPropertyName("providerClassification")] string ProviderClassification,
     [property: JsonPropertyName("advisory")] string Advisory,
     [property: JsonPropertyName("probabilities")] IReadOnlyDictionary<string, double> Probabilities,
     [property: JsonPropertyName("confidence")] double Confidence,
+    [property: JsonPropertyName("meaningfulDesignProblem")] double MeaningfulDesignProblem,
+    [property: JsonPropertyName("acceptedException")] double AcceptedException,
+    [property: JsonPropertyName("providerFalsePositiveReason")] string ProviderFalsePositiveReason,
+    [property: JsonPropertyName("falsePositiveReasonProbabilities")] IReadOnlyDictionary<string, double> FalsePositiveReasonProbabilities,
+    [property: JsonPropertyName("falsePositiveReasonConfidence")] double FalsePositiveReasonConfidence,
+    [property: JsonPropertyName("policyReasons")] IReadOnlyList<string> PolicyReasons,
     [property: JsonPropertyName("evidenceComplete")] bool EvidenceComplete,
     [property: JsonPropertyName("provider")] string Provider,
     [property: JsonPropertyName("requestedModel")] string RequestedModel,
@@ -139,23 +175,8 @@ internal sealed record SolidReviewResult(
 
 internal static class SolidReviewPolicy
 {
-    internal static string ApplyEvidenceGuard(
-        string principle,
-        string providerClassification,
-        bool evidenceComplete)
-    {
-        if (!SemanticReviewClassifications.All.Contains(providerClassification))
-            return SemanticReviewClassifications.Uncertain;
-
-        if (string.Equals(principle, "ISP", StringComparison.OrdinalIgnoreCase)
-            && !evidenceComplete
-            && providerClassification == SemanticReviewClassifications.LikelyViolation)
-        {
-            return SemanticReviewClassifications.Uncertain;
-        }
-
-        return providerClassification;
-    }
+    internal const double MinimumAutomaticProbability = 0.60;
+    internal const double MaximumContradictoryProbability = 0.40;
 
     internal static string ToAdvisory(string classification) => classification switch
     {
@@ -163,4 +184,70 @@ internal static class SolidReviewPolicy
         SemanticReviewClassifications.LikelyFalsePositive => "likely false positive",
         _ => "uncertain"
     };
+
+    internal static SolidReviewDecision Evaluate(
+        string providerClassification,
+        double classificationProbability,
+        bool evidenceComplete,
+        double meaningfulDesignProblem,
+        double acceptedException,
+        string falsePositiveReason,
+        double falsePositiveReasonProbability)
+    {
+        if (!SemanticReviewClassifications.All.Contains(providerClassification))
+            return Uncertain("invalid_provider_classification");
+
+        if (!evidenceComplete)
+            return Uncertain("evidence_incomplete");
+
+        if (classificationProbability < MinimumAutomaticProbability)
+            return Uncertain("classification_probability_below_threshold");
+
+        if (providerClassification == SemanticReviewClassifications.Uncertain)
+            return Uncertain("provider_uncertain");
+
+        if (providerClassification == SemanticReviewClassifications.LikelyViolation)
+        {
+            if (acceptedException >= MinimumAutomaticProbability)
+                return Uncertain("accepted_exception_conflicts_with_violation");
+
+            if (meaningfulDesignProblem < MinimumAutomaticProbability)
+                return Uncertain("meaningful_design_problem_not_supported");
+
+            if (acceptedException > MaximumContradictoryProbability)
+                return Uncertain("accepted_exception_remains_plausible");
+
+            return new SolidReviewDecision(
+                SemanticReviewClassifications.LikelyViolation,
+                null,
+                ["meaningful_design_problem_supported"]);
+        }
+
+        if (acceptedException < MinimumAutomaticProbability)
+            return Uncertain("accepted_exception_not_supported");
+
+        if (meaningfulDesignProblem > MaximumContradictoryProbability)
+            return Uncertain("meaningful_design_problem_conflicts_with_exception");
+
+        if (falsePositiveReason == SemanticReviewFalsePositiveReasons.NoAcceptedException
+            || falsePositiveReasonProbability < MinimumAutomaticProbability)
+        {
+            return Uncertain("false_positive_reason_not_supported");
+        }
+
+        return new SolidReviewDecision(
+            SemanticReviewClassifications.LikelyFalsePositive,
+            falsePositiveReason,
+            ["accepted_exception_supported", $"accepted_exception:{falsePositiveReason}"]);
+    }
+
+    private static SolidReviewDecision Uncertain(string reason) => new(
+        SemanticReviewClassifications.Uncertain,
+        null,
+        [reason]);
 }
+
+internal sealed record SolidReviewDecision(
+    string Classification,
+    string? FalsePositiveReason,
+    IReadOnlyList<string> Reasons);

@@ -23,9 +23,13 @@ Add a provider-neutral, in-process `solid-review` application operation after th
 
 The operation preserves raw results and prepares stable, bounded candidates. Each
 external request contains one sanitized declaration plus only principle-relevant
-structural evidence. The provider returns a typed three-way advisory choice with a
-probability distribution and provenance. Provider failures remain in-band beside the
-raw findings; partial and failed live execution is nonzero at the CLI boundary.
+structural evidence. The provider returns a typed three-way advisory choice, independent
+probabilities for meaningful design harm and an accepted exception, and a typed
+principle-specific exception reason. Application code composes those signals with
+conservative thresholds: weak or contradictory evidence abstains to `uncertain`, and a
+false-positive classification must expose the accepted exception that supports it.
+Provider failures remain in-band beside the raw findings; partial and failed live
+execution is nonzero at the CLI boundary.
 
 Comments and literal contents are removed before transmission, and source is explicitly
 identified as untrusted data. V1 has no cache. The output identity includes provider,
@@ -47,6 +51,8 @@ repository trust exists. Request payloads cannot grant trust.
   visible to the provider.
 - One request per candidate gives clear identity and failure scope at the cost of latency.
 - Model drift and calibration remain human-review concerns, so there is no CI enforcement.
+- Diagnostic signals make likely false positives explainable, but the initial thresholds
+  remain provisional until measured against a labelled live corpus.
 - Absence of caching avoids persisted source and stale judgments but repeats cost.
 - Provider adapters can be replaced without changing host surfaces or candidate policy.
 

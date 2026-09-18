@@ -74,10 +74,24 @@ The JSON schema is `rt.solid-review.v1` and contains four distinct sections:
 - `failures`: categorized per-candidate provider failures.
 
 The three classifications are `likely_violation`, `uncertain`, and
-`likely_false_positive`. They are triage labels, not calibrated proof. Compare the full
-probability distribution, confidence, raw evidence, and evidence completeness. Model
-aliases can resolve to a different concrete version, so output records requested and
-resolved models, question-set version, request ID, repository revision, and evidence
+`likely_false_positive`. They are triage labels, not calibrated proof. Question set
+`solid-review-v2` keeps the relative classification but separately asks whether the
+candidate shows meaningful design harm, whether an accepted exception explains it, and
+which principle-specific exception applies. The assessment exposes those raw signals,
+the provider's original classification, and the deterministic policy reasons behind the
+displayed classification.
+
+Code only promotes a provider label when its selected probability is at least `0.60`.
+A likely violation also requires a `meaningfulDesignProblem` probability of at least
+`0.60` and no substantial accepted-exception signal. A likely false positive requires
+an `acceptedException` probability of at least `0.60`, no conflicting material-harm
+signal, and a concrete exception reason selected at least `0.60`. Weak or contradictory
+answers become `uncertain`; confidence is retained for inspection but is not treated as
+correctness. These initial thresholds are conservative policy defaults, not measured
+accuracy claims.
+
+Model aliases can resolve to a different concrete version, so output records requested
+and resolved models, question-set version, request ID, repository revision, and evidence
 hash.
 
 Incomplete ISP consumer/member evidence can never be displayed as a likely violation
@@ -99,8 +113,9 @@ TypeSafe pricing before a large run. A nine-candidate dogfood spike recorded on 
 Model behavior and probability calibration can drift even when the alias stays the
 same. The versioned question set and resolved model make comparisons possible; rerun
 evaluation fixtures before treating a changed model as equivalent. Human review should
-inspect likely violations first, resolve uncertain evidence, and use likely false
-positives only to deprioritize—not erase—the raw candidates.
+inspect likely violations first, use `policyReasons` and
+`providerFalsePositiveReason` to understand disagreements, resolve uncertain evidence,
+and use likely false positives only to deprioritize—not erase—the raw candidates.
 
 See the [V1 evaluation](evaluations/solid-semantic-review-v1.md) and
 [ADR-0018](adr/0018-bounded-external-semantic-review.md).

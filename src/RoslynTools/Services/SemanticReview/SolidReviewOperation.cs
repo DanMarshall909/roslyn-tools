@@ -52,7 +52,7 @@ internal sealed partial class SolidReviewOperation
                     true,
                     request.Provider,
                     request.Model,
-                    SemanticReviewQuestionSets.SolidV1,
+                    SemanticReviewQuestionSets.SolidV2,
                     lease.SourceRevision,
                     eligible.Length,
                     raw,
@@ -92,7 +92,7 @@ internal sealed partial class SolidReviewOperation
                         lease.SourceRevision,
                         candidate.Plan.SourceEvidenceHash,
                         request.Model,
-                        SemanticReviewQuestionSets.SolidV1),
+                        SemanticReviewQuestionSets.SolidV2),
                     cancellationToken);
 
                 providerResult.Match(
@@ -111,7 +111,7 @@ internal sealed partial class SolidReviewOperation
                 false,
                 provider.Name,
                 request.Model,
-                SemanticReviewQuestionSets.SolidV1,
+                SemanticReviewQuestionSets.SolidV2,
                 lease.SourceRevision,
                 eligible.Length,
                 raw,
@@ -174,20 +174,34 @@ internal sealed partial class SolidReviewOperation
         string repositoryRevision,
         SemanticReviewProviderResponse response)
     {
-        var classification = SolidReviewPolicy.ApplyEvidenceGuard(
-            plan.Principle,
+        var classificationProbability = response.Probabilities.GetValueOrDefault(response.Classification);
+        var falsePositiveReasonProbability = response.FalsePositiveReasonProbabilities
+            .GetValueOrDefault(response.FalsePositiveReason);
+        var decision = SolidReviewPolicy.Evaluate(
             response.Classification,
-            plan.EvidenceComplete);
+            classificationProbability,
+            plan.EvidenceComplete,
+            response.MeaningfulDesignProblem,
+            response.AcceptedException,
+            response.FalsePositiveReason,
+            falsePositiveReasonProbability);
         return new SolidReviewAssessment(
             plan.CandidateId,
             plan.Principle,
             plan.Symbol,
             plan.FilePath,
             plan.Line,
-            classification,
-            SolidReviewPolicy.ToAdvisory(classification),
+            decision.Classification,
+            response.Classification,
+            SolidReviewPolicy.ToAdvisory(decision.Classification),
             response.Probabilities,
             response.Confidence,
+            response.MeaningfulDesignProblem,
+            response.AcceptedException,
+            response.FalsePositiveReason,
+            response.FalsePositiveReasonProbabilities,
+            response.FalsePositiveReasonConfidence,
+            decision.Reasons,
             plan.EvidenceComplete,
             response.Provider,
             response.RequestedModel,
@@ -219,7 +233,7 @@ internal sealed partial class SolidReviewOperation
         false,
         request.Provider,
         request.Model,
-        SemanticReviewQuestionSets.SolidV1,
+        SemanticReviewQuestionSets.SolidV2,
         repositoryRevision,
         estimatedRequests,
         raw,

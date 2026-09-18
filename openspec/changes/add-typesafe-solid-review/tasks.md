@@ -50,3 +50,11 @@
 - [x] 6.3 Verify CLI help/dry-run and generic MCP descriptor projection.
 - [ ] 6.4 Run format verification, Release build/tests, and the repository local gate.
 - [x] 6.5 Run a live provider smoke test only with explicit opt-in and an available key.
+
+## 7. False-positive diagnosis
+
+- [x] 7.1 Decompose the broad classification into independent material-harm and
+  accepted-exception signals with a typed exception reason.
+- [x] 7.2 Compose weak or contradictory provider answers into `uncertain` and preserve
+  the raw signals and policy reasons in output.
+- [x] 7.3 Extend provider, operation, serialization, documentation, and evaluation tests.

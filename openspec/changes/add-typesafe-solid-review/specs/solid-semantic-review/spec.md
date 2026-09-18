@@ -115,6 +115,29 @@ incomplete and SHALL NOT be promoted to `likely violation` solely from member co
 - **WHEN** distinct consumers use disjoint interface member subsets
 - **THEN** the exact usage evidence is included in the bounded state
 
+### Requirement: False-positive decisions are explainable and conservatively composed
+
+The provider request SHALL ask independent questions about meaningful design harm and
+accepted exceptions in addition to the relative classification. A likely false positive
+SHALL name a typed accepted-exception reason. Code SHALL compose these signals and SHALL
+route weak or contradictory evidence to `uncertain` rather than treating model confidence
+as correctness.
+
+#### Scenario: accepted exception conflicts with violation label
+- **WHEN** the provider selects likely violation but independently assigns substantial
+  probability to an accepted exception
+- **THEN** the displayed classification is `uncertain` and records the conflict reason
+
+#### Scenario: unexplained false-positive label
+- **WHEN** the provider selects likely false positive without supporting an accepted
+  exception and a concrete exception reason
+- **THEN** the displayed classification is `uncertain`
+
+#### Scenario: supported accepted exception
+- **WHEN** the false-positive label, accepted-exception signal, and concrete exception
+  reason agree above the conservative policy thresholds
+- **THEN** the assessment is likely false positive and exposes the reason and raw signals
+
 ### Requirement: Low-information DIP candidates are prefiltered safely
 
 The system SHALL exclude demonstrably low-information immutable value construction from

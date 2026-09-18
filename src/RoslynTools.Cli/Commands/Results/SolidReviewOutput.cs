@@ -48,6 +48,19 @@ internal sealed record SolidReviewOutput(SolidReviewResult Result) : IRtOutput, 
                 writer.WriteLine(
                     $"- [{assessment.Principle}] {assessment.Symbol}: {assessment.Advisory} "
                     + $"(confidence {assessment.Confidence:0.00}, request {assessment.RequestId})");
+                writer.WriteLine(
+                    $"  Provider: {assessment.ProviderClassification}; meaningful problem "
+                    + $"{assessment.MeaningfulDesignProblem:0.00}; accepted exception "
+                    + $"{assessment.AcceptedException:0.00}");
+                if (assessment.ProviderFalsePositiveReason
+                    != SemanticReviewFalsePositiveReasons.NoAcceptedException)
+                {
+                    writer.WriteLine(
+                        $"  Candidate exception: {assessment.ProviderFalsePositiveReason} "
+                        + $"(confidence {assessment.FalsePositiveReasonConfidence:0.00})");
+                }
+
+                writer.WriteLine($"  Policy: {string.Join(", ", assessment.PolicyReasons)}");
             }
         }
 

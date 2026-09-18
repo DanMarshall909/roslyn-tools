@@ -49,11 +49,18 @@ public sealed class TypeSafeSemanticReviewProviderTests
         response.RequestId.ShouldBe("request-123");
         response.Probabilities["uncertain"].ShouldBe(0.15);
         response.Confidence.ShouldBe(0.75);
+        response.MeaningfulDesignProblem.ShouldBe(0.9);
+        response.AcceptedException.ShouldBe(0.08);
+        response.FalsePositiveReason.ShouldBe("no_accepted_exception");
+        response.FalsePositiveReasonProbabilities["composition_root"].ShouldBe(0.05);
         handler.Requests.Count.ShouldBe(1);
         handler.Requests[0].Authorization.ShouldBe("Bearer test-api-key");
         handler.Requests[0].Body.ShouldContain("candidateSource", Case.Sensitive);
         handler.Requests[0].Body.ShouldContain("untrusted_csharp_data", Case.Sensitive);
-        handler.Requests[0].Body.ShouldContain("solid-review-v1", Case.Sensitive);
+        handler.Requests[0].Body.ShouldContain("solid-review-v2", Case.Sensitive);
+        handler.Requests[0].Body.ShouldContain("meaningful_design_problem", Case.Sensitive);
+        handler.Requests[0].Body.ShouldContain("accepted_exception", Case.Sensitive);
+        handler.Requests[0].Body.ShouldContain("false_positive_reason", Case.Sensitive);
         handler.Requests[0].Body.ShouldNotContain("test-api-key", Case.Sensitive);
         handler.Requests[0].Body.ShouldNotContain("unrelated declaration", Case.Sensitive);
     }
@@ -74,6 +81,26 @@ public sealed class TypeSafeSemanticReviewProviderTests
                     "likely_false_positive": 0.05
                   },
                   "confidence": 0.75
+                },
+                "meaningful_design_problem": {
+                  "type": "noul",
+                  "noul": 0.9
+                },
+                "accepted_exception": {
+                  "type": "noul",
+                  "noul": 0.08
+                },
+                "false_positive_reason": {
+                  "type": "choice",
+                  "choice": "no_accepted_exception",
+                  "probabilities": {
+                    "composition_root": 0.05,
+                    "immutable_value": 0.01,
+                    "framework_construction": 0.02,
+                    "exception_construction": 0.02,
+                    "no_accepted_exception": 0.9
+                  },
+                  "confidence": 0.84
                 }
               }
             }
@@ -184,7 +211,7 @@ public sealed class TypeSafeSemanticReviewProviderTests
         "revision-abc",
         "hash-abc",
         "jev-latest",
-        "solid-review-v1");
+        "solid-review-v2");
 
     private static HttpResponseMessage SuccessResponse() => JsonResponse("""
         {
@@ -200,6 +227,26 @@ public sealed class TypeSafeSemanticReviewProviderTests
                 "likely_false_positive": 0.05
               },
               "confidence": 0.75
+            },
+            "meaningful_design_problem": {
+              "type": "noul",
+              "noul": 0.9
+            },
+            "accepted_exception": {
+              "type": "noul",
+              "noul": 0.08
+            },
+            "false_positive_reason": {
+              "type": "choice",
+              "choice": "no_accepted_exception",
+              "probabilities": {
+                "composition_root": 0.05,
+                "immutable_value": 0.01,
+                "framework_construction": 0.02,
+                "exception_construction": 0.02,
+                "no_accepted_exception": 0.9
+              },
+              "confidence": 0.84
             }
           },
           "usage": { "input_tokens": 300, "output_tokens": 20 }
