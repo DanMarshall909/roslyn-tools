@@ -2,7 +2,7 @@
 
 - [x] 1.1 Record the user journey, transmission boundary, output contract, failure
   behavior, and non-goals in OpenSpec.
-- [ ] 1.2 Add at least 30 labelled executable fixtures across SRP, ISP, DIP, OCP, LSP,
+- [x] 1.2 Add at least 30 labelled executable fixtures across SRP, ISP, DIP, OCP, LSP,
   accepted exceptions, and borderline cases.
 - [ ] 1.3 Diagnose the empty `analyze-interface` payload and either fix it or link a
   focused follow-up while retaining incomplete ISP evidence.
