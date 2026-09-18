@@ -4,8 +4,8 @@
   behavior, and non-goals in OpenSpec.
 - [x] 1.2 Add at least 30 labelled executable fixtures across SRP, ISP, DIP, OCP, LSP,
   accepted exceptions, and borderline cases.
-- [ ] 1.3 Diagnose the empty `analyze-interface` payload and either fix it or link a
-  focused follow-up while retaining incomplete ISP evidence.
+- [x] 1.3 Diagnose the empty `analyze-interface` payload and either fix it or link a
+  focused follow-up while retaining incomplete ISP evidence (#136).
 
 ## 2. Provider-neutral review core
 

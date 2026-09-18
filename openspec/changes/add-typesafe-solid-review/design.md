@@ -97,7 +97,10 @@ a later cache can use the complete required key without changing assessment iden
 - One request per candidate is slower than batching but gives a clear source boundary,
   request identity, and failure scope.
 - Conservative ISP handling may leave many results uncertain until consumer evidence is
-  complete; it is safer than promoting interface size as proof.
+  complete; it is safer than promoting interface size as proof. The installed-runtime
+  empty-payload defect is tracked separately in GitHub issue #136. A command-level
+  current-source regression test proves the in-process JSON path emits consumer data;
+  until the installed boundary is fixed, unresolved usage remains incomplete.
 
 ## Migration
 
@@ -110,5 +113,3 @@ acceptable.
 
 - Whether a later version should add a user-scoped cache after real-world cost and drift
   measurements.
-- Whether the interface-analysis empty-payload defect should be repaired in the same
-  release; until it is fixed, ISP evidence remains explicitly incomplete.

@@ -193,6 +193,32 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
     }
 
     [Fact]
+    public async Task command_emits_non_empty_json_payload_for_successful_analysis()
+    {
+        using var project = BuildInterfaceProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            var (exitCode, stdOut, stdErr) = await InvokeAsync([
+                "analyze-interface",
+                "Demo.Contracts.IWorker",
+                "--solution",
+                "ignored",
+                "--include-tests",
+                "--json"
+            ]);
+
+            exitCode.ShouldBe(0, stdErr);
+            stdOut.ShouldNotBeNullOrWhiteSpace();
+            using var json = JsonDocument.Parse(stdOut);
+            json.RootElement.GetProperty("consumerCount").GetInt32().ShouldBeGreaterThan(0);
+            json.RootElement.GetProperty("consumers").GetArrayLength().ShouldBeGreaterThan(0);
+        }
+    }
+
+    [Fact]
     public async Task rejects_non_interface_symbols_with_clear_error_and_non_zero_exit()
     {
         using var project = BuildInterfaceProject();
