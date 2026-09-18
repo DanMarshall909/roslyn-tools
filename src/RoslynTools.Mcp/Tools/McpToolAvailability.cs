@@ -13,6 +13,10 @@ internal static class McpToolAvailability
         return descriptor.McpVisible
                && descriptor.Audience == CommandAudience.Public
                && (hostOptions.CanDiscoverRepositoryWrites
-                   || !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite));
+                   || !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite))
+               && (hostOptions.CanDiscoverExplicitTrustExternalWrites
+                   || !descriptor.Effects.HasFlag(CommandEffects.ExternalWrite)
+                   || descriptor.Definition?.Product.TrustRequirement
+                   != TrustRequirement.ExplicitTrustedRepository);
     }
 }

@@ -1,3 +1,8 @@
+using System.CommandLine;
+using System.Text.Json;
+
+using RoslynTools.Commands;
+using RoslynTools.Commands.Results;
 using RoslynTools.Services.SemanticReview;
 using RoslynTools.Core;
 using Shouldly;
@@ -263,6 +268,57 @@ public sealed class SolidSemanticReviewContractTests
         definition.Product.Effects.ShouldBe(
             CommandEffects.RepositoryRead | CommandEffects.ExternalWrite);
         definition.Product.TrustRequirement.ShouldBe(TrustRequirement.ExplicitTrustedRepository);
+    }
+
+    [Fact]
+    public void public_command_defaults_to_preview_and_exposes_explicit_transmission_switch()
+    {
+        var entry = App.Commands.Single(candidate => candidate.Info.Name == "solid-review");
+        var command = entry.Build();
+        var parseResult = command.Parse([]);
+        var principle = (Option<string>)command.Options.Single(option => option.Name == "principle");
+        var provider = (Option<string>)command.Options.Single(option => option.Name == "provider");
+        var model = (Option<string>)command.Options.Single(option => option.Name == "model");
+        var maxCandidates = (Option<int>)command.Options.Single(option => option.Name == "max-candidates");
+
+        typeof(IAnalyzeCommand).IsAssignableFrom(typeof(SolidReviewCommand)).ShouldBeTrue();
+        entry.Info.Category.ShouldBe("analyze");
+        parseResult.GetValueForOption(principle).ShouldBe("all");
+        parseResult.GetValueForOption(provider).ShouldBe("typesafe");
+        parseResult.GetValueForOption(model).ShouldBe("jev-latest");
+        parseResult.GetValueForOption(maxCandidates).ShouldBe(20);
+        command.Options.ShouldContain(option => option.Name == "dry-run");
+        command.Options.ShouldContain(option => option.Name == "transmit-source");
+    }
+
+    [Fact]
+    public void json_output_preserves_versioned_raw_and_semantic_sections_without_source()
+    {
+        var result = new SolidReviewResult(
+            "rt.solid-review.v1",
+            "Planned",
+            true,
+            "typesafe",
+            "jev-latest",
+            "solid-review-v1",
+            "revision-six",
+            0,
+            new RoslynTools.Services.SolidResult(),
+            [],
+            [],
+            []);
+        var writer = new StringWriter();
+
+        new SolidReviewOutput(result).RenderJson(writer);
+
+        using var document = JsonDocument.Parse(writer.ToString());
+        var root = document.RootElement;
+        root.GetProperty("schemaVersion").GetString().ShouldBe("rt.solid-review.v1");
+        root.GetProperty("raw").ValueKind.ShouldBe(JsonValueKind.Object);
+        root.GetProperty("plan").ValueKind.ShouldBe(JsonValueKind.Array);
+        root.GetProperty("assessments").ValueKind.ShouldBe(JsonValueKind.Array);
+        root.GetProperty("failures").ValueKind.ShouldBe(JsonValueKind.Array);
+        writer.ToString().ShouldNotContain("sanitizedSource", Case.Insensitive);
     }
 
     public static IEnumerable<object[]> FixtureCases() =>

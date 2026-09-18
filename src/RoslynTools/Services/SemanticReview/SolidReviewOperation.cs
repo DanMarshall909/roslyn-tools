@@ -9,7 +9,7 @@ internal sealed partial class SolidReviewOperation
     private readonly IReadOnlyWorkspaceSessions _sessions;
     private readonly IReadOnlyList<ISemanticReviewProvider> _providers;
 
-    internal SolidReviewOperation(
+    public SolidReviewOperation(
         IReadOnlyWorkspaceSessions sessions,
         IEnumerable<ISemanticReviewProvider> providers)
     {

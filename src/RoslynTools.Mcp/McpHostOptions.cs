@@ -43,6 +43,8 @@ internal sealed class McpHostOptions
         TrustedRepositoryRoot is not null
         || TrustRegistry?.HasAnyTrustedRepository() == true;
 
+    internal bool CanDiscoverExplicitTrustExternalWrites => CanDiscoverRepositoryWrites;
+
     internal IDisposable? EnterTrustScope() => TrustedRepositoryRoot is not null
         ? RepositoryTrustContext.UseExplicitTrust(TrustedRepositoryRoot)
         : TrustRegistry is not null
