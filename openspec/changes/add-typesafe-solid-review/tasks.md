@@ -18,10 +18,10 @@
 
 ## 3. TypeSafe adapter
 
-- [ ] 3.1 Implement System One HTTP serialization and strict Choice response parsing.
-- [ ] 3.2 Read `TYPESAFE_API_KEY` only at the transmission boundary and redact all
+- [x] 3.1 Implement System One HTTP serialization and strict Choice response parsing.
+- [x] 3.2 Read `TYPESAFE_API_KEY` only at the transmission boundary and redact all
   credential-bearing material from errors.
-- [ ] 3.3 Categorize authentication, rate-limit, overload, network, validation, and
+- [x] 3.3 Categorize authentication, rate-limit, overload, network, validation, and
   malformed-response failures.
 
 ## 4. Host surfaces and output
