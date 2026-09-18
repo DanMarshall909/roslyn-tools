@@ -23,6 +23,7 @@ but only the destination contract is eligible for preview support.
 | `probe-di` | Trusted `recipe inspect-di` CLI | Experimental | Executes repository code; absent from normal MCP. |
 | `semantic-diff` | `semantic-diff` | Stable candidate | Keep with explicit parse-only limitations. |
 | `solid` | Concrete `check` rules | Preview | Remove SOLID violation branding. |
+| `solid-review` | Optional external semantic triage | Experimental | Preserve raw findings; require explicit trust and source-transmission consent. |
 | `static-class-inventory` | `inventory static-types` | Experimental -> Preview | Input to a future staticness recipe. |
 
 ## CI commands
