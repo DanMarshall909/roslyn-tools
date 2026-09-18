@@ -59,6 +59,42 @@ public sealed class TypeSafeSemanticReviewProviderTests
     }
 
     [Fact]
+    public async Task success_reads_request_id_from_current_api_response_header()
+    {
+        var response = JsonResponse("""
+            {
+              "model": "jev-1.13.0",
+              "answers": {
+                "review_classification": {
+                  "type": "choice",
+                  "choice": "likely_violation",
+                  "probabilities": {
+                    "likely_violation": 0.8,
+                    "uncertain": 0.15,
+                    "likely_false_positive": 0.05
+                  },
+                  "confidence": 0.75
+                }
+              }
+            }
+            """);
+        response.Headers.Add("x-typesafe-request-id", "header-request-123");
+        var handler = new RecordingHandler(_ => response);
+        using var client = new HttpClient(handler);
+        using var provider = new TypeSafeSemanticReviewProvider(
+            client,
+            () => "test-api-key",
+            (_, _) => Task.CompletedTask);
+
+        var result = await provider.ReviewAsync(CreateRequest());
+        var parsed = result.Match(
+            value => value,
+            failure => throw new InvalidOperationException(failure.Message));
+
+        parsed.RequestId.ShouldBe("header-request-123");
+    }
+
+    [Fact]
     public async Task unauthorized_response_maps_to_redacted_authentication_failure()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));

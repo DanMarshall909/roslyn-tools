@@ -242,7 +242,7 @@ internal static class SolidReviewCommandDefinition
         true,
         "analyze",
         WhenToUse:
-        "Use after rt analyze solid when deterministic SOLID candidates need bounded advisory semantic ranking. Preview is the default; source leaves the machine only with --transmit-source and repository trust.",
+        "Use this instead of Read when deterministic SOLID candidates need bounded advisory semantic ranking after rt analyze solid. Preview is the default; source leaves the machine only with --transmit-source and repository trust.",
         Examples:
         [
             "rt analyze solid-review --principle all --solution RoslynTools.slnx --trust-repository --json",

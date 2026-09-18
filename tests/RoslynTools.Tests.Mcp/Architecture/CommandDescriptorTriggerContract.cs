@@ -118,6 +118,7 @@ public sealed class CommandDescriptorTriggerContract
         ["delete_unreferenced"] = "Edit",
         ["semantic_diff"] = "git diff",
         ["solid"] = "Read",
+        ["solid_review"] = "Read",
         ["static_class_inventory"] = "Read",
         ["transform_parameters"] = "Edit"
     };

@@ -42,7 +42,7 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public void Untrusted_tool_schema_builder_produces_every_read_only_visible_descriptor()
+    public void Untrusted_tool_schema_builder_produces_every_available_read_only_descriptor()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
@@ -51,7 +51,10 @@ public sealed class McpDependencyInjectionTests
         var visibleDescriptorCount = provider
             .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
             .All.Count(descriptor => descriptor.McpVisible
-                                     && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite));
+                                     && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
+                                     && !(descriptor.Effects.HasFlag(CommandEffects.ExternalWrite)
+                                          && descriptor.Definition?.Product.TrustRequirement
+                                          == TrustRequirement.ExplicitTrustedRepository));
         tools.Count.ShouldBe(visibleDescriptorCount);
         Assert.All(tools, t =>
         {

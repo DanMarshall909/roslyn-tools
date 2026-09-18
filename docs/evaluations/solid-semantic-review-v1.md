@@ -54,6 +54,11 @@ unmeasured and must not be inferred from the contract row. If approved later, re
 the resolved model, confusion matrix, uncertain/deprioritized counts, total cost, and
 date here without turning the result into a CI threshold.
 
+A separate one-request synthetic smoke passed against Jev 1.13.0 on 2026-09-18. It
+verified authentication, Choice parsing, probabilities, confidence, resolved-model
+provenance, and the current `x-typesafe-request-id` response header. It sent only a
+hard-coded synthetic DIP example and is integration evidence, not an accuracy metric.
+
 ## Decision
 
 The V1 tool is worthwhile as optional triage because it preserves full raw evidence,

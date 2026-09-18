@@ -49,4 +49,4 @@
 - [x] 6.2 Run focused unit/integration and JSON-contract tests with the fake provider.
 - [x] 6.3 Verify CLI help/dry-run and generic MCP descriptor projection.
 - [ ] 6.4 Run format verification, Release build/tests, and the repository local gate.
-- [ ] 6.5 Run a live provider smoke test only with explicit opt-in and an available key.
+- [x] 6.5 Run a live provider smoke test only with explicit opt-in and an available key.

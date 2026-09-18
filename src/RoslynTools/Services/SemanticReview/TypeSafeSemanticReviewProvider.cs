@@ -208,9 +208,16 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
             return Malformed("TypeSafe returned malformed JSON.");
         }
 
+        var requestId = parsed?.RequestId;
+        if (string.IsNullOrWhiteSpace(requestId)
+            && response.Headers.TryGetValues("x-typesafe-request-id", out var requestIds))
+        {
+            requestId = requestIds.FirstOrDefault();
+        }
+
         if (parsed is null
             || string.IsNullOrWhiteSpace(parsed.Model)
-            || string.IsNullOrWhiteSpace(parsed.RequestId)
+            || string.IsNullOrWhiteSpace(requestId)
             || parsed.Answers is null
             || !parsed.Answers.TryGetValue("review_classification", out var answer)
             || !TryParseChoice(answer, out var classification, out var probabilities, out var confidence))
@@ -227,7 +234,7 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
                 request.RequestedModel,
                 parsed.Model,
                 request.QuestionSetVersion,
-                parsed.RequestId));
+                requestId));
     }
 
     private static bool TryParseChoice(
