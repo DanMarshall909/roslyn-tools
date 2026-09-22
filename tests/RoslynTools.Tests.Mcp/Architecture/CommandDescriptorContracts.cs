@@ -8,6 +8,7 @@ using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticReview;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
@@ -434,6 +435,31 @@ public sealed class CommandDescriptorContracts
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("Unknown tool");
+    }
+
+    [Fact]
+    public void solid_review_descriptor_projects_typed_opt_in_source_transmission_contract()
+    {
+        using var untrustedProvider = McpTestHost.CreateProvider();
+        using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
+        var descriptor = trustedProvider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == SolidReviewCommandDefinition.Definition.Name);
+        var definition = descriptor.Definition
+            ?? throw new InvalidOperationException("solid_review must project a typed definition.");
+        var tool = ToolSchemaBuilder.Build(descriptor);
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+
+        descriptor.Port.ShouldBeOfType<SolidReviewOperation>();
+        definition.ShouldBeSameAs(SolidReviewCommandDefinition.Definition);
+        descriptor.McpVisible.ShouldBeTrue();
+        definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
+        descriptor.Effects.ShouldBe(CommandEffects.RepositoryRead | CommandEffects.ExternalWrite);
+        properties.Keys.ShouldContain("dryRun");
+        properties.Keys.ShouldContain("transmitSource");
+        untrustedProvider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .ShouldNotContain(candidate => candidate.name == descriptor.ToolName);
+        trustedProvider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .ShouldContain(candidate => candidate.name == descriptor.ToolName);
     }
 
     private static string JsonPropertyName(System.Reflection.PropertyInfo property) =>

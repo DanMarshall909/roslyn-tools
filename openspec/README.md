@@ -7,6 +7,7 @@ implemented, tested, and linked to a released verification result.
 
 Current changes:
 
+- [add-typesafe-solid-review](changes/add-typesafe-solid-review/proposal.md) *(accepted)* — adds bounded, opt-in, advisory TypeSafe ranking for deterministic SOLID candidates while preserving the existing analyzer contract.
 - [critical-platform-hardening](changes/critical-platform-hardening/proposal.md) *(proposed)* — establishes the mutation safety kernel, canonical operation spine, workspace provenance, agent/MCP contract, and the temporary transparent-daemon boundary.
 - [shape-pre-release-product-spine](changes/shape-pre-release-product-spine/proposal.md) *(proposed)* — narrows the `0.1-preview` product surface, consolidates rules and recipes, and adds the discovery, impact, diagnostics, planning, and verification workflow that consumes the hardening guarantees.
 

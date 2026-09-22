@@ -52,39 +52,52 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
     /// </summary>
     public FindUnusedProfile? Profile { get; init; }
 
+    [OutputField(OutputLevel.Llm, "profile")]
+    public string? ProfileSummary => Profile is null
+        ? null
+        : $"{Profile.TotalMs}ms total, {Profile.CandidateDiscoveryMs}ms discovery, "
+          + $"{Profile.ReflectionScanMs}ms reflection scan, {Profile.ReferenceSearchMs}ms reference search; "
+          + $"{Profile.Documents} documents ({Profile.DocumentsSkipped} skipped), "
+          + $"{Profile.TypeCandidates} type and {Profile.MethodCandidates} method declarations, "
+          + $"{Profile.UniqueCandidates} candidates, {Profile.ReferenceQueries} reference searches "
+          + $"({Profile.ExtensionMethodQueries} for extension methods) over "
+          + $"{Profile.SearchedDocuments} documents";
+
     public void RenderJson(TextWriter writer)
     {
-        var doc = new
+        var symbols = Symbols.Select(s => new
         {
-            symbols = Symbols.Select(s => new
-            {
-                kind = s.Kind,
-                name = s.Name,
-                filePath = s.FilePath,
-                line = s.Line,
-                confidence = s.Confidence,
-                reason = s.Reason,
-                suggestedFixes = s.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
-            }).ToArray(),
-            profile = Profile is null
-                ? null
-                : new
-                {
-                    totalMs = Profile.TotalMs,
-                    candidateDiscoveryMs = Profile.CandidateDiscoveryMs,
-                    reflectionScanMs = Profile.ReflectionScanMs,
-                    referenceSearchMs = Profile.ReferenceSearchMs,
-                    documents = Profile.Documents,
-                    documentsSkipped = Profile.DocumentsSkipped,
-                    typeCandidates = Profile.TypeCandidates,
-                    methodCandidates = Profile.MethodCandidates,
-                    uniqueCandidates = Profile.UniqueCandidates,
-                    referenceQueries = Profile.ReferenceQueries,
-                    extensionMethodQueries = Profile.ExtensionMethodQueries,
-                    searchedDocuments = Profile.SearchedDocuments
-                }
+            kind = s.Kind,
+            name = s.Name,
+            filePath = s.FilePath,
+            line = s.Line,
+            confidence = s.Confidence,
+            reason = s.Reason,
+            suggestedFixes = s.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
+        }).ToArray();
+
+        if (Profile is null)
+        {
+            writer.Write(JsonSerializer.Serialize(new { symbols }, SymbolFormatter.DefaultJsonOptions));
+            return;
+        }
+
+        var profile = new
+        {
+            totalMs = Profile.TotalMs,
+            candidateDiscoveryMs = Profile.CandidateDiscoveryMs,
+            reflectionScanMs = Profile.ReflectionScanMs,
+            referenceSearchMs = Profile.ReferenceSearchMs,
+            documents = Profile.Documents,
+            documentsSkipped = Profile.DocumentsSkipped,
+            typeCandidates = Profile.TypeCandidates,
+            methodCandidates = Profile.MethodCandidates,
+            uniqueCandidates = Profile.UniqueCandidates,
+            referenceQueries = Profile.ReferenceQueries,
+            extensionMethodQueries = Profile.ExtensionMethodQueries,
+            searchedDocuments = Profile.SearchedDocuments
         };
-        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+        writer.Write(JsonSerializer.Serialize(new { symbols, profile }, SymbolFormatter.DefaultJsonOptions));
     }
 
     public void RenderText(TextWriter writer)

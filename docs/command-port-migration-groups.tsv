@@ -14,6 +14,7 @@ list-smells	analyze	R3	complete	daemon-preferred	read-only
 probe-di	analyze	R2	complete	in-process	read-only
 semantic-diff	analyze	R0	complete	in-process	read-only
 solid	analyze	R3	complete	daemon-preferred	read-only
+solid-review	analyze	R3	complete	in-process	read-only
 static-class-inventory	analyze	R1	complete	daemon-preferred	read-only
 describe	inspect	R0	complete	daemon-preferred	read-only
 doctor	inspect	R0	complete	daemon-preferred	read-only

@@ -26,6 +26,9 @@ internal static class MarkdownRenderer
         {
             var value = prop.GetValue(result);
 
+            if (value is null)
+                continue;
+
             if (value is IEnumerable enumerable && value is not string)
             {
                 WriteTable(enumerable, attr.Description, writer);

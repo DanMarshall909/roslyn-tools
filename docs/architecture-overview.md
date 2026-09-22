@@ -71,6 +71,22 @@ to exit 0/1, while execution errors remain nonzero and MCP retains typed errors
 separately from the result's `passed` value. See [ADR-0016](adr/0016-ci-rule-enforcement.md)
 and [CI usage](ci.md).
 
+### Bounded external semantic review
+
+`rt analyze solid-review` is an optional provider-neutral ranking stage over deterministic
+`solid` candidates. It executes in-process through one typed application port shared by
+CLI and MCP. Preview is the default; repository trust and a separate
+`--transmit-source` option are both required before bounded sanitized source can leave
+the machine. Each request contains one declaration and principle-relevant evidence,
+while the versioned result preserves the complete raw analysis beside advisory
+classifications, independent material-harm and accepted-exception probabilities, typed
+false-positive reasons, deterministic policy reasons, evidence completeness,
+provider/model/question provenance, and categorized failures. Weak or contradictory
+signals abstain to `uncertain`. V1 deliberately has no cache or CI enforcement.
+See [ADR-0018](adr/0018-bounded-external-semantic-review.md), the
+[usage guide](solid-semantic-review.md), and the
+[V1 evaluation](evaluations/solid-semantic-review-v1.md).
+
 ### 1. Host-neutral application definition and port
 
 Every ordinary stable command has one host-neutral application definition and exactly one typed `ICommandApplicationPort`. The definition carries:

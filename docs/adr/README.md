@@ -82,4 +82,5 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0015](0015-operation-lifecycle-authorization.md) | Operation-lifecycle authorization | Accepted | 2026-08-31 |
 | [0016](0016-ci-rule-enforcement.md) | CI rule enforcement | Accepted | 2026-09-09 |
 | [0017](0017-bounded-read-only-workspace-reuse.md) | Bounded read-only workspace reuse | Accepted | 2026-09-16 |
+| [0018](0018-bounded-external-semantic-review.md) | Bounded external semantic review | Accepted | 2026-09-18 |
 | [0019](0019-parse-integrity-gates-absence-claims.md) | Parse integrity gates absence claims | Accepted | 2026-09-04 |

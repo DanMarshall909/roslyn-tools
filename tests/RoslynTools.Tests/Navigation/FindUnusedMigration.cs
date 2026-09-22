@@ -120,6 +120,51 @@ public class FindUnusedMigration : IDisposable
             "Expected 'symbols' property in JSON output");
     }
 
+    [Fact]
+    public void ordinary_json_output_omits_profile_when_profiling_was_not_requested()
+    {
+        RtContext.Format = OutputFormat.Json;
+        var writer = new StringWriter();
+        RtSerializer.Write(BuildSampleResult(), writer);
+
+        using var document = JsonDocument.Parse(writer.ToString());
+        document.RootElement.TryGetProperty("profile", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void requested_profile_json_contains_reference_search_count()
+    {
+        RtContext.Format = OutputFormat.Json;
+        var result = BuildSampleResult() with
+        {
+            Profile = new FindUnusedProfile(17, 2, 3, 4, 0, 1, 1, 2, 5, 0, 12)
+        };
+        var writer = new StringWriter();
+        RtSerializer.Write(result, writer);
+
+        using var document = JsonDocument.Parse(writer.ToString());
+        document.RootElement.GetProperty("profile").GetProperty("referenceQueries")
+            .GetInt32().ShouldBe(5);
+    }
+
+    [Theory]
+    [InlineData("Markdown")]
+    [InlineData("Llm")]
+    public void requested_profile_is_visible_in_supported_readable_formats(string format)
+    {
+        RtContext.Format = Enum.Parse<OutputFormat>(format);
+        var result = BuildSampleResult() with
+        {
+            Profile = new FindUnusedProfile(17, 2, 3, 4, 0, 1, 1, 2, 5, 0, 12)
+        };
+        var writer = new StringWriter();
+
+        RtSerializer.Write(result, writer);
+
+        writer.ToString().ShouldContain("profile", Case.Insensitive);
+        writer.ToString().ShouldContain("5 reference searches", Case.Sensitive);
+    }
+
     // ── AC-4: --markdown produces well-formed markdown ───────────────────────
 
     [Fact]

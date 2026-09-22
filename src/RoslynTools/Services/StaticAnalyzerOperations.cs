@@ -237,7 +237,7 @@ internal sealed class SolidOperation(IWorkspaceSessionFactory sessions)
         }
     }
 
-    private static async Task<IList<SrpViolationItem>> AnalyzeSrpAsync(
+    internal static async Task<IList<SrpViolationItem>> AnalyzeSrpAsync(
         Microsoft.CodeAnalysis.Solution solution,
         int minMethods,
         int minDependencies)
@@ -254,7 +254,7 @@ internal sealed class SolidOperation(IWorkspaceSessionFactory sessions)
         }).ToList();
     }
 
-    private static async Task<IspBlock> AnalyzeIspAsync(
+    internal static async Task<IspBlock> AnalyzeIspAsync(
         Microsoft.CodeAnalysis.Solution solution,
         int minMembers)
     {
@@ -280,7 +280,7 @@ internal sealed class SolidOperation(IWorkspaceSessionFactory sessions)
         };
     }
 
-    private static async Task<DipBlock> AnalyzeDipAsync(Microsoft.CodeAnalysis.Solution solution)
+    internal static async Task<DipBlock> AnalyzeDipAsync(Microsoft.CodeAnalysis.Solution solution)
     {
         var report = await SolidAnalyzer.AnalyzeDipAsync(solution);
         return new DipBlock
@@ -305,7 +305,7 @@ internal sealed class SolidOperation(IWorkspaceSessionFactory sessions)
         };
     }
 
-    private static async Task<IList<OcpViolationItem>> AnalyzeOcpAsync(
+    internal static async Task<IList<OcpViolationItem>> AnalyzeOcpAsync(
         Microsoft.CodeAnalysis.Solution solution,
         int minBranches)
     {
@@ -321,7 +321,7 @@ internal sealed class SolidOperation(IWorkspaceSessionFactory sessions)
         }).ToList();
     }
 
-    private static async Task<LspBlock> AnalyzeLspAsync(Microsoft.CodeAnalysis.Solution solution)
+    internal static async Task<LspBlock> AnalyzeLspAsync(Microsoft.CodeAnalysis.Solution solution)
     {
         var report = await SolidAnalyzer.AnalyzeLspAsync(solution);
         return new LspBlock
