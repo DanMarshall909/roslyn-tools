@@ -17,6 +17,7 @@ solid	analyze	R3	complete	daemon-preferred	read-only
 solid-review	analyze	R3	complete	in-process	read-only
 static-class-inventory	analyze	R1	complete	daemon-preferred	read-only
 describe	inspect	R0	complete	daemon-preferred	read-only
+config	inspect	R5	complete	in-process	read-only
 doctor	inspect	R0	complete	daemon-preferred	read-only
 find-callers	inspect	R0	complete	daemon-preferred	read-only
 find-impl	inspect	R0	complete	daemon-preferred	read-only

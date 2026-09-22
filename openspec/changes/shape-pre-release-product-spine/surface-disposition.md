@@ -36,6 +36,7 @@ but only the destination contract is eligible for preview support.
 
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
+| `config` | Local host configuration inspection | Preview | Keep as the MSBuild-free repair and effective-settings inspection path; never expose through daemon or MCP discovery. |
 | `describe` | `describe` | Stable candidate | Keep compact signature contract. |
 | `doctor` | `doctor` | Stable candidate | Keep as the workspace and installation preflight. |
 | `find-callers` | `relationships callers` | Removed from public surface | Retain a temporary internal wrapper while the canonical relationship contract settles. |

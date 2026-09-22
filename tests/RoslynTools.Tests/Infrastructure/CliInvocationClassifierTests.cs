@@ -6,6 +6,9 @@ namespace RoslynTools.Tests.Infrastructure;
 public sealed class CliInvocationClassifierTests
 {
     [Theory]
+    [InlineData("config")]
+    [InlineData("--json", "config")]
+    [InlineData("inspect", "config")]
     [InlineData("doctor")]
     [InlineData("inspect", "doctor")]
     [InlineData("trust", "list")]
@@ -66,6 +69,9 @@ public sealed class CliInvocationClassifierTests
     }
 
     [Theory]
+    [InlineData("config")]
+    [InlineData("--json", "config")]
+    [InlineData("inspect", "config")]
     [InlineData("doctor")]
     [InlineData("trust", "list")]
     [InlineData("refactor", "trust", "list")]
@@ -83,5 +89,20 @@ public sealed class CliInvocationClassifierTests
     public void ordinary_and_unrecognized_invocations_can_use_the_daemon(params string[] arguments)
     {
         CliInvocationClassifier.MustRunInProcess(arguments).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(true, "config")]
+    [InlineData(true, "--json", "config")]
+    [InlineData(true, "inspect", "config")]
+    [InlineData(true, "--decisions", "choices.yml", "inspect", "config")]
+    [InlineData(false, "prime", "config")]
+    [InlineData(false, "--solution", "config")]
+    [InlineData(false, "--unknown", "config")]
+    public void configuration_repair_exemption_uses_the_real_global_option_grammar(
+        bool expected,
+        params string[] arguments)
+    {
+        CliInvocationClassifier.IsConfigurationInspection(arguments).ShouldBe(expected);
     }
 }

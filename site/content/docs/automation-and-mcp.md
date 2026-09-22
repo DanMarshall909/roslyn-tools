@@ -63,6 +63,38 @@ registered-worktree inventory. MCP tool arguments cannot grant or broaden trust,
 trust-management operations are not MCP tools. `--trust-repository <absolute-root>`
 remains available as a startup-scoped compatibility option.
 
+## Configure host behavior and tool policy
+
+The CLI and MCP host read optional strict JSON configuration from
+`~/.rt/config.json` and from `.rt/config.json` at the current Git worktree root.
+Repository daemon values override global values. Existing daemon environment variables
+override both files.
+
+```json
+{
+  "schemaVersion": 1,
+  "daemon": {
+    "enabled": true,
+    "autoStart": false,
+    "idleTimeoutSeconds": 600
+  },
+  "mcp": {
+    "enabledTools": ["outline", "source", "relationships"],
+    "disabledTools": ["source"]
+  }
+}
+```
+
+MCP allowlists intersect across selected files, denylists accumulate, and denial wins.
+Omitting `enabledTools` leaves that layer unrestricted; an empty array exposes no MCP
+tools. Names are exact and validated against the public MCP catalogue during startup.
+The same policy controls discovery and invocation. It does not hide CLI commands or
+grant repository trust.
+
+Run `rt config --json` to inspect the selected files, effective values, and value
+sources. The command remains available when a file is invalid and does not start
+MSBuild or route through the daemon.
+
 ## Give agents semantic tools
 
 Once connected, an agent can discover focused operations such as:

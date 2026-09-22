@@ -35,6 +35,28 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
     }
 
     [Fact]
+    public async Task Disabled_auto_start_uses_a_reachable_daemon_but_does_not_spawn_one()
+    {
+        var rpc = new StubRpcClient(
+            new DaemonRpcAttempt(
+                DaemonRpcAttemptState.UnavailableBeforeDispatch,
+                null,
+                DispatchStarted: false));
+        var launcher = new StubLauncher(started: true);
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, launcher, autoStart: false);
+
+        var result = await recovery.ExecuteAsync(
+            OutlineCommandDefinition.Definition,
+            Arguments,
+            CancellationToken.None);
+
+        result.Response.ShouldBeNull();
+        result.ShouldFallback.ShouldBeTrue();
+        rpc.CallCount.ShouldBe(1);
+        launcher.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Mutation_is_redirected_in_process_before_rpc_dispatch()
     {
         var attempt = new DaemonRpcAttempt(

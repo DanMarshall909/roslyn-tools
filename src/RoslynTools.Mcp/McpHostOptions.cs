@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Configuration;
 
 namespace RoslynTools.Mcp;
 
@@ -11,7 +12,8 @@ internal sealed class McpHostOptions
     internal McpHostOptions(
         string? trustedRepositoryRoot = null,
         bool showHelp = false,
-        RepositoryTrustRegistry? trustRegistry = null)
+        RepositoryTrustRegistry? trustRegistry = null,
+        HostConfigurationResolution? configuration = null)
     {
         if (trustedRepositoryRoot is not null)
         {
@@ -31,6 +33,7 @@ internal sealed class McpHostOptions
 
         ShowHelp = showHelp;
         TrustRegistry = trustRegistry;
+        Configuration = configuration ?? HostConfigurationResolution.Default;
     }
 
     internal string? TrustedRepositoryRoot { get; }
@@ -38,6 +41,8 @@ internal sealed class McpHostOptions
     internal bool ShowHelp { get; }
 
     internal RepositoryTrustRegistry? TrustRegistry { get; }
+
+    internal HostConfigurationResolution Configuration { get; }
 
     internal bool CanDiscoverRepositoryWrites =>
         TrustedRepositoryRoot is not null
@@ -57,19 +62,28 @@ internal sealed class McpHostOptions
         IReadOnlyList<string> arguments,
         out McpHostOptions options,
         out string? error)
+        => TryParse(arguments, HostConfigurationResolution.Default, out options, out error);
+
+    internal static bool TryParse(
+        IReadOnlyList<string> arguments,
+        HostConfigurationResolution configuration,
+        out McpHostOptions options,
+        out string? error)
     {
-        options = new McpHostOptions();
+        options = new McpHostOptions(configuration: configuration);
         error = null;
 
         if (arguments.Count == 0)
         {
-            options = new McpHostOptions(trustRegistry: new RepositoryTrustRegistry());
+            options = new McpHostOptions(
+                trustRegistry: new RepositoryTrustRegistry(),
+                configuration: configuration);
             return true;
         }
 
         if (arguments.Count == 1 && arguments[0] is "--help" or "-h")
         {
-            options = new McpHostOptions(showHelp: true);
+            options = new McpHostOptions(showHelp: true, configuration: configuration);
             return true;
         }
 
@@ -87,7 +101,7 @@ internal sealed class McpHostOptions
 
         try
         {
-            options = new McpHostOptions(arguments[1]);
+            options = new McpHostOptions(arguments[1], configuration: configuration);
             return true;
         }
         catch (ArgumentException ex)

@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Services;
 
@@ -157,12 +158,36 @@ internal sealed record DaemonRpcRecoveryResult(
     DaemonRpcAttempt LastAttempt);
 
 /// <summary>Applies the single safe start, retry, and in-process fallback policy.</summary>
-internal sealed class DaemonRpcRecoveryCoordinator(
-    IDaemonRpcClient daemonRpc,
-    IDaemonLauncher daemonLauncher)
+internal sealed class DaemonRpcRecoveryCoordinator
 {
-    private readonly IDaemonRpcClient _daemonRpc = daemonRpc;
-    private readonly IDaemonLauncher _daemonLauncher = daemonLauncher;
+    private readonly IDaemonRpcClient _daemonRpc;
+    private readonly IDaemonLauncher _daemonLauncher;
+    private readonly bool _autoStart;
+
+    internal DaemonRpcRecoveryCoordinator(
+        IDaemonRpcClient daemonRpc,
+        IDaemonLauncher daemonLauncher)
+        : this(daemonRpc, daemonLauncher, autoStart: true)
+    {
+    }
+
+    public DaemonRpcRecoveryCoordinator(
+        IDaemonRpcClient daemonRpc,
+        IDaemonLauncher daemonLauncher,
+        HostConfigurationResolution configuration)
+        : this(daemonRpc, daemonLauncher, configuration.Effective.Daemon.AutoStart)
+    {
+    }
+
+    internal DaemonRpcRecoveryCoordinator(
+        IDaemonRpcClient daemonRpc,
+        IDaemonLauncher daemonLauncher,
+        bool autoStart)
+    {
+        _daemonRpc = daemonRpc;
+        _daemonLauncher = daemonLauncher;
+        _autoStart = autoStart;
+    }
 
     internal async Task<DaemonRpcRecoveryResult> ExecuteAsync(
         ApplicationCommandDefinition definition,
@@ -201,6 +226,9 @@ internal sealed class DaemonRpcRecoveryCoordinator(
 
         if (attempt.State == DaemonRpcAttemptState.IndeterminateAfterDispatch)
             return new DaemonRpcRecoveryResult(null, false, attempt);
+
+        if (!_autoStart)
+            return new DaemonRpcRecoveryResult(null, true, attempt);
 
         if (!await _daemonLauncher.EnsureStartedAsync(cancellationToken))
             return new DaemonRpcRecoveryResult(null, true, attempt);

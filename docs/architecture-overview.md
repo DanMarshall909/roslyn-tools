@@ -131,6 +131,24 @@ Every operation receives explicit, absolute request context:
 
 Operations do not infer repository identity from process current directory and do not use global console, `Environment.ExitCode`, or arbitrary process environment as mutable request state. This is required for concurrent repositories, host parity, reproducibility, and future isolation.
 
+### Host configuration boundary
+
+CLI and MCP startup share a typed host configuration resolver. It reads optional
+schema-version-1 JSON from `~/.rt/config.json` and from `.rt/config.json` at the resolved
+Git worktree root. It does not search arbitrary parent `.rt` directories. Both files are
+strict: malformed JSON, unknown members, unsupported versions, invalid values, and
+invalid exact MCP tool names fail normal host startup with the responsible path.
+`rt config` is a local host inspection command that reports selected paths, effective
+values, and their sources without MSBuild registration or daemon routing.
+
+Daemon scalars resolve in this order: built-in defaults, global file, worktree file,
+environment, then an applicable explicit host argument. MCP policy composes instead of
+replacing: configured allowlists intersect, denylists accumulate, omission is
+unrestricted at that layer, an empty allowlist permits no tools, and denial wins. The
+same MCP availability predicate governs discovery and dispatch. Configuration never
+grants repository trust and never hides ordinary CLI commands. See
+[ADR-0020](adr/0020-layered-host-configuration.md).
+
 ### 3. Repository trust and workspace completeness
 
 For the current implemented acquisition boundary and its deliberate preview restrictions,

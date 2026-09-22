@@ -34,7 +34,7 @@ internal sealed class CommandDescriptorRegistry
             port => port.Definition.Name,
             StringComparer.Ordinal);
         var descriptors = App.AllCommands
-            .Where(entry => !App.ControlPlaneCommandNames.Contains(entry.Info.Name))
+            .Where(entry => !App.LocalOnlyCommandNames.Contains(entry.Info.Name))
             .Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);

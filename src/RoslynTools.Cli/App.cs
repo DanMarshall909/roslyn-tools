@@ -174,6 +174,12 @@ internal static class App
             .Select(info => info.Name)
             .ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>Commands that are available only through the local CLI host.</summary>
+    internal static IReadOnlySet<string> LocalOnlyCommandNames { get; } =
+        ControlPlaneCommandNames
+            .Append("config")
+            .ToHashSet(StringComparer.Ordinal);
+
     /// <summary>Commands admitted to the ordinary CLI and adapter product surface.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } =
         AllCommands

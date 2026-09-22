@@ -20,7 +20,8 @@ internal static class DaemonCommand
     {
         var cmd = new Command(
             "daemon",
-            $"Manage the experimental background daemon (requires {DaemonRuntime.ExperimentEnvironmentVariable}=1 for command routing)");
+            "Manage the experimental background daemon (enable command routing with "
+            + $"daemon.enabled in host configuration or {DaemonRuntime.ExperimentEnvironmentVariable}=1)");
         cmd.AddCommand(BuildStart());
         cmd.AddCommand(BuildStop());
         cmd.AddCommand(BuildStatus());

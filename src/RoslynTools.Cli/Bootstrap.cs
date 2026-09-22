@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.CommandDescriptors;
+using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
@@ -21,6 +23,7 @@ internal static class Bootstrap
 {
     public static void RegisterServices(IServiceCollection services)
     {
+        services.TryAddSingleton(HostConfigurationResolution.Default);
         // Concrete-then-forward registration so both
         // GetService<WorkspaceLoader>() and GetService<IWorkspaceSessionFactory>()
         // return the same disposable singleton. The forwarder, not a second
@@ -59,7 +62,9 @@ internal static class Bootstrap
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<DaemonRpcClient>();
         services.AddSingleton<IDaemonRpcClient>(provider => provider.GetRequiredService<DaemonRpcClient>());
-        services.AddSingleton<IDaemonLauncher>(_ => new DaemonLauncher());
+        services.AddSingleton<IDaemonLauncher>(provider => new DaemonLauncher(
+            DaemonLaunchOptions.FromConfiguration(
+                provider.GetRequiredService<HostConfigurationResolution>().Effective.Daemon)));
         services.AddSingleton<DaemonRpcRecoveryCoordinator>();
         services.AddSingleton(provider => new DaemonCommandDispatcher(
             provider.GetServices<ICommandApplicationPort>(),

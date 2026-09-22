@@ -16,6 +16,7 @@ internal static class CliInvocationClassifier
 
     private static readonly HashSet<string> LocalOnlyRoots = new(StringComparer.Ordinal)
     {
+        "config",
         "doctor",
         "dump-help",
         "maintainer",
@@ -30,6 +31,15 @@ internal static class CliInvocationClassifier
     internal static bool MustRunInProcess(string[] arguments) =>
         IsLocalOnly(arguments) || HasTrustedRoot(arguments);
 
+    internal static bool IsConfigurationInspection(string[] arguments)
+    {
+        var commandTokens = ExtractCommandTokens(arguments);
+        return commandTokens.Count > 0
+               && (commandTokens[0] == "config"
+                   || commandTokens[0] == "inspect"
+                   && commandTokens.ElementAtOrDefault(1) == "config");
+    }
+
     private static bool IsLocalOnly(string[] arguments)
     {
         if (arguments.Length == 0 || arguments.Any(IsHelpOrVersion))
@@ -41,7 +51,8 @@ internal static class CliInvocationClassifier
 
         var root = commandTokens[0];
         return LocalOnlyRoots.Contains(root)
-               || root == "inspect" && commandTokens.ElementAtOrDefault(1) == "doctor"
+               || root == "inspect"
+               && commandTokens.ElementAtOrDefault(1) is "config" or "doctor"
                || root == "refactor" && commandTokens.ElementAtOrDefault(1) == "trust";
     }
 

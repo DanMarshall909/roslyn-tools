@@ -1,4 +1,5 @@
 using RoslynTools.Daemon.Rpc;
+using RoslynTools.Configuration;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Daemon;
@@ -18,6 +19,21 @@ public sealed class McpDaemonLauncherTests
         DaemonLaunchOptions.FromEnvironment(
                 name => name == DaemonLaunchOptions.IdleTimeoutEnvironmentVariable ? "45" : null)
             .IdleTimeout.ShouldBe(TimeSpan.FromSeconds(45));
+    }
+
+    [Fact]
+    public void Effective_configuration_controls_lazy_daemon_lifetime()
+    {
+        var configuration = new EffectiveDaemonConfiguration(
+            Enabled: true,
+            EnabledSource: "repository",
+            AutoStart: true,
+            AutoStartSource: "repository",
+            IdleTimeout: TimeSpan.FromSeconds(75),
+            IdleTimeoutSource: "repository");
+
+        DaemonLaunchOptions.FromConfiguration(configuration).IdleTimeout
+            .ShouldBe(TimeSpan.FromSeconds(75));
     }
 
     [Fact]

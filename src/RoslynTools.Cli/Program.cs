@@ -2,6 +2,8 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
+using RoslynTools.CommandDescriptors;
+using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
@@ -29,23 +31,50 @@ internal static class Program
         // entering App.RunAsync directly, bypassing this entry point.
         using var consoleScope = RtConsole.UseConsole(new SpectreRtConsole());
 
+        var invocationDirectory = Directory.GetCurrentDirectory();
+        var configuration = new HostConfigurationLoader().ResolveCurrent(invocationDirectory);
+        var isConfigInvocation = CliInvocationClassifier.IsConfigurationInspection(args);
+        if (!configuration.IsValid && !isConfigInvocation)
+        {
+            foreach (var diagnostic in configuration.Diagnostics)
+                RtLog.Error("{Message}", diagnostic.Message);
+            return 2;
+        }
+
+        using var host = Host.CreateDefaultBuilder(args)
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(configuration);
+                Bootstrap.RegisterServices(services);
+            })
+            .Build();
+
+        var validatedConfiguration = McpConfigurationValidator.Validate(
+            configuration,
+            host.Services.GetRequiredService<CommandDescriptorRegistry>());
+        if (!validatedConfiguration.IsValid && !isConfigInvocation)
+        {
+            foreach (var diagnostic in validatedConfiguration.Diagnostics)
+                RtLog.Error("{Message}", diagnostic.Message);
+            return 2;
+        }
+
         // Fast path: `rt dump-help` only enumerates the command registry in-process and emits
-        // Markdown — it doesn't load an MSBuild workspace. Skip MSBuild registration and host
-        // construction so the post-build target that regenerates docs/COMMANDS.md stays fast.
+        // Markdown. It validates host configuration, but never registers MSBuild or routes
+        // through the daemon.
         if (args.Length > 0 && args[0] == "dump-help")
         {
             // Force UTF-8 so em-dashes and other Unicode in RtCommandInfo strings survive
             // `cmd > file` redirection on Windows (default console encoding is often cp1252).
             RtConsole.SetOutputEncoding(Encoding.UTF8);
-            return await App.RunAsync(args);
+            return await App.RunAsync(args, host.Services);
         }
 
-        if (CliInvocationClassifier.RequiresEagerMsBuildRegistration(args))
+        if (!isConfigInvocation && CliInvocationClassifier.RequiresEagerMsBuildRegistration(args))
             MsBuildBootstrap.Register();
 
-        using var host = Host.CreateDefaultBuilder(args)
-            .ConfigureServices(Bootstrap.RegisterServices)
-            .Build();
+        using var daemonConfiguration = DaemonRuntime.UseExperimentOverride(
+            configuration.Effective.Daemon.Enabled);
 
         var typedDefinitions = host.Services
             .GetServices<ICommandApplicationPort>()

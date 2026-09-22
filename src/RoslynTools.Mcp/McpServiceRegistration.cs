@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Configuration;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp.Tools;
 
@@ -22,7 +23,9 @@ internal static class McpServiceRegistration
         services.AddSingleton<CliCommandBridge>();
         services.AddSingleton<IDaemonRpcClient>(
             provider => provider.GetRequiredService<DaemonRpcClient>());
-        services.AddSingleton<IDaemonLauncher>(_ => new DaemonLauncher());
+        services.AddSingleton<IDaemonLauncher>(provider => new DaemonLauncher(
+            DaemonLaunchOptions.FromConfiguration(
+                provider.GetRequiredService<HostConfigurationResolution>().Effective.Daemon)));
         services.AddSingleton<DaemonRpcRecoveryCoordinator>();
         services.AddSingleton<IMcpMsBuildBinding, McpMsBuildBinding>();
         services.AddSingleton<McpCommandAdapter>();

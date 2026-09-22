@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
+using RoslynTools.Configuration;
 
 namespace RoslynTools.Daemon.Rpc;
 
@@ -21,6 +22,12 @@ internal sealed record DaemonLaunchOptions(TimeSpan IdleTimeout)
                && seconds > 0
             ? new DaemonLaunchOptions(TimeSpan.FromSeconds(seconds))
             : new DaemonLaunchOptions(DefaultIdleTimeout);
+    }
+
+    internal static DaemonLaunchOptions FromConfiguration(EffectiveDaemonConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return new DaemonLaunchOptions(configuration.IdleTimeout);
     }
 }
 

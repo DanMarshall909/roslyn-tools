@@ -84,3 +84,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0017](0017-bounded-read-only-workspace-reuse.md) | Bounded read-only workspace reuse | Accepted | 2026-09-16 |
 | [0018](0018-bounded-external-semantic-review.md) | Bounded external semantic review | Accepted | 2026-09-18 |
 | [0019](0019-parse-integrity-gates-absence-claims.md) | Parse integrity gates absence claims | Accepted | 2026-09-04 |
+| [0020](0020-layered-host-configuration.md) | Layered host configuration | Accepted | 2026-09-23 |

@@ -242,11 +242,40 @@ invocation-scoped compatibility path.
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
+### Host configuration
+
+CLI and MCP hosts read optional JSON configuration from `~/.rt/config.json` and from
+`.rt/config.json` at the current Git worktree root. Repository daemon values override
+global values; the existing daemon environment variables override both. MCP allowlists
+intersect across the two files, denylists accumulate, and denials win.
+
+```json
+{
+  "schemaVersion": 1,
+  "daemon": {
+    "enabled": true,
+    "autoStart": false,
+    "idleTimeoutSeconds": 600
+  },
+  "mcp": {
+    "enabledTools": ["outline", "source", "relationships"],
+    "disabledTools": ["source"]
+  }
+}
+```
+
+Both files use a strict schema. Inspect selected paths, effective settings, and value
+sources with `rt config --json`; this command also reports an invalid file without
+starting MSBuild or the daemon. Configuration can narrow the MCP surface but cannot
+grant repository trust or hide CLI commands.
+
 The experimental daemon is disabled by default; CLI and MCP operations run through
-their canonical in-process application ports. Set `RT_DAEMON_EXPERIMENT=1` to opt in.
-When enabled, a daemon-preferred read-only call starts the sibling `rt` daemon when
-needed. It remains warm for ten minutes after the latest request, then exits. Override
-the idle period with `RT_DAEMON_IDLE_TIMEOUT_SECONDS`. Manage an explicit resident
+their canonical in-process application ports. Set `daemon.enabled` or
+`RT_DAEMON_EXPERIMENT=1` to opt in. When enabled, a daemon-preferred read-only call
+starts the sibling `rt` daemon when needed unless `daemon.autoStart` or
+`RT_DAEMON_AUTO_START` disables lazy startup. It remains warm for ten minutes after the
+latest request by default; use `daemon.idleTimeoutSeconds` or
+`RT_DAEMON_IDLE_TIMEOUT_SECONDS` to change that period. Manage an explicit resident
 instance with `rt maintainer daemon start`, `status`, and `stop`.
 
 Build and run it from the repository root:
