@@ -42,7 +42,7 @@ public sealed class ExtractMethodCommandTests
         parse.GetValueForOption(dryRun).ShouldBeTrue();
 
         var definition = ExtractMethodCommandDefinition.Definition;
-        definition.McpVisible.ShouldBeFalse();
+        definition.McpVisible.ShouldBeTrue();
         definition.Safety.ShouldBe(CommandSafety.ReviewByDefault);
         definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         daemon.CommandName.ShouldBeNull();

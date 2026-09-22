@@ -11,16 +11,27 @@ internal static class RepositoryTrustContext
 
     internal static bool IsExplicitlyTrusted => ExplicitTrust.Value is not null;
 
+    internal static bool IsPersistentlyTrustedFor(string path) =>
+        ExplicitTrust.Value?.PersistentRegistry?.IsTrustedFor(path) == true;
+
+    internal static bool RequiresAbsoluteSolutionPath =>
+        ExplicitTrust.Value?.RequireAbsoluteSolutionPath == true;
+
+    internal static string? TrustedRepositoryRoot => ExplicitTrust.Value?.RepositoryRoot;
+
     internal static bool IsExplicitlyTrustedFor(string path)
     {
         var authorization = ExplicitTrust.Value;
         if (authorization is null)
             return false;
 
+        if (authorization.PersistentRegistry is not null)
+            return authorization.PersistentRegistry.IsTrustedFor(path);
+
         if (authorization.RepositoryRoot is null)
             return true;
 
-        var fullPath = Path.GetFullPath(path);
+        var fullPath = CanonicalizeForContainment(path);
         var relativePath = Path.GetRelativePath(authorization.RepositoryRoot, fullPath);
         return relativePath == "."
                || !Path.IsPathRooted(relativePath)
@@ -29,9 +40,53 @@ internal static class RepositoryTrustContext
                && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
     }
 
+    internal static TrustedWorkspaceIdentity ResolveWorkspaceIdentity(string solutionPath)
+    {
+        var authorization = ExplicitTrust.Value
+            ?? throw RepositoryTrustRequiredException.ForSolution(solutionPath);
+        var canonicalSolution = RepositoryTrustRegistry.CanonicalizeExistingPath(
+            Path.GetFullPath(solutionPath));
+        if (!IsExplicitlyTrustedFor(canonicalSolution))
+            throw RepositoryTrustRequiredException.ForSolution(canonicalSolution);
+
+        var binding = RepositoryTrustRegistry.ResolveBinding(canonicalSolution);
+        if (binding.IsOk)
+        {
+            var repository = binding.Unwrap();
+            return new TrustedWorkspaceIdentity(
+                canonicalSolution,
+                repository.RepositoryId,
+                repository.WorktreeRoot);
+        }
+
+        if (authorization.PersistentRegistry is not null)
+            throw RepositoryTrustRequiredException.ForSolution(canonicalSolution);
+
+        var trustedRoot = authorization.RepositoryRoot;
+        if (trustedRoot is null)
+        {
+            trustedRoot = Path.GetDirectoryName(canonicalSolution)
+                ?? throw new InvalidOperationException(
+                    $"The solution path has no containing directory: '{canonicalSolution}'.");
+        }
+
+        var canonicalRoot = RepositoryTrustRegistry.CanonicalizeExistingPath(trustedRoot);
+        if (!RepositoryTrustRegistry.IsContained(canonicalRoot, canonicalSolution))
+            throw RepositoryTrustRequiredException.ForSolution(canonicalSolution);
+
+        return new TrustedWorkspaceIdentity(
+            canonicalSolution,
+            $"explicit:{NormalizeIdentityPath(canonicalRoot)}",
+            canonicalRoot);
+    }
+
+    private static string NormalizeIdentityPath(string path) => OperatingSystem.IsWindows()
+        ? path.ToUpperInvariant()
+        : path;
+
     internal static IDisposable UseExplicitTrust()
     {
-        return UseExplicitTrust(new TrustAuthorization(null));
+        return UseExplicitTrust(new TrustAuthorization(null, null, false));
     }
 
     internal static IDisposable UseExplicitTrust(string repositoryRoot)
@@ -40,8 +95,52 @@ internal static class RepositoryTrustContext
         if (!Path.IsPathFullyQualified(repositoryRoot))
             throw new ArgumentException("The trusted repository root must be an absolute path.", nameof(repositoryRoot));
 
-        var canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
-        return UseExplicitTrust(new TrustAuthorization(canonicalRoot));
+        var canonicalRoot = CanonicalizeForContainment(repositoryRoot);
+        return UseExplicitTrust(new TrustAuthorization(canonicalRoot, null, false));
+    }
+
+    private static string CanonicalizeForContainment(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows())
+            return Path.TrimEndingDirectorySeparator(fullPath);
+
+        var existingAncestor = fullPath;
+        var missingSegments = new Stack<string>();
+        while (!Path.Exists(existingAncestor))
+        {
+            var entry = new DirectoryInfo(existingAncestor);
+            if (entry.LinkTarget is not null)
+                return RepositoryTrustRegistry.CanonicalizeExistingPath(fullPath);
+
+            var parent = Path.GetDirectoryName(existingAncestor);
+            if (parent is null || parent == existingAncestor)
+                break;
+
+            missingSegments.Push(Path.GetFileName(existingAncestor));
+            existingAncestor = parent;
+        }
+
+        if (missingSegments.Count > 0 && !Directory.Exists(existingAncestor))
+            throw new IOException(
+                $"Repository path traverses a non-directory component: '{existingAncestor}'.");
+
+        var canonicalPath = RepositoryTrustRegistry.CanonicalizeExistingPath(existingAncestor);
+        while (missingSegments.TryPop(out var segment))
+            canonicalPath = Path.Combine(canonicalPath, segment);
+
+        return Path.TrimEndingDirectorySeparator(canonicalPath);
+    }
+
+    internal static IDisposable UsePersistentTrust(
+        RepositoryTrustRegistry registry,
+        bool requireAbsoluteSolutionPath = false)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        return UseExplicitTrust(new TrustAuthorization(
+            null,
+            registry,
+            requireAbsoluteSolutionPath));
     }
 
     private static Scope UseExplicitTrust(TrustAuthorization authorization)
@@ -51,7 +150,10 @@ internal static class RepositoryTrustContext
         return new Scope(() => ExplicitTrust.Value = previous);
     }
 
-    private sealed record TrustAuthorization(string? RepositoryRoot);
+    private sealed record TrustAuthorization(
+        string? RepositoryRoot,
+        RepositoryTrustRegistry? PersistentRegistry,
+        bool RequireAbsoluteSolutionPath);
 
     private sealed class Scope(Action dispose) : IDisposable
     {
@@ -60,6 +162,11 @@ internal static class RepositoryTrustContext
         void IDisposable.Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 }
+
+internal sealed record TrustedWorkspaceIdentity(
+    string SolutionPath,
+    string RepositoryId,
+    string WorktreeRoot);
 
 /// <summary>
 ///     Signals that a semantic workspace load was attempted without invocation-scoped
@@ -87,8 +194,8 @@ internal sealed class RepositoryTrustRequiredException : InvalidOperationExcepti
 
     internal static RepositoryTrustRequiredException ForSolution(string solutionPath) => new(
         $"Repository evaluation is not trusted for '{solutionPath}'. "
-        + "After review, rerun the CLI command with --trust-repository or start the MCP host with "
-        + "--trust-repository <absolute-repository-root>. MCP tool arguments cannot grant trust.")
+        + "After review, run 'rt trust add <repository>' or use the invocation-scoped "
+        + "--trust-repository option. MCP tool arguments cannot grant trust.")
     {
         SolutionPath = solutionPath
     };

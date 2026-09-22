@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roslyn-tools.danmarshall.dev/schemas/architecture-v1.schema.json",
+  "title": "Roslyn Tools architecture boundary configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "layers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "baselineFile": { "type": "string" },
+    "ignoredProjects": { "$ref": "#/$defs/stringArray" },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/layer" }
+    },
+    "technologyRules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/technology" }
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "projects", "allowedProjectReferences"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "projects": { "$ref": "#/$defs/stringArray" },
+        "allowedProjectReferences": { "$ref": "#/$defs/stringArray" },
+        "allowSameLayerReferences": { "type": "boolean", "default": false },
+        "projectReferenceExceptions": { "$ref": "#/$defs/stringArray" },
+        "dependencyExceptions": { "$ref": "#/$defs/stringArray" },
+        "forbiddenNamespacePrefixes": { "$ref": "#/$defs/stringArray" },
+        "forbiddenTypeNames": { "$ref": "#/$defs/stringArray" },
+        "forbiddenSdks": { "$ref": "#/$defs/stringArray" },
+        "forbiddenFrameworkReferences": { "$ref": "#/$defs/stringArray" },
+        "forbiddenPackageReferences": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "technology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "forbiddenInLayers"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "forbiddenInLayers": { "$ref": "#/$defs/stringArray" },
+        "namespacePrefixes": { "$ref": "#/$defs/stringArray" },
+        "typeNames": { "$ref": "#/$defs/stringArray" },
+        "packagePrefixes": { "$ref": "#/$defs/stringArray" },
+        "frameworkReferences": { "$ref": "#/$defs/stringArray" },
+        "sdks": { "$ref": "#/$defs/stringArray" }
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
+using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 using Shouldly;
@@ -13,6 +14,17 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class CommandDescriptorContracts
 {
+    [Fact]
+    public void local_trust_control_plane_is_not_an_mcp_descriptor_or_tool()
+    {
+        using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
+
+        provider.GetRequiredService<CommandDescriptorRegistry>().All
+            .ShouldNotContain(descriptor => descriptor.ToolName == "trust");
+        provider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .ShouldNotContain(tool => tool.name == "trust");
+    }
+
     [Fact]
     public void every_migrated_descriptor_has_one_port_and_request_schema_parity()
     {
@@ -80,7 +92,7 @@ public sealed class CommandDescriptorContracts
     [Fact]
     public void every_mcp_visible_descriptor_has_a_unique_tool_and_generated_schema()
     {
-        using var provider = McpTestHost.CreateProvider();
+        using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
         var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>()
             .All.Where(descriptor => descriptor.McpVisible)
             .ToList();
@@ -101,19 +113,47 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
-    public void mutation_descriptors_are_absent_from_normal_mcp_discovery()
+    public void mutation_descriptors_require_startup_repository_trust_for_mcp_discovery()
     {
-        using var provider = McpTestHost.CreateProvider();
-        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
+        using var untrustedProvider = McpTestHost.CreateProvider();
+        using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
+        var descriptors = trustedProvider.GetRequiredService<CommandDescriptorRegistry>().All;
         var mutations = descriptors
-            .Where(descriptor => descriptor.Definition?.Safety.Effect == CommandEffect.Mutation)
+            .Where(descriptor => descriptor.Definition?.Safety.Effect == CommandEffect.Mutation
+                                 && descriptor.Audience == CommandAudience.Public)
             .ToList();
-        var tools = provider.GetRequiredService<ToolSchemaBuilder>().Build();
+        var untrustedTools = untrustedProvider.GetRequiredService<ToolSchemaBuilder>().Build();
+        var trustedTools = trustedProvider.GetRequiredService<ToolSchemaBuilder>().Build();
         var mutationNames = mutations.Select(descriptor => descriptor.ToolName).ToHashSet(StringComparer.Ordinal);
 
         mutations.ShouldNotBeEmpty();
-        mutations.ShouldAllBe(descriptor => !descriptor.McpVisible);
-        tools.ShouldNotContain(tool => mutationNames.Contains(tool.name));
+        mutations.ShouldAllBe(descriptor => descriptor.McpVisible);
+        untrustedTools.ShouldNotContain(tool => mutationNames.Contains(tool.name));
+        var trustedToolNames = trustedTools.Select(tool => tool.name).ToHashSet(StringComparer.Ordinal);
+        foreach (var mutationName in mutationNames)
+            trustedToolNames.ShouldContain(mutationName);
+        foreach (var keyMutation in new[] { "move", "rename", "delete_unreferenced" })
+            trustedToolNames.ShouldContain(keyMutation);
+    }
+
+    [Fact]
+    public async Task mutation_dispatch_requires_startup_repository_trust()
+    {
+        using var arguments = JsonDocument.Parse("{}");
+        using var untrustedProvider = McpTestHost.CreateProvider();
+        using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
+
+        var untrustedResult = await untrustedProvider.GetRequiredService<ToolRegistry>()
+            .InvokeAsync("move", arguments.RootElement);
+        var trustedResult = await trustedProvider.GetRequiredService<ToolRegistry>()
+            .InvokeAsync("move", arguments.RootElement);
+
+        untrustedResult.isError.ShouldBeTrue();
+        untrustedResult.content.ShouldContain("Unknown tool");
+        trustedResult.isError.ShouldBeTrue();
+        trustedResult.content.ShouldNotContain("Unknown tool");
+        trustedResult.content.ShouldContain("MoveRequest");
+        trustedResult.content.ShouldContain("required properties");
     }
 
     [Fact]
@@ -149,8 +189,6 @@ public sealed class CommandDescriptorContracts
 
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("daemon");
-        descriptors.Select(descriptor => descriptor.ToolName)
-            .ShouldNotContain("prime");
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("dump_help");
     }
@@ -407,4 +445,20 @@ public sealed class CommandDescriptorContracts
     private sealed record SchemaProbeRequest(
         string Visible,
         [property: JsonIgnore] string InternalState);
+
+    private static McpHostOptions CreateTrustedHostOptions() => new(FindRepoRoot());
+
+    private static string FindRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
+    }
 }

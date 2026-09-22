@@ -40,6 +40,46 @@ public class FeedbackStoreConcurrencyTests
     }
 
     [Fact]
+    public async Task append_retries_when_an_existing_store_temporarily_blocks_replacement()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "existing entry"
+            });
+
+            using var reader = new FileStream(
+                workspace.StorePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+
+            var append = Task.Run(() => FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "wait for replace"
+            }));
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+            append.IsCompleted.ShouldBeFalse();
+
+            reader.Dispose();
+            (await append.WaitAsync(TimeSpan.FromSeconds(2))).ShouldBe("FB-002");
+            FeedbackStore.LoadAll().Select(entry => entry.Id).ShouldBe(["FB-001", "FB-002"]);
+            Directory.EnumerateFiles(
+                    Path.GetDirectoryName(workspace.StorePath)!,
+                    "*.tmp")
+                .ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
     public async Task parallel_report_calls_create_only_one_issue_for_the_same_entry()
     {
         using var workspace = new ConcurrencyWorkspace();
@@ -209,6 +249,8 @@ public class FeedbackStoreConcurrencyTests
         public string Root { get; }
 
         public string StoreLockPath => Path.Combine(Root, "ralph", "feedback.json.lock");
+
+        public string StorePath => Path.Combine(Root, "ralph", "feedback.json");
 
         public IDisposable UseCurrentDirectory()
         {

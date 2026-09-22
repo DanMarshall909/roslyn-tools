@@ -65,16 +65,16 @@ internal sealed class SourceOperation
     internal const int DefaultMaximumSourceBytes = 65_536;
     private const int MaximumContinuationTokenCharacters = 16_384;
 
-    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly IReadOnlyWorkspaceSessions _sessions;
     private readonly InspectService _inspect;
     private readonly ISymbolCandidateService _symbols;
 
     public SourceOperation(
-        IWorkspaceSessionFactory sessionFactory,
+        IReadOnlyWorkspaceSessions sessions,
         InspectService inspect,
         ISymbolCandidateService symbols)
     {
-        _sessionFactory = sessionFactory;
+        _sessions = sessions;
         _inspect = inspect;
         _symbols = symbols ?? throw new ArgumentNullException(nameof(symbols));
     }
@@ -108,11 +108,11 @@ internal sealed class SourceOperation
             return continuationResult.Map(_ => default(SourceResult)!);
         var continuation = continuationResult.Match(value => value, _ => default);
 
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
+            var solution = lease.Solution;
             cancellationToken.ThrowIfCancellationRequested();
-            var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+            var sourceRevision = lease.SourceRevision;
             if (continuation is not null
                 && !string.Equals(
                     continuation.SourceRevision,

@@ -159,7 +159,7 @@ internal static class DumpHelpCommand
         sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
         sb.AppendLine(
-            "Commands are filed under one of three groups: `inspect`, `analyze`, `refactor`. Invoke either way:");
+            "Commands are filed under `inspect`, `analyze`, `refactor`, or `ci`. Invoke either way:");
         sb.AppendLine();
         sb.AppendLine("```bash");
         sb.AppendLine("rt <group> <command> [args...]   # canonical form");

@@ -1,6 +1,7 @@
 ---
 import DocLayout from '../../layouts/DocLayout.astro';
 import CommandCatalogue from '../../components/CommandCatalogue.astro';
+import { commandGroups } from '../../lib/commandCatalogue';
 
 interface DocumentationFrontmatter {
   title: string;
@@ -40,11 +41,9 @@ const { slug, module, navigation } = Astro.props;
 const { Content, frontmatter } = module;
 const headings = await module.getHeadings();
 const generatedHeadings = slug === 'command-reference'
-  ? [
-      { depth: 3, slug: 'commands-inspect', text: 'Inspect' },
-      { depth: 3, slug: 'commands-analyze', text: 'Analyze' },
-      { depth: 3, slug: 'commands-refactor', text: 'Refactor' },
-    ]
+  ? commandGroups.map((group) => ({
+      depth: 3, slug: `commands-${group.name}`, text: group.label,
+    }))
   : [];
 ---
 

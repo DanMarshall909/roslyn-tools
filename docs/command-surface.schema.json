@@ -67,7 +67,8 @@
           "enum": [
             "inspect",
             "analyze",
-            "refactor"
+            "refactor",
+            "ci"
           ]
         },
         "mutates": {

@@ -59,7 +59,14 @@ esac
 archive="roslyn-tools-${version}-${rid}.tar.gz"
 download_url="${base_url%/}/${version}/${archive}"
 temp_dir="$(mktemp -d)"
-trap 'rm -rf "$temp_dir"' EXIT
+staging=""
+cleanup() {
+    rm -rf "$temp_dir"
+    if [ -n "$staging" ]; then
+        rm -rf "$staging"
+    fi
+}
+trap cleanup EXIT
 
 curl -fsSL "$download_url" -o "$temp_dir/$archive"
 curl -fsSL "$download_url.sha256" -o "$temp_dir/$archive.sha256"
@@ -74,6 +81,10 @@ mkdir -p "$staging" "$bin_dir"
 tar -xzf "$temp_dir/$archive" -C "$staging"
 [ -x "$staging/rt" ] || { echo "install: archive does not contain rt" >&2; exit 1; }
 [ -x "$staging/roslyn-tools-mcp" ] || { echo "install: archive does not contain roslyn-tools-mcp" >&2; exit 1; }
+self_check="$temp_dir/self-check"
+mkdir -p "$self_check"
+printf '%s\n' '{}' > "$self_check/global.json"
+"$staging/rt" inspect doctor --installation-only --directory "$self_check" >/dev/null
 
 rm -rf "$target"
 mkdir -p "$(dirname "$target")"

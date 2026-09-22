@@ -41,15 +41,17 @@ test('the build emits the custom-domain files expected by GitHub Pages', () => {
   assert.ok(existsSync(join(outputRoot, '.nojekyll')));
 });
 
-test('the homepage presents MCP as the primary semantic agent surface', () => {
+test('the homepage connects CLI, MCP and CI use cases to their guides', () => {
   const html = readFileSync(join(outputRoot, 'index.html'), 'utf8');
 
-  assert.match(html, /The MCP server for semantic C#/);
-  assert.match(html, /MCP-first by design/);
+  assert.match(html, /Semantic C# tools for developers, agents, and CI/);
+  for (const guide of ['getting-started', 'automation-and-mcp', 'ci']) {
+    assert.match(html, new RegExp(`href="/docs/${guide}/"`));
+  }
   assert.match(html, /roslyn-tools-mcp/);
-  assert.match(html, /search_symbols/);
+  assert.match(html, /rt inspect describe/);
+  assert.match(html, /rt ci check/);
   assert.match(html, /relationships/);
-  assert.match(html, /MCP is the front door/);
   assert.match(html, /https:\/\/blog\.danmarshall\.dev/);
 
   const reference = readFileSync(join(root, 'docs', 'COMMANDS.md'), 'utf8');
@@ -85,6 +87,8 @@ test('the command reference lists every generated public command', () => {
   assert.match(html, /href="#commands-inspect"/);
   assert.match(html, /href="#commands-analyze"/);
   assert.match(html, /href="#commands-refactor"/);
+  assert.match(html, /href="#commands-ci"/);
+  assert.match(html, /data-command="check"/);
 });
 
 test('every generated page has production metadata and valid internal links', () => {

@@ -24,6 +24,7 @@ internal static class McpServiceRegistration
             provider => provider.GetRequiredService<DaemonRpcClient>());
         services.AddSingleton<IDaemonLauncher>(_ => new DaemonLauncher());
         services.AddSingleton<DaemonRpcRecoveryCoordinator>();
+        services.AddSingleton<IMcpMsBuildBinding, McpMsBuildBinding>();
         services.AddSingleton<McpCommandAdapter>();
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<Server>();

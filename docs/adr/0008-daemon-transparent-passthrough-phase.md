@@ -1,6 +1,6 @@
 # ADR-0008: Transparent daemon passthrough phase
 
-- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication, [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution, and [ADR-0015](0015-operation-lifecycle-authorization.md) for lifecycle authorization
+- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication, [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution, [ADR-0015](0015-operation-lifecycle-authorization.md) for lifecycle authorization, and [ADR-0017](0017-bounded-read-only-workspace-reuse.md) for the bounded read-only workspace exception
 - Date: 2026-08-27
 - Updated: 2026-08-30
 - Supersedes: the daemon-execution portions of [ADR-0005](0005-daemon-centred-local-execution.md), the warm-workspace and fallback portions of [ADR-0006](0006-mcp-lazy-daemon-lifetime.md), and daemon placement guidance in [ADR-0007](0007-host-neutral-command-contracts.md) for the current hardening phase
@@ -8,6 +8,7 @@
 - Endpoint authentication: [ADR-0009](0009-authenticated-daemon-endpoints.md)
 - Dispatch-plan resolution: [ADR-0013](0013-fenced-plan-unavailability-resolution.md)
 - Operation lifecycle authorization: [ADR-0015](0015-operation-lifecycle-authorization.md)
+- Bounded read-only workspace exception: [ADR-0017](0017-bounded-read-only-workspace-reuse.md)
 
 ## Context
 
@@ -91,6 +92,17 @@ receiver. An in-flight receiver is not inferred absent, and no new apply is issu
 ### Process and endpoint isolation
 
 The daemon carries absolute request context. It does not use or mutate process current directory, global console state, global exit code, or arbitrary environment as operation context.
+
+The daemon registers one process-global MSBuild instance at startup and records its
+normalized MSBuild path and version. Before invoking a typed request, it resolves the
+instance selected by the effective solution directory and requires both identity
+components to match. Mismatch or unresolved selection is a typed, fail-closed error
+with `daemonRestartRequired` and both available identities; it never re-registers
+MSBuild in-process. Different worktree paths are accepted only when selection resolves
+to the same registered instance.
+To keep that identity authoritative, daemon startup refuses unscoped defaults or a
+manual registration fallback when no queryable SDK instance is available. This can
+reduce daemon availability; the direct in-process host retains the existing fallback.
 
 Its local endpoint is per-user, collision-resistant, and access controlled where the operating system permits. The global `rt-daemon` endpoint is a migration target, not the accepted design.
 

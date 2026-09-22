@@ -107,11 +107,13 @@ public sealed class CommandDescriptorTriggerContract
         ["migrate_to_ioptions"] = "Edit",
         ["move"] = "Edit",
         ["move_method"] = "Edit",
+        ["move_slice"] = "Edit",
         ["narrow_dependency"] = "Edit",
         ["probe_di"] = "Read",
         ["replace_call"] = "Edit",
         ["replace_datetime"] = "Edit",
         ["replace_new"] = "Edit",
+        ["remove_unused_usings"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
         ["delete_unreferenced"] = "Edit",
         ["semantic_diff"] = "git diff",
@@ -132,11 +134,14 @@ public sealed class CommandDescriptorTriggerContract
         "feedback_list",
         "feedback_process",
         "feedback_report", // Explicit bridge from local dogfood feedback to GitHub issues.
+        "check_architecture", // Checked-in solution boundary policy has no built-in semantic equivalent.
+        "check", // Configured CI rule enforcement has no built-in policy gate equivalent.
         "circular_deps", // Specialized graph analysis; no built-in has solution-wide namespace semantics.
         "find_magic_strings", // Specialized literal grouping; no built-in performs this semantic filter.
         "language_features", // Catalog-backed syntax/semantic density has no built-in solution-wide equivalent.
         "doctor", // Installation, trust, workspace, and capability preflight has no built-in counterpart.
         "search_symbols", // Candidate discovery complements focused describe/source tools.
+        "prime", // Session orientation over the rt catalog has no built-in counterpart.
         "relationships" // Canonical bounded relation graph has no one built-in counterpart.
     };
 

@@ -26,13 +26,6 @@ internal class DependencyGraphService : IRtService
     {
         var allTypes = await CollectSourceTypesAsync(sln);
 
-        var sourceTypeByName = BuildSourceTypeIndex(allTypes);
-        var bodyDeps = await CollectBodyDependenciesAsync(sln, allTypes);
-
-        IEnumerable<INamedTypeSymbol> typesToGraph = allTypes;
-        if (scope != null)
-            typesToGraph = allTypes.Where(t => GetNamespaceName(t).StartsWith(scope, StringComparison.Ordinal));
-
         if (typeName != null)
         {
             var root = allTypes.FirstOrDefault(t =>
@@ -46,22 +39,16 @@ internal class DependencyGraphService : IRtService
                     : JsonSerializer.Serialize(new { nodes = Array.Empty<string>(), edges = Array.Empty<object>() },
                         SymbolFormatter.DefaultJsonOptions);
 
-            var (nodes, edges) = BuildBfsGraph(root, depth, allTypes, sourceTypeByName, bodyDeps);
-            return SerializeGraph(nodes, edges, format);
+            var (targetNodes, targetEdges) = await BuildBfsGraphAsync(sln, root, depth);
+            return SerializeGraph(targetNodes, targetEdges, format);
         }
-        else
-        {
-            var (nodes, edges) = BuildFullGraph(typesToGraph, allTypes, sourceTypeByName, bodyDeps);
-            return SerializeGraph(nodes, edges, format);
-        }
-    }
 
-    private Dictionary<string, INamedTypeSymbol> BuildSourceTypeIndex(List<INamedTypeSymbol> allTypes)
-    {
-        var index = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
-        foreach (var t in allTypes)
-            index.TryAdd(t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), t);
-        return index;
+        var typesToGraph = scope is null
+            ? allTypes
+            : allTypes.Where(t => GetNamespaceName(t).StartsWith(scope, StringComparison.Ordinal)).ToList();
+        var bodyDeps = await CollectBodyDependenciesAsync(sln, typesToGraph);
+        var (allNodes, allEdges) = BuildFullGraph(typesToGraph, bodyDeps);
+        return SerializeGraph(allNodes, allEdges, format);
     }
 
     private async Task<List<INamedTypeSymbol>> CollectSourceTypesAsync(Solution sln)
@@ -88,7 +75,8 @@ internal class DependencyGraphService : IRtService
                 if (root == null)
                     continue;
 
-                foreach (var node in root.DescendantNodesAndSelf())
+                foreach (var node in root.DescendantNodesAndSelf().Where(static node =>
+                             node is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax))
                 {
                     var symbol = semanticModel.GetDeclaredSymbol(node) as INamedTypeSymbol;
                     if (symbol == null || symbol.IsImplicitlyDeclared || symbol.TypeKind == TypeKind.Error)
@@ -103,8 +91,6 @@ internal class DependencyGraphService : IRtService
 
     private (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildFullGraph(
         IEnumerable<INamedTypeSymbol> typesToGraph,
-        List<INamedTypeSymbol> allTypes,
-        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
         Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
         var (nodes, edgeSet, edges) = CreateStringHashSet();
@@ -114,9 +100,11 @@ internal class DependencyGraphService : IRtService
             var fromName = GetDisplayName(type);
             nodes.Add(fromName);
 
-            foreach (var dep in GetDependencies(type, bodyDeps))
+            foreach (var dep in GetDependencies(
+                         type,
+                         bodyDeps.GetValueOrDefault(type) ?? []))
             {
-                if (!IsSourceType(dep, sourceTypeByName))
+                if (!IsSourceType(dep))
                     continue;
 
                 var toName = GetDisplayName(dep);
@@ -141,12 +129,10 @@ internal class DependencyGraphService : IRtService
         return (nodes, edgeSet, edges);
     }
 
-    private (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildBfsGraph(
+    private async Task<(HashSet<string> Nodes, List<(string From, string To)> Edges)> BuildBfsGraphAsync(
+        Solution solution,
         INamedTypeSymbol rootType,
-        int? maxDepth,
-        List<INamedTypeSymbol> allTypes,
-        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
-        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
+        int? maxDepth)
     {
         var (nodes, edgeSet, edges) = CreateStringHashSet();
         var queue = new Queue<(INamedTypeSymbol Type, int Depth)>();
@@ -163,7 +149,8 @@ internal class DependencyGraphService : IRtService
             if (maxDepth.HasValue && currentDepth >= maxDepth.Value)
                 continue;
 
-            ExpandBfsNode(current, currentDepth, sourceTypeByName, bodyDeps, nodes, edgeSet, edges, visited, queue);
+            var bodyDeps = await CollectBodyDependenciesForTypeAsync(solution, current);
+            ExpandBfsNode(current, currentDepth, bodyDeps, nodes, edgeSet, edges, visited, queue);
         }
 
         return (nodes, edges);
@@ -172,8 +159,7 @@ internal class DependencyGraphService : IRtService
     private void ExpandBfsNode(
         INamedTypeSymbol current,
         int currentDepth,
-        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
-        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps,
+        IReadOnlyList<INamedTypeSymbol> bodyDeps,
         HashSet<string> nodes,
         HashSet<(string, string)> edgeSet,
         List<(string From, string To)> edges,
@@ -183,7 +169,7 @@ internal class DependencyGraphService : IRtService
         var fromName = GetDisplayName(current);
         foreach (var dep in GetDependencies(current, bodyDeps))
         {
-            if (!IsSourceType(dep, sourceTypeByName))
+            if (!IsSourceType(dep))
                 continue;
 
             var toName = GetDisplayName(dep);
@@ -200,7 +186,7 @@ internal class DependencyGraphService : IRtService
 
     private IEnumerable<INamedTypeSymbol> GetDependencies(
         INamedTypeSymbol type,
-        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
+        IReadOnlyList<INamedTypeSymbol> bodyDeps)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
@@ -216,58 +202,66 @@ internal class DependencyGraphService : IRtService
             if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                 yield return dep;
 
-        if (bodyDeps.TryGetValue(type, out var locals))
-            foreach (var dep in locals)
-                if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                    yield return dep;
+        foreach (var dep in bodyDeps)
+            if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                yield return dep;
     }
 
     private async Task<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> CollectBodyDependenciesAsync(
         Solution sln,
-        List<INamedTypeSymbol> sourceTypes)
+        IEnumerable<INamedTypeSymbol> sourceTypes)
     {
         var result = new Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>(SymbolEqualityComparer.Default);
 
         foreach (var type in sourceTypes)
         {
-            var deps = new List<INamedTypeSymbol>();
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-
-            foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
-                foreach (var syntaxRef in method.DeclaringSyntaxReferences)
-                {
-                    var node = await syntaxRef.GetSyntaxAsync();
-                    if (node is not BaseMethodDeclarationSyntax decl)
-                        continue;
-
-                    var body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
-                    if (body == null)
-                        continue;
-
-                    var doc = sln.GetDocument(node.SyntaxTree);
-                    if (doc == null)
-                        continue;
-                    var model = await doc.GetSemanticModelAsync();
-                    if (model == null)
-                        continue;
-
-                    foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
-                        if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
-                            ExtractNamedType(named) is { } resolved &&
-                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                            deps.Add(resolved);
-
-                    foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
-                        if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
-                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                            deps.Add(resolved);
-                }
+            var deps = await CollectBodyDependenciesForTypeAsync(sln, type);
 
             if (deps.Count > 0)
                 result[type] = deps;
         }
 
         return result;
+    }
+
+    private async Task<List<INamedTypeSymbol>> CollectBodyDependenciesForTypeAsync(
+        Solution solution,
+        INamedTypeSymbol type)
+    {
+        var dependencies = new List<INamedTypeSymbol>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+            foreach (var syntaxRef in method.DeclaringSyntaxReferences)
+            {
+                var node = await syntaxRef.GetSyntaxAsync();
+                if (node is not BaseMethodDeclarationSyntax declaration)
+                    continue;
+
+                var body = declaration.Body ?? (SyntaxNode?)declaration.ExpressionBody;
+                if (body is null)
+                    continue;
+
+                var document = solution.GetDocument(node.SyntaxTree);
+                if (document is null)
+                    continue;
+                var model = await document.GetSemanticModelAsync();
+                if (model is null)
+                    continue;
+
+                foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
+                    if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
+                        ExtractNamedType(named) is { } resolved &&
+                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        dependencies.Add(resolved);
+
+                foreach (var creation in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
+                    if (ExtractNamedType(model.GetTypeInfo(creation).Type) is { } resolved &&
+                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        dependencies.Add(resolved);
+            }
+
+        return dependencies;
     }
 
     private IEnumerable<INamedTypeSymbol> GetInheritanceDependencies(INamedTypeSymbol type)
@@ -324,18 +318,8 @@ internal class DependencyGraphService : IRtService
         };
     }
 
-    private bool IsSourceType(INamedTypeSymbol? type, Dictionary<string, INamedTypeSymbol> sourceTypeByName)
-    {
-        if (type == null || !type.Locations.Any(l => l.IsInSource))
-            return false;
-
-        var ns = GetNamespaceName(type);
-        if (ns.StartsWith("System.", StringComparison.Ordinal) || ns == "System" ||
-            ns.StartsWith("Microsoft.", StringComparison.Ordinal) || ns == "Microsoft")
-            return type.Locations.Any(l => l.IsInSource);
-
-        return true;
-    }
+    private bool IsSourceType(INamedTypeSymbol? type) =>
+        type is not null && type.Locations.Any(static location => location.IsInSource);
 
     private string GetNamespaceName(INamedTypeSymbol type)
     {

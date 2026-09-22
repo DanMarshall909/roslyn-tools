@@ -21,14 +21,17 @@ internal enum DescribeResultKind
 internal sealed record DescribeResult(
     DescribeResultKind Kind,
     CompactDescription? Compact,
-    JsonElement? Verbose);
+    JsonElement? Verbose)
+{
+    public string? SourceRevision { get; init; }
+}
 
 /// <summary>Shared describe operation used by CLI and descriptor-driven hosts.</summary>
 internal sealed class DescribeOperation(
-    IWorkspaceSessionFactory sessionFactory,
+    IReadOnlyWorkspaceSessions sessions,
     InspectService inspect) : CommandApplicationPort<DescribeRequest, DescribeResult>, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly IReadOnlyWorkspaceSessions _sessions = sessions;
     private readonly InspectService _inspect = inspect;
 
     public override ApplicationCommandDefinition Definition => DescribeApplicationDefinition.Definition;
@@ -38,9 +41,9 @@ internal sealed class DescribeOperation(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
+            var solution = lease.Solution;
             cancellationToken.ThrowIfCancellationRequested();
             var inspection = await _inspect.Describe(
                 solution,
@@ -48,7 +51,7 @@ internal sealed class DescribeOperation(
                 request.Kind,
                 request.WithLocations);
 
-            return inspection.Map(result => result is CompactDescription compact
+            return inspection.Map(result => (result is CompactDescription compact
                 ? new DescribeResult(
                     DescribeResultKind.Compact,
                     compact with
@@ -59,7 +62,10 @@ internal sealed class DescribeOperation(
                 : new DescribeResult(
                     DescribeResultKind.Verbose,
                     null,
-                    JsonSerializer.SerializeToElement(result, SymbolFormatter.DefaultJsonOptions)));
+                    JsonSerializer.SerializeToElement(result, SymbolFormatter.DefaultJsonOptions))) with
+            {
+                SourceRevision = lease.SourceRevision
+            });
         }
     }
 }

@@ -1,11 +1,5 @@
 ---
-import { commands } from '../lib/commandCatalogue';
-
-const groups = [
-  { name: 'inspect', label: 'Inspect', description: 'Read symbols, source, and relationships.' },
-  { name: 'analyze', label: 'Analyze', description: 'Evaluate solution-wide structure and quality.' },
-  { name: 'refactor', label: 'Refactor', description: 'Preview or apply focused source changes.' },
-];
+import { commands, commandGroups } from '../lib/commandCatalogue';
 ---
 
 <div class="command-catalogue" data-command-count={commands.length}>
@@ -15,7 +9,7 @@ const groups = [
     for version-matched arguments, options, examples, and output formats.
   </p>
 
-  {groups.map((group) => {
+  {commandGroups.map((group) => {
     const entries = commands.filter((command) => command.group === group.name);
 
     return (

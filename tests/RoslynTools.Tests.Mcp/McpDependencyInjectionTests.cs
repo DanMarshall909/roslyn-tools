@@ -42,7 +42,7 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public void Tool_schema_builder_produces_definition_for_every_mcp_visible_descriptor()
+    public void Untrusted_tool_schema_builder_produces_every_read_only_visible_descriptor()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
@@ -50,7 +50,8 @@ public sealed class McpDependencyInjectionTests
 
         var visibleDescriptorCount = provider
             .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
-            .All.Count(descriptor => descriptor.McpVisible);
+            .All.Count(descriptor => descriptor.McpVisible
+                                     && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite));
         tools.Count.ShouldBe(visibleDescriptorCount);
         Assert.All(tools, t =>
         {
@@ -64,6 +65,27 @@ public sealed class McpDependencyInjectionTests
             t.metadata.ShouldContainKey("rt/effects");
             t.metadata["rt/audience"].ShouldBe("Public");
         });
+    }
+
+    [Fact]
+    public void Trusted_tool_schema_builder_produces_the_complete_public_inventory()
+    {
+        using var provider = McpTestHost.CreateProvider(new McpHostOptions(FindRepoRoot()));
+        var descriptors = provider
+            .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .All.Where(descriptor => descriptor.McpVisible
+                                     && descriptor.Audience == CommandAudience.Public)
+            .ToList();
+        var tools = provider.GetRequiredService<ToolSchemaBuilder>().Build();
+
+        tools.Count.ShouldBe(descriptors.Count);
+        tools.Select(tool => tool.name).ShouldBe(
+            descriptors.Select(descriptor => descriptor.ToolName),
+            ignoreOrder: true);
+        tools.Select(tool => tool.name).ShouldContain("prime");
+        tools.Select(tool => tool.name).ShouldContain("move");
+        tools.Select(tool => tool.name).ShouldContain("rename");
+        tools.Select(tool => tool.name).ShouldContain("delete_unreferenced");
     }
 
     [Fact]
@@ -102,6 +124,41 @@ public sealed class McpDependencyInjectionTests
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("Unknown tool");
+    }
+
+    [Fact]
+    public async Task Tool_registry_tracks_persistent_trust_changes_during_one_host_lifetime()
+    {
+        var registryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"rt-mcp-live-trust-{Guid.NewGuid():N}",
+            "repository-trust.json");
+        try
+        {
+            var trustRegistry = new RepositoryTrustRegistry(registryPath);
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustRegistry: trustRegistry));
+            var tools = provider.GetRequiredService<ToolRegistry>();
+            using var arguments = JsonDocument.Parse("{}");
+
+            tools.GetTools().ShouldNotContain(tool => tool.name == "move");
+            trustRegistry.Add(FindRepoRoot()).IsOk.ShouldBeTrue();
+            tools.GetTools().ShouldContain(tool => tool.name == "move");
+            var admitted = await tools.InvokeAsync("move", arguments.RootElement);
+            admitted.content.ShouldNotContain("Unknown tool");
+
+            trustRegistry.Remove(FindRepoRoot()).IsOk.ShouldBeTrue();
+            tools.GetTools().ShouldNotContain(tool => tool.name == "move");
+            var rejected = await tools.InvokeAsync("move", arguments.RootElement);
+            rejected.isError.ShouldBeTrue();
+            rejected.content.ShouldContain("Unknown tool");
+        }
+        finally
+        {
+            var directory = Path.GetDirectoryName(registryPath)!;
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

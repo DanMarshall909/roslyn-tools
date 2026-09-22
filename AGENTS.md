@@ -35,7 +35,7 @@ Guidance for agentic coding tools working in this repository.
 
 ### Layout
 
-- `src/RoslynTools.Cli/Commands/`: CLI command definitions. Each concrete `*Command.cs` implements `IRtCommand` plus exactly one category marker: `IInspectCommand`, `IAnalyzeCommand`, or `IRefactorCommand`.
+- `src/RoslynTools.Cli/Commands/`: CLI command definitions. Each concrete `*Command.cs` implements `IRtCommand` plus exactly one category marker: `IInspectCommand`, `IAnalyzeCommand`, `IRefactorCommand`, or `ICiCommand`. CI commands enforce read-only rule checks with nonzero exit status for violations.
 - `src/RoslynTools.Cli/CommandDescriptors/`: the shared application-command descriptor registry used to project command metadata and application ports into host surfaces.
 - `src/RoslynTools.Mcp/`: generic MCP descriptor adapter and stdio server. Do not recreate one bespoke MCP handler per CLI command.
 - `src/RoslynTools/Services/`: service layer. It must not depend on `System.CommandLine` or render directly to the console. Services receive domain requests and return typed results or errors.

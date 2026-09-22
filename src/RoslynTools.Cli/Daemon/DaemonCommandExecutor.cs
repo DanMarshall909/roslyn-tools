@@ -1,5 +1,6 @@
 using System.CommandLine.Invocation;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -17,14 +18,21 @@ internal static class DaemonCommandExecutor
         where TRequest : class
         where TResponse : class
     {
-        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
+        var invocationDirectory = Directory.GetCurrentDirectory();
+        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess)
+            return await port.ExecuteAsync(request, cancellationToken);
+        if (IsLocalDiagnosticDoctor(request))
+            return await port.ExecuteAsync(request, cancellationToken);
+
+        request = NormalizeInvocationRelativeReadOnlyRequest(request, invocationDirectory);
+        if (RepositoryTrustContext.TrustedRepositoryRoot is not null
             || IWorkspaceSessionFactory.HasAmbientOverride
             || DaemonRuntime.IsDisabled)
             return await port.ExecuteAsync(request, cancellationToken);
 
         var recoveryResult = await recovery.ExecuteAsync(
             port.Definition,
-            JsonSerializer.SerializeToElement(request),
+            CreateDaemonArguments(request),
             cancellationToken);
         if (recoveryResult.Response?.Error?.Code == DaemonRpcErrorCodes.CommandNotFound)
             return await port.ExecuteAsync(request, cancellationToken);
@@ -34,7 +42,7 @@ internal static class DaemonCommandExecutor
 
         if (!recoveryResult.ShouldFallback)
             return Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
-                "The daemon accepted this mutation but its result is indeterminate; "
+                "The daemon accepted this request but its result is indeterminate; "
                 + "inspect the target before retrying."));
 
         return await port.ExecuteAsync(request, cancellationToken);
@@ -72,8 +80,20 @@ internal static class DaemonCommandExecutor
         where TRequest : class
     {
         var cancellationToken = context.GetCancellationToken();
+        var invocationDirectory = Directory.GetCurrentDirectory();
+        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess)
+        {
+            await ExecuteLocalAsync(port, request, context, cancellationToken);
+            return;
+        }
+        if (IsLocalDiagnosticDoctor(request))
+        {
+            await ExecuteLocalAsync(port, request, context, cancellationToken);
+            return;
+        }
 
-        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
+        request = NormalizeInvocationRelativeReadOnlyRequest(request, invocationDirectory);
+        if (RepositoryTrustContext.TrustedRepositoryRoot is not null
             || IWorkspaceSessionFactory.HasAmbientOverride
             || DaemonRuntime.IsDisabled)
         {
@@ -83,7 +103,7 @@ internal static class DaemonCommandExecutor
 
         var result = await recovery.ExecuteAsync(
             port.Definition,
-            JsonSerializer.SerializeToElement(request),
+            CreateDaemonArguments(request),
             cancellationToken);
         if (result.Response is not null)
         {
@@ -94,13 +114,65 @@ internal static class DaemonCommandExecutor
         if (!result.ShouldFallback)
         {
             RtLog.Error(
-                "The daemon accepted this mutation but its result is indeterminate; inspect the target before retrying.");
+                "The daemon accepted this request but its result is indeterminate; inspect the target before retrying.");
             context.ExitCode = 1;
             return;
         }
 
         await ExecuteLocalAsync(port, request, context, cancellationToken);
     }
+
+    private static TRequest NormalizeInvocationRelativeReadOnlyRequest<TRequest>(
+        TRequest request,
+        string invocationDirectory)
+        where TRequest : class
+    {
+        if (request is OutlineRequest { Target: { } target } outline
+            && !Path.IsPathFullyQualified(target)
+            && (!target.EndsWith(".*", StringComparison.Ordinal)
+                || target.Contains('/')
+                || target.Contains('\\')))
+        {
+            var candidate = Path.GetFullPath(target, invocationDirectory);
+            var isPath = target.Contains('*')
+                         || target.Contains('?')
+                         || target.Contains(Path.DirectorySeparatorChar)
+                         || target.Contains(Path.AltDirectorySeparatorChar)
+                         || target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                         || Path.Exists(candidate);
+            if (isPath)
+                request = (TRequest)(object)(outline with { Target = candidate });
+        }
+
+        var node = JsonSerializer.SerializeToNode(request)?.AsObject()
+                   ?? throw new JsonException("The command request could not be serialized.");
+        if (request is DoctorRequest doctorRequest
+            && (doctorRequest.InstallationOnly
+                || string.IsNullOrWhiteSpace(doctorRequest.Solution)))
+            return request;
+
+        var solutionProperty = node.FirstOrDefault(property => string.Equals(
+            property.Key,
+            "solution",
+            StringComparison.OrdinalIgnoreCase));
+        if (solutionProperty.Key is null)
+            return request;
+
+        var baseDirectory = request is DoctorRequest doctor
+            ? Path.GetFullPath(doctor.Directory, invocationDirectory)
+            : invocationDirectory;
+        var solution = solutionProperty.Value?.GetValue<string>();
+        node[solutionProperty.Key] = SolutionPathResolver.ResolveFrom(solution, baseDirectory);
+        return node.Deserialize<TRequest>(DaemonRpcJson.RequestOptions)
+               ?? throw new JsonException("The normalized command request could not be deserialized.");
+    }
+
+    private static JsonElement CreateDaemonArguments<TRequest>(TRequest request)
+        where TRequest : class => JsonSerializer.SerializeToElement(request);
+
+    private static bool IsLocalDiagnosticDoctor<TRequest>(TRequest request) =>
+        request is DoctorRequest doctor
+        && (doctor.InstallationOnly || string.IsNullOrWhiteSpace(doctor.Solution));
 
     private static async Task ExecuteLocalAsync<TRequest>(
         ICommandApplicationPort port,

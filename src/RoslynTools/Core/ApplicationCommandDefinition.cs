@@ -72,12 +72,9 @@ internal sealed record ApplicationCommandDefinition
         RequestType = requestType;
         ResponseType = responseType;
         Product = product ?? CommandProductMetadata.FromLegacy(info, safety);
-        // Apply-capable operations are intentionally absent from normal MCP discovery while
-        // mutation execution is review-first and in-process only. Plan-only operations can be
-        // reintroduced later with a distinct non-applying contract.
-        McpVisible = mcpVisible
-                     && safety.Effect == CommandEffect.ReadOnly
-                     && Product.Audience == CommandAudience.Public;
+        // Definitions declare host eligibility; the MCP host applies runtime authorization
+        // when it builds discovery for an untrusted or startup-trusted repository.
+        McpVisible = mcpVisible && Product.Audience == CommandAudience.Public;
         Safety = safety;
         ExecutionPlacement = executionPlacement;
         SuggestedTools = suggestedTools;

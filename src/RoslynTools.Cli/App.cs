@@ -13,6 +13,7 @@ using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
+using RoslynTools.Services;
 using RoslynTools.Services.Suggest;
 using Spectre.Console;
 using YamlDotNet.Core;
@@ -25,7 +26,7 @@ namespace RoslynTools;
 internal static class App
 {
     /// <summary>
-    ///     The three top-level groups under which every command is filed. Each command's
+    ///     The top-level groups under which every command is filed. Each command's
     ///     <see cref="RtCommandInfo.Category" /> must equal one of these keys exactly — checked
     ///     at startup in <see cref="RunAsync" />.
     /// </summary>
@@ -34,7 +35,8 @@ internal static class App
         {
             ["inspect"] = "Read-only: examine a single symbol or file",
             ["analyze"] = "Read-only: scan for cross-cutting issues",
-            ["refactor"] = "Mutations: rename, move, extract, replace, modify"
+            ["refactor"] = "Mutations: rename, move, extract, replace, modify",
+            ["ci"] = "Read-only: enforce configured rules with failing exit status"
         };
 
     /// <summary>
@@ -64,7 +66,7 @@ internal static class App
                 + ". Add `: IRtCommand` and supply static `Info` + `Build()`.");
 
         // Bidirectional consistency: JsonOutput in RtCommandInfo ↔ IStructuredOutputCommand.
-        // For inspect/analyze commands, both must be set together. This prevents shipping a
+        // For inspect/analyze/ci commands, both must be set together. This prevents shipping a
         // command that claims JSON output but forgets the interface, or vice versa.
         const BindingFlags staticPublic = BindingFlags.Static | BindingFlags.Public;
         var inconsistentOutput = typeof(App).Assembly.GetTypes()
@@ -80,19 +82,19 @@ internal static class App
                     IsStructured: typeof(IStructuredOutputCommand).IsAssignableFrom(t),
                     ClaimsJson: info?.JsonOutput == true);
             })
-            .Where(x => x.Category is "inspect" or "analyze" && x.IsStructured != x.ClaimsJson)
+            .Where(x => x.Category is "inspect" or "analyze" or "ci" && x.IsStructured != x.ClaimsJson)
             .Select(x => $"{x.Name} (JsonOutput={x.ClaimsJson}, IStructuredOutputCommand={x.IsStructured})")
             .ToList();
 
         if (inconsistentOutput.Count > 0)
             throw new InvalidOperationException(
-                "These inspect/analyze commands have inconsistent structured-output state "
+                "These inspect/analyze/ci commands have inconsistent structured-output state "
                 + "(RtCommandInfo.JsonOutput and IStructuredOutputCommand must be set together): "
                 + string.Join(", ", inconsistentOutput));
 
         // Category-marker biconditional: every concrete command in RoslynTools.Commands
         // (excluding the DumpHelp meta-command) must implement EXACTLY ONE of
-        // IInspectCommand / IAnalyzeCommand / IRefactorCommand. The category marker
+        // IInspectCommand / IAnalyzeCommand / IRefactorCommand / ICiCommand. The category marker
         // and RtCommandInfo.Category together describe the same fact in two places;
         // this ratchet keeps them in sync at startup so new commands can't forget to
         // declare a category — the post-build docs/COMMANDS.md regeneration will fail.
@@ -109,6 +111,7 @@ internal static class App
                 {
                     typeof(IInspectCommand).IsAssignableFrom(t) ? "IInspectCommand" : null,
                     typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "IAnalyzeCommand" : null,
+                    typeof(ICiCommand).IsAssignableFrom(t) ? "ICiCommand" : null,
                     typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null
                 }.Where(m => m is not null).ToArray()
             })
@@ -121,7 +124,7 @@ internal static class App
         if (categoryOffenders.Count > 0)
             throw new InvalidOperationException(
                 "These commands must implement exactly one category marker "
-                + "(IInspectCommand, IAnalyzeCommand, or IRefactorCommand): "
+                + "(IInspectCommand, IAnalyzeCommand, ICiCommand, or IRefactorCommand): "
                 + string.Join(", ", categoryOffenders)
                 + ". Add the appropriate marker to the class declaration.");
     }
@@ -157,6 +160,19 @@ internal static class App
 
     /// <summary>Complete implementation inventory, including commands removed from discovery.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> AllCommands { get; } = Discover();
+
+    /// <summary>
+    /// Local user-authoritative commands whose explicit CLI verb is the apply decision rather
+    /// than a repository-source dry-run/apply workflow.
+    /// </summary>
+    internal static IReadOnlySet<string> ControlPlaneCommandNames { get; } =
+        typeof(App).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(IControlPlaneCommand).IsAssignableFrom(type))
+            .Select(type => (RtCommandInfo)type
+                .GetProperty("Info", BindingFlags.Static | BindingFlags.Public)!
+                .GetValue(null)!)
+            .Select(info => info.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>Commands admitted to the ordinary CLI and adapter product surface.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } =
@@ -254,7 +270,8 @@ internal static class App
             services.GetService<Services.SemanticDiff.Git.IGitClient>()));
 
         // Compact session-start summary: gate, entry, hot commands. No MSBuild.
-        root.AddCommand(PrimeCommand.Build(services));
+        root.AddCommand(PrimeCommand.Build(
+            services.GetRequiredService<PrimeOperation>()));
 
         if (additionalCommands is not null)
             foreach (var cmd in additionalCommands)
@@ -321,8 +338,9 @@ internal static class App
             .AddMiddleware(async (context, next) =>
             {
                 using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
-                    ? RepositoryTrustContext.UseExplicitTrust()
-                    : null;
+                    ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
+                    : RepositoryTrustContext.UsePersistentTrust(
+                        services.GetRequiredService<RepositoryTrustRegistry>());
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
@@ -515,6 +533,83 @@ internal static class App
                     return tokens[i + 1];
             }
             return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ResolveTrustedRepositoryRoot(InvocationContext context)
+    {
+        var currentDirectory = Path.GetFullPath(Directory.GetCurrentDirectory());
+        var selectedDirectory = ResolveSelectedDirectory(context, currentDirectory);
+
+        for (var directory = new DirectoryInfo(selectedDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var gitEntry = Path.Combine(directory.FullName, ".git");
+            if (Directory.Exists(gitEntry) || File.Exists(gitEntry))
+                return Path.TrimEndingDirectorySeparator(directory.FullName);
+        }
+
+        return Path.TrimEndingDirectorySeparator(selectedDirectory);
+    }
+
+    private static string ResolveSelectedDirectory(InvocationContext context, string currentDirectory)
+    {
+        var supportsSolutionSelection = context.ParseResult.CommandResult.Command.Options
+            .Any(option => option.Name == "solution");
+        var solutionPath = TryGetParsedPathOption(context, "solution");
+        var requestedDirectory = TryGetParsedPathOption(context, "directory");
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(solutionPath))
+            {
+                var baseDirectory = string.IsNullOrWhiteSpace(requestedDirectory)
+                    ? currentDirectory
+                    : Path.GetFullPath(requestedDirectory);
+                var resolvedSolution = Path.GetFullPath(solutionPath, baseDirectory);
+                return Path.GetDirectoryName(resolvedSolution) ?? baseDirectory;
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestedDirectory))
+                return Path.GetFullPath(requestedDirectory);
+
+            if (!supportsSolutionSelection)
+                return currentDirectory;
+
+            var discoveredSolution = SolutionPathResolver.Resolve(null);
+            return Path.GetDirectoryName(discoveredSolution) ?? currentDirectory;
+        }
+        catch (Exception ex) when (ex is IOException
+                                   or UnauthorizedAccessException
+                                   or InvalidOperationException
+                                   or ArgumentException
+                                   or NotSupportedException)
+        {
+            return currentDirectory;
+        }
+    }
+
+    private static string? TryGetParsedPathOption(InvocationContext context, string name)
+    {
+        try
+        {
+            var option = context.ParseResult.CommandResult.Command.Options
+                .FirstOrDefault(candidate => candidate.Name == name);
+            if (option is null)
+                return null;
+
+            return context.ParseResult.GetValueForOption(option) switch
+            {
+                DirectoryInfo directory => directory.FullName,
+                FileInfo file => file.FullName,
+                string path => path,
+                _ => null
+            };
         }
         catch
         {

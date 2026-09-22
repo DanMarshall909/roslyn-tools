@@ -1,10 +1,20 @@
 # roslyn-tools
 
-`rt` is a semantic C# navigation, analysis, and refactoring tool for developers and coding agents. It uses Roslyn to operate across complete `.sln` and `.slnx` workspaces rather than matching text one file at a time.
+`rt` brings Roslyn-powered C# tooling to three use cases: developer workflows in the CLI, coding agents through MCP, and rule enforcement in CI. It operates across complete `.sln` and `.slnx` workspaces with compiler-backed understanding of your code.
 
-Use it to inspect symbols, trace references, analyse architecture, and apply solution-wide refactorings with dry-run previews and machine-readable output. The CLI and MCP host share the same application services and command metadata.
+Inspect symbols, trace references, analyse architecture, preview solution-wide refactorings, and enforce checked-in rules. All three use cases share the same application services and command metadata.
 
 Read the task-oriented documentation at [roslyn-tools.danmarshall.dev](https://roslyn-tools.danmarshall.dev).
+
+## Three ways to use `rt`
+
+| Use case | What it helps you do | Start here |
+|---|---|---|
+| **Developer CLI** | Explore C# solutions, analyse impact, and preview or apply refactorings from your terminal. | [CLI quick start](#quick-start) |
+| **Coding agents through MCP** | Give agents semantic tools with structured results and explicit repository trust. | [Connect the MCP host](#mcp-host) |
+| **CI rule enforcement** | Fail a pipeline when architecture or complexity rules are violated. | [Run CI checks](#ci-rule-enforcement) |
+
+IDE integration is planned as a future fourth use case; it is not available yet.
 
 ## Why `rt`
 
@@ -12,7 +22,7 @@ Read the task-oriented documentation at [roslyn-tools.danmarshall.dev](https://r
 - **Safe mutations** — mutating commands support previews and report the changes they intend to make.
 - **Agent-friendly discovery** — describe a task in plain English with `rt suggest`, or load a compact session primer with `rt prime`.
 - **Structured output** — JSON, YAML, Markdown, and compact LLM-oriented output are available for automation.
-- **Multiple hosts** — use the command-line tool directly, install the Claude Code plugin, or run the MCP host from source.
+- **Shared tooling** — use the CLI locally, connect an MCP client, or run configured checks in your CI pipeline.
 
 ## Requirements
 
@@ -87,21 +97,25 @@ Print the compact session primer used by coding agents:
 rt prime
 ```
 
+MCP clients invoke `prime` with an empty object and receive the same structured primer.
+
 ## Core workflows
 
 | Goal | Representative commands |
 |---|---|
 | Understand code | `describe`, `outline`, `source` |
-| Navigate relationships | `find-refs`, `find-callers`, `find-impl` |
+| Navigate relationships | `relationships` |
 | Analyse a solution | `find-unused`, `list-smells`, `complexity`, `dependency-graph`, `circular-deps` |
 | Refactor safely | `rename`, `move`, `extract-method`, `delete-unreferenced`, `semantic-diff` |
 | Modernise code | `convert-to-record`, `make-async`, `migrate-to-ioptions`, `replace-xunit-asserts` |
+| Enforce repository rules | `ci check` |
 
-Commands are organised into three groups:
+Commands are organised into four groups:
 
 - `rt inspect <command>` — read-only symbol and file queries
 - `rt analyze <command>` — read-only solution-wide analysis
 - `rt refactor <command>` — source mutations
+- `rt ci check` — enforce configured rules with a failing exit status; see [CI setup](docs/ci.md).
 
 Unambiguous commands are also available directly at the root. These are equivalent:
 
@@ -119,6 +133,7 @@ rt --help
 rt inspect --help
 rt analyze --help
 rt refactor --help
+rt ci --help
 rt dump-help
 rt dump-help --compact
 rt dump-help --json
@@ -185,25 +200,45 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
-The MCP host requires a deliberate, startup-only repository approval before semantic
-workspace tools can evaluate MSBuild inputs. Configure the reviewed repository as an
-absolute path in the host process arguments:
+### Codex and portable agent plugin
+
+This repository includes a preview [Agent Plugins 1.0](https://agent-plugins.org/)
+bundle under `plugins/roslyn-tools` and a repository marketplace at
+`.agents/plugins/marketplace.json`. The bundle starts the installed MCP host with the
+portable `roslyn-tools-mcp` command; it carries no checkout path, trust argument, or
+machine-specific launcher path. Install the portable CLI and MCP host before installing
+the plugin.
+
+The portable MCP schema does not currently encode Codex-specific `required` or
+`startup_timeout_sec` settings. Plugin installation therefore owns the portable stdio
+transport, while fail-hard startup enforcement and a custom timeout remain client policy
+when a client exposes those settings.
+
+Persist trust after reviewing the repository. Linked task worktrees share the same Git
+common-directory identity, so this is normally a one-time decision:
+
+```powershell
+rt trust add /absolute/path/to/MyApp
+rt trust status /absolute/path/to/MyApp
+```
+
+Then configure one stable MCP launcher without a worktree-bound argument:
 
 ```json
 {
   "mcpServers": {
     "roslyn-tools": {
-      "command": "roslyn-tools-mcp",
-      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
+      "command": "roslyn-tools-mcp"
     }
   }
 }
 ```
 
-The approval applies only to solutions beneath that root for the lifetime of this MCP
-process. A tool request cannot grant trust. Without the startup option, semantic tools
-return `TrustRequired` before MSBuild evaluation; non-evaluating discovery remains
-available. Configure a separate host entry for each reviewed repository.
+Each semantic request is checked against the persistent registry and Git's current
+registered-worktree inventory before MSBuild evaluation. A tool request cannot grant or
+broaden trust, and trust-management operations are never exposed through MCP. The old
+`--trust-repository <absolute-root>` startup option remains available as an
+invocation-scoped compatibility path.
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
@@ -218,10 +253,38 @@ Build and run it from the repository root:
 
 ```powershell
 dotnet build RoslynTools.slnx -c Release
-dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build -- --trust-repository /absolute/path/to/MyApp
+dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build
 ```
 
-Configure an MCP client to launch that command and communicate over stdin/stdout. MCP exposure is being migrated incrementally; use the CLI command catalogue for the complete command surface.
+Configure an MCP client to launch that command and communicate over stdin/stdout. A host
+with at least one valid persistent record advertises eligible refactoring tools as well as
+read-only tools; every call remains target-gated and refactor requests remain dry-run by
+default unless the caller explicitly applies them. With no valid record, discovery is limited
+to the read-only subset. MCP exposure is being migrated incrementally; use the CLI command
+catalogue for the complete command surface.
+
+## CI rule enforcement
+
+Check in a `.rt/ci.json` policy beside your solution. For example, limit method cyclomatic complexity to 10:
+
+```json
+{
+  "version": 1,
+  "rules": [
+    { "id": "maintainability.complexity", "maxCyclomatic": 10 }
+  ]
+}
+```
+
+After installing `rt`, setting up your solution's SDK, and restoring dependencies, run:
+
+```sh
+rt ci check --solution MyApp.slnx --config .rt/ci.json --json --trust-repository
+```
+
+Exit code `0` means every configured rule passed; violations return `1` with structured findings. Invalid policies, compilation errors, and incomplete workspace loading also fail the command. Use explicit trust only for repository code approved for evaluation by that pipeline.
+
+Add architecture rules alongside complexity checks to enforce project and dependency boundaries. See the [CI guide](docs/ci.md) for policy options and a GitHub Actions example.
 
 ## Feedback capture
 

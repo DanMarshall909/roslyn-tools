@@ -72,9 +72,10 @@ maintained daemon catalogue. Daemon recovery distinguishes:
   in-process; and
 - indeterminate after dispatch, which must not retry a mutation.
 
-CLI and MCP use the same recovery component. Operational/bootstrap commands such as
-`daemon`, `prime`, and `dump-help` remain host-owned and outside the ordinary
-application catalog.
+CLI and MCP use the same recovery component. `prime` opts into the application catalog
+so CLI and MCP share its typed session-primer operation without loading a workspace.
+Host-management commands such as `daemon` and `dump-help` remain host-owned and outside
+the ordinary application catalog.
 
 The final dependency graph is:
 

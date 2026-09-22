@@ -3,7 +3,7 @@
 - Status: proposed
 - Priority: P0/P1
 - Decision owner: architecture
-- Supersedes for this phase: daemon workspace-caching work
+- Supersedes for this phase: daemon workspace-caching work except the separately accepted bounded read-only slice in `daemon-read-only-workspace-cache`
 - Reviewed implementation baseline: `main` at `6817221d3db5b28f94ee72183be0cb0b8bff984e`
 
 ## Why
@@ -41,7 +41,7 @@ This change establishes:
 
 ## Non-goals
 
-- Implementing a daemon-owned workspace cache, session manager, incremental invalidation, or multi-repository service.
+- Implementing daemon-owned mutation workspaces, a generic session manager, incremental workspace mutation, durable/cross-machine caching, or a multi-repository service beyond the separately accepted bounded read-only reuse slice.
 - Broadly converting all commands before the representative vertical spine is complete.
 - Replacing discoverable typed tools with a generic untyped execution endpoint.
 - Claiming that a multi-file filesystem transaction can be perfectly atomic on every platform. The required guarantee is deterministic preflight, journalling, rollback where possible, and an explicit `RecoveryRequired` state where it is not.
@@ -49,7 +49,7 @@ This change establishes:
 
 ## Decision
 
-The daemon is not an execution authority in this change. It is an optional transport adapter that forwards a typed canonical request and returns the canonical result without semantic change. It must not own workspace state or mutations, retry after indeterminate mutation dispatch, manufacture fallback execution, use process-global request context, log raw payloads, or change diagnostics, result shape, cancellation, provenance, or safety policy.
+The daemon is not a mutation execution authority in this change. It is an optional transport adapter that forwards a typed canonical request and returns the canonical result without semantic change. ADR-0017 and the `daemon-read-only-workspace-cache` change permit only a bounded, freshness-proven read-only workspace lease cache for six named semantic operations. It must not own mutation workspace state, retry after indeterminate dispatch, manufacture fallback execution, use process-global request context, log raw payloads, or change diagnostics, cancellation, provenance, confidence, or safety policy.
 
 Before dispatch, every apply caller obtains a bounded authenticated repository-scoped
 operation-epoch token and constructs a caller-known operation ID from its monotonic

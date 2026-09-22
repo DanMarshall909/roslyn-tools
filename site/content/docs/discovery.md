@@ -27,7 +27,7 @@ Run `rt suggest` without a query to classify the current Git changes and recomme
 rt prime
 ```
 
-It is intended for coding agents that need the product's operating rules without loading the complete human-formatted reference.
+MCP clients invoke `prime` with an empty object and receive the same structured primer. It is intended for coding agents that need the product's operating rules without loading the complete human-formatted reference.
 
 ## Browse the canonical catalogue
 

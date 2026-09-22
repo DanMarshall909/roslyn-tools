@@ -10,7 +10,7 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class CommandMigrationManifestContracts
 {
     private static readonly HashSet<string> Categories =
-        ["inspect", "analyze", "refactor"];
+        ["inspect", "analyze", "refactor", "ci"];
     private static readonly HashSet<string> WorkStates =
         ["convert", "reconcile", "complete"];
     private static readonly HashSet<string> ExecutionPlacements =
@@ -28,7 +28,7 @@ public sealed class CommandMigrationManifestContracts
             .Where(command => Categories.Contains(command.Info.Category))
             .ToDictionary(command => command.Info.Name, command => command.Info, StringComparer.Ordinal);
 
-        rows.Length.ShouldBe(59);
+        rows.Length.ShouldBe(64);
         rows.Select(row => row.Command).ShouldBeUnique();
         rows.Select(row => row.Command).OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(commands.Keys.OrderBy(name => name, StringComparer.Ordinal));
@@ -45,7 +45,7 @@ public sealed class CommandMigrationManifestContracts
     }
 
     [Fact]
-    public void every_migrated_definition_has_one_discovered_port_and_matches_the_manifest()
+    public void every_migrated_category_definition_has_one_discovered_port_and_matches_the_manifest()
     {
         var rows = ReadManifest().ToDictionary(
             row => Normalize(row.Command),
@@ -57,6 +57,7 @@ public sealed class CommandMigrationManifestContracts
         var ports = provider.GetServices<ICommandApplicationPort>().ToList();
         var migratedPorts = ports
             .Where(port => port is not ILegacyCommandApplicationPort)
+            .Where(port => Categories.Contains(port.Definition.Info.Category))
             .ToList();
 
         migratedPorts.Select(port => port.Definition.Name).ShouldBeUnique();
@@ -65,7 +66,7 @@ public sealed class CommandMigrationManifestContracts
         foreach (var port in migratedPorts)
         {
             rows.TryGetValue(port.Definition.Name, out var row).ShouldBeTrue(
-                $"Migrated command '{port.Definition.Name}' is absent from the 56-row manifest.");
+                $"Migrated category command '{port.Definition.Name}' is absent from the category manifest.");
             var manifestRow = row!;
             port.RequestType.ShouldBe(port.Definition.RequestType);
             port.ResponseType.ShouldBe(port.Definition.ResponseType);
@@ -75,7 +76,8 @@ public sealed class CommandMigrationManifestContracts
             AssertSafety(port.Definition.Safety, manifestRow.Safety);
             if (port.Definition.Safety.Effect == CommandEffect.Mutation)
             {
-                port.Definition.McpVisible.ShouldBeFalse();
+                port.Definition.McpVisible.ShouldBe(
+                    port.Definition.Product.Audience == CommandAudience.Public);
                 port.Definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
                 port.Definition.Safety.MutationDefault.ShouldBe(MutationExecutionDefault.Review);
             }

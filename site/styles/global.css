@@ -217,8 +217,8 @@ h3 {
 }
 
 .hero h1 {
-  max-width: 11ch;
-  font-size: clamp(3.2rem, 7vw, 6.25rem);
+  max-width: 16ch;
+  font-size: clamp(3.2rem, 5vw, 4.5rem);
 }
 
 .hero-lead {
@@ -769,8 +769,8 @@ h3 {
 }
 
 @media (max-width: 48rem) {
-  .primary-nav a:nth-child(2),
-  .primary-nav a:nth-child(3) {
+  .primary-nav a:nth-child(4),
+  .primary-nav a:nth-child(5) {
     display: none;
   }
 

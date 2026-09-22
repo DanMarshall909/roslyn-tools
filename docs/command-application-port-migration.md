@@ -31,9 +31,8 @@ The machine-readable catalog currently contains 56 category commands:
 | Refactor | 33 | 3, including partial `rename` | 30 plus `rename` completion |
 | **Total** | **56** | **16** | **40 conversion/completion slices** |
 
-`suggest` and the feedback leaves are already typed meta operations but are outside
-the 56 category commands. Operational commands such as `daemon`, `prime`, and
-`dump-help` remain host-owned.
+`suggest`, `prime`, and the feedback leaves are typed meta operations outside the
+category-command manifest. `daemon` and `dump-help` remain host-owned.
 
 ## Target flow
 

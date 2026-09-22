@@ -57,20 +57,39 @@ the official MCP C# SDK rather than extending the handwritten transport.
       `roslyn-tools-mcp`; it contains no developer-specific absolute path, direct
       `.dll` path, assumed `/usr/share/dotnet` location, or shell-only environment
       expansion.
+- [x] A preview persistent `rt trust add <repository>` registry lets one stable MCP
+      registration authorize the same Git common-directory identity across currently
+      registered task worktrees without a worktree path in client configuration.
+- [x] Missing, corrupt, unreadable, unregistered, mismatched, and stale Git-object
+      continuity records fail closed; MCP payloads and trust-management discovery cannot
+      grant or broaden trust.
 - [x] The standard installation does not require a separately installed .NET
       runtime, SDK, ICU package, source checkout, restore, or compilation merely
       to start the MCP server.
 - [x] The server reports a clear, actionable diagnostic when semantic solution
       loading requires a consumer SDK that is not installed, including the
       requested version and `global.json` path.
-- [ ] `doctor` verifies the installed CLI and MCP launchers, artifact/build-host
+- [x] `rt inspect doctor --installation-only` verifies the installed CLI and MCP launchers, artifact/build-host
       completeness, protocol negotiation, tool discovery, JSON schemas, stdout
-      protocol purity, stderr logging, and loading of an optionally supplied
-      `.sln` or `.slnx` file.
+      protocol purity, and separately captured stderr. Normal doctor mode additionally
+      reports one-shot, persistent, or missing repository trust and optionally loads a
+      supplied `.sln` or `.slnx` file after lazy MSBuild registration.
+- [x] Doctor follows the MCP 2024-11-05 initialization lifecycle before discovery,
+      distinguishes caller cancellation from its bounded handshake timeout, and terminates
+      the spawned child in either case. SDK evidence distinguishes absent, valid, and invalid
+      `global.json` requests and reports the request path and selection diagnostic.
+- [x] POSIX and Windows installers run the installed launcher's installation-only
+      self-check and fail closed on launcher, build-host, or MCP handshake errors. SDK
+      selection is reported; it becomes fatal when an in-scope `global.json` request
+      cannot be selected, while installation and MCP startup do not require a separate SDK.
 - [ ] The MCP host uses the official MCP C# SDK for supported protocol-version
       negotiation and legacy fallback rather than maintaining a bespoke
       lifecycle implementation.
-- [ ] Spawned stdio integration tests prove that stdout contains only valid,
+- [x] A controlled spawned-stdio integration test proves that the doctor handshake
+      accepts only valid newline-delimited MCP responses, validates discovery schemas,
+      captures stderr separately, and terminates a timed-out child process. Broader server
+      lifecycle coverage remains below.
+- [ ] Full MCP server integration tests prove that stdout contains only valid,
       newline-delimited MCP messages and that diagnostics are written to stderr.
 - [ ] Integration tests cover capability discovery, `tools/list` pagination and
       schemas, `tools/call` success and structured failure, cancellation, and
@@ -78,6 +97,13 @@ the official MCP C# SDK rather than extending the handwritten transport.
 - [x] A versioned `server.json` describes the repository, package or bundle,
       stdio transport, runtime requirements, and supported configuration, and is
       validated for eventual MCP Registry publication.
+- [x] A repository marketplace packages a portable Agent Plugins 1.0 manifest and
+      MCP configuration for `roslyn-tools-mcp`, plus a compatibility Codex manifest;
+      the transport has no arguments, trust path, or machine-specific launcher path.
+- [ ] Portable plugin installation enforces required-server startup and a scoped startup
+      timeout. Agent Plugins 1.0 cannot currently encode Codex-specific `required` or
+      `startup_timeout_sec` settings, so these remain client policy rather than bundle
+      guarantees.
 - [ ] An MCP Bundle is evaluated against the self-contained release layout and
       adopted when supported clients can install and update it without weakening
       local filesystem or process-boundary security.
@@ -92,3 +118,6 @@ the official MCP C# SDK rather than extending the handwritten transport.
 | 2026-08-16 | Use one stable launcher in consumer MCP configuration | A stable executable contract removes SDK paths, checkout paths, shell expansion, and per-repository configuration drift. |
 | 2026-08-16 | Include official MCP C# SDK migration in the distribution issue | Packaging a long-lived MCP executable should not cement the current handwritten, outdated protocol lifecycle. |
 | 2026-08-16 | Make the daemon the typed local execution host; keep CLI, MCP, and IDE integrations as thin adapters | A persistent MCP bridge can reconnect to an upgraded daemon without replacing the client-facing stdio process, while all hosts share one workspace owner and structured command contract. |
+| 2026-09-10 | Add a preview per-user Git common-directory trust registry | A stable MCP registration can serve newly registered task worktrees. Each request still validates its target, while startup and invocation-scoped trust remain compatible. The Git-object anchor is continuity hardening, not ADR-0011 OS physical identity. |
+| 2026-09-10 | Publish a repo marketplace with a portable Agent Plugins 1.0 MCP bundle | The bundle owns a stable bare-command stdio transport and retains a compatibility Codex manifest. Portable schemas cannot yet express Codex startup-required or timeout policy, so those guarantees remain explicitly incomplete. |
+| 2026-09-10 | Make installation verification an installed-launcher doctor mode | Installers now execute `rt inspect doctor --installation-only`. The CLI host owns process and SDK probing, core consumes injected typed results, and MSBuild registration occurs only after repository trust authorizes normal solution loading. |

@@ -7,7 +7,7 @@ namespace RoslynTools.Core;
 ///     interface rather than the concrete <see cref="WorkspaceLoader" /> so test
 ///     code can stub the seam and the daemon can cache an already-loaded workspace.
 /// </summary>
-internal interface IWorkspaceSessionFactory
+internal interface IWorkspaceSessionFactory : IReadOnlyWorkspaceSessions
 {
     /// <summary>
     ///     Reports whether tests have installed an ambient workspace. Keeping the
@@ -15,6 +15,12 @@ internal interface IWorkspaceSessionFactory
     ///     depending on the concrete workspace loader.
     /// </summary>
     static bool HasAmbientOverride => WorkspaceLoader.Override.Value is not null;
+
+    /// <summary>
+    ///     Returns the ambient test snapshot, when one has been installed. Production host
+    ///     invocations do not set this compatibility hook.
+    /// </summary>
+    static (Workspace Workspace, Solution Solution)? AmbientOverride => WorkspaceLoader.Override.Value;
 
     /// <summary>
     ///     The sanctioned default factory for code paths that may run without an
@@ -38,4 +44,14 @@ internal interface IWorkspaceSessionFactory
     ///     solution-only operations.
     /// </summary>
     Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath);
+
+    async Task<ReadOnlyWorkspaceLease> IReadOnlyWorkspaceSessions.AcquireAsync(
+        string? solutionPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var (workspace, solution) = await LoadWorkspaceAsync(solutionPath);
+        var revision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+        return new ReadOnlyWorkspaceLease(solution, revision, workspace.Dispose);
+    }
 }

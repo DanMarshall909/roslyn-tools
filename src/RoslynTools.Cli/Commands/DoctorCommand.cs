@@ -2,13 +2,17 @@ using System.CommandLine;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class DoctorCommand(DoctorOperation operation)
+internal sealed class DoctorCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    DoctorOperation operation)
     : IRtCommand, IInspectCommand, IStructuredOutputCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly DoctorOperation _operation = operation;
 
     public static RtCommandInfo Info => DoctorCommandDefinition.Info;
@@ -22,22 +26,38 @@ internal sealed class DoctorCommand(DoctorOperation operation)
         var solution = new Option<string?>(
             "--solution",
             "Explicit .sln or .slnx path; relative paths resolve under --directory");
+        var installationOnly = new Option<bool>(
+            "--installation-only",
+            "Validate the installed CLI, MCP host, Roslyn build host, SDK, and MCP protocol without loading a solution");
         var command = new Command(
             "doctor",
             "Check installation, solution selection, trust, workspace readiness, and limits")
         {
             directory,
-            solution
+            solution,
+            installationOnly
         };
 
         command.SetHandler(async context =>
         {
             var request = new DoctorRequest(
                 context.ParseResult.GetValueForOption(directory)!.FullName,
-                context.ParseResult.GetValueForOption(solution));
-            var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
+                context.ParseResult.GetValueForOption(solution),
+                context.ParseResult.GetValueForOption(installationOnly));
+            var result = request.InstallationOnly
+                ? await _operation.ExecuteAsync(request, context.GetCancellationToken())
+                : await DaemonCommandExecutor.ExecuteTypedAsync(
+                    _daemon,
+                    _operation,
+                    request,
+                    context.GetCancellationToken());
             result.Match(
-                value => RtResultRenderer.Write(RtResult<RtResultEnvelope<DoctorResult>>.Ok(value)),
+                value =>
+                {
+                    RtResultRenderer.Write(RtResult<RtResultEnvelope<DoctorResult>>.Ok(value));
+                    if (request.InstallationOnly && value.Outcome == "Failed")
+                        context.ExitCode = 1;
+                },
                 error => RtErrorPresenter.Surface(context, error));
         });
 

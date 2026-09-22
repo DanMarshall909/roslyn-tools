@@ -1,4 +1,4 @@
-# ADR-0016: Parse integrity gates absence claims
+# ADR-0019: Parse integrity gates absence claims
 
 - Status: Accepted
 - Date: 2026-09-04

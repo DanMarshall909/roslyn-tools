@@ -15,7 +15,11 @@ requires build-host content that a naive single-file publish can hide.
 Release `rt` and `roslyn-tools-mcp` together as self-contained, platform-specific archives. A checksum-verifying,
 user-scoped installer selects the platform, installs into a versioned directory, and exposes stable launcher names.
 Release CI produces attestations as provenance. MCP startup is independent of SDK discovery; SDK registration happens
-when a tool operation needs Roslyn and reports the consumer's `global.json` when discovery fails.
+when a tool operation needs Roslyn and reports the consumer's `global.json` when discovery fails. Installation-only
+doctor requests bypass MSBuild registration entirely. If daemon execution is unavailable, the long-lived MCP adapter
+first resolves and revalidates the requested repository, then registers the exact normalized MSBuild path and version
+selected from that request's solution directory. Later in-process requests must select the same identity or receive a
+typed `mcpRestartRequired` failure; the adapter never binds this process-global state to its startup directory.
 
 The source-build workflow remains available to contributors. Migration from the handwritten MCP lifecycle to the
 official C# SDK and MCP Bundle adoption remain explicit follow-up stages of rt-012.
@@ -25,6 +29,8 @@ official C# SDK and MCP Bundle adoption remain explicit follow-up stages of rt-0
 - MCP client configuration no longer embeds a checkout, `dotnet`, or DLL path.
 - Starting and discovering the server does not require a separately installed runtime or SDK.
 - Semantic operations still require the SDK selected by the consumer solution.
+- Persistent no-argument hosts inspect SDK configuration only after target-specific trust admission.
+- A host serving solutions that select different MSBuild identities must be restarted between identities.
 - Release CI must build and attest every supported runtime archive.
 - Installers and release layout form a compatibility contract enforced by `scripts/test-distribution.sh`.
 

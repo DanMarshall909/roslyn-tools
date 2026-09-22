@@ -12,20 +12,20 @@ namespace RoslynTools.Mcp.Tools;
 /// </remarks>
 internal sealed class ToolRegistry
 {
+    private readonly ToolSchemaBuilder _schemaBuilder;
     private readonly McpCommandAdapter _adapter;
-    private readonly ToolDefinition[] _tools;
 
     public ToolRegistry(
         ToolSchemaBuilder schemaBuilder,
         McpCommandAdapter adapter)
     {
+        _schemaBuilder = schemaBuilder;
         _adapter = adapter;
-        _tools = [.. schemaBuilder.Build()];
     }
 
     public ToolDefinition[] GetTools()
     {
-        return _tools;
+        return [.. _schemaBuilder.Build()];
     }
 
     public Task<ToolResult> InvokeAsync(

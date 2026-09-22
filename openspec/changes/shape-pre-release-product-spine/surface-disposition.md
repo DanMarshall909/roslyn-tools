@@ -10,6 +10,7 @@ but only the destination contract is eligible for preview support.
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
 | `analyze-interface` | `impact --kind interface` / relationship member usage | Preview | Consolidate after the shared resolver. |
+| `check-architecture` | `check --rule architecture.*` | Preview -> Stable | First config-driven architecture finding family; consolidate into the shared check envelope. |
 | `circular-deps` | `check --rule architecture.circular-dependency` | Preview -> Stable | Consolidate into common findings. |
 | `complexity` | `check --rule maintainability.complexity` | Preview -> Stable | First finding-envelope pilot. |
 | `debug` | Separate trace-development tool | Removed | Unrelated to C# semantic tooling. |
@@ -23,6 +24,12 @@ but only the destination contract is eligible for preview support.
 | `semantic-diff` | `semantic-diff` | Stable candidate | Keep with explicit parse-only limitations. |
 | `solid` | Concrete `check` rules | Preview | Remove SOLID violation branding. |
 | `static-class-inventory` | `inventory static-types` | Experimental -> Preview | Input to a future staticness recipe. |
+
+## CI commands
+
+| Current command | Destination | Target maturity | Decision |
+|---|---|---|---|
+| `check` | `ci check` | Preview | Enforce checked-in architecture and complexity rules through one typed result and failing CLI exit status. |
 
 ## Inspect commands
 
@@ -70,14 +77,17 @@ but only the destination contract is eligible for preview support.
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
 | `move` | `prepare-move-symbol` | Preview plan-only | Core typed plan with project/path effects. |
 | `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Consolidate; current scope is static methods. |
+| `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project edits, and one transactional apply. |
 | `narrow-dependency` | `recipe segregate-interface` | Experimental | DI follow-up and consumer partitioning. |
 | `rename` | `prepare-rename` | Preview plan-only | First change-plan pilot. |
 | `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically. |
 | `replace-datetime` | `recipe use-time-provider` | Experimental | Framework and constructor-injection assumptions. |
 | `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic. |
+| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` | Preview plan-only/high risk | Candidate language; require complete workspace and explicit limitations. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |
+| `trust` | Local repository trust control plane | Preview | Explicit local add/remove verbs are the user authorization boundary; never expose through daemon or MCP discovery. |
 
 ## Ancillary commands and surface conventions
 

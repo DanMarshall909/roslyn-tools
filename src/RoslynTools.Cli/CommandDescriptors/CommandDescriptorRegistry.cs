@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
@@ -26,12 +27,15 @@ internal sealed class CommandDescriptorRegistry
         FeedbackProcessOperation feedbackProcess,
         FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
+        PrimeOperation prime,
         IGitClient git)
     {
         var portsByName = ports.ToDictionary(
             port => port.Definition.Name,
             StringComparer.Ordinal);
-        var descriptors = App.AllCommands.Select(entry =>
+        var descriptors = App.AllCommands
+            .Where(entry => !App.ControlPlaneCommandNames.Contains(entry.Info.Name))
+            .Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
             portsByName.TryGetValue(toolName, out var port);
@@ -132,6 +136,10 @@ internal sealed class CommandDescriptorRegistry
             suggest,
             CommandEffects.RepositoryRead,
             CommandAudience.Public);
+        AddTypedMetaCommand(
+            () => PrimeCommand.Build(prime),
+            ["prime"],
+            prime);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -149,19 +157,47 @@ internal sealed class CommandDescriptorRegistry
             CommandAudience audience = CommandAudience.Maintainer)
         {
             var command = build();
+            var definition = port is ILegacyCommandApplicationPort
+                ? null
+                : port.Definition;
             descriptors.Add(new ApplicationCommandDescriptor(
                 path,
                 toolName,
                 description,
                 whenToUse,
                 DescribeInput(command),
-                McpVisible: audience == CommandAudience.Public,
+                McpVisible: definition?.McpVisible ?? audience == CommandAudience.Public,
                 safety,
                 structured,
                 port,
-                Definition: null,
-                effects,
-                audience));
+                definition,
+                definition?.Product.Effects ?? effects,
+                definition?.Product.Audience ?? audience));
+        }
+
+        void AddTypedMetaCommand(
+            Func<Command> build,
+            IReadOnlyList<string> path,
+            ICommandApplicationPort port)
+        {
+            if (port is ILegacyCommandApplicationPort)
+                throw new ArgumentException("A typed meta command requires a host-neutral definition.", nameof(port));
+
+            var definition = port.Definition;
+            var command = build();
+            descriptors.Add(new ApplicationCommandDescriptor(
+                path,
+                definition.Name,
+                command.Description ?? definition.Info.WhenToUse,
+                definition.Info.WhenToUse,
+                DescribeInput(command),
+                definition.McpVisible,
+                ToDescriptorSafety(definition.Safety, definition.Info.Mutates),
+                Structured: true,
+                port,
+                definition,
+                definition.Product.Effects,
+                definition.Product.Audience));
         }
     }
 

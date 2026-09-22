@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 namespace RoslynTools.Services;
 
 /// <summary>
-///     Compact session-start summary for <c>rt prime</c>: no MSBuild, no solution load.
+///     Compact session-start summary shared by CLI <c>rt prime</c> and the MCP
+///     <c>prime</c> tool: no MSBuild, no solution load.
 ///     JSON mode targets &lt; 400 tokens.
 /// </summary>
 internal sealed record PrimeResult(
