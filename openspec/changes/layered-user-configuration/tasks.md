@@ -26,4 +26,4 @@
 
 - [x] 5.1 Run focused tests, strict OpenSpec validation, formatting, Release build, and both test projects.
 - [x] 5.2 Smoke-test global-only and repository-narrowed configuration with the published CLI and MCP hosts.
-- [ ] 5.3 Review the final diff, commit logical slices with detailed bodies, and push the feature branch while preserving unrelated worktrees.
+- [x] 5.3 Review the final diff, commit logical slices with detailed bodies, and push the feature branch while preserving unrelated worktrees.
