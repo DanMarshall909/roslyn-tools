@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
@@ -86,6 +87,7 @@ public sealed class DoctorOperationTests
         using var project = new AdhocProjectBuilder("DoctorApp");
         project.AddSource("Healthy.cs", "public class Healthy { }");
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["DoctorApp"]);
         var sessions = new CountingSessionFactory(workspace, solution);
         var bootstrap = new CountingWorkspaceBootstrap();
         var operation = CreateOperation(sessions, bootstrap);
@@ -309,6 +311,7 @@ public sealed class DoctorOperationTests
         using var project = new AdhocProjectBuilder("DoctorApp");
         project.AddSource("Healthy.cs", "public class Healthy { }");
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["DoctorApp"]);
         var sessions = new CountingSessionFactory(workspace, solution);
         var operation = CreateOperation(sessions);
 
@@ -336,6 +339,7 @@ public sealed class DoctorOperationTests
         using var project = new AdhocProjectBuilder("DoctorApp");
         project.AddSource("Healthy.cs", "public class Healthy { }");
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["DoctorApp"]);
         var sessions = new CountingSessionFactory(workspace, solution);
         var environment = DoctorEnvironmentProbeResult.Healthy with
         {

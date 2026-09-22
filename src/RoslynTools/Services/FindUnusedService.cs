@@ -64,6 +64,7 @@ internal class FindUnusedService : IRtService
         FindUnusedProfiler? profiler = null,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         profiler ??= new FindUnusedProfiler();
         var results = new List<UnusedSymbol>();
         var rtIgnore = RtIgnore.ForSolution(solution);
@@ -71,6 +72,10 @@ internal class FindUnusedService : IRtService
         var reflectivelyScannedProjects =
             await FindReflectivelyScannedProjectsAsync(solution, cancellationToken);
         profiler.RecordReflectionScan(reflectionScanStarted);
+        var externalInterfaceImplementations = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+        if (scope is "all" or "methods")
+            externalInterfaceImplementations.UnionWith(
+                await FindExternalInterfaceImplementationsAsync(solution, cancellationToken));
 
         // One candidate is one reference search, however many declarations name it. A partial type
         // has a declaration per file and a partial method has two, so searching where a declaration
@@ -156,7 +161,8 @@ internal class FindUnusedService : IRtService
 
                         var symbol = semanticModel.GetDeclaredSymbol(methodDecl, cancellationToken);
                         if (symbol == null) continue;
-                        if (ShouldExclude(symbol)) continue;
+                        if (externalInterfaceImplementations.Contains(symbol.OriginalDefinition) || ShouldExclude(symbol))
+                            continue;
 
                         profiler.CountMethodCandidate();
                         if (!searched.Add(Canonicalize(symbol)))
@@ -282,6 +288,7 @@ internal class FindUnusedService : IRtService
         var projects = new Dictionary<ProjectId, string>();
         foreach (var project in solution.Projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var scans = false;
             var reflects = false;
 
@@ -390,6 +397,90 @@ internal class FindUnusedService : IRtService
     private static bool DeclaresEntryPoint(INamedTypeSymbol type) =>
         type.GetMembers(EntryPointMethodName).OfType<IMethodSymbol>().Any(m => m.IsStatic);
 
+    private static bool IsModuleInitializer(IMethodSymbol method) =>
+        method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString()
+            == "System.Runtime.CompilerServices.ModuleInitializerAttribute");
+
+    /// <summary>
+    /// A derived type can introduce an external interface implemented by an inherited
+    /// source method whose declaring type has no interfaces. Collect those mappings once
+    /// instead of searching the entire solution for each unused-method candidate.
+    /// </summary>
+    private static async Task<List<IMethodSymbol>> FindExternalInterfaceImplementationsAsync(
+        Solution solution,
+        CancellationToken cancellationToken)
+    {
+        var implementations = new List<IMethodSymbol>();
+        var inspectedMappings = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+        foreach (var project in solution.Projects)
+        {
+            var compilation = await project.GetCompilationAsync(cancellationToken);
+            if (compilation is null)
+                continue;
+
+            foreach (var type in EnumerateSourceTypes(compilation.Assembly.GlobalNamespace))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var contract in type.AllInterfaces.Where(contract => contract.Locations.Any(location => location.IsInMetadata)))
+                    foreach (var member in contract.GetMembers().OfType<IMethodSymbol>())
+                    {
+                        if (type.FindImplementationForInterfaceMember(member) is not IMethodSymbol implementation
+                            || !inspectedMappings.Add(implementation.OriginalDefinition))
+                            continue;
+
+                        var source = await SymbolFinder.FindSourceDefinitionAsync(
+                            implementation.OriginalDefinition, solution, cancellationToken) as IMethodSymbol;
+                        if (source is not null)
+                            implementations.Add(source.OriginalDefinition);
+                    }
+            }
+        }
+
+        return implementations;
+    }
+
+    private static IEnumerable<INamedTypeSymbol> EnumerateSourceTypes(INamespaceOrTypeSymbol container)
+    {
+        foreach (var member in container.GetMembers())
+        {
+            if (member is INamedTypeSymbol type)
+                yield return type;
+            if (member is INamespaceOrTypeSymbol nestedContainer)
+                foreach (var nestedType in EnumerateSourceTypes(nestedContainer))
+                    yield return nestedType;
+        }
+    }
+
+    /// <summary>
+    /// An external consumer can invoke its own virtual or interface slot without naming
+    /// the implementation in source. Source-local slots remain reference-analyzed.
+    /// </summary>
+    private static bool HasExternalDispatchContract(IMethodSymbol method)
+    {
+        for (var overridden = method.OverriddenMethod; overridden is not null; overridden = overridden.OverriddenMethod)
+            if (overridden.Locations.Any(location => location.IsInMetadata))
+                return true;
+
+        foreach (var contract in method.ContainingType.AllInterfaces)
+        {
+            if (!contract.Locations.Any(location => location.IsInMetadata))
+                continue;
+
+            foreach (var member in contract.GetMembers().OfType<IMethodSymbol>())
+            {
+                var implementation = method.ContainingType.FindImplementationForInterfaceMember(member);
+                if (implementation is not IMethodSymbol implementedMethod)
+                    continue;
+
+                for (var candidate = method; candidate is not null; candidate = candidate.OverriddenMethod)
+                    if (SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, implementedMethod.OriginalDefinition))
+                        return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// The method name and interface App.Discover() invokes reflectively (via
     /// <c>Type.GetMethod("Build", ...)</c> + <c>MethodInfo.Invoke</c>) on every command. Like
@@ -420,6 +511,9 @@ internal class FindUnusedService : IRtService
             if (DeclaresEntryPoint(type))
                 return true;
 
+            if (type.GetMembers().OfType<IMethodSymbol>().Any(IsModuleInitializer))
+                return true;
+
             if (IsXunitFixture(type))
                 return true;
         }
@@ -431,6 +525,9 @@ internal class FindUnusedService : IRtService
             return true;
 
         if (symbol is IMethodSymbol m && HasAttribute(m, "FactAttribute", "TheoryAttribute"))
+            return true;
+
+        if (symbol is IMethodSymbol method && (IsModuleInitializer(method) || HasExternalDispatchContract(method)))
             return true;
 
         if (symbol is IMethodSymbol factoryCandidate && IsCommandFactoryMethod(factoryCandidate))

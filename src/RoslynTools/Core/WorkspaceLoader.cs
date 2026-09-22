@@ -183,16 +183,23 @@ internal sealed class WorkspaceLoader
         if (isolatedObj is not null)
             properties[BaseIntermediateOutputPathProperty] = isolatedObj;
 
+        var provenance = new WorkspaceEvaluatorProvenance(
+            RepositoryRoot: null,
+            solutionPath,
+            SourceFingerprint: null,
+            Configuration: "MSBuild default (not captured)",
+            TargetFrameworks: [],
+            SdkIdentity: "Unknown",
+            CompilerIdentity: typeof(Compilation).Assembly.GetName().Version?.ToString() ?? "Unknown",
+            AnalyzerGeneratorPolicy: "Workspace defaults; stage completion not captured",
+            TrustState: RepositoryTrustContext.IsExplicitlyTrustedFor(solutionPath) ? "Trusted" : "NotEstablished",
+            EvaluatorMode: "InProcess");
+        var seed = await WorkspaceManifestDiscovery.SeedAsync(solutionPath, cancellationToken);
         var workspace = MSBuildWorkspace.Create(properties);
-
-        var diagnostics = new List<WorkspaceDiagnostic>();
-        workspace.RegisterWorkspaceFailedHandler(e =>
-        {
-            lock (diagnostics)
-            {
-                diagnostics.Add(e.Diagnostic);
-            }
-        });
+        WorkspaceAcquisitionRegistry.Declare(workspace, seed.Manifest, provenance);
+        WorkspaceDiagnosticRegistry.Capture(workspace);
+        foreach (var diagnostic in seed.Diagnostics)
+            WorkspaceDiagnosticRegistry.Record(workspace, diagnostic);
 
         Solution solution;
         try
@@ -211,13 +218,14 @@ internal sealed class WorkspaceLoader
         }
         catch
         {
-            EmitDiagnostics(diagnostics, true);
+            EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true);
             workspace.Dispose();
             throw;
         }
 
         // Fail fast only when we actually got nothing usable: no projects AND a Failure-kind diagnostic.
         // Warnings (restore, package audit, unresolved imports) are non-fatal as long as Roslyn has a usable model.
+        var diagnostics = WorkspaceDiagnosticRegistry.Get(workspace);
         var hasFailureKind = diagnostics.Any(d => d.Kind == WorkspaceDiagnosticKind.Failure);
         if (!solution.Projects.Any() && hasFailureKind)
         {
@@ -227,11 +235,21 @@ internal sealed class WorkspaceLoader
                 $"Solution '{solutionPath}' failed to load: no projects and {diagnostics.Count} diagnostic(s). See [workspace-warnings] above.");
         }
 
+        // Test overrides can return a solution owned by a different workspace. Such a solution
+        // has no receipts from this load and must remain unverified rather than inheriting them.
+        if (ReferenceEquals(solution.Workspace, workspace))
+        {
+            WorkspaceAcquisitionRegistry.Attach(workspace, new WorkspaceAcquisitionReceipt(
+                solution,
+                seed.Manifest,
+                [],
+                provenance));
+        }
         EmitDiagnostics(diagnostics, false);
         return (workspace, solution);
     }
 
-    private static void EmitDiagnostics(List<WorkspaceDiagnostic> diagnostics, bool fatal)
+    private static void EmitDiagnostics(IReadOnlyList<WorkspaceDiagnostic> diagnostics, bool fatal)
     {
         if (diagnostics.Count == 0)
             return;

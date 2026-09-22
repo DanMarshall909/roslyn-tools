@@ -6,6 +6,7 @@ using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
@@ -61,6 +62,7 @@ public sealed class MoveSliceHandlerTests
             .AddSource("Service.cs", sourceText);
         builder.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = builder.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         var sourcePath = Path.Combine(builder.Directory, "Source", "Service.cs");
         var targetPath = Path.Combine(builder.Directory, "Target", "Feature", "Service.cs");
@@ -142,6 +144,7 @@ public sealed class MoveSliceHandlerTests
             .AddSource("Service.cs", sourceText);
         builder.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = builder.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"]);
         WriteProjectFiles(solution);
         var sourcePath = Path.Combine(builder.Directory, "Source", "Service.cs");
         var targetPath = Path.Combine(builder.Directory, "Target", "Feature", "Service.cs");
@@ -202,6 +205,7 @@ public sealed class MoveSliceHandlerTests
     {
         using var builder = BuildWageClaimsRuleItemFixture();
         var (workspace, solution) = builder.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Infrastructure", "Application"]);
         WriteProjectFiles(solution);
         var request = JsonSerializer.Serialize(new
         {
@@ -262,6 +266,8 @@ public sealed class MoveSliceHandlerTests
             "namespace Legacy; public sealed partial class Service { public int Generated => 1; }");
         builder.AddProject("Target").WithDefaultNamespace("App.Target");
         var (workspace, solution) = builder.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["Source", "Target"],
+            new Dictionary<string, string[]> { ["Source"] = ["Service.g.cs"] });
         WriteProjectFiles(solution);
         var request = JsonSerializer.Serialize(new
         {

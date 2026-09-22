@@ -39,9 +39,12 @@ public sealed class AdhocProjectBuilder : IDisposable
     ///     <see cref="LanguageVersion.Preview" /> and mis-parses into an unrelated member under
     ///     <see cref="LanguageVersion.Latest" />.
     /// </param>
-    public AdhocProjectBuilder(string? projectName = null, LanguageVersion languageVersion = LanguageVersion.Latest)
+    public AdhocProjectBuilder(
+        string? projectName = null,
+        LanguageVersion languageVersion = LanguageVersion.Latest,
+        string? baseOutputDirectory = null)
     {
-        Directory = Path.Combine(BaseOutputDir, Guid.NewGuid().ToString("N"));
+        Directory = Path.Combine(baseOutputDirectory ?? BaseOutputDir, Guid.NewGuid().ToString("N"));
         _languageVersion = languageVersion;
         _default = new ProjectDef(projectName ?? "TestProject");
         _projects.Add(_default);

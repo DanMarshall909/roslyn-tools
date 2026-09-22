@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Services.Results;
@@ -13,4 +15,5 @@ internal sealed record UnusedSymbolResult(
 
 internal sealed record FindUnusedAnalysisResult(
     IReadOnlyList<UnusedSymbolResult> Symbols,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     FindUnusedProfile? Profile = null);

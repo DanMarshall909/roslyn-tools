@@ -4,10 +4,7 @@ using Shouldly;
 namespace RoslynTools.Tests.Infrastructure;
 
 /// <summary>
-/// Issue #128, remedy 4. The completeness assessment is what a reader uses to decide which of an
-/// analysis's findings to trust. A project missing from its diagnostic list reads as a project that
-/// compiled, and a list that stops at a round number reads as the whole truth — so what the
-/// assessment leaves out matters as much as what it reports.
+/// Issue #128, remedy 4. Machine diagnostics must retain every affected project and error.
 /// </summary>
 public sealed class WorkspaceCompletenessTests
 {
@@ -31,15 +28,16 @@ public sealed class WorkspaceCompletenessTests
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, default);
 
             completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
-            completeness.Diagnostics.ShouldContain(
-                diagnostic => diagnostic.StartsWith("Quiet:", StringComparison.Ordinal),
-                "a project crowded out of the list by a noisier one is indistinguishable from a "
-                + "project that compiled, which is how mis-parsed source comes to be trusted");
+            completeness.FailedProjects.ShouldContain(
+                project => Path.GetFileNameWithoutExtension(project) == "Quiet");
+            completeness.StructuredDiagnostics.ShouldContain(
+                diagnostic => diagnostic.ProjectPath != null
+                    && Path.GetFileNameWithoutExtension(diagnostic.ProjectPath) == "Quiet");
         }
     }
 
     [Fact]
-    public async Task a_diagnostic_list_that_leaves_errors_out_says_so()
+    public async Task machine_diagnostics_retain_every_compiler_error()
     {
         using var builder = new AdhocProjectBuilder("Noisy");
         builder.AddSource("Noisy.cs", ManyErrors(40));
@@ -48,16 +46,16 @@ public sealed class WorkspaceCompletenessTests
         {
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, default);
 
-            completeness.Diagnostics.ShouldContain(
-                diagnostic => diagnostic.Contains("truncated", StringComparison.Ordinal)
-                              && diagnostic.Contains("40", StringComparison.Ordinal),
-                "a list that ends silently at its own limit invites the reader to treat it as the "
-                + "complete account of what went wrong");
+            completeness.StructuredDiagnostics.Count(diagnostic => diagnostic.Origin == "compiler"
+                && diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                .ShouldBeGreaterThanOrEqualTo(40);
+            completeness.Diagnostics.ShouldNotContain(
+                diagnostic => diagnostic.Contains("truncated", StringComparison.Ordinal));
         }
     }
 
     [Fact]
-    public async Task a_solution_whose_projects_all_compile_reports_no_diagnostics()
+    public async Task a_solution_without_acquisition_receipts_remains_partial_even_when_it_compiles()
     {
         using var builder = new AdhocProjectBuilder("Healthy");
         builder.AddSource("Healthy.cs", "public class Healthy { }");
@@ -66,9 +64,10 @@ public sealed class WorkspaceCompletenessTests
         {
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, default);
 
-            completeness.State.ShouldBe(WorkspaceCompletenessState.Complete);
-            completeness.Diagnostics.ShouldBeEmpty(
-                "a truncation notice on a clean workspace would be a warning about nothing");
+            completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
+            completeness.StructuredDiagnostics.ShouldNotContain(
+                diagnostic => diagnostic.Origin == "compiler"
+                    && diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
         }
     }
 }

@@ -11,9 +11,10 @@ internal static class McpTestHost
 {
     internal static AdhocProjectBuilder CreateInvoiceProject(
         string invoiceMembers = "",
-        string serviceMembers = "public Invoice Create() => new Invoice();")
+        string serviceMembers = "public Invoice Create() => new Invoice();",
+        string? baseOutputDirectory = null)
     {
-        var project = new AdhocProjectBuilder();
+        var project = new AdhocProjectBuilder(baseOutputDirectory: baseOutputDirectory);
         project.AddSource("Model.cs", $$"""
                                       namespace TestApp;
 

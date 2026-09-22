@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
@@ -18,6 +19,7 @@ public sealed class OutlineOperationTypedTests
             public class Order { public void Cancel() { } }
             """);
         var (workspace, solution) = project.Build();
+        await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["OutlineApp"]);
         using (workspace)
         {
             var operation = new OutlineOperation(new FixedSessionFactory(workspace, solution), new OutlineService());
