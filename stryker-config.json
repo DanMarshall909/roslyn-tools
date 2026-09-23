@@ -44,6 +44,8 @@
       "**/Core/RepositoryTrustContext.cs",
       "**/Core/RepositoryTrustRegistry.cs",
       "**/Core/ReadOnlyWorkspaceSessions.cs",
+      "**/Core/ChangePlan.cs",
+      "**/Core/CanonicalChangePlan.cs",
       "**/Core/IWorkspaceSessionFactory.cs",
       "**/Core/SolutionPathResolver.cs",
       "**/Core/WorkspaceLoader.cs",

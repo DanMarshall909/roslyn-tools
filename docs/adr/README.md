@@ -86,3 +86,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0019](0019-parse-integrity-gates-absence-claims.md) | Parse integrity gates absence claims | Accepted | 2026-09-04 |
 | [0020](0020-layered-host-configuration.md) | Layered host configuration | Accepted | 2026-09-23 |
 | [0021](0021-authoritative-workspace-acquisition-evidence.md) | Authoritative workspace acquisition evidence | Accepted | 2026-09-23 |
+| [0022](0022-canonical-immutable-change-plan-payload.md) | Canonical immutable change-plan payload | Accepted | 2026-09-23 |

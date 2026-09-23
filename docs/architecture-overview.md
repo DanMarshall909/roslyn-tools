@@ -436,13 +436,29 @@ symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions,
 verification, expiry, and recovery data. `PlanHash` is SHA-256 over one versioned
 host-neutral canonical plan payload with the `PlanHash` field omitted entirely; shared
 vectors keep every adapter byte-identical, and verification reserializes that payload
-before comparing the digest. Source/destination paths are repository-contained;
+before comparing the digest. [ADR-0022](adr/0022-canonical-immutable-change-plan-payload.md)
+defines the implemented `rt.change-plan.v1` byte contract: immutable copied collections,
+explicit sequence numbers, normalized repository-relative paths, exact replacement
+and original bytes, guarded read dependencies, resolved-path and platform-identity
+preconditions for repository, control, staging, backup, dependencies, and effects, a
+diff derived from the exact bytes, fixed property order and wire tokens, canonical
+diagnostic ordering, explicit nulls/defaults, and UTC timestamps. Its first version
+accepts writable regular file effects and rejects long paths, symbolic links,
+hard-linked regular files, read-only entries, alternate data streams, conflicting
+ancestors, and shared file identities. Guarded directory dependencies retain their
+observed directory link count as a precondition.
+The envelope retains the exact canonical bytes, compares those bytes exactly, and
+compares the claimed digest in constant time. Source/destination paths are repository-contained;
 staging, backups, and control artifacts use a protected operation root outside and
 non-overlapping with the repository, on the target volume when required. Before
 prepare returns, its canonical envelope is atomically persisted outside repository
 control in a user-private store for `ExclusivePrincipal` or authority-controlled
 storage for `SharedAuthority`. Preview and apply consume that same repository-scoped,
 hash-verified plan across process restart.
+
+The canonical payload and envelope verification are implemented foundations. The
+protected durable store, parsing, plan pinning, dispatch leases, operation ledger, and
+restart recovery remain required before `rt` can claim this cross-process apply flow.
 
 Under [ADR-0013](adr/0013-fenced-plan-unavailability-resolution.md), a quota-bounded
 `DispatchPlanLease` validates and pins the exact plan under the caller-known operation
