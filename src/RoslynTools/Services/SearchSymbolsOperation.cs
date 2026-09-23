@@ -65,9 +65,7 @@ internal sealed class SearchSymbolsOperation(
         using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
             var solution = lease.Solution;
-            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
-                solution,
-                cancellationToken);
+            var completeness = lease.Completeness;
             var sourceRevision = lease.SourceRevision;
             var ordered = (await _candidates.SearchAsync(
                     solution,
@@ -84,6 +82,7 @@ internal sealed class SearchSymbolsOperation(
                     cancellationToken))
                 .Select(candidate => candidate.Candidate)
                 .ToArray();
+            completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
             var items = ordered.Take(request.Limit).ToArray();
             stopwatch.Stop();
             return Result<RtResultEnvelope<SearchSymbolsResult>, RtError>.Ok(CreateEnvelope(
@@ -109,30 +108,28 @@ internal sealed class SearchSymbolsOperation(
         var truncated = items.Length < total;
         var limitations = new List<string>();
         if (completeness.State != WorkspaceCompletenessState.Complete)
-            limitations.Add("The workspace is partial; candidates from failed or omitted inputs may be absent.");
+            limitations.Add($"The workspace is {completeness.State}; candidates from failed or omitted inputs may be absent.");
         if (truncated)
             limitations.Add("The result reached the item limit; narrow the filters because no integrity-protected revision-safe continuation snapshot is available yet.");
         var solutionPath = solution.FilePath;
         return new RtResultEnvelope<SearchSymbolsResult>(
             "rt.result.v1",
             "search-symbols",
-            completeness.State == WorkspaceCompletenessState.Complete ? "Succeeded" : "Partial",
+            completeness.State == WorkspaceCompletenessState.Complete
+                ? "Succeeded"
+                : completeness.State.ToString(),
             new RtSourceIdentity(
-                solutionPath is null ? null : Path.GetDirectoryName(solutionPath),
+                completeness.Acquisition?.Provenance.RepositoryRoot,
                 solutionPath,
                 sourceRevision),
-            new RtWorkspaceProvenance(
-                completeness.State.ToString(),
-                solution.ProjectIds.Count,
-                completeness.Diagnostics),
+            completeness.ToResultProvenance(solution),
             new SearchSymbolsResult(items),
             new RtConfidence(
                 completeness.State == WorkspaceCompletenessState.Complete ? "High" : "Limited",
                 "Deterministic source-symbol ranking",
                 [$"Matched query '{query}' against names, FQNs, and signatures."],
                 limitations),
-            completeness.Diagnostics.Select((message, index) =>
-                new RtStructuredDiagnostic($"workspace.{index + 1}", "Error", message)).ToArray(),
+            completeness.ToResultDiagnostics(),
             limitations,
             items.Length == 1
                 ? [new RtNextAction("describe", "Inspect the selected candidate's focused signature.")]

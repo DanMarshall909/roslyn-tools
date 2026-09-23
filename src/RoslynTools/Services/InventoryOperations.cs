@@ -26,9 +26,10 @@ internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactor
         if (request.Scope is not ("all" or "types" or "methods"))
             return Result<RtResultEnvelope<FindUnusedAnalysisResult>, RtError>.Err(new RtError(RtErrorKind.InvalidInput, "--scope must be one of: all, types, methods."));
         cancellationToken.ThrowIfCancellationRequested();
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        var loaded = await _sessionFactory.LoadWorkspaceResultAsync(request.Solution, cancellationToken);
+        var solution = loaded.Solution;
         cancellationToken.ThrowIfCancellationRequested();
-        using (workspace)
+        using (loaded.Workspace)
         {
             // The profiler always runs. Its cost is a timestamp either side of work already
             // measured in seconds, and instrumentation that is only on when someone remembered to
@@ -39,54 +40,50 @@ internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactor
                 solution, request.Scope, profiler, cancellationToken);
             // Finish the assessment after analysis so late workspace diagnostics are included.
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
-            var isComplete = completeness.State == WorkspaceCompletenessState.Complete;
-            var result = symbols.Select(s => new UnusedSymbolResult(
-                s.Kind,
-                s.Name,
-                s.FilePath ?? string.Empty,
-                s.Line,
-                isComplete ? s.Confidence : UnusedConfidence.Low,
-                isComplete
-                    ? s.Reason
-                    : $"{s.Reason} The semantic workspace is {completeness.State}, so reference absence is not proof.",
-                isComplete && s.Confidence.Equals(UnusedConfidence.High, StringComparison.OrdinalIgnoreCase)
-                    ? FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solution.FilePath)
-                    : [])).ToList();
+            var workspaceProof = WorkspaceProofPolicy.Evaluate(completeness);
+            var result = symbols.Select(s =>
+            {
+                var proof = WorkspaceProofPolicy.Evaluate(
+                    completeness,
+                    s.Confidence.Equals(UnusedConfidence.High, StringComparison.OrdinalIgnoreCase));
+                return new UnusedSymbolResult(
+                    s.Kind,
+                    s.Name,
+                    s.FilePath ?? string.Empty,
+                    s.Line,
+                    workspaceProof.CanUseAbsenceEvidence ? s.Confidence : UnusedConfidence.Low,
+                    workspaceProof.CanUseAbsenceEvidence
+                        ? s.Reason
+                        : $"{s.Reason} {workspaceProof.Limitation}",
+                    proof.CanOfferDeletionAdvice
+                        ? FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solution.FilePath)
+                        : []);
+            }).ToList();
             var limitations = new List<string>
             {
                 "Source analysis cannot prove reflection, runtime activation, generated use, or external consumers are absent."
             };
-            if (!isComplete)
-                limitations.Add("The workspace is incomplete; findings are advisory and cannot offer deletion advice.");
+            if (workspaceProof.Limitation is { } proofLimitation)
+                limitations.Add(proofLimitation);
             if (completeness.Acquisition is { } acquisition)
                 limitations.AddRange(acquisition.Limitations);
             return Result<RtResultEnvelope<FindUnusedAnalysisResult>, RtError>.Ok(
                 new RtResultEnvelope<FindUnusedAnalysisResult>(
                     "rt.result.v1",
                     "find-unused",
-                    isComplete ? "Succeeded" : completeness.State.ToString(),
+                    workspaceProof.CanUseAbsenceEvidence ? "Succeeded" : completeness.State.ToString(),
                     new RtSourceIdentity(
                         completeness.Acquisition?.Provenance.RepositoryRoot,
                         solution.FilePath,
                         await SolutionRevision.ComputeAsync(solution, cancellationToken)),
-                    new RtWorkspaceProvenance(
-                        completeness.State.ToString(),
-                        solution.ProjectIds.Count,
-                        completeness.Diagnostics,
-                        completeness.Inputs,
-                        completeness.RequestedProjects,
-                        completeness.FailedProjects,
-                        completeness.CompilerVersion,
-                        completeness.EvaluatorPolicy,
-                        completeness.Acquisition?.Provenance,
-                        completeness.Acquisition?.Manifest.DiscoveryState.ToString()),
+                    completeness.ToResultProvenance(solution),
                     new FindUnusedAnalysisResult(result, request.Profile ? profiler.Snapshot() : null),
                     new RtConfidence(
-                        isComplete ? "High" : "Limited",
+                        workspaceProof.ConfidenceLevel,
                         "Roslyn semantic reference analysis",
                         [$"Evaluated {solution.ProjectIds.Count} project(s) for unused {request.Scope}."],
                         limitations),
-                    completeness.StructuredDiagnostics.Select(ToStructuredDiagnostic).ToArray(),
+                    completeness.ToResultDiagnostics(),
                     limitations,
                     [],
                     new RtResultSafety(["RepositoryRead"], false, false),
@@ -95,19 +92,6 @@ internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactor
         }
     }
 
-    private static RtStructuredDiagnostic ToStructuredDiagnostic(WorkspaceAcquisitionDiagnostic diagnostic)
-    {
-        var context = new Dictionary<string, string>
-        {
-            ["origin"] = diagnostic.Origin,
-            ["completenessImpact"] = diagnostic.Impact.ToString()
-        };
-        if (diagnostic.InputId is { } inputId)
-            context["inputId"] = inputId;
-        if (diagnostic.ProjectPath is { } projectPath)
-            context["projectPath"] = projectPath;
-        return new RtStructuredDiagnostic(diagnostic.Id, diagnostic.Severity.ToString(), diagnostic.Message, context);
-    }
 }
 
 internal sealed record FindUndocumentedRequest(

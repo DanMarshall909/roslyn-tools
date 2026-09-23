@@ -34,6 +34,24 @@ internal static class WorkspaceAcquisitionRegistry
         }
     }
 
+    internal static void RefineDeclaration(
+        Workspace workspace,
+        SemanticInputManifest current,
+        SemanticInputManifest refined,
+        WorkspaceEvaluatorProvenance? provenance = null)
+    {
+        var entry = Entries.GetValue(workspace, _ => new Entry());
+        lock (entry)
+        {
+            if (!ReferenceEquals(entry.Manifest, current) || entry.Receipt is not null)
+                throw new InvalidOperationException(
+                    "Only the active acquisition collector can refine an unattached workspace manifest.");
+            entry.Manifest = refined;
+            if (provenance is not null)
+                entry.Provenance = provenance;
+        }
+    }
+
     internal static (SemanticInputManifest? Manifest, WorkspaceAcquisitionReceipt? Receipt) Get(Workspace workspace)
     {
         if (!Entries.TryGetValue(workspace, out var entry))

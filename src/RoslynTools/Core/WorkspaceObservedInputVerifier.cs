@@ -20,21 +20,22 @@ internal static class WorkspaceObservedInputVerifier
         {
             cancellationToken.ThrowIfCancellationRequested();
             var identity = WorkspaceCompleteness.ProjectIdentity(project);
+            var context = WorkspaceCompleteness.CompilationContextIdentity(project);
             Add(SemanticInputKind.Project, identity);
-            Add(SemanticInputKind.CompilationContext, identity, context: WorkspaceCompleteness.CompilationContextIdentity(project));
-            await AddDocumentsAsync(project.Documents, SemanticInputKind.SourceDocument, identity);
-            await AddDocumentsAsync(project.AdditionalDocuments, SemanticInputKind.AdditionalDocument, identity);
-            await AddDocumentsAsync(project.AnalyzerConfigDocuments, SemanticInputKind.AnalyzerConfigDocument, identity);
-            await AddDocumentsAsync(await project.GetSourceGeneratedDocumentsAsync(cancellationToken), SemanticInputKind.GeneratedDocument, identity);
+            Add(SemanticInputKind.CompilationContext, identity, context: context);
+            await AddDocumentsAsync(project.Documents, SemanticInputKind.SourceDocument, identity, context);
+            await AddDocumentsAsync(project.AdditionalDocuments, SemanticInputKind.AdditionalDocument, identity, context);
+            await AddDocumentsAsync(project.AnalyzerConfigDocuments, SemanticInputKind.AnalyzerConfigDocument, identity, context);
+            await AddDocumentsAsync(await project.GetSourceGeneratedDocumentsAsync(cancellationToken), SemanticInputKind.GeneratedDocument, identity, context);
             foreach (var reference in project.ProjectReferences)
                 Add(SemanticInputKind.ProjectReference, identity,
-                    solution.GetProject(reference.ProjectId) is { } target ? WorkspaceCompleteness.ProjectIdentity(target) : reference.ProjectId.ToString());
+                    solution.GetProject(reference.ProjectId) is { } target ? WorkspaceCompleteness.ProjectIdentity(target) : reference.ProjectId.ToString(), context);
             var index = 0;
             foreach (var reference in project.MetadataReferences)
-                Add(SemanticInputKind.MetadataReference, identity, WorkspaceCompleteness.MetadataReferenceIdentity(reference, index++));
+                Add(SemanticInputKind.MetadataReference, identity, WorkspaceCompleteness.MetadataReferenceIdentity(reference, index++), context);
             for (var analyzerIndex = 0; analyzerIndex < project.AnalyzerReferences.Count; analyzerIndex++)
                 Add(SemanticInputKind.AnalyzerReference, identity,
-                    WorkspaceCompleteness.AnalyzerReferenceIdentity(project.AnalyzerReferences[analyzerIndex], analyzerIndex));
+                    WorkspaceCompleteness.AnalyzerReferenceIdentity(project.AnalyzerReferences[analyzerIndex], analyzerIndex), context);
         }
 
         foreach (var actual in observed)
@@ -68,13 +69,13 @@ internal static class WorkspaceObservedInputVerifier
             => observed.Add(new ExpectedSemanticInput($"observed:{kind}:{observed.Count}", kind, true,
                 ProjectPath: projectPath, Context: context, Path: path, Fingerprint: fingerprint));
 
-        async Task AddDocumentsAsync(IEnumerable<TextDocument> documents, SemanticInputKind kind, string projectPath)
+        async Task AddDocumentsAsync(IEnumerable<TextDocument> documents, SemanticInputKind kind, string projectPath, string context)
         {
             foreach (var document in documents)
             {
                 var text = await document.GetTextAsync(cancellationToken);
                 Add(kind, projectPath, document.FilePath ?? document.Name,
-                    fingerprint: Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()))));
+                    context, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()))));
             }
         }
 
@@ -87,6 +88,7 @@ internal static class WorkspaceObservedInputVerifier
                     SemanticInputKind.Project => true,
                     SemanticInputKind.CompilationContext => string.Equals(expected.Context, actual.Context, StringComparison.Ordinal),
                     _ => comparer.Equals(expected.Path, actual.Path)
+                         && (expected.Context is null || string.Equals(expected.Context, actual.Context, StringComparison.Ordinal))
                 };
 
         void Report(string id, ExpectedSemanticInput input, string message)

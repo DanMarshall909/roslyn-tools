@@ -8,13 +8,26 @@ requested solution was fully acquired.
 
 - The loader declares `.sln`/`.slnx` project paths and fingerprints the selected solution
   before opening the workspace. Missing requested projects remain visible.
-- Required context, reference, document, build-input, SDK, evaluation, generator, analyzer,
-  snapshot, and manifest-closure stages remain explicit until their outcomes are known.
+- A production collector evaluates every declared project and target-framework context before
+  Roslyn acquisition, recursively including evaluated project references outside the solution
+  inventory. It records the configuration, SDK identity, resolved imports, project, assembly,
+  and analyzer references, package/framework declarations, source/additional/analyzer-config
+  files, and their physical fingerprints.
+- Package evidence comes from the selected restore target and physical package assets, not the
+  declaration alone. Required compile assets are reconciled with the loaded metadata graph;
+  missing package DLLs, hint paths, restore graphs, or SDK framework identities fail closed.
+- During design-time loading the collector reconciles that declaration with the exact Roslyn
+  contexts, metadata references, generated compiler inputs, generated documents, and analyzer
+  and generator inventory. Inputs discovered only by the design-time build are added before the
+  immutable receipt is attached.
 - Immutable receipts bind evidence to the exact Roslyn solution snapshot and source
   fingerprint. Duplicate, undeclared, missing, or mismatching outcomes fail closed.
+- Whole-input fingerprints bracket both manifest discovery and Roslyn loading. Stable membership
+  and snapshot agreement are mandatory, so new default-glob files or build configuration that
+  appears in either window cannot inherit earlier `Complete` evidence.
 - Closed manifests are cross-checked against observed contexts, documents, and references;
-  required stages need affirmative completion or an explicitly valid exclusion. Fixture
-  context identities are snapshot-local Roslyn IDs, not verified production TFM identities.
+  required stages need affirmative completion or an explicitly valid exclusion. Physical
+  source, import, analyzer, and metadata-reference changes invalidate the receipt.
 - Workspace diagnostics are collected before loading and through deferred acquisition.
   Severity and completeness impact are separate; unknown warning impact degrades the
   assessment without relying on English message fragments.
@@ -22,22 +35,23 @@ requested solution was fully acquired.
   (usable scope with unsatisfied evidence), and `Complete` (closed, satisfied evidence).
   Trust and evaluator provenance do not imply completeness.
 
-## Deliberate remaining restriction
+## Deliberate restrictions
 
-The production MSBuild workspace adapter does **not** yet provide authoritative closure
-of evaluated target-framework/configuration contexts, imports, SDK/package resolution,
-design-time compiler inputs, or every required generator/analyzer stage. These entries
-are `Unknown`; a clean production compilation therefore remains `Partial` in this preview.
-Arbitrary `AdhocWorkspace` instances are also unverified. Deterministic tests may attach
-explicit closed-world receipts to exercise operations that require complete evidence;
-those fixtures do not prove production acquisition is complete.
+Production MSBuild workspaces can now be `Complete` when the evaluator and Roslyn snapshot
+agree and every required input is accounted for. Missing projects, failed project references,
+unavailable target-framework contexts, unreadable imports, analyzer/generator load failures,
+and post-load input changes produce `Partial` or `Failed` evidence.
 
-Consequently `delete-unreferenced` and `move-slice` refuse unverified production workspaces,
-including ones with no compiler errors. Inspection remains available, but unused findings
-are advisory and cannot carry deletion follow-ons. Completing the production collector
-and proving a real complete solution are still required to close #122. There is no request
-flag to self-certify completeness. Existing CI checks retain their own compilation/rule
-checks; this change does not make CI depend on a local trust registry or interactive input.
+Arbitrary `AdhocWorkspace` instances remain unverified. Deterministic tests may attach an
+explicit closed-world receipt, but ordinary requests cannot self-certify completeness.
+Diagnostic analyzer assemblies are loaded to validate their inventory; their rule diagnostics
+are explicitly excluded because current semantic operations do not consume them. Any future
+operation that depends on analyzer output must declare and execute that analyzer stage.
+
+`Complete` is a statement about the declared local semantic workspace. It does not prove that
+reflection, framework activation, external consumers, dynamically loaded assemblies, or other
+runtime edges are absent. `find-unused` and `delete-unreferenced` retain those limitations even
+for a complete workspace.
 
 ## `find-unused` output contract
 
@@ -57,22 +71,6 @@ syntax errors contribute no unused candidates. Valid neighboring files remain an
 Known external dispatch and module initialization are governed independently by the
 [conservative liveness policy](find-unused-liveness.md).
 
-## Remaining implementation slices
-
-1. Add a caller-owned typed acquisition session to `IWorkspaceSessionFactory` and migrate
-   the proof-sensitive operations. Preserve final assessment after semantic analysis so
-   late diagnostics can downgrade the result; do not make the daemon an evidence owner.
-2. Own the evaluated MSBuild/design-time input account: selected solution configurations,
-   evaluated TFM contexts, imports, SDK identity, executed compiler arguments, sources,
-   references, additional files, and analyzer configs. Start with a real single-context
-   fixture whose executed analyzer/generator inventory is demonstrably empty.
-3. Bind affirmative generator/analyzer execution receipts to the compilation actually
-   consumed by analysis. [Roslyn 5.3 workspace APIs](https://github.com/dotnet/roslyn/blob/16f9bd284cd49604ac82998bfe778a8eb16d4347/src/Workspaces/Core/Portable/Workspace/Solution/Project.cs)
-   expose generated documents, but not a
-   public receipt for every workspace-owned generator run. Running a second driver over
-   an already-generated compilation is not equivalent evidence.
-4. Prove graph/context coverage and input stability, including changing file membership,
-   project/import/source/reference contents, omitted TFMs, and stale mutation plans.
-   Unknown build extensions or unaccounted external inputs must remain `Partial`.
-
-These are follow-up requirements, not capabilities of the preview collector.
+The daemon remains a transport and cache adapter. Acquisition evidence is owned by the
+workspace load and is re-assessed after semantic work so late diagnostics can still downgrade
+the result.

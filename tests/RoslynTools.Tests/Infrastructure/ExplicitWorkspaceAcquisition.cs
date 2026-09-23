@@ -89,6 +89,8 @@ public static class ExplicitWorkspaceAcquisition
             Add($"not-applicable:{kind}", kind,
                 "The declared in-memory fixture uses explicit sources and concrete metadata; it does not evaluate MSBuild, SDK, package or import inputs.", excluded: true);
         var fingerprint = await SolutionRevision.ComputeAsync(solution);
+        Add("input-set", SemanticInputKind.WorkspaceInputSet,
+            "The deterministic in-memory fixture has no dynamic filesystem membership.", fingerprint: fingerprint);
         Add("snapshot", SemanticInputKind.SourceSnapshot, "Exact immutable fixture solution snapshot.", fingerprint: fingerprint);
         var manifest = new SemanticInputManifest(solution.FilePath, inputs, ManifestDiscoveryState.Closed);
         var provenance = new WorkspaceEvaluatorProvenance(null, solution.FilePath, fingerprint,

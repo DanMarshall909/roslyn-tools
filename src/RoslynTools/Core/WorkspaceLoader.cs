@@ -39,6 +39,7 @@ internal sealed class WorkspaceLoader
     internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
 
     internal static AsyncLocal<Func<MSBuildWorkspace, string, Task<Solution>>?> OpenSolutionOverride { get; } = new();
+    internal static AsyncLocal<Func<Task>?> AfterDiscoveryOverride { get; } = new();
 
     public void Dispose()
     {
@@ -98,6 +99,46 @@ internal sealed class WorkspaceLoader
         return (workspace, solution);
     }
 
+    /// <summary>
+    ///     Loads a trusted, caller-owned workspace and establishes its authoritative initial
+    ///     completeness assessment. A solution-open failure is represented as typed failed
+    ///     evidence when a workspace exists to carry it; missing files and trust failures throw.
+    /// </summary>
+    /// <returns>The acquired workspace, its solution snapshot, and typed completeness evidence.</returns>
+    /// <exception cref="FileNotFoundException">The selected solution file does not exist.</exception>
+    /// <exception cref="RepositoryTrustRequiredException">Repository evaluation was not authorized.</exception>
+    /// <exception cref="OperationCanceledException">The operation was cancelled.</exception>
+    public async Task<WorkspaceLoadResult> LoadWorkspaceResultAsync(
+        string? solutionPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (Override.Value is { } overridden)
+        {
+            var overriddenCompleteness = await WorkspaceCompleteness.AssessSemanticAsync(
+                overridden.Solution,
+                cancellationToken);
+            return new WorkspaceLoadResult(overridden.Workspace, overridden.Solution, overriddenCompleteness);
+        }
+
+        var (workspace, solution) = await LoadCoreAsync(
+            solutionPath,
+            requireTrust: true,
+            returnTypedFailure: true,
+            cancellationToken: cancellationToken);
+        try
+        {
+            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
+            _workspace?.Dispose();
+            _workspace = workspace;
+            return new WorkspaceLoadResult(workspace, solution, completeness);
+        }
+        catch
+        {
+            workspace.Dispose();
+            throw;
+        }
+    }
+
     async Task<OwnedWorkspaceSnapshot> IWorkspaceSnapshotLoader.LoadOwnedWorkspaceAsync(
         string? solutionPath,
         CancellationToken cancellationToken)
@@ -108,7 +149,8 @@ internal sealed class WorkspaceLoader
         var (workspace, solution) = await LoadCoreAsync(
             solutionPath,
             requireTrust: true,
-            cancellationToken);
+            returnTypedFailure: true,
+            cancellationToken: cancellationToken);
         return new OwnedWorkspaceSnapshot(workspace, solution);
     }
 
@@ -159,6 +201,7 @@ internal sealed class WorkspaceLoader
     private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(
         string? solutionPath,
         bool requireTrust,
+        bool returnTypedFailure = false,
         CancellationToken cancellationToken = default)
     {
         solutionPath = SolutionPathResolver.Resolve(solutionPath);
@@ -168,6 +211,9 @@ internal sealed class WorkspaceLoader
 
         if (requireTrust && !RepositoryTrustContext.IsExplicitlyTrustedFor(solutionPath))
             throw RepositoryTrustRequiredException.ForSolution(solutionPath);
+        var workspaceIdentity = RepositoryTrustContext.IsExplicitlyTrustedFor(solutionPath)
+            ? RepositoryTrustContext.ResolveWorkspaceIdentity(solutionPath)
+            : null;
 
         var properties = new Dictionary<string, string>
         {
@@ -201,6 +247,98 @@ internal sealed class WorkspaceLoader
         foreach (var diagnostic in seed.Diagnostics)
             WorkspaceDiagnosticRegistry.Record(workspace, diagnostic);
 
+        var seedProjectPaths = seed.Manifest.Inputs
+            .Where(input => input.Kind == SemanticInputKind.Project)
+            .Select(input => input.ProjectPath ?? input.Path ?? input.Id)
+            .ToArray();
+        WorkspaceInputFingerprint? discoveryFingerprint = null;
+        WorkspaceInputFingerprintResult? preDiscoveryInputSet = null;
+        if (workspaceIdentity is not null)
+        {
+            try
+            {
+                discoveryFingerprint = WorkspaceInputFingerprint.CreateForDiscovery();
+                preDiscoveryInputSet = await discoveryFingerprint.CaptureRepositoryAsync(
+                    workspaceIdentity,
+                    seedProjectPaths,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is IOException
+                                               or UnauthorizedAccessException
+                                               or InvalidOperationException)
+            {
+                WorkspaceDiagnosticRegistry.Record(workspace, new WorkspaceAcquisitionDiagnostic(
+                    "acquisition.discovery-membership",
+                    DiagnosticSeverity.Error,
+                    CompletenessDiagnosticImpact.RequiredInputIncomplete,
+                    "workspace-input-fingerprint",
+                    exception.Message));
+            }
+        }
+
+        WorkspaceAcquisitionDiscovery discovery;
+        try
+        {
+            discovery = await WorkspaceAcquisitionCollector.DiscoverAsync(seed, properties, cancellationToken);
+            provenance = provenance with
+            {
+                Configuration = discovery.Configuration,
+                TargetFrameworks = discovery.TargetFrameworks,
+                SdkIdentity = discovery.SdkIdentity,
+                AnalyzerGeneratorPolicy = "MSBuild inputs evaluated; stage completion pending Roslyn acquisition",
+                EvaluatorMode = "MSBuild evaluation plus Roslyn acquisition"
+            };
+            WorkspaceAcquisitionRegistry.RefineDeclaration(workspace, seed.Manifest, discovery.Manifest, provenance);
+            foreach (var diagnostic in discovery.Diagnostics.Except(seed.Diagnostics))
+                WorkspaceDiagnosticRegistry.Record(workspace, diagnostic);
+            if (AfterDiscoveryOverride.Value is { } afterDiscovery)
+                await afterDiscovery();
+        }
+        catch
+        {
+            workspace.Dispose();
+            throw;
+        }
+
+        WorkspaceInputFingerprint? inputFingerprint = null;
+        WorkspaceInputFingerprintResult? preLoadInputSet = null;
+        var discoveryWindowStable = false;
+        if (workspaceIdentity is not null)
+        {
+            try
+            {
+                var discoveredProjectPaths = discovery.Manifest.Inputs
+                    .Where(input => input.Kind == SemanticInputKind.Project)
+                    .Select(input => input.ProjectPath ?? input.Path ?? input.Id)
+                    .ToArray();
+                inputFingerprint = WorkspaceInputFingerprint.CreateForAcquisition(discovery.SdkIdentity);
+                preLoadInputSet = await inputFingerprint.CaptureRepositoryAsync(
+                    workspaceIdentity,
+                    discoveredProjectPaths,
+                    cancellationToken);
+                var postDiscoveryInputSet = discoveryFingerprint is null
+                    ? (WorkspaceInputFingerprintResult?)null
+                    : await discoveryFingerprint.CaptureRepositoryAsync(
+                        workspaceIdentity,
+                        seedProjectPaths,
+                        cancellationToken);
+                discoveryWindowStable = preDiscoveryInputSet is { } beforeDiscovery
+                    && postDiscoveryInputSet is { } afterDiscovery
+                    && string.Equals(beforeDiscovery.Value, afterDiscovery.Value, StringComparison.Ordinal);
+            }
+            catch (Exception exception) when (exception is IOException
+                                               or UnauthorizedAccessException
+                                               or InvalidOperationException)
+            {
+                WorkspaceDiagnosticRegistry.Record(workspace, new WorkspaceAcquisitionDiagnostic(
+                    "acquisition.input-membership",
+                    DiagnosticSeverity.Error,
+                    CompletenessDiagnosticImpact.RequiredInputIncomplete,
+                    "workspace-input-fingerprint",
+                    exception.Message));
+            }
+        }
+
         Solution solution;
         try
         {
@@ -216,34 +354,54 @@ internal sealed class WorkspaceLoader
                 SolutionLoadGate.Release();
             }
         }
-        catch
+        catch (OperationCanceledException)
         {
             EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true);
             workspace.Dispose();
             throw;
         }
-
-        // Fail fast only when we actually got nothing usable: no projects AND a Failure-kind diagnostic.
-        // Warnings (restore, package audit, unresolved imports) are non-fatal as long as Roslyn has a usable model.
-        var diagnostics = WorkspaceDiagnosticRegistry.Get(workspace);
-        var hasFailureKind = diagnostics.Any(d => d.Kind == WorkspaceDiagnosticKind.Failure);
-        if (!solution.Projects.Any() && hasFailureKind)
+        catch (Exception exception)
         {
-            EmitDiagnostics(diagnostics, true);
-            workspace.Dispose();
-            throw new InvalidOperationException(
-                $"Solution '{solutionPath}' failed to load: no projects and {diagnostics.Count} diagnostic(s). See [workspace-warnings] above.");
+            if (!returnTypedFailure)
+            {
+                EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true);
+                workspace.Dispose();
+                throw;
+            }
+
+            WorkspaceDiagnosticRegistry.Record(workspace, new WorkspaceAcquisitionDiagnostic(
+                "acquisition.solution-load",
+                DiagnosticSeverity.Error,
+                CompletenessDiagnosticImpact.MinimumScopeUnavailable,
+                "msbuild-workspace",
+                exception.Message));
+            solution = workspace.CurrentSolution;
         }
+
+        var diagnostics = WorkspaceDiagnosticRegistry.Get(workspace);
 
         // Test overrides can return a solution owned by a different workspace. Such a solution
         // has no receipts from this load and must remain unverified rather than inheriting them.
         if (ReferenceEquals(solution.Workspace, workspace))
         {
+            var completed = await WorkspaceAcquisitionCollector.CompleteAsync(
+                solution,
+                discovery,
+                workspaceIdentity,
+                inputFingerprint,
+                preLoadInputSet,
+                discoveryWindowStable,
+                cancellationToken);
+            WorkspaceAcquisitionRegistry.RefineDeclaration(
+                workspace,
+                discovery.Manifest,
+                completed.Manifest,
+                completed.Provenance);
             WorkspaceAcquisitionRegistry.Attach(workspace, new WorkspaceAcquisitionReceipt(
                 solution,
-                seed.Manifest,
-                [],
-                provenance));
+                completed.Manifest,
+                completed.Outcomes,
+                completed.Provenance));
         }
         EmitDiagnostics(diagnostics, false);
         return (workspace, solution);

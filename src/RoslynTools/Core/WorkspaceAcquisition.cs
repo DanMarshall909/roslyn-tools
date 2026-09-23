@@ -22,7 +22,8 @@ internal enum SemanticInputKind
     GeneratorStage,
     AnalyzerStage,
     ManifestClosure,
-    SourceSnapshot
+    SourceSnapshot,
+    WorkspaceInputSet
 }
 
 internal enum SemanticInputState

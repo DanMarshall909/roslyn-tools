@@ -27,7 +27,13 @@ internal sealed record RtWorkspaceInput(
     string State,
     bool Required,
     string? Project = null,
-    string? Detail = null);
+    string? Detail = null,
+    bool RequiredForMinimumScope = false,
+    string? Context = null,
+    string? Path = null,
+    string? ExpectedFingerprint = null,
+    string? ObservedFingerprint = null,
+    bool ExclusionValidated = false);
 
 internal sealed record RtConfidence(
     string Level,

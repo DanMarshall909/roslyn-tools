@@ -209,9 +209,7 @@ internal sealed class DoctorOperation(
             using (var lease = await _sessions.AcquireAsync(selected, cancellationToken))
             {
                 var solution = lease.Solution;
-                var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
-                    solution,
-                    cancellationToken);
+                var completeness = lease.Completeness;
                 var diagnostics = environment.Diagnostics
                     .Concat(completeness.Diagnostics)
                     .ToArray();
@@ -220,9 +218,11 @@ internal sealed class DoctorOperation(
                     root,
                     selected,
                     candidates,
-                    completeness.State == WorkspaceCompletenessState.Complete && environment.IsHealthy
-                        ? "Succeeded"
-                        : "Partial",
+                    completeness.State == WorkspaceCompletenessState.Failed
+                        ? "Failed"
+                        : completeness.State == WorkspaceCompletenessState.Complete && environment.IsHealthy
+                            ? "Succeeded"
+                            : "Partial",
                     completeness.State.ToString(),
                     solution.ProjectIds.Count,
                     GetTrust(selected),

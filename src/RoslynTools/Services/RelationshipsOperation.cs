@@ -72,11 +72,12 @@ internal sealed class RelationshipsOperation(
         using (var lease = await _sessions.AcquireAsync(request.Solution, cancellationToken))
         {
             var solution = lease.Solution;
-            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
+            var completeness = lease.Completeness;
             var sourceRevision = lease.SourceRevision;
             var queried = await QueryAsync(solution, request, cancellationToken);
             if (queried.IsErr)
                 return queried.Map(_ => default(RtResultEnvelope<RelationshipsResult>)!);
+            completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
             var queryResult = queried.Unwrap();
             var ordered = queryResult.Items
                 .OrderBy(item => item.TargetSymbol, StringComparer.Ordinal)
@@ -236,27 +237,28 @@ internal sealed class RelationshipsOperation(
             "Source relationships cannot prove reflection, dependency-injection scanning, markup, generated, or external-consumer edges are absent."
         };
         if (completeness.State != WorkspaceCompletenessState.Complete)
-            limitations.Add("The workspace is partial; edges from failed or omitted inputs may be absent.");
+            limitations.Add($"The workspace is {completeness.State}; edges from failed or omitted inputs may be absent.");
         if (truncated)
             limitations.Add("The result reached the item limit; narrow the symbol or mode because continuation is not yet revision-safe.");
         var solutionPath = solution.FilePath;
         return new RtResultEnvelope<RelationshipsResult>(
             "rt.result.v1",
             "relationships",
-            completeness.State == WorkspaceCompletenessState.Complete ? "Succeeded" : "Partial",
+            completeness.State == WorkspaceCompletenessState.Complete
+                ? "Succeeded"
+                : completeness.State.ToString(),
             new RtSourceIdentity(
-                solutionPath is null ? null : Path.GetDirectoryName(solutionPath),
+                completeness.Acquisition?.Provenance.RepositoryRoot,
                 solutionPath,
                 sourceRevision),
-            new RtWorkspaceProvenance(completeness.State.ToString(), solution.ProjectIds.Count, completeness.Diagnostics),
+            completeness.ToResultProvenance(solution),
             new RelationshipsResult(subject, mode, items),
             new RtConfidence(
                 completeness.State == WorkspaceCompletenessState.Complete ? "High" : "Limited",
                 "Roslyn source-symbol relationship analysis",
                 [$"Evaluated {mode} for '{subject}'."],
                 limitations),
-            completeness.Diagnostics.Select((message, index) =>
-                new RtStructuredDiagnostic($"workspace.{index + 1}", "Error", message)).ToArray(),
+            completeness.ToResultDiagnostics(),
             limitations,
             [],
             new RtResultSafety(["RepositoryRead"], false, false),

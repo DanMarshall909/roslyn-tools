@@ -28,6 +28,14 @@ public sealed class OutlineOperationTypedTests
             envelope.SchemaVersion.ShouldBe("rt.result.v1");
             envelope.Operation.ShouldBe("outline");
             envelope.Outcome.ShouldBe("Succeeded");
+            envelope.Workspace.ManifestState.ShouldBe(nameof(ManifestDiscoveryState.Closed));
+            envelope.Workspace.Evaluator.ShouldNotBeNull();
+            envelope.Workspace.Inputs.ShouldNotBeNull().ShouldNotBeEmpty();
+            var sourceInput = envelope.Workspace.Inputs.Single(input =>
+                input.Kind == nameof(SemanticInputKind.SourceDocument));
+            sourceInput.Path.ShouldEndWith("Order.cs", Case.Sensitive);
+            sourceInput.ExpectedFingerprint.ShouldNotBeNullOrWhiteSpace();
+            sourceInput.ObservedFingerprint.ShouldBe(sourceInput.ExpectedFingerprint);
             var summary = envelope.Data.Summaries!.ShouldHaveSingleItem();
             summary.Fqn.ShouldContain("Order");
             summary.Kind.ShouldBe("Class");
@@ -166,6 +174,30 @@ public sealed class OutlineOperationTypedTests
                 "CS0246",
                 StringComparison.Ordinal));
             envelope.Limitations.ShouldNotBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task structured_diagnostics_preserve_compiler_severity_and_impact()
+    {
+        using var project = new AdhocProjectBuilder("WarningOutlineApp");
+        project.AddSource(
+            "Warning.cs",
+            "using System.Text; namespace WarningOutlineApp; public class Warning { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var operation = new OutlineOperation(
+                new FixedSessionFactory(workspace, solution),
+                new OutlineService());
+
+            var envelope = (await operation.ExecuteAsync(
+                new OutlineRequest(Path.Combine(project.ProjectDir, "Warning.cs")))).Unwrap();
+            var diagnostic = envelope.Diagnostics.Single(item => item.Code == "CS8019");
+
+            diagnostic.Severity.ShouldBe(nameof(DiagnosticSeverity.Hidden));
+            diagnostic.Context.ShouldNotBeNull()["completenessImpact"]
+                .ShouldBe(nameof(CompletenessDiagnosticImpact.None));
         }
     }
 

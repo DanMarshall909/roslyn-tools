@@ -151,9 +151,12 @@ grants repository trust and never hides ordinary CLI commands. See
 
 ### 3. Repository trust and workspace completeness
 
-For the current implemented acquisition boundary and its deliberate preview restrictions,
-see [Workspace acquisition evidence](workspace-acquisition-preview.md). In particular, the
-production provider does not yet supply manifest closure and cannot certify `Complete`.
+For the implemented acquisition boundary and its deliberate preview restrictions, see
+[Workspace acquisition evidence](workspace-acquisition-preview.md) and
+[ADR-0021](adr/0021-authoritative-workspace-acquisition-evidence.md). Production acquisition
+evaluates the declared project and target-framework graph before Roslyn loading, reconciles it
+with the exact design-time snapshot, and can certify `Complete` when every required input and
+stage is accounted for.
 The [unused-symbol liveness policy](find-unused-liveness.md) independently retains external
 dispatch and module-initializer entry points.
 
@@ -774,7 +777,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
 - **The staged prepared writer is still process-local.** It now preflights and stages supported writes/moves/deletes, backs up originals, suppresses cancellation during commit, and attempts compensating rollback. It does not yet provide a durable plan store, complete path/metadata coverage, a durable journal and status ledger, handle-safe symlink/reparse containment, restart reconciliation, or recovery commands.
-- **Workspace acquisition evidence is incomplete.** The preview preserves declared inputs, diagnostics, and evaluator provenance and gates proof-sensitive operations centrally. The factory still exposes the legacy solution-only boundary, and production acquisition cannot yet close its manifest; clean compilations remain `Partial` until affirmative context and stage receipts exist.
+- **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.

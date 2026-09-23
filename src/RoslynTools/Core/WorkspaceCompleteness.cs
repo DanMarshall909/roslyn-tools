@@ -27,6 +27,38 @@ internal sealed record WorkspaceCompleteness(
     internal WorkspaceAcquisitionResult? Acquisition { get; init; }
     internal IReadOnlyList<WorkspaceAcquisitionDiagnostic> StructuredDiagnostics => Acquisition?.Diagnostics ?? [];
 
+    internal RtWorkspaceProvenance ToResultProvenance(Solution solution) => new(
+        State.ToString(),
+        solution.ProjectIds.Count,
+        Diagnostics,
+        Inputs,
+        RequestedProjects,
+        FailedProjects,
+        CompilerVersion,
+        EvaluatorPolicy,
+        Acquisition?.Provenance,
+        Acquisition?.Manifest.DiscoveryState.ToString());
+
+    internal RtStructuredDiagnostic[] ToResultDiagnostics() => StructuredDiagnostics
+        .Select(diagnostic =>
+        {
+            var context = new Dictionary<string, string>
+            {
+                ["origin"] = diagnostic.Origin,
+                ["completenessImpact"] = diagnostic.Impact.ToString()
+            };
+            if (diagnostic.InputId is { } inputId)
+                context["inputId"] = inputId;
+            if (diagnostic.ProjectPath is { } projectPath)
+                context["projectPath"] = projectPath;
+            return new RtStructuredDiagnostic(
+                diagnostic.Id,
+                diagnostic.Severity.ToString(),
+                diagnostic.Message,
+                context);
+        })
+        .ToArray();
+
     internal static async Task<WorkspaceCompleteness> AssessSemanticAsync(
         Solution solution, CancellationToken cancellationToken)
     {
@@ -130,6 +162,51 @@ internal sealed record WorkspaceCompleteness(
                 MergeObservation(outcomes, new SemanticInputOutcome(input.Id, SemanticInputState.Failed, Detail: exception.Message), diagnostics);
             }
         }
+        foreach (var input in manifest.Inputs.Where(input => input.Kind == SemanticInputKind.WorkspaceInputSet))
+        {
+            if (input.Context != "repository-membership-v1")
+                continue;
+            if (outcomes.Any(outcome => outcome.InputId == input.Id
+                    && outcome.State is SemanticInputState.Failed or SemanticInputState.PolicyBlocked or SemanticInputState.Unknown))
+                continue;
+
+            if (input.Fingerprint is null
+                || solution.FilePath is null
+                || !RepositoryTrustContext.IsExplicitlyTrustedFor(solution.FilePath))
+            {
+                MergeObservation(outcomes, new SemanticInputOutcome(
+                    input.Id,
+                    SemanticInputState.Failed,
+                    Detail: "Workspace input membership can no longer be verified against a trusted repository identity."), diagnostics);
+                continue;
+            }
+
+            try
+            {
+                var identity = RepositoryTrustContext.ResolveWorkspaceIdentity(solution.FilePath);
+                var sdkIdentity = recordedProvenance?.SdkIdentity ?? "Unknown";
+                var current = await WorkspaceInputFingerprint.CreateForAcquisition(sdkIdentity)
+                    .CaptureAsync(identity, solution, cancellationToken);
+                MergeObservation(outcomes, new SemanticInputOutcome(
+                    input.Id,
+                    current.Reusable && current.SnapshotConsistent
+                        ? SemanticInputState.Resolved
+                        : SemanticInputState.Failed,
+                    current.Value,
+                    current.Reusable && current.SnapshotConsistent
+                        ? null
+                        : "Workspace input membership or loaded-snapshot consistency is no longer proven."), diagnostics);
+            }
+            catch (Exception exception) when (exception is IOException
+                                               or UnauthorizedAccessException
+                                               or InvalidOperationException)
+            {
+                MergeObservation(outcomes, new SemanticInputOutcome(
+                    input.Id,
+                    SemanticInputState.Failed,
+                    Detail: exception.Message), diagnostics);
+            }
+        }
         foreach (var input in manifest.Inputs.Where(input => outcomes.All(outcome => outcome.InputId != input.Id)))
             outcomes.Add(new SemanticInputOutcome(input.Id, SemanticInputState.Unknown,
                 Detail: "The acquisition provider has not supplied an authoritative outcome for this required input or stage."));
@@ -159,7 +236,8 @@ internal sealed record WorkspaceCompleteness(
         {
             var outcome = outcomes.First(item => item.InputId == input.Id);
             return new RtWorkspaceInput(input.Id, input.Kind.ToString(), outcome.State.ToString(), input.Required,
-                input.ProjectPath, outcome.Detail);
+                input.ProjectPath, outcome.Detail, input.RequiredForMinimumScope, input.Context, input.Path,
+                input.Fingerprint, outcome.ObservedFingerprint, outcome.ExclusionValidated);
         });
         return new WorkspaceCompleteness(decision.State,
             allDiagnostics.Select(diagnostic => $"{diagnostic.ProjectPath ?? diagnostic.Origin}: {diagnostic.Id}: {diagnostic.Message}").ToImmutableArray(),

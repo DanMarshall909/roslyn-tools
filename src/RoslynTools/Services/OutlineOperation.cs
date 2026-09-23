@@ -38,9 +38,7 @@ internal sealed class OutlineOperation
         {
             var solution = lease.Solution;
             cancellationToken.ThrowIfCancellationRequested();
-            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
-                solution,
-                cancellationToken);
+            var completeness = lease.Completeness;
             IReadOnlyList<object> items;
 
             if (request.Regex is not null)
@@ -51,6 +49,8 @@ internal sealed class OutlineOperation
                     request.WithLocations);
             else
                 items = await LoadTargetAsync(solution, request, cancellationToken);
+
+            completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
 
             var totalItems = items.Count;
             var maximumItems = Definition.Product.Limits.MaximumItems;
@@ -125,29 +125,26 @@ internal sealed class OutlineOperation
         var truncated = returnedItems < totalItems;
         var limitations = new List<string>();
         if (completeness.State != WorkspaceCompletenessState.Complete)
-            limitations.Add("The workspace is partial; omitted or failed semantic inputs may change the outline.");
+            limitations.Add($"The workspace is {completeness.State}; omitted or failed semantic inputs may change the outline.");
         if (truncated)
             limitations.Add("The result reached the item limit; no safe continuation snapshot is available yet.");
 
         var solutionPath = solution.FilePath;
-        var repositoryRoot = solutionPath is null ? null : Path.GetDirectoryName(solutionPath);
         return new RtResultEnvelope<OutlineResult>(
             "rt.result.v1",
             "outline",
-            completeness.State == WorkspaceCompletenessState.Complete ? "Succeeded" : "Partial",
-            new RtSourceIdentity(repositoryRoot, solutionPath, sourceRevision),
-            new RtWorkspaceProvenance(
-                completeness.State.ToString(),
-                solution.ProjectIds.Count,
-                completeness.Diagnostics),
+            completeness.State == WorkspaceCompletenessState.Complete
+                ? "Succeeded"
+                : completeness.State.ToString(),
+            new RtSourceIdentity(completeness.Acquisition?.Provenance.RepositoryRoot, solutionPath, sourceRevision),
+            completeness.ToResultProvenance(solution),
             data,
             new RtConfidence(
                 completeness.State == WorkspaceCompletenessState.Complete ? "High" : "Limited",
                 "Roslyn semantic workspace load",
                 [$"Loaded {solution.ProjectIds.Count} project(s)."],
                 limitations),
-            completeness.Diagnostics.Select((message, index) =>
-                new RtStructuredDiagnostic($"workspace.{index + 1}", "Error", message)).ToArray(),
+            completeness.ToResultDiagnostics(),
             limitations,
             OutlineCommandDefinition.Definition.SuggestedTools
                 .Select(action => new RtNextAction(action.ToolName, action.WhenToUse))

@@ -40,7 +40,8 @@ internal static class WorkspaceCompletenessPolicy
         }
         foreach (var kind in new[] { SemanticInputKind.ManifestClosure, SemanticInputKind.EvaluationStage,
                      SemanticInputKind.GeneratorStage, SemanticInputKind.AnalyzerStage, SemanticInputKind.SourceSnapshot,
-                     SemanticInputKind.Sdk, SemanticInputKind.Package, SemanticInputKind.BuildInput, SemanticInputKind.FrameworkReference })
+                     SemanticInputKind.WorkspaceInputSet, SemanticInputKind.Sdk, SemanticInputKind.Package,
+                     SemanticInputKind.BuildInput, SemanticInputKind.FrameworkReference })
         {
             if (!manifest.Inputs.Any(input => input.Kind == kind && input.Required))
                 reasons.Add($"The manifest has no required {kind} receipt.");
@@ -64,9 +65,10 @@ internal static class WorkspaceCompletenessPolicy
         => (outcome.State == SemanticInputState.Resolved
                 || outcome.State == SemanticInputState.Loaded && input.Kind is not (SemanticInputKind.ManifestClosure
                     or SemanticInputKind.EvaluationStage or SemanticInputKind.GeneratorStage or SemanticInputKind.AnalyzerStage
-                    or SemanticInputKind.SourceSnapshot)
+                    or SemanticInputKind.SourceSnapshot or SemanticInputKind.WorkspaceInputSet)
                 || outcome.State == SemanticInputState.Excluded && outcome.ExclusionValidated
-                    && input.Kind is not (SemanticInputKind.ManifestClosure or SemanticInputKind.SourceSnapshot))
+                    && input.Kind is not (SemanticInputKind.ManifestClosure or SemanticInputKind.SourceSnapshot
+                        or SemanticInputKind.WorkspaceInputSet))
             && (input.Fingerprint is null
                 || string.Equals(input.Fingerprint, outcome.ObservedFingerprint, StringComparison.Ordinal));
 }

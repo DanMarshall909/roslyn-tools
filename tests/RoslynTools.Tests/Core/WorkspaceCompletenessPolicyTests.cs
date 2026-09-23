@@ -31,6 +31,7 @@ public sealed class WorkspaceCompletenessPolicyTests
     [InlineData("GeneratorStage")]
     [InlineData("AnalyzerStage")]
     [InlineData("SourceSnapshot")]
+    [InlineData("WorkspaceInputSet")]
     public void one_missing_required_outcome_is_partial_even_when_loaded_projects_compile(string kind)
     {
         var manifest = Manifest(new ExpectedSemanticInput("omitted", Enum.Parse<SemanticInputKind>(kind), true));
@@ -75,6 +76,7 @@ public sealed class WorkspaceCompletenessPolicyTests
     [InlineData("GeneratorStage")]
     [InlineData("AnalyzerStage")]
     [InlineData("SourceSnapshot")]
+    [InlineData("WorkspaceInputSet")]
     public void mandatory_stage_cannot_be_omitted_or_merely_loaded(string kindName)
     {
         var kind = Enum.Parse<SemanticInputKind>(kindName);
@@ -100,6 +102,7 @@ public sealed class WorkspaceCompletenessPolicyTests
     [Theory]
     [InlineData("ManifestClosure")]
     [InlineData("SourceSnapshot")]
+    [InlineData("WorkspaceInputSet")]
     public void closure_and_snapshot_receipts_cannot_be_excluded(string kindName)
     {
         var kind = Enum.Parse<SemanticInputKind>(kindName);
@@ -167,6 +170,7 @@ public sealed class WorkspaceCompletenessPolicyTests
                 new ExpectedSemanticInput("generators", SemanticInputKind.GeneratorStage, true),
                 new ExpectedSemanticInput("analyzers", SemanticInputKind.AnalyzerStage, true),
                 new ExpectedSemanticInput("snapshot", SemanticInputKind.SourceSnapshot, true),
+                new ExpectedSemanticInput("input-set", SemanticInputKind.WorkspaceInputSet, true),
                 new ExpectedSemanticInput("sdk", SemanticInputKind.Sdk, true),
                 new ExpectedSemanticInput("package", SemanticInputKind.Package, true),
                 new ExpectedSemanticInput("build", SemanticInputKind.BuildInput, true),

@@ -55,13 +55,12 @@ internal sealed class SafeDeleteOperation
                 "A symbol to delete is required."));
 
         cancellationToken.ThrowIfCancellationRequested();
-        var (workspace, solution) = await _sessions.LoadWorkspaceAsync(request.Solution);
-        using (workspace)
+        var loaded = await _sessions.LoadWorkspaceResultAsync(request.Solution, cancellationToken);
+        var solution = loaded.Solution;
+        using (loaded.Workspace)
         {
-            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
-                solution,
-                cancellationToken);
-            if (completeness.State != WorkspaceCompletenessState.Complete)
+            var completeness = loaded.Completeness;
+            if (!WorkspaceProofPolicy.Evaluate(completeness).CanUseAbsenceEvidence)
                 return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(
                     CreateIncompleteWorkspaceError(completeness));
 
@@ -76,9 +75,20 @@ internal sealed class SafeDeleteOperation
             if (error is not null)
                 return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(error);
 
+            // Symbol resolution can trigger deferred workspace work. Reassess immediately before
+            // preparing a mutation so late acquisition diagnostics cannot inherit an earlier pass.
+            completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
+            if (!WorkspaceProofPolicy.Evaluate(completeness).CanUseAbsenceEvidence)
+                return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(
+                    CreateIncompleteWorkspaceError(completeness));
+
             if (preparation!.References.Count != 0)
                 return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(
                     CreateReferencedSymbolError(preparation));
+            if (!WorkspaceProofPolicy.Evaluate(completeness, operationEvidenceSupportsDeletion: true)
+                    .CanOfferDeletionAdvice)
+                return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(
+                    CreateIncompleteWorkspaceError(completeness));
 
             cancellationToken.ThrowIfCancellationRequested();
             var value = new SafeDeleteResult(

@@ -44,6 +44,7 @@ internal sealed record OwnedWorkspaceSnapshot(IDisposable Owner, Solution Soluti
 internal sealed class ReadOnlyWorkspaceLease : IDisposable
 {
     private Action? _release;
+    private WorkspaceCompleteness? _completeness;
 
     internal ReadOnlyWorkspaceLease(Solution solution, string sourceRevision, Action? release = null)
     {
@@ -52,9 +53,29 @@ internal sealed class ReadOnlyWorkspaceLease : IDisposable
         _release = release;
     }
 
+    internal ReadOnlyWorkspaceLease(
+        Solution solution,
+        string sourceRevision,
+        WorkspaceCompleteness completeness,
+        Action? release = null)
+        : this(solution, sourceRevision, release)
+    {
+        _completeness = completeness;
+    }
+
     internal Solution Solution { get; }
 
     internal string SourceRevision { get; }
+
+    internal WorkspaceCompleteness Completeness => _completeness
+        ?? throw new InvalidOperationException("The workspace lease crossed the application boundary without completeness evidence.");
+
+    internal void AttachCompleteness(WorkspaceCompleteness completeness)
+    {
+        ArgumentNullException.ThrowIfNull(completeness);
+        if (Interlocked.CompareExchange(ref _completeness, completeness, null) is not null)
+            throw new InvalidOperationException("Workspace completeness evidence is immutable for a lease.");
+    }
 
     /// <summary>
     ///     Releases this query lease. Disposal is idempotent; a retired workspace is disposed
@@ -445,6 +466,49 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         _systemHookBaseline = CaptureSystemHookBaseline();
     }
 
+    internal static WorkspaceInputFingerprint CreateForAcquisition(string sdkIdentity)
+    {
+        var registeredPath = TryGetRegisteredPath(sdkIdentity);
+        return new WorkspaceInputFingerprint(
+            new WorkspaceEnvironmentIdentity(() => sdkIdentity),
+            loadConfiguration: null,
+            Environment.GetEnvironmentVariable,
+            () => registeredPath,
+            EnumerateCurrentEnvironmentVariables);
+
+        static string? TryGetRegisteredPath(string identity)
+        {
+            var separator = identity.LastIndexOf('@');
+            if (separator < 0 || separator == identity.Length - 1)
+                return null;
+            var sdkPath = identity[(separator + 1)..];
+            return Path.GetFileName(sdkPath).Equals("Sdks", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetDirectoryName(sdkPath)
+                : sdkPath;
+        }
+    }
+
+    internal static WorkspaceInputFingerprint CreateForDiscovery()
+    {
+        var toolsPath = Microsoft.Build.Evaluation.ProjectCollection.GlobalProjectCollection.Toolsets
+            .Select(toolset => toolset.ToolsPath)
+            .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+        var sdkPath = toolsPath is null ? null : Path.Combine(toolsPath, "Sdks");
+        return CreateForAcquisition(sdkPath is null ? "registered-msbuild" : $"registered-msbuild@{sdkPath}");
+    }
+
+    internal Task<WorkspaceInputFingerprintResult> CaptureAsync(
+        TrustedWorkspaceIdentity identity,
+        Solution? solution,
+        CancellationToken cancellationToken)
+        => ((IWorkspaceInputFingerprint)this).CaptureAsync(identity, solution, cancellationToken);
+
+    internal Task<WorkspaceInputFingerprintResult> CaptureRepositoryAsync(
+        TrustedWorkspaceIdentity identity,
+        IEnumerable<string> projectPaths,
+        CancellationToken cancellationToken)
+        => CaptureCoreAsync(identity, solution: null, projectPaths, cancellationToken);
+
     private static string? GetUserProfileDirectory()
     {
         try
@@ -522,6 +586,13 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         TrustedWorkspaceIdentity identity,
         Solution? solution,
         CancellationToken cancellationToken)
+        => await CaptureCoreAsync(identity, solution, additionalProjectPaths: null, cancellationToken);
+
+    private async Task<WorkspaceInputFingerprintResult> CaptureCoreAsync(
+        TrustedWorkspaceIdentity identity,
+        Solution? solution,
+        IEnumerable<string>? additionalProjectPaths,
+        CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Append(hash, "rt.workspace.inputs.v1");
@@ -530,7 +601,11 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         Append(hash, identity.SolutionPath);
         Append(hash, CaptureEnvironmentIdentity());
 
-        var discovery = await DiscoverSemanticInputsAsync(identity, solution, cancellationToken);
+        var discovery = await DiscoverSemanticInputsAsync(
+            identity,
+            solution,
+            additionalProjectPaths,
+            cancellationToken);
         Append(hash, discovery.Reusable ? "reusable" : "non-reusable");
 
         foreach (var path in discovery.Paths)
@@ -565,10 +640,12 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
     private async Task<SemanticInputDiscovery> DiscoverSemanticInputsAsync(
         TrustedWorkspaceIdentity identity,
         Solution? solution,
+        IEnumerable<string>? additionalProjectPaths,
         CancellationToken cancellationToken)
     {
         var solutionProjects = ReadDeclaredSolutionProjects(identity.SolutionPath);
         var projectPaths = solutionProjects.Paths
+            .Concat(additionalProjectPaths ?? [])
             .Concat(solution?.Projects
                 .Select(project => project.FilePath)
                 .Where(path => path is not null)
@@ -3509,7 +3586,10 @@ internal sealed class ReadOnlyWorkspaceSessionCache : IReadOnlyWorkspaceSessions
             var ambientRevision = await SolutionRevision.ComputeAsync(
                 ambient.Solution,
                 cancellationToken);
-            return new ReadOnlyWorkspaceLease(ambient.Solution, ambientRevision);
+            var ambientCompleteness = await WorkspaceCompleteness.AssessSemanticAsync(
+                ambient.Solution,
+                cancellationToken);
+            return new ReadOnlyWorkspaceLease(ambient.Solution, ambientRevision, ambientCompleteness);
         }
 
         var resolvedPath = SolutionPathResolver.Resolve(solutionPath);
@@ -3623,6 +3703,9 @@ internal sealed class ReadOnlyWorkspaceSessionCache : IReadOnlyWorkspaceSessions
             try
             {
                 await TrimAsync(key, cancellationToken);
+                lease.AttachCompleteness(await WorkspaceCompleteness.AssessSemanticAsync(
+                    lease.Solution,
+                    cancellationToken));
                 return lease;
             }
             catch
