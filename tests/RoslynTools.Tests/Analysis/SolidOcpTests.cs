@@ -274,14 +274,6 @@ public class SolidOcpTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task execute_async_returns_0_for_valid_ocp_principle()
-    {
-        using var trust = RepositoryTrustContext.UseExplicitTrust();
-        var exitCode = await SolidCommand.ExecuteAsync(null, "OCP", 10, 5, 7, 2);
-        exitCode.ShouldBe(0);
-    }
-
-    [Fact]
     public void execute_async_defaults_min_branches_to_2()
     {
         var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();

@@ -105,16 +105,4 @@ public class CliBootstrap
         }
     }
 
-    [Fact]
-    public async Task unexpected_exception_types_still_surface_as_unhandled()
-    {
-        // US-042 AC5: only the curated list of exception types gets the clean-error treatment.
-        // Anything else must still surface so developers see it. We don't have a clean way to
-        // trigger an arbitrary unmapped exception via the CLI, so this test acts as a guard
-        // documenting intent: TryHandleUserErrorAsync returns false (→ rethrow) for unmapped
-        // types. Verified by the existence of the `return false` fall-through in App.cs and
-        // covered by code review. Marker test — no runtime assertion needed beyond compile.
-        await Task.CompletedTask;
-        true.ShouldBeTrue();
-    }
 }

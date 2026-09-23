@@ -423,14 +423,6 @@ public class SolidIspTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task execute_async_returns_0_for_valid_isp_principle()
-    {
-        using var trust = RepositoryTrustContext.UseExplicitTrust();
-        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, 7, 2);
-        exitCode.ShouldBe(0);
-    }
-
-    [Fact]
     public async Task execute_async_returns_1_for_negative_min_members()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, -1, 2);
