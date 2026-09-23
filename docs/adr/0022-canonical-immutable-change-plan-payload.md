@@ -95,6 +95,7 @@ separate implementation slices required before any restart-safe apply claim.
 
 - Related ADRs: [ADR-0007](0007-host-neutral-command-contracts.md),
   [ADR-0012](0012-review-first-mutation-defaults.md),
-  [ADR-0013](0013-fenced-plan-unavailability-resolution.md)
+  [ADR-0013](0013-fenced-plan-unavailability-resolution.md),
+  [ADR-0023](0023-protected-durable-change-plan-storage.md)
 - Related docs: [architecture overview](../architecture-overview.md)
 - Specification: [prepared mutation plans are complete and immutable](../../openspec/changes/critical-platform-hardening/specs/platform-hardening/spec.md#requirement-prepared-mutation-plans-are-complete-and-immutable)

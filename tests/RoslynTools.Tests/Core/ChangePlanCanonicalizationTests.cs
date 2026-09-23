@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using RoslynTools.Core;
 using Shouldly;
@@ -1565,8 +1566,15 @@ public sealed class ChangePlanCanonicalizationTests
     [Fact]
     public void canonical_wire_names_cover_every_valid_enum_variant()
     {
-        static JsonElement Root(ChangePlanPayload payload) =>
-            JsonDocument.Parse(CanonicalChangePlan.Serialize(payload)).RootElement.Clone();
+        static JsonElement Root(ChangePlanPayload payload)
+        {
+            var envelope = ChangePlanEnvelope.Create(payload);
+            var read = CanonicalChangePlanReader.ReadEnvelope(envelope.SerializeEnvelope()).Match(
+                value => value,
+                error => throw new InvalidOperationException(error.Message));
+            read.SerializeEnvelope().ShouldBe(envelope.SerializeEnvelope());
+            return JsonDocument.Parse(read.CanonicalPayloadBytes).RootElement.Clone();
+        }
 
         var original = Encoding.UTF8.GetBytes("class Before;\n");
         var created = Encoding.UTF8.GetBytes("created\n");
@@ -1703,6 +1711,207 @@ public sealed class ChangePlanCanonicalizationTests
     }
 
     [Fact]
+    public void canonical_envelope_reader_rehydrates_the_exact_persisted_bytes()
+    {
+        var original = ChangePlanEnvelope.Create(CreatePayload());
+        var bytes = original.SerializeEnvelope();
+
+        var read = CanonicalChangePlanReader.ReadEnvelope(bytes).Match(
+            value => value,
+            error => throw new InvalidOperationException(error.Message));
+
+        read.PlanHash.ShouldBe(original.PlanHash);
+        read.Payload.PlanId.ShouldBe(original.Payload.PlanId);
+        read.Payload.Repository.RepositoryId.ShouldBe(original.Payload.Repository.RepositoryId);
+        read.SerializeEnvelope().ShouldBe(bytes);
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_rejects_noncanonical_or_incompatible_bytes()
+    {
+        var envelope = ChangePlanEnvelope.Create(CreatePayload());
+        var canonical = Encoding.UTF8.GetString(envelope.SerializeEnvelope());
+        var noncanonical = Encoding.UTF8.GetBytes(canonical.Replace(
+            "{\"planHash\"",
+            "{ \"planHash\"",
+            StringComparison.Ordinal));
+        var incompatible = Encoding.UTF8.GetBytes(canonical.Replace(
+            ChangePlanSchema.Version,
+            "rt.change-plan.v999",
+            StringComparison.Ordinal));
+
+        ReadError(noncanonical).Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.IntegrityFailure);
+        ReadError(incompatible).Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.SchemaIncompatible);
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_rejects_null_and_unknown_fixed_policy_tokens_exactly()
+    {
+        Should.Throw<ArgumentNullException>(() => CanonicalChangePlanReader.ReadEnvelope(null!))
+            .ParamName.ShouldBe("envelopeBytes");
+
+        var envelope = ChangePlanEnvelope.Create(CreatePayload());
+        var unknownPolicy = Encoding.UTF8.GetBytes(
+            Encoding.UTF8.GetString(envelope.SerializeEnvelope()).Replace(
+                "\"longPath\":\"reject\"",
+                "\"longPath\":\"allow\"",
+                StringComparison.Ordinal));
+
+        var error = ReadError(unknownPolicy);
+        error.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+        error.Message.ShouldContain("allow");
+        error.Message.ShouldContain("reject");
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_types_malformed_json_fields_and_model_values()
+    {
+        var envelopeBytes = ChangePlanEnvelope.Create(CreatePayload()).SerializeEnvelope();
+        var corruptions = new (Action<JsonObject> Corrupt, string Evidence)[]
+        {
+            (root => root["planHash"] = 1, "planHash"),
+            (root => root["payload"]!["repository"]!["id"] = "", "id"),
+            (root => root["payload"]!["operations"] = new JsonObject(), "operations"),
+            (root => root["payload"]!["assumptions"] = new JsonArray(1), "assumptions"),
+            (root => root["payload"]!["effects"]![0]!["guards"]![0]!["required"] = false, "guard")
+        };
+
+        ReadError(Encoding.UTF8.GetBytes("{")).Kind
+            .ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+        var rootError = ReadError(Encoding.UTF8.GetBytes("[]"));
+        rootError.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+        rootError.Message.ShouldContain("envelope");
+        foreach (var (corrupt, evidence) in corruptions)
+        {
+            var root = JsonNode.Parse(envelopeBytes)!.AsObject();
+            corrupt(root);
+            var error = ReadError(Encoding.UTF8.GetBytes(root.ToJsonString()));
+            error.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+            error.Message.ShouldContain(evidence);
+        }
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_reports_missing_and_wrong_scalar_properties()
+    {
+        var envelopeBytes = ChangePlanEnvelope.Create(CreatePayload()).SerializeEnvelope();
+        var corruptions = new (Action<JsonObject> Corrupt, string Property)[]
+        {
+            (root => root.Remove("planHash"), "planHash"),
+            (root => root["payload"]!["effects"]![0]!["destinationPath"] = 1, "destinationPath"),
+            (root => root["payload"]!["effects"]![0]!["originalContentBase64"] = true, "originalContentBase64"),
+            (root => root["payload"]!["operations"]![0]!["sequence"] = "one", "sequence"),
+            (root => root["payload"]!["effects"]![0]!["sourceBefore"]!["linkCount"] = "one", "linkCount"),
+            (root => root["payload"]!["verificationActions"]![0]!["required"] = "yes", "required"),
+            (root => root["payload"]!["effects"]![0]!["sourceBefore"]!["readOnly"] = "yes", "readOnly")
+        };
+
+        foreach (var (corrupt, property) in corruptions)
+        {
+            var root = JsonNode.Parse(envelopeBytes)!.AsObject();
+            corrupt(root);
+            var error = ReadError(Encoding.UTF8.GetBytes(root.ToJsonString()));
+            error.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+            error.Message.ShouldContain(property);
+        }
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_reports_the_malformed_structural_role()
+    {
+        var envelopeBytes = ChangePlanEnvelope.Create(CreatePayload()).SerializeEnvelope();
+        var corruptions = new (Action<JsonObject> Corrupt, string Role)[]
+        {
+            (root => root["payload"]!["repository"] = 1, "repository"),
+            (root => root["payload"]!["coordination"] = 1, "coordination"),
+            (root => root["payload"]!["pathPolicy"] = 1, "pathPolicy"),
+            (root => root["payload"]!["operations"]![0] = 1, "operation"),
+            (root => root["payload"]!["dependencies"]![0] = 1, "dependency"),
+            (root => root["payload"]!["effects"]![0] = 1, "effect"),
+            (root => root["payload"]!["effects"]![0]!["sourceBefore"] = 1, "path state"),
+            (root => root["payload"]!["effects"]![0]!["guards"]![0] = 1, "guard"),
+            (root => root["payload"]!["diagnostics"]![0] = 1, "diagnostic"),
+            (root => root["payload"]!["operations"]![0]!["arguments"]![0] = 1, "name/value pair"),
+            (root => root["payload"]!["confidence"] = 1, "confidence"),
+            (root => root["payload"]!["workspace"] = 1, "workspace"),
+            (root => root["payload"]!["verificationActions"]![0] = 1, "verification action")
+        };
+
+        foreach (var (corrupt, role) in corruptions)
+        {
+            var root = JsonNode.Parse(envelopeBytes)!.AsObject();
+            corrupt(root);
+            var error = ReadError(Encoding.UTF8.GetBytes(root.ToJsonString()));
+            error.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+            error.Message.ShouldContain(role);
+        }
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_rejects_every_unknown_wire_enum_token()
+    {
+        var envelopeBytes = ChangePlanEnvelope.Create(CreatePayload()).SerializeEnvelope();
+        var corruptions = new Action<JsonObject>[]
+        {
+            root => root["payload"]!["effects"]![0]!["kind"] = "unknown",
+            root => root["payload"]!["effects"]![0]!["artifactKind"] = "unknown",
+            root => root["payload"]!["effects"]![0]!["sourceBefore"]!["kind"] = "unknown",
+            root => root["payload"]!["effects"]![0]!["guards"]![0]!["kind"] = "unknown",
+            root => root["payload"]!["dependencies"]![0]!["kind"] = "unknown",
+            root => root["payload"]!["diagnostics"]![0]!["severity"] = "unknown",
+            root => root["payload"]!["workspace"]!["state"] = "unknown",
+            root => root["payload"]!["coordination"]!["domain"] = "unknown",
+            root => root["payload"]!["coordination"]!["mode"] = "unknown",
+            root => root["payload"]!["pathPolicy"]!["caseSensitivity"] = "unknown"
+        };
+
+        foreach (var corrupt in corruptions)
+        {
+            var root = JsonNode.Parse(envelopeBytes)!.AsObject();
+            corrupt(root);
+            var error = ReadError(Encoding.UTF8.GetBytes(root.ToJsonString()));
+            error.Kind.ShouldBe(ChangePlanEnvelopeReadErrorKind.Malformed);
+            error.Message.ShouldContain("Unsupported");
+        }
+    }
+
+    [Fact]
+    public void canonical_envelope_reader_round_trips_every_effect_shape()
+    {
+        var before = Encoding.UTF8.GetBytes("before\n");
+        var after = Encoding.UTF8.GetBytes("after\n");
+        var effects = new[]
+        {
+            NewEffect(
+                1, ChangePlanEffectKind.Create, "src/New.cs", "/workspace/repository/src/New.cs",
+                null, null, ChangePlanPathState.Missing,
+                ExistingFile(after, platformFileIdentity: null), null, null,
+                null, after, [ExternalGuard("src/New.cs")]),
+            CreateReplacementEffect("src/Feature.cs", after),
+            NewEffect(
+                1, ChangePlanEffectKind.Delete, "src/Old.cs", "/workspace/repository/src/Old.cs",
+                null, null, ExistingFile(before), ChangePlanPathState.Missing, null, null,
+                before, null, [ExternalGuard("src/Old.cs")]),
+            NewEffect(
+                1, ChangePlanEffectKind.Move, "src/Old.cs", "/workspace/repository/src/Old.cs",
+                "src/New.cs", "/workspace/repository/src/New.cs",
+                ExistingFile(before), ChangePlanPathState.Missing,
+                ChangePlanPathState.Missing, ExistingFile(before, platformFileIdentity: null),
+                before, null, [ExternalGuard("src/Old.cs"), ExternalGuard("src/New.cs")])
+        };
+
+        foreach (var effect in effects)
+        {
+            var envelope = ChangePlanEnvelope.Create(CreatePayload(effects: [effect]));
+            var read = CanonicalChangePlanReader.ReadEnvelope(envelope.SerializeEnvelope()).Match(
+                value => value,
+                error => throw new InvalidOperationException(error.Message));
+
+            read.SerializeEnvelope().ShouldBe(envelope.SerializeEnvelope());
+        }
+    }
+
+    [Fact]
     public void exact_diff_is_derived_for_create_replace_delete_and_move()
     {
         var beforeBytes = Encoding.UTF8.GetBytes("before\n");
@@ -1744,6 +1953,15 @@ public sealed class ChangePlanCanonicalizationTests
             $"afterContentBase64 {Convert.ToBase64String(beforeBytes)}\n");
         Should.Throw<ArgumentNullException>(() => ChangePlanDiff.Render(null!)).ParamName.ShouldBe("effects");
     }
+
+    private static ChangePlanEnvelopeReadError ReadError(byte[] envelopeBytes) =>
+        CanonicalChangePlanReader.ReadEnvelope(envelopeBytes).Match(
+            _ => throw new InvalidOperationException("Expected the canonical envelope read to fail."),
+            error =>
+            {
+                error.Message.ShouldNotBeNullOrWhiteSpace();
+                return error;
+            });
 
     private static ChangePlanPayload CreatePayload(
         string sourcePath = "src/Feature.cs",

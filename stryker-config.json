@@ -46,6 +46,8 @@
       "**/Core/ReadOnlyWorkspaceSessions.cs",
       "**/Core/ChangePlan.cs",
       "**/Core/CanonicalChangePlan.cs",
+      "**/Core/CanonicalChangePlanReader.cs",
+      "**/Core/DurableChangePlanStore.cs",
       "**/Core/IWorkspaceSessionFactory.cs",
       "**/Core/SolutionPathResolver.cs",
       "**/Core/WorkspaceLoader.cs",

@@ -456,9 +456,20 @@ control in a user-private store for `ExclusivePrincipal` or authority-controlled
 storage for `SharedAuthority`. Preview and apply consume that same repository-scoped,
 hash-verified plan across process restart.
 
-The canonical payload and envelope verification are implemented foundations. The
-protected durable store, parsing, plan pinning, dispatch leases, operation ledger, and
-restart recovery remain required before `rt` can claim this cross-process apply flow.
+The canonical payload and envelope verification are implemented foundations.
+[ADR-0023](adr/0023-protected-durable-change-plan-storage.md) adds exact-byte envelope
+rehydration plus the fail-closed `ExclusivePrincipal` storage engine: a required trusted
+host lease proving and safely provisioning a physically repository-external owner-private
+root before any engine filesystem mutation, digest-only repository path components,
+durable complete-record replacement, typed
+corruption/schema/hash/expiry failures, count and byte quotas, bounded dispatch pins,
+exact source-bound adoption by an operation-ledger pin, and tombstone-based collection.
+The engine samples time under its mutation lock, flushes file and directory metadata,
+and retains corrupt or pinned evidence. Its built-in unavailable protection authority
+refuses use, as does the engine for `SharedAuthority`; a production physical-protection
+authority, an authority-owned shared provider, preparation/apply integration, full
+dispatch leases, operation ledger, cleanup bundles, and restart recovery remain required
+before `rt` can claim this cross-process apply flow.
 
 Under [ADR-0013](adr/0013-fenced-plan-unavailability-resolution.md), a quota-bounded
 `DispatchPlanLease` validates and pins the exact plan under the caller-known operation
@@ -792,7 +803,12 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
-- **The staged prepared writer is still process-local.** It now preflights and stages supported writes/moves/deletes, backs up originals, suppresses cancellation during commit, and attempts compensating rollback. It does not yet provide a durable plan store, complete path/metadata coverage, a durable journal and status ledger, handle-safe symlink/reparse containment, restart reconciliation, or recovery commands.
+- **The staged prepared writer is still process-local.** Core now has a canonical plan,
+  exact-byte reader, and fail-closed durable storage engine with bounded pin transfer,
+  but no production physical-protection authority and no preparation/apply integration.
+  The writer still lacks complete path/metadata coverage, a shared-authority provider,
+  durable journal and status ledger, handle-safe symlink/reparse containment, restart
+  reconciliation, and recovery commands.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
