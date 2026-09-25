@@ -13,7 +13,7 @@ file static class OperationRequestSchema
     internal const string ApplyRequestVersion = "rt.apply-request.v1";
 }
 
-file static class OperationRequestText
+internal static class OperationRequestText
 {
     private static readonly Encoding StrictUtf8 = Encoding.GetEncoding(
         Encoding.UTF8.CodePage,
@@ -236,7 +236,7 @@ internal sealed class CanonicalApplyRequest
 /// <summary>
 ///     Sole byte projection for operation-epoch public claims and semantic apply requests.
 /// </summary>
-file static class CanonicalOperationRequest
+internal static class CanonicalOperationRequest
 {
     private const string UtcTimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'";
 

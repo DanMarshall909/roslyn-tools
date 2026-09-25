@@ -468,7 +468,7 @@ The engine samples time under its mutation lock, flushes file and directory meta
 and retains corrupt or pinned evidence. Its built-in unavailable protection authority
 refuses use, as does the engine for `SharedAuthority`; a production physical-protection
 authority, an authority-owned shared provider, preparation/apply integration, full
-dispatch leases, operation ledger, cleanup bundles, and restart recovery remain required
+dispatch leases, cleanup bundles, and restart recovery remain required
 before `rt` can claim this cross-process apply flow.
 
 Under [ADR-0013](adr/0013-fenced-plan-unavailability-resolution.md), a quota-bounded
@@ -598,8 +598,8 @@ of hashing its wire representation.
 `OperationId`, canonical public `OperationEpochClaims`,
 `OperationRequestIdentity`, and the versioned apply-request byte projection are
 implemented internal foundations with fixed conformance vectors. Token issuance and
-authentication, adapter integration, dispatch leases, intake fencing, the operation
-ledger, and replay authorization remain required before this identity participates in
+authentication, adapter integration, dispatch leases, intake-attempt fencing, and
+replay authorization remain required before this identity participates in
 mutation dispatch.
 Before sending request bytes, the caller registers a quota-bounded
 `DispatchPlanLease` that validates the epoch/principal, canonical request identity,
@@ -635,6 +635,20 @@ existing receipt/state/result and reusing it for different work returns conflict
 incoming attempt without changing the canonical receipt, ledger, pins, or outcome;
 conflict is not a terminal operation state. Another principal receives access denied
 without the existing/conflict distinction.
+
+[ADR-0024](adr/0024-durable-operation-intake-ledger.md) implements the first protected
+durable intake/ledger engine behind that contract. One atomic versioned snapshot binds
+the `Received` receipt, exact canonical request bytes and identity, authenticated
+submitting principal, current state, and contiguous monotonic transition history to
+the composite repository/operation address. Exact concurrent intake converges on one
+receipt, an authorized exact replay performs no write, conflicting reuse is a
+response-only outcome, another principal receives no existing/conflict distinction,
+and corrupt evidence is never overwritten. Complete records are durably replaced
+under a cross-process lock through an injectable flush/replace/flush boundary. Like
+the plan store, the engine requires a host-issued physical-protection lease and its
+default authority fails closed. Production protection, lifecycle authorization,
+dispatch-pin adoption, quotas/retention, public status, journaling, effects, and
+recovery are still intentionally unwired.
 
 Terminal outcomes remain individually addressable for a bounded replay window. The
 authority caps dispatch leases/pinned plan bytes, open operations, simultaneously
