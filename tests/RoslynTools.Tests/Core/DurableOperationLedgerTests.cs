@@ -42,11 +42,18 @@ public sealed class DurableOperationLedgerTests
         Should.Throw<ArgumentNullException>(() => ledger.Receive(null!, Principal("principal-001")));
         Should.Throw<ArgumentNullException>(() => ledger.Receive(fixture.CreateRequest(), null!));
         Should.Throw<ArgumentNullException>(() => ledger.Load("repository-001", null!));
+        Should.Throw<ArgumentNullException>(() => ledger.LoadDispatch("repository-001", null!));
         Should.Throw<ArgumentNullException>(() => ledger.AppendTransition(
             "repository-001",
             null!,
             OperationLifecycleState.Received,
             OperationLifecycleState.Prepared,
+            null));
+        Should.Throw<ArgumentNullException>(() => ledger.AdvanceDispatch(
+            "repository-001",
+            null!,
+            DispatchIntakePhase.Registered,
+            DispatchIntakePhase.DispatchPinned,
             null));
         Directory.Exists(fixture.LedgerRoot).ShouldBeFalse();
     }
@@ -285,9 +292,14 @@ public sealed class DurableOperationLedgerTests
             protectionAuthority: new StorageFailingProtectionAuthority());
 
         var error = Error(ledger.Load("repository-001", fixture.CreateRequest().OperationId));
+        var dispatchError = Error(ledger.LoadDispatch(
+            "repository-001",
+            fixture.CreateRequest().OperationId));
 
         error.Kind.ShouldBe(OperationLedgerErrorKind.Unreadable);
         error.Evidence.ShouldNotBeNull()["exception"].ShouldBe(nameof(IOException));
+        dispatchError.Kind.ShouldBe(OperationLedgerErrorKind.Unreadable);
+        dispatchError.Evidence.ShouldNotBeNull()["exception"].ShouldBe(nameof(IOException));
         Directory.Exists(fixture.LedgerRoot).ShouldBeFalse();
     }
 

@@ -49,6 +49,7 @@
       "**/Core/CanonicalChangePlanReader.cs",
       "**/Core/DurableChangePlanStore.cs",
       "**/Core/DurableOperationLedger.cs",
+      "**/Core/DurableDispatchIntakeCoordinator.cs",
       "**/Core/OperationRequestIdentity.cs",
       "**/Core/IWorkspaceSessionFactory.cs",
       "**/Core/SolutionPathResolver.cs",

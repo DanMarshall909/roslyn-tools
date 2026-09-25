@@ -75,6 +75,7 @@ internal sealed record ChangePlanStoreOptions(
 internal enum ChangePlanPinKind
 {
     DispatchLease,
+    IntakePending,
     OperationLedger
 }
 
@@ -321,6 +322,48 @@ internal sealed class DurableChangePlanStore
     }
 
     internal Result<StoredChangePlan, ChangePlanStoreError> Load(ChangePlanStoreKey key)
+        => LoadCore(key, rejectExpired: true);
+
+    /// <summary>
+    ///     Loads retained bytes for reconciliation only. Callers must prove an existing
+    ///     durable pin before treating an expired plan as authorized for further work.
+    /// </summary>
+    internal Result<StoredChangePlan, ChangePlanStoreError> LoadRetained(ChangePlanStoreKey key)
+        => LoadCore(key, rejectExpired: false);
+
+    internal void ValidateDispatchIntakeRegistration(
+        string dispatchLeaseId,
+        DateTimeOffset dispatchLeaseExpiresAtUtc,
+        string intakeAttemptId,
+        string operationReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatchLeaseId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(intakeAttemptId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationReference);
+        ValidatePinReference(dispatchLeaseId, nameof(dispatchLeaseId));
+        ValidatePinReference(intakeAttemptId, nameof(intakeAttemptId));
+        ValidatePinReference(operationReference, nameof(operationReference));
+        var expiry = dispatchLeaseExpiresAtUtc.ToUniversalTime();
+        var observedAtEntry = _utcNow().ToUniversalTime();
+        if (expiry <= observedAtEntry)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dispatchLeaseExpiresAtUtc),
+                // Stryker disable once String : The parameter and exception type are the validation contract; wording is diagnostic.
+                "A dispatch-plan lease must expire in the future.");
+        }
+        if (expiry - observedAtEntry > _options.MaximumDispatchLeaseLifetime)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dispatchLeaseExpiresAtUtc),
+                // Stryker disable once String : The parameter and exception type are the validation contract; wording is diagnostic.
+                "The dispatch-plan lease exceeds its lifetime limit.");
+        }
+    }
+
+    private Result<StoredChangePlan, ChangePlanStoreError> LoadCore(
+        ChangePlanStoreKey key,
+        bool rejectExpired)
     {
         var keyError = ValidateKey(key);
         if (keyError is not null)
@@ -337,7 +380,7 @@ internal sealed class DurableChangePlanStore
             var fileProtectionError = ValidatePrivateFile(path);
             if (fileProtectionError is not null)
                 return Result<StoredChangePlan, ChangePlanStoreError>.Err(fileProtectionError);
-            return ReadRecord(path, key, _utcNow().ToUniversalTime(), rejectExpired: true);
+            return ReadRecord(path, key, _utcNow().ToUniversalTime(), rejectExpired);
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -354,30 +397,32 @@ internal sealed class DurableChangePlanStore
         ValidatePinReference(dispatchLeaseId, nameof(dispatchLeaseId));
         var expiry = expiresAtUtc.ToUniversalTime();
         var observedAtEntry = _utcNow().ToUniversalTime();
-        // Stryker disable all : These entry checks avoid needless filesystem work; the same boundaries are authoritatively rechecked under the mutation lock below.
+        // These entry checks avoid needless filesystem work; the same boundaries are
+        // authoritatively rechecked under the mutation lock below.
         if (expiry <= observedAtEntry)
             throw new ArgumentOutOfRangeException(nameof(expiresAtUtc), "A dispatch-plan lease must expire in the future.");
-        if (expiry - observedAtEntry > _options.MaximumDispatchLeaseLifetime)
-            throw new ArgumentOutOfRangeException(nameof(expiresAtUtc), "The dispatch-plan lease exceeds its lifetime limit.");
-        // Stryker restore all
-        return UpdateRecord(key, rejectExpired: true, (record, now) =>
+        return UpdateRecord(key, rejectExpired: false, (record, plan, now) =>
         {
-            if (expiry <= now)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(expiresAtUtc),
-                    "The dispatch-plan lease must expire in the future at the persistence boundary.");
-            }
-            if (expiry - now > _options.MaximumDispatchLeaseLifetime)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(expiresAtUtc),
-                    "The dispatch-plan lease exceeds its lifetime limit.");
-            }
             var pins = record.Pins.ToList();
             var existing = pins.SingleOrDefault(pin =>
                 pin.Kind == ChangePlanPinKind.DispatchLease
                 && string.Equals(pin.ReferenceId, dispatchLeaseId, StringComparison.Ordinal));
+            if (expiry <= now)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(expiresAtUtc),
+                    // Stryker disable once String : The parameter and exception type are the contract; wording is diagnostic.
+                    "The dispatch-plan lease must expire in the future at the persistence boundary.");
+            }
+            if (existing is null && expiry - now > _options.MaximumDispatchLeaseLifetime)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(expiresAtUtc),
+                    // Stryker disable once String : The parameter and exception type are the contract; wording is diagnostic.
+                    "The dispatch-plan lease exceeds its lifetime limit.");
+            }
+            if (existing is null && plan.Envelope.Payload.IsExpired(now))
+                throw new ChangePlanStoreExpiredException("The requested change plan has expired.");
             if (existing is null)
                 pins.Add(new PinRecord(ChangePlanPinKind.DispatchLease, dispatchLeaseId, now, expiry, null));
             else if (existing.ExpiresAtUtc != expiry)
@@ -395,7 +440,7 @@ internal sealed class DurableChangePlanStore
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         ValidatePinReference(dispatchLeaseId, nameof(dispatchLeaseId));
         ValidatePinReference(operationId, nameof(operationId));
-        return UpdateRecord(key, rejectExpired: false, (record, now) =>
+        return UpdateRecord(key, rejectExpired: false, (record, _, now) =>
         {
             var pins = record.Pins.ToList();
             var dispatch = pins.SingleOrDefault(pin =>
@@ -434,6 +479,125 @@ internal sealed class DurableChangePlanStore
         });
     }
 
+    internal Result<StoredChangePlan, ChangePlanStoreError> BeginIntakePin(
+        ChangePlanStoreKey key,
+        string dispatchLeaseId,
+        string intakeAttemptId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatchLeaseId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(intakeAttemptId);
+        ValidatePinReference(dispatchLeaseId, nameof(dispatchLeaseId));
+        ValidatePinReference(intakeAttemptId, nameof(intakeAttemptId));
+        return UpdateRecord(key, rejectExpired: false, (record, _, now) =>
+        {
+            var pins = record.Pins.ToList();
+            var dispatch = pins.SingleOrDefault(pin =>
+                pin.Kind == ChangePlanPinKind.DispatchLease
+                && string.Equals(pin.ReferenceId, dispatchLeaseId, StringComparison.Ordinal));
+            var intake = pins.SingleOrDefault(pin =>
+                pin.Kind == ChangePlanPinKind.IntakePending
+                && string.Equals(pin.ReferenceId, intakeAttemptId, StringComparison.Ordinal));
+            if (dispatch is null && intake is null)
+                throw new ChangePlanStoreConflictException("The dispatch-plan lease is not available for intake.");
+            if (intake is not null
+                && !string.Equals(
+                    intake.AdoptedFromDispatchLeaseId,
+                    dispatchLeaseId,
+                    StringComparison.Ordinal))
+            {
+                throw new ChangePlanStoreConflictException(
+                    "The intake pin was adopted from a different dispatch-plan lease.");
+            }
+            if (dispatch is not null && intake is not null)
+            {
+                throw new ChangePlanStoreConflictException(
+                    // Stryker disable once String : The typed conflict is the contract; wording is diagnostic.
+                    "The pending intake dispatch lease was registered again.");
+            }
+            if (dispatch is not null && dispatch.ExpiresAtUtc <= now)
+                throw new ChangePlanStoreConflictException("The dispatch-plan lease expired before intake.");
+            if (dispatch is not null)
+                pins.Remove(dispatch);
+            if (intake is null)
+            {
+                pins.Add(new PinRecord(
+                    ChangePlanPinKind.IntakePending,
+                    intakeAttemptId,
+                    now,
+                    null,
+                    dispatchLeaseId));
+            }
+            return record with { Pins = SortPins(pins) };
+        });
+    }
+
+    internal Result<StoredChangePlan, ChangePlanStoreError> PromoteIntakePin(
+        ChangePlanStoreKey key,
+        string dispatchLeaseId,
+        string intakeAttemptId,
+        string operationId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatchLeaseId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(intakeAttemptId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ValidatePinReference(dispatchLeaseId, nameof(dispatchLeaseId));
+        ValidatePinReference(intakeAttemptId, nameof(intakeAttemptId));
+        ValidatePinReference(operationId, nameof(operationId));
+        return UpdateRecord(key, rejectExpired: false, (record, _, now) =>
+        {
+            var pins = record.Pins.ToList();
+            var intake = pins.SingleOrDefault(pin =>
+                pin.Kind == ChangePlanPinKind.IntakePending
+                && string.Equals(pin.ReferenceId, intakeAttemptId, StringComparison.Ordinal));
+            var operation = pins.SingleOrDefault(pin =>
+                pin.Kind == ChangePlanPinKind.OperationLedger
+                && string.Equals(pin.ReferenceId, operationId, StringComparison.Ordinal));
+            if (intake is null && operation is null)
+            {
+                throw new ChangePlanStoreConflictException(
+                    // Stryker disable once String : The typed conflict is the contract; wording is diagnostic.
+                    "The pending intake pin is not available for promotion.");
+            }
+            if (intake is not null
+                && !string.Equals(
+                    intake.AdoptedFromDispatchLeaseId,
+                    dispatchLeaseId,
+                    StringComparison.Ordinal))
+            {
+                throw new ChangePlanStoreConflictException(
+                    "The intake pin belongs to a different dispatch-plan lease.");
+            }
+            if (operation is not null
+                && !string.Equals(
+                    operation.AdoptedFromDispatchLeaseId,
+                    dispatchLeaseId,
+                    StringComparison.Ordinal))
+            {
+                throw new ChangePlanStoreConflictException(
+                    // Stryker disable once String : The typed conflict is the contract; wording is diagnostic.
+                    "The operation pin was adopted from a different dispatch-plan lease.");
+            }
+            if (intake is not null && operation is not null)
+            {
+                throw new ChangePlanStoreConflictException(
+                    // Stryker disable once String : The typed conflict is the contract; wording is diagnostic.
+                    "The pending intake pin was already promoted and recreated.");
+            }
+            if (intake is not null)
+                pins.Remove(intake);
+            if (operation is null)
+            {
+                pins.Add(new PinRecord(
+                    ChangePlanPinKind.OperationLedger,
+                    operationId,
+                    now,
+                    null,
+                    dispatchLeaseId));
+            }
+            return record with { Pins = SortPins(pins) };
+        });
+    }
+
     internal Result<StoredChangePlan, ChangePlanStoreError> ReleasePin(
         ChangePlanStoreKey key,
         ChangePlanPinKind kind,
@@ -441,7 +605,7 @@ internal sealed class DurableChangePlanStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(referenceId);
         ValidatePinReference(referenceId, nameof(referenceId));
-        return UpdateRecord(key, rejectExpired: false, (record, _) => record with
+        return UpdateRecord(key, rejectExpired: false, (record, _, _) => record with
         {
             Pins = record.Pins
                 .Where(pin => pin.Kind != kind
@@ -513,7 +677,7 @@ internal sealed class DurableChangePlanStore
     private Result<StoredChangePlan, ChangePlanStoreError> UpdateRecord(
         ChangePlanStoreKey key,
         bool rejectExpired,
-        Func<StoreRecord, DateTimeOffset, StoreRecord> update)
+        Func<StoreRecord, StoredChangePlan, DateTimeOffset, StoreRecord> update)
     {
         var keyError = ValidateKey(key);
         if (keyError is not null)
@@ -539,11 +703,18 @@ internal sealed class DurableChangePlanStore
             StoreRecord updated;
             try
             {
-                updated = update(DeserializeRecord(File.ReadAllBytes(recordPath)), now);
+                updated = update(
+                    DeserializeRecord(File.ReadAllBytes(recordPath)),
+                    loaded.Match(value => value, _ => throw new UnreachableException()),
+                    now);
             }
             catch (ChangePlanStoreConflictException exception)
             {
                 return Error<StoredChangePlan>(ChangePlanStoreErrorKind.Conflict, exception.Message);
+            }
+            catch (ChangePlanStoreExpiredException exception)
+            {
+                return Error<StoredChangePlan>(ChangePlanStoreErrorKind.Expired, exception.Message);
             }
             if (updated.Pins.Length > _options.MaximumPinsPerPlan)
             {
@@ -1096,10 +1267,11 @@ internal sealed class DurableChangePlanStore
                                                && offset == TimeSpan.Zero
                                                && expiry > pin.CreatedAtUtc
                                                && pin.AdoptedFromDispatchLeaseId is null,
-            ChangePlanPinKind.OperationLedger => pin.ExpiresAtUtc is null
-                                                 && !string.IsNullOrWhiteSpace(pin.AdoptedFromDispatchLeaseId)
-                                                 && Encoding.UTF8.GetByteCount(pin.AdoptedFromDispatchLeaseId)
-                                                 <= _options.MaximumPinReferenceBytes,
+            ChangePlanPinKind.IntakePending or ChangePlanPinKind.OperationLedger =>
+                pin.ExpiresAtUtc is null
+                && !string.IsNullOrWhiteSpace(pin.AdoptedFromDispatchLeaseId)
+                && Encoding.UTF8.GetByteCount(pin.AdoptedFromDispatchLeaseId)
+                <= _options.MaximumPinReferenceBytes,
             // Stryker disable once Boolean : The preceding Enum.IsDefined guard makes this default unreachable.
             _ => false
         };
@@ -1386,6 +1558,23 @@ internal sealed class DurableChangePlanStore
         }
 
         internal ChangePlanStoreConflictException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
+    }
+
+    private sealed class ChangePlanStoreExpiredException : Exception
+    {
+        internal ChangePlanStoreExpiredException()
+        {
+        }
+
+        internal ChangePlanStoreExpiredException(string message)
+            : base(message)
+        {
+        }
+
+        internal ChangePlanStoreExpiredException(string message, Exception innerException)
             : base(message, innerException)
         {
         }

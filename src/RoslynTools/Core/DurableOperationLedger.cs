@@ -71,6 +71,48 @@ internal sealed record OperationIntakeResult(
     OperationIntakeDisposition Disposition,
     DurableOperationRecord? Operation);
 
+internal enum DispatchIntakePhase
+{
+    Registered,
+    DispatchPinned,
+    IntakePinned,
+    Received,
+    OperationPinned,
+    Prepared,
+    RejectedPlanUnavailable
+}
+
+internal enum DispatchIntakeRegistrationDisposition
+{
+    Registered,
+    Replay,
+    Conflict,
+    AccessDenied
+}
+
+internal sealed record DispatchIntakeTransition(
+    long Sequence,
+    DispatchIntakePhase Phase,
+    DateTimeOffset CommittedAtUtc,
+    string? Evidence);
+
+internal sealed record DurableDispatchIntakeRecord(
+    string RepositoryId,
+    OperationId OperationId,
+    OperationRequestIdentity RequestIdentity,
+    ImmutableArray<byte> CanonicalRequestBytes,
+    string SubmittingPrincipalId,
+    string DispatchLeaseId,
+    DateTimeOffset DispatchLeaseExpiresAtUtc,
+    string IntakeAttemptId,
+    DateTimeOffset IntakeAttemptExpiresAtUtc,
+    DispatchIntakePhase CurrentPhase,
+    ImmutableArray<DispatchIntakeTransition> Transitions);
+
+internal sealed record DispatchIntakeRegistrationResult(
+    DispatchIntakeRegistrationDisposition Disposition,
+    DurableDispatchIntakeRecord? Dispatch);
+
 /// <summary>
 ///     Principal identity established by a protected host or transport boundary. Request
 ///     payloads cannot be converted implicitly into this authority-bearing value.
@@ -139,6 +181,7 @@ internal sealed class UnavailableOperationLedgerProtectionAuthority
 internal sealed class DurableOperationLedger
 {
     private const int StoreSchemaVersion = 1;
+    private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
     private const uint MoveFileWriteThrough = 0x8;
     private const uint GenericWrite = 0x40000000;
@@ -155,6 +198,7 @@ internal sealed class DurableOperationLedger
 
     private readonly string _rootPath;
     private readonly string _operationsPath;
+    private readonly string _dispatchPath;
     private readonly string _lockPath;
     private readonly Func<DateTimeOffset> _utcNow;
     private readonly IOperationLedgerProtectionAuthority _protectionAuthority;
@@ -169,6 +213,7 @@ internal sealed class DurableOperationLedger
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         _rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         _operationsPath = Path.Combine(_rootPath, "operations");
+        _dispatchPath = Path.Combine(_rootPath, "dispatch");
         _lockPath = Path.Combine(_rootPath, ".ledger.lock");
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
         _protectionAuthority = protectionAuthority
@@ -237,6 +282,193 @@ internal sealed class DurableOperationLedger
         catch (Exception exception) when (IsStorageException(exception))
         {
             return Result<OperationIntakeResult, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    internal Result<DispatchIntakeRegistrationResult, OperationLedgerError> RegisterDispatch(
+        CanonicalApplyRequest request,
+        AuthenticatedPrincipalId submittingPrincipal,
+        string dispatchLeaseId,
+        DateTimeOffset dispatchLeaseExpiresAtUtc,
+        string intakeAttemptId,
+        DateTimeOffset intakeAttemptExpiresAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(submittingPrincipal);
+
+        try
+        {
+            var protectionError = AcquireProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            EnsureProtectedDispatchRoot();
+            using var ledgerLock = AcquireMutationLock();
+
+            var recordPath = GetDispatchRecordPath(_rootPath, request.RepositoryId, request.OperationId);
+            if (File.Exists(recordPath))
+            {
+                var existing = ReadDispatchRecord(recordPath, request.RepositoryId, request.OperationId);
+                if (existing.IsErr)
+                {
+                    return existing.Map(record => new DispatchIntakeRegistrationResult(
+                        DispatchIntakeRegistrationDisposition.Replay,
+                        record));
+                }
+
+                var dispatch = existing.Match(record => record, _ => null!);
+                if (!string.Equals(
+                        dispatch.SubmittingPrincipalId,
+                        submittingPrincipal.Value,
+                        StringComparison.Ordinal))
+                {
+                    return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Ok(
+                        new DispatchIntakeRegistrationResult(
+                            DispatchIntakeRegistrationDisposition.AccessDenied,
+                            null));
+                }
+                if (!SameRequest(dispatch, request))
+                {
+                    return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Ok(
+                        new DispatchIntakeRegistrationResult(
+                            DispatchIntakeRegistrationDisposition.Conflict,
+                            null));
+                }
+                return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Ok(
+                    new DispatchIntakeRegistrationResult(
+                        DispatchIntakeRegistrationDisposition.Replay,
+                        dispatch));
+            }
+
+            dispatchLeaseId = OperationRequestText.Required(dispatchLeaseId, nameof(dispatchLeaseId));
+            intakeAttemptId = OperationRequestText.Required(intakeAttemptId, nameof(intakeAttemptId));
+            ValidateCoordinationReference(dispatchLeaseId, nameof(dispatchLeaseId));
+            ValidateCoordinationReference(intakeAttemptId, nameof(intakeAttemptId));
+            var dispatchExpiry = dispatchLeaseExpiresAtUtc.ToUniversalTime();
+            var attemptExpiry = intakeAttemptExpiresAtUtc.ToUniversalTime();
+            var now = _utcNow().ToUniversalTime();
+            if (dispatchExpiry <= now)
+                throw new ArgumentOutOfRangeException(nameof(dispatchLeaseExpiresAtUtc));
+            if (attemptExpiry <= now || attemptExpiry > dispatchExpiry)
+                throw new ArgumentOutOfRangeException(nameof(intakeAttemptExpiresAtUtc));
+            var registered = new DurableDispatchIntakeRecord(
+                request.RepositoryId,
+                request.OperationId,
+                request.Identity,
+                request.CanonicalBytes,
+                submittingPrincipal.Value,
+                dispatchLeaseId,
+                dispatchExpiry,
+                intakeAttemptId,
+                attemptExpiry,
+                DispatchIntakePhase.Registered,
+                [new DispatchIntakeTransition(1, DispatchIntakePhase.Registered, now, null)]);
+            WriteDispatchRecord(recordPath, registered);
+            return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Ok(
+                new DispatchIntakeRegistrationResult(
+                    DispatchIntakeRegistrationDisposition.Registered,
+                    registered));
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DispatchIntakeRegistrationResult, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    internal Result<DurableDispatchIntakeRecord, OperationLedgerError> LoadDispatch(
+        string repositoryId,
+        OperationId operationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        try
+        {
+            var protectionError = AcquireProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            if (!Directory.Exists(_rootPath))
+                return Missing<DurableDispatchIntakeRecord>();
+
+            var recordPath = GetDispatchRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableDispatchIntakeRecord>();
+            return ReadDispatchRecord(recordPath, repositoryId, operationId);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    internal Result<DurableDispatchIntakeRecord, OperationLedgerError> AdvanceDispatch(
+        string repositoryId,
+        OperationId operationId,
+        DispatchIntakePhase expectedCurrentPhase,
+        DispatchIntakePhase nextPhase,
+        string? evidence)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        if (evidence is not null)
+            evidence = OperationRequestText.Required(evidence, nameof(evidence));
+
+        try
+        {
+            var protectionError = AcquireProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            if (!Directory.Exists(_rootPath))
+                return Missing<DurableDispatchIntakeRecord>();
+            using var ledgerLock = AcquireMutationLock();
+
+            var recordPath = GetDispatchRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableDispatchIntakeRecord>();
+            var loaded = ReadDispatchRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            var dispatch = loaded.Match(record => record, _ => null!);
+            if (dispatch.CurrentPhase != expectedCurrentPhase)
+            {
+                return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.Conflict,
+                        // Stryker disable once String : The typed conflict and durable phase are the contract; wording is diagnostic.
+                        $"The dispatch intake is '{dispatch.CurrentPhase}', not the expected '{expectedCurrentPhase}'."));
+            }
+            if (!CanAdvanceDispatch(expectedCurrentPhase, nextPhase))
+            {
+                return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        // Stryker disable once String : The typed invalid transition is the contract; wording is diagnostic.
+                        $"Dispatch intake cannot advance from '{expectedCurrentPhase}' to '{nextPhase}'."));
+            }
+
+            var committedAtUtc = _utcNow().ToUniversalTime();
+            var previousCommittedAtUtc = dispatch.Transitions[^1].CommittedAtUtc;
+            // Stryker disable once Equality : Equal operands produce the same timestamp through either branch.
+            committedAtUtc = committedAtUtc < previousCommittedAtUtc
+                ? previousCommittedAtUtc
+                : committedAtUtc;
+            var updated = dispatch with
+            {
+                CurrentPhase = nextPhase,
+                Transitions = dispatch.Transitions.Add(new DispatchIntakeTransition(
+                    dispatch.Transitions[^1].Sequence + 1,
+                    nextPhase,
+                    committedAtUtc,
+                    evidence))
+            };
+            WriteDispatchRecord(recordPath, updated);
+            return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Ok(updated);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(StorageError(exception));
         }
     }
 
@@ -352,6 +584,20 @@ internal sealed class DurableOperationLedger
             $"{operationId.Nonce:D}.operation");
     }
 
+    internal static string GetDispatchRecordPath(
+        string ledgerRootPath,
+        string repositoryId,
+        OperationId operationId)
+    {
+        var repositoryDigest = Digest(repositoryId);
+        return Path.Combine(
+            Path.GetFullPath(ledgerRootPath),
+            "dispatch",
+            repositoryDigest,
+            operationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            $"{operationId.Nonce:D}.dispatch");
+    }
+
     private OperationLedgerError? AcquireProtection(
         out IOperationLedgerProtectionLease? protectionLease)
     {
@@ -388,6 +634,13 @@ internal sealed class DurableOperationLedger
         CreatePrivateDirectoryTree(_operationsPath);
         ApplyPrivateDirectoryPermissions(_rootPath);
         ApplyPrivateDirectoryPermissions(_operationsPath);
+    }
+
+    private void EnsureProtectedDispatchRoot()
+    {
+        CreatePrivateDirectoryTree(_dispatchPath);
+        ApplyPrivateDirectoryPermissions(_rootPath);
+        ApplyPrivateDirectoryPermissions(_dispatchPath);
     }
 
     private FileStream AcquireMutationLock()
@@ -506,11 +759,146 @@ internal sealed class DurableOperationLedger
         }
     }
 
+    private static Result<DurableDispatchIntakeRecord, OperationLedgerError> ReadDispatchRecord(
+        string recordPath,
+        string expectedRepositoryId,
+        OperationId expectedOperationId)
+    {
+        DispatchRecord? stored;
+        try
+        {
+            stored = JsonSerializer.Deserialize<DispatchRecord>(
+                File.ReadAllBytes(recordPath),
+                JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            return Corrupt<DurableDispatchIntakeRecord>(
+                // Stryker disable once String : The typed corruption and exception evidence are the contract; wording is diagnostic.
+                "The dispatch-intake record is not valid JSON.",
+                exception);
+        }
+        if (stored is null || stored.SchemaVersion != StoreSchemaVersion)
+        {
+            return Corrupt<DurableDispatchIntakeRecord>(
+                // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                "The dispatch-intake record has an unsupported schema.");
+        }
+
+        try
+        {
+            var operationId = new OperationId(stored.OperationEpoch, stored.OperationNonce);
+            if (!string.Equals(stored.RepositoryId, expectedRepositoryId, StringComparison.Ordinal)
+                || operationId != expectedOperationId)
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake record does not match its durable address.");
+            }
+
+            var canonicalBytes = Convert.FromBase64String(stored.CanonicalRequestBase64);
+            var identity = new OperationRequestIdentity(
+                stored.RequestHash,
+                stored.PlanId,
+                stored.PlanHash,
+                stored.ExpectedRevision,
+                stored.OperationEpochClaimsHash);
+            var canonicalHash = Convert.ToHexString(SHA256.HashData(canonicalBytes)).ToLowerInvariant();
+            if (!FixedTimeHashEquals(canonicalHash, identity.RequestHash))
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake canonical request does not match its request hash.");
+            }
+            var expectedCanonicalBytes = CanonicalOperationRequest.SerializeApplyRequest(
+                expectedRepositoryId,
+                operationId,
+                identity.PlanId,
+                identity.PlanHash,
+                identity.ExpectedRevision,
+                identity.OperationEpochClaimsHash);
+            if (!CryptographicOperations.FixedTimeEquals(canonicalBytes, expectedCanonicalBytes))
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake metadata does not match its canonical request.");
+            }
+            var dispatchLeaseId = OperationRequestText.Required(
+                stored.DispatchLeaseId,
+                nameof(stored.DispatchLeaseId));
+            var intakeAttemptId = OperationRequestText.Required(
+                stored.IntakeAttemptId,
+                nameof(stored.IntakeAttemptId));
+            ValidateCoordinationReference(dispatchLeaseId, nameof(stored.DispatchLeaseId));
+            ValidateCoordinationReference(intakeAttemptId, nameof(stored.IntakeAttemptId));
+            if (stored.Transitions is null || stored.Transitions.Any(static transition => transition is null))
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake history is missing.");
+            }
+            var transitions = stored.Transitions.Select(transition => new DispatchIntakeTransition(
+                transition!.Sequence,
+                transition.Phase,
+                transition.CommittedAtUtc.ToUniversalTime(),
+                transition.Evidence)).ToImmutableArray();
+            if (!ValidDispatchHistory(transitions, stored.CurrentPhase))
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake history is inconsistent.");
+            }
+            var registeredAtUtc = transitions[0].CommittedAtUtc;
+            if (stored.DispatchLeaseExpiresAtUtc.Offset != TimeSpan.Zero
+                || stored.IntakeAttemptExpiresAtUtc.Offset != TimeSpan.Zero
+                // At equality the following attempt clauses necessarily reject too; this explicit check documents the dispatch invariant.
+                || stored.DispatchLeaseExpiresAtUtc <= registeredAtUtc
+                || stored.IntakeAttemptExpiresAtUtc <= registeredAtUtc
+                || stored.IntakeAttemptExpiresAtUtc > stored.DispatchLeaseExpiresAtUtc)
+            {
+                return Corrupt<DurableDispatchIntakeRecord>(
+                    // Stryker disable once String : The typed corruption is the contract; wording is diagnostic.
+                    "The dispatch-intake lease boundaries are invalid.");
+            }
+
+            return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Ok(
+                new DurableDispatchIntakeRecord(
+                    stored.RepositoryId,
+                    operationId,
+                    identity,
+                    ImmutableArray.CreateRange(canonicalBytes),
+                    OperationRequestText.Required(
+                        stored.SubmittingPrincipalId,
+                        nameof(stored.SubmittingPrincipalId)),
+                    dispatchLeaseId,
+                    stored.DispatchLeaseExpiresAtUtc,
+                    intakeAttemptId,
+                    stored.IntakeAttemptExpiresAtUtc,
+                    stored.CurrentPhase,
+                    transitions));
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            return Corrupt<DurableDispatchIntakeRecord>(
+                // Stryker disable once String : The typed corruption and exception evidence are the contract; wording is diagnostic.
+                "The dispatch-intake record contains invalid canonical data.",
+                exception);
+        }
+    }
+
+    private static void ValidateCoordinationReference(string reference, string parameterName)
+    {
+        if (Encoding.UTF8.GetByteCount(reference) > MaximumCoordinationReferenceBytes)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                // Stryker disable once String : The parameter and exception type are the validation contract; wording is diagnostic.
+                "The coordination reference exceeds the durable byte limit.");
+        }
+    }
+
     private void WriteRecord(string recordPath, DurableOperationRecord record)
     {
-        var directory = Path.GetDirectoryName(recordPath)!;
-        CreatePrivateDirectoryTree(directory);
-
         var stored = new LedgerRecord(
             StoreSchemaVersion,
             record.RepositoryId,
@@ -530,6 +918,41 @@ internal sealed class DurableOperationLedger
                 transition.CommittedAtUtc,
                 transition.Evidence)).ToArray());
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
+        WriteRecordBytes(recordPath, bytes);
+    }
+
+    private void WriteDispatchRecord(string recordPath, DurableDispatchIntakeRecord record)
+    {
+        var stored = new DispatchRecord(
+            StoreSchemaVersion,
+            record.RepositoryId,
+            record.OperationId.Epoch,
+            record.OperationId.Nonce,
+            record.RequestIdentity.RequestHash,
+            record.RequestIdentity.PlanId,
+            record.RequestIdentity.PlanHash,
+            record.RequestIdentity.ExpectedRevision,
+            record.RequestIdentity.OperationEpochClaimsHash,
+            Convert.ToBase64String(record.CanonicalRequestBytes.AsSpan()),
+            record.SubmittingPrincipalId,
+            record.DispatchLeaseId,
+            record.DispatchLeaseExpiresAtUtc,
+            record.IntakeAttemptId,
+            record.IntakeAttemptExpiresAtUtc,
+            record.CurrentPhase,
+            record.Transitions.Select(transition => new DispatchTransitionRecord(
+                transition.Sequence,
+                transition.Phase,
+                transition.CommittedAtUtc,
+                transition.Evidence)).ToArray());
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
+        WriteRecordBytes(recordPath, bytes);
+    }
+
+    private void WriteRecordBytes(string recordPath, byte[] bytes)
+    {
+        var directory = Path.GetDirectoryName(recordPath)!;
+        CreatePrivateDirectoryTree(directory);
         var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(recordPath)}.{Guid.NewGuid():N}.tmp");
         try
         {
@@ -596,6 +1019,58 @@ internal sealed class DurableOperationLedger
         && CryptographicOperations.FixedTimeEquals(
             operation.CanonicalRequestBytes.AsSpan(),
             request.CanonicalBytes.AsSpan());
+
+    // Stryker disable once Logical : Validated canonical bytes and their parsed identity covary; both checks retain collision defense.
+    private static bool SameRequest(DurableDispatchIntakeRecord dispatch, CanonicalApplyRequest request) =>
+        dispatch.RequestIdentity == request.Identity
+        && CryptographicOperations.FixedTimeEquals(
+            dispatch.CanonicalRequestBytes.AsSpan(),
+            request.CanonicalBytes.AsSpan());
+
+    private static bool ValidDispatchHistory(
+        ImmutableArray<DispatchIntakeTransition> transitions,
+        DispatchIntakePhase currentPhase)
+    {
+        if (transitions.IsEmpty
+            || transitions[0].Sequence != 1
+            || transitions[0].Phase != DispatchIntakePhase.Registered
+            || transitions[^1].Phase != currentPhase)
+        {
+            return false;
+        }
+
+        for (var index = 1; index < transitions.Length; index++)
+        {
+            if (transitions[index].Sequence != transitions[index - 1].Sequence + 1
+                || transitions[index].CommittedAtUtc < transitions[index - 1].CommittedAtUtc
+                || !CanAdvanceDispatch(transitions[index - 1].Phase, transitions[index].Phase))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool CanAdvanceDispatch(
+        DispatchIntakePhase current,
+        DispatchIntakePhase next) => current switch
+        {
+            DispatchIntakePhase.Registered => next is
+                DispatchIntakePhase.DispatchPinned
+                or DispatchIntakePhase.RejectedPlanUnavailable,
+            DispatchIntakePhase.DispatchPinned => next is
+                DispatchIntakePhase.IntakePinned
+                or DispatchIntakePhase.RejectedPlanUnavailable,
+            DispatchIntakePhase.IntakePinned => next is
+                DispatchIntakePhase.Received
+                or DispatchIntakePhase.RejectedPlanUnavailable,
+            DispatchIntakePhase.Received => next is
+                DispatchIntakePhase.OperationPinned
+                or DispatchIntakePhase.RejectedPlanUnavailable,
+            DispatchIntakePhase.OperationPinned => next is DispatchIntakePhase.Prepared,
+            // Stryker disable once Boolean : A loaded dispatch phase is validated and must match the caller's expected phase first.
+            _ => false
+        };
 
     private static bool ValidHistory(
         ImmutableArray<OperationTransition> transitions,
@@ -723,9 +1198,34 @@ internal sealed class DurableOperationLedger
         OperationLifecycleState CurrentState,
         IReadOnlyList<TransitionRecord> Transitions);
 
+    private sealed record DispatchRecord(
+        int SchemaVersion,
+        string RepositoryId,
+        long OperationEpoch,
+        Guid OperationNonce,
+        string RequestHash,
+        Guid PlanId,
+        string PlanHash,
+        string ExpectedRevision,
+        string OperationEpochClaimsHash,
+        string CanonicalRequestBase64,
+        string SubmittingPrincipalId,
+        string DispatchLeaseId,
+        DateTimeOffset DispatchLeaseExpiresAtUtc,
+        string IntakeAttemptId,
+        DateTimeOffset IntakeAttemptExpiresAtUtc,
+        DispatchIntakePhase CurrentPhase,
+        IReadOnlyList<DispatchTransitionRecord> Transitions);
+
     private sealed record TransitionRecord(
         long Sequence,
         OperationLifecycleState State,
+        DateTimeOffset CommittedAtUtc,
+        string? Evidence);
+
+    private sealed record DispatchTransitionRecord(
+        long Sequence,
+        DispatchIntakePhase Phase,
         DateTimeOffset CommittedAtUtc,
         string? Evidence);
 

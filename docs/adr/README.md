@@ -89,3 +89,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0022](0022-canonical-immutable-change-plan-payload.md) | Canonical immutable change-plan payload | Accepted | 2026-09-23 |
 | [0023](0023-protected-durable-change-plan-storage.md) | Protected durable change-plan storage | Accepted | 2026-09-23 |
 | [0024](0024-durable-operation-intake-ledger.md) | Durable operation intake and lifecycle ledger | Accepted | 2026-09-25 |
+| [0025](0025-restart-safe-dispatch-intake-handoff.md) | Restart-safe dispatch and intake handoff | Accepted | 2026-09-25 |

@@ -713,6 +713,17 @@ public sealed class DurableChangePlanStoreTests
                 "operation",
                 InitialNow,
                 expiresAtUtc: null)),
+            (_, record) => record["pins"] = new JsonArray(CreatePinNode(
+                ChangePlanPinKind.IntakePending,
+                "attempt",
+                InitialNow,
+                InitialNow + TimeSpan.FromMinutes(10),
+                "dispatch")),
+            (_, record) => record["pins"] = new JsonArray(CreatePinNode(
+                ChangePlanPinKind.IntakePending,
+                "attempt",
+                InitialNow,
+                expiresAtUtc: null)),
             (fixture, record) => record["pins"] = new JsonArray(CreatePinNode(
                 ChangePlanPinKind.OperationLedger,
                 "operation",
@@ -972,6 +983,28 @@ public sealed class DurableChangePlanStoreTests
             .ParamName.ShouldBe("dispatchLeaseId");
         Should.Throw<ArgumentException>(() => store.AdoptDispatchLease(key, "dispatch", ""))
             .ParamName.ShouldBe("operationId");
+        Should.Throw<ArgumentException>(() => store.BeginIntakePin(key, "", "attempt"))
+            .ParamName.ShouldBe("dispatchLeaseId");
+        Should.Throw<ArgumentException>(() => store.BeginIntakePin(key, "dispatch", ""))
+            .ParamName.ShouldBe("intakeAttemptId");
+        Should.Throw<ArgumentException>(() => store.PromoteIntakePin(
+                key,
+                "",
+                "attempt",
+                "operation"))
+            .ParamName.ShouldBe("dispatchLeaseId");
+        Should.Throw<ArgumentException>(() => store.PromoteIntakePin(
+                key,
+                "dispatch",
+                "",
+                "operation"))
+            .ParamName.ShouldBe("intakeAttemptId");
+        Should.Throw<ArgumentException>(() => store.PromoteIntakePin(
+                key,
+                "dispatch",
+                "attempt",
+                ""))
+            .ParamName.ShouldBe("operationId");
         Should.Throw<ArgumentException>(() => store.ReleasePin(
                 key,
                 ChangePlanPinKind.DispatchLease,
@@ -987,6 +1020,29 @@ public sealed class DurableChangePlanStoreTests
             key,
             "dispatch",
             overlong));
+        Should.Throw<ArgumentOutOfRangeException>(() => store.BeginIntakePin(
+            key,
+            overlong,
+            "attempt"));
+        Should.Throw<ArgumentOutOfRangeException>(() => store.BeginIntakePin(
+            key,
+            "dispatch",
+            overlong));
+        Should.Throw<ArgumentOutOfRangeException>(() => store.PromoteIntakePin(
+            key,
+            overlong,
+            "attempt",
+            "operation"));
+        Should.Throw<ArgumentOutOfRangeException>(() => store.PromoteIntakePin(
+            key,
+            "dispatch",
+            overlong,
+            "operation"));
+        Should.Throw<ArgumentOutOfRangeException>(() => store.PromoteIntakePin(
+            key,
+            "dispatch",
+            "attempt",
+            overlong));
         Should.Throw<ArgumentOutOfRangeException>(() => store.ReleasePin(
             key,
             ChangePlanPinKind.DispatchLease,
@@ -997,6 +1053,28 @@ public sealed class DurableChangePlanStoreTests
         var adopted = Unwrap(store.AdoptDispatchLease(key, exact, "operation"));
         adopted.Pins.ShouldHaveSingleItem().AdoptedFromDispatchLeaseId.ShouldBe(exact);
         Unwrap(store.ReleasePin(key, ChangePlanPinKind.OperationLedger, "operation"));
+    }
+
+    [Fact]
+    public void dispatch_intake_registration_validates_each_reference_against_store_options()
+    {
+        using var fixture = new StoreFixture();
+        var options = fixture.Options with { MaximumPinReferenceBytes = 8 };
+        var store = fixture.CreateStore(options);
+        var expiry = fixture.Now + TimeSpan.FromMinutes(10);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch-1",
+                expiry,
+                "attempt",
+                "op"))
+            .ParamName.ShouldBe("dispatchLeaseId");
+        Should.Throw<ArgumentOutOfRangeException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch",
+                expiry,
+                "attempt-1",
+                "op"))
+            .ParamName.ShouldBe("intakeAttemptId");
     }
 
     [Fact]
@@ -1017,6 +1095,100 @@ public sealed class DurableChangePlanStoreTests
         Error(store.PinDispatchLease(key, "dispatch-1", exactExpiry - TimeSpan.FromTicks(1))).Kind
             .ShouldBe(ChangePlanStoreErrorKind.Conflict);
         Unwrap(store.Load(key)).Pins.ShouldHaveSingleItem().ExpiresAtUtc.ShouldBe(exactExpiry);
+    }
+
+    [Fact]
+    public void expired_dispatch_lease_is_rejected_before_store_lookup()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var missingKey = new ChangePlanStoreKey(
+            "repository-001",
+            Guid.Parse("dddddddd-1111-2222-3333-444444444444"),
+            new string('a', 64));
+
+        Should.Throw<ArgumentOutOfRangeException>(() => store.PinDispatchLease(
+                missingKey,
+                "dispatch-1",
+                fixture.Now))
+            .ParamName.ShouldBe("expiresAtUtc");
+        Directory.Exists(fixture.StoreRoot).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void dispatch_intake_registration_validation_matches_store_reference_and_time_boundaries()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var exactReference = new string('x', fixture.Options.MaximumPinReferenceBytes);
+
+        store.ValidateDispatchIntakeRegistration(
+            exactReference,
+            fixture.Now + fixture.Options.MaximumDispatchLeaseLifetime,
+            exactReference,
+            exactReference);
+        Should.Throw<ArgumentOutOfRangeException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch",
+                fixture.Now,
+                "attempt",
+                "operation"))
+            .ParamName.ShouldBe("dispatchLeaseExpiresAtUtc");
+        Should.Throw<ArgumentOutOfRangeException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch",
+                fixture.Now + fixture.Options.MaximumDispatchLeaseLifetime + TimeSpan.FromTicks(1),
+                "attempt",
+                "operation"))
+            .ParamName.ShouldBe("dispatchLeaseExpiresAtUtc");
+        Should.Throw<ArgumentException>(() => store.ValidateDispatchIntakeRegistration(
+                "",
+                fixture.Now + TimeSpan.FromMinutes(1),
+                "attempt",
+                "operation"))
+            .ParamName.ShouldBe("dispatchLeaseId");
+        Should.Throw<ArgumentException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch",
+                fixture.Now + TimeSpan.FromMinutes(1),
+                "",
+                "operation"))
+            .ParamName.ShouldBe("intakeAttemptId");
+        Should.Throw<ArgumentException>(() => store.ValidateDispatchIntakeRegistration(
+                "dispatch",
+                fixture.Now + TimeSpan.FromMinutes(1),
+                "attempt",
+                ""))
+            .ParamName.ShouldBe("operationReference");
+    }
+
+    [Fact]
+    public void retained_load_and_existing_dispatch_pin_replay_survive_plan_expiry()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var envelope = fixture.CreateEnvelope();
+        var key = Unwrap(store.Persist(envelope));
+        var leaseExpiry = envelope.Payload.ExpiresAtUtc + TimeSpan.FromMinutes(10);
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", leaseExpiry));
+        fixture.Now = envelope.Payload.ExpiresAtUtc;
+
+        Error(store.Load(key)).Kind.ShouldBe(ChangePlanStoreErrorKind.Expired);
+        Unwrap(store.LoadRetained(key)).EnvelopeBytes.ShouldBe(envelope.SerializeEnvelope());
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", leaseExpiry))
+            .Pins.ShouldHaveSingleItem().ReferenceId.ShouldBe("dispatch-1");
+        Error(store.PinDispatchLease(key, "dispatch-2", leaseExpiry)).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Expired);
+    }
+
+    [Fact]
+    public void existing_dispatch_pin_replay_survives_a_clock_rollback_beyond_the_lifetime_limit()
+    {
+        using var fixture = new StoreFixture();
+        var key = Unwrap(fixture.CreateStore().Persist(fixture.CreateEnvelope()));
+        var expiry = fixture.Now + fixture.Options.MaximumDispatchLeaseLifetime;
+        Unwrap(fixture.CreateStore().PinDispatchLease(key, "dispatch-1", expiry));
+        var rolledBack = fixture.CreateStore(utcNow: () => fixture.Now - TimeSpan.FromTicks(1));
+
+        Unwrap(rolledBack.PinDispatchLease(key, "dispatch-1", expiry))
+            .Pins.ShouldHaveSingleItem().ReferenceId.ShouldBe("dispatch-1");
     }
 
     [Fact]
@@ -1107,6 +1279,159 @@ public sealed class DurableChangePlanStoreTests
         var deleted = store.CollectGarbage();
         deleted.DeletedPlans.ShouldBe(1);
         File.Exists(recordPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void dispatch_pin_moves_through_non_expiring_intake_before_operation_promotion()
+    {
+        using var fixture = new StoreFixture(unreferencedRetention: TimeSpan.Zero);
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", InitialNow + TimeSpan.FromMinutes(30)));
+
+        var pending = Unwrap(store.BeginIntakePin(key, "dispatch-1", "attempt-1"));
+        pending.Pins.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
+            pin => pin.Kind.ShouldBe(ChangePlanPinKind.IntakePending),
+            pin => pin.ReferenceId.ShouldBe("attempt-1"),
+            pin => pin.ExpiresAtUtc.ShouldBeNull(),
+            pin => pin.AdoptedFromDispatchLeaseId.ShouldBe("dispatch-1"));
+        Unwrap(store.BeginIntakePin(key, "dispatch-1", "attempt-1"))
+            .Pins.ShouldHaveSingleItem().Kind.ShouldBe(ChangePlanPinKind.IntakePending);
+
+        fixture.Now = InitialNow + TimeSpan.FromHours(2);
+        store.CollectGarbage().DeletedPlans.ShouldBe(0);
+        var promoted = Unwrap(store.PromoteIntakePin(
+            key,
+            "dispatch-1",
+            "attempt-1",
+            "operation-1"));
+        promoted.Pins.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
+            pin => pin.Kind.ShouldBe(ChangePlanPinKind.OperationLedger),
+            pin => pin.ReferenceId.ShouldBe("operation-1"),
+            pin => pin.ExpiresAtUtc.ShouldBeNull(),
+            pin => pin.AdoptedFromDispatchLeaseId.ShouldBe("dispatch-1"));
+        Unwrap(store.PromoteIntakePin(key, "dispatch-1", "attempt-1", "operation-1"))
+            .Pins.ShouldHaveSingleItem().Kind.ShouldBe(ChangePlanPinKind.OperationLedger);
+    }
+
+    [Fact]
+    public void intake_pin_cannot_absorb_or_promote_a_different_dispatch_lease()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", InitialNow + TimeSpan.FromMinutes(30)));
+        Unwrap(store.BeginIntakePin(key, "dispatch-1", "attempt-1"));
+
+        Error(store.BeginIntakePin(key, "dispatch-2", "attempt-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+        Error(store.PromoteIntakePin(key, "dispatch-2", "attempt-1", "operation-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+        Unwrap(store.Load(key)).Pins.ShouldHaveSingleItem().Kind
+            .ShouldBe(ChangePlanPinKind.IntakePending);
+    }
+
+    [Fact]
+    public void recreated_dispatch_lease_cannot_duplicate_a_pending_intake()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+        var expiry = InitialNow + TimeSpan.FromMinutes(30);
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", expiry));
+        Unwrap(store.BeginIntakePin(key, "dispatch-1", "attempt-1"));
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", expiry));
+
+        Error(store.BeginIntakePin(key, "dispatch-1", "attempt-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+    }
+
+    [Fact]
+    public void promotion_rejects_missing_conflicting_and_ambiguous_pin_frontiers()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var missingKey = Unwrap(store.Persist(fixture.CreateEnvelope(
+            Guid.Parse("aaaaaaaa-1111-2222-3333-444444444444"))));
+        Error(store.PromoteIntakePin(missingKey, "dispatch-1", "attempt-1", "operation-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+
+        var conflictingKey = Unwrap(store.Persist(fixture.CreateEnvelope(
+            Guid.Parse("bbbbbbbb-1111-2222-3333-444444444444"))));
+        Unwrap(store.PinDispatchLease(
+            conflictingKey,
+            "dispatch-1",
+            InitialNow + TimeSpan.FromMinutes(30)));
+        Unwrap(store.BeginIntakePin(conflictingKey, "dispatch-1", "attempt-1"));
+        Unwrap(store.PromoteIntakePin(conflictingKey, "dispatch-1", "attempt-1", "operation-1"));
+        Error(store.PromoteIntakePin(conflictingKey, "dispatch-2", "attempt-1", "operation-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+
+        var ambiguousKey = Unwrap(store.Persist(fixture.CreateEnvelope(
+            Guid.Parse("cccccccc-1111-2222-3333-444444444444"))));
+        var expiry = InitialNow + TimeSpan.FromMinutes(30);
+        Unwrap(store.PinDispatchLease(ambiguousKey, "dispatch-1", expiry));
+        Unwrap(store.BeginIntakePin(ambiguousKey, "dispatch-1", "attempt-1"));
+        Unwrap(store.PinDispatchLease(ambiguousKey, "dispatch-1", expiry));
+        Unwrap(store.AdoptDispatchLease(ambiguousKey, "dispatch-1", "operation-1"));
+        Error(store.PromoteIntakePin(ambiguousKey, "dispatch-1", "attempt-1", "operation-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+    }
+
+    [Fact]
+    public void missing_dispatch_cannot_create_an_intake_pin()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+
+        Error(store.BeginIntakePin(key, "missing", "attempt-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
+        Unwrap(store.Load(key)).Pins.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void intake_and_operation_promotion_match_references_only_within_their_pin_kind()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+        var expiry = fixture.Now + TimeSpan.FromMinutes(10);
+        Unwrap(store.PinDispatchLease(key, "attempt-1", expiry));
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", expiry));
+
+        var pending = Unwrap(store.BeginIntakePin(key, "dispatch-1", "attempt-1"));
+        pending.Pins.ShouldContain(pin =>
+            pin.Kind == ChangePlanPinKind.DispatchLease
+            && pin.ReferenceId == "attempt-1");
+        Unwrap(store.PinDispatchLease(key, "operation-1", expiry));
+
+        var promoted = Unwrap(store.PromoteIntakePin(
+            key,
+            "dispatch-1",
+            "attempt-1",
+            "operation-1"));
+
+        promoted.Pins.ShouldContain(pin =>
+            pin.Kind == ChangePlanPinKind.DispatchLease
+            && pin.ReferenceId == "operation-1");
+        promoted.Pins.ShouldContain(pin =>
+            pin.Kind == ChangePlanPinKind.OperationLedger
+            && pin.ReferenceId == "operation-1");
+    }
+
+    [Fact]
+    public void intake_pin_rejects_a_dispatch_lease_at_its_exact_expiry()
+    {
+        using var fixture = new StoreFixture();
+        var store = fixture.CreateStore();
+        var key = Unwrap(store.Persist(fixture.CreateEnvelope()));
+        var expiry = fixture.Now + TimeSpan.FromMinutes(10);
+        Unwrap(store.PinDispatchLease(key, "dispatch-1", expiry));
+        fixture.Now = expiry;
+
+        Error(store.BeginIntakePin(key, "dispatch-1", "attempt-1")).Kind
+            .ShouldBe(ChangePlanStoreErrorKind.Conflict);
     }
 
     [Fact]

@@ -824,11 +824,16 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
 - **The staged prepared writer is still process-local.** Core now has a canonical plan,
-  exact-byte reader, and fail-closed durable storage engine with bounded pin transfer,
-  but no production physical-protection authority and no preparation/apply integration.
-  The writer still lacks complete path/metadata coverage, a shared-authority provider,
-  durable journal and status ledger, handle-safe symlink/reparse containment, restart
-  reconciliation, and recovery commands.
+  exact-byte reader, fail-closed durable plan and lifecycle stores, and the
+  restart-reconcilable no-effect handoff in
+  [ADR-0025](adr/0025-restart-safe-dispatch-intake-handoff.md). The handoff transfers
+  `DispatchLease -> IntakePending -> OperationLedger`, converges exact replay on one
+  `Received -> Prepared` history, tests interruption after each durable handoff
+  boundary, and reconciles post-replacement uncertainty for plan-pin and ledger
+  updates. It is not production-wired and `Prepared` authorizes no filesystem effect.
+  Production physical protection, bounded attempt expiry and `NotRecorded`, lifecycle
+  authorization, repository reservation/barriers, a durable journal, verified
+  rollback, automatic startup reconciliation, and recovery commands remain missing.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
