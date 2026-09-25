@@ -595,6 +595,12 @@ scope, epoch, limits, and `NotAfter`, but not its signature. The request hash om
 `RequestHash` itself, replay and transport attempt metadata, cancellation state, and
 authentication proof. Every adapter uses the same canonicalizer and vectors instead
 of hashing its wire representation.
+`OperationId`, canonical public `OperationEpochClaims`,
+`OperationRequestIdentity`, and the versioned apply-request byte projection are
+implemented internal foundations with fixed conformance vectors. Token issuance and
+authentication, adapter integration, dispatch leases, intake fencing, the operation
+ledger, and replay authorization remain required before this identity participates in
+mutation dispatch.
 Before sending request bytes, the caller registers a quota-bounded
 `DispatchPlanLease` that validates the epoch/principal, canonical request identity,
 and exact plan envelope/hash, reserves dispatch-resolution outcome capacity, and pins
