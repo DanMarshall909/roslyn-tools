@@ -14,3 +14,5 @@ See also, linked from `AGENTS.md`:
 - `docs/pattern-core-service.md` — worked examples of the Core-service pattern.
 - `docs/agent-playbook.md` — detailed agent operating guidance.
 - `docs/adr/` — Architecture Decision Records.
+
+Read and follow the project instructions in [../AGENTS.md](../AGENTS.md).

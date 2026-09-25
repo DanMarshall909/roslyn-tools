@@ -310,3 +310,5 @@ dotnet test "RoslynTools.slnx" -c Release -v minimal
 ```
 
 For a narrow change, run the smallest meaningful test first. Before handoff, use the local verification gate unless the task explicitly requires a different workflow.
+
+Read and follow the rules in [rule-sets/tool-repos.md](rule-sets/tool-repos.md).
