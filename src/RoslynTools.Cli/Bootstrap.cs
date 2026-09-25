@@ -52,6 +52,24 @@ internal static class Bootstrap
                 ? sp.GetRequiredService<ReadOnlyWorkspaceSessionCache>()
                 : sp.GetRequiredService<IWorkspaceSessionFactory>());
         services.AddSingleton<IDoctorEnvironmentProbe>(_ => new DoctorEnvironmentProbe());
+        services.AddSingleton(_ => new LocalDurableOperationAuthority());
+        services.AddSingleton<IAuthenticatedPrincipalProvider>(provider =>
+            provider.GetRequiredService<LocalDurableOperationAuthority>());
+        services.AddSingleton<IAuthenticatedOperationContextProvider>(provider =>
+            provider.GetRequiredService<LocalDurableOperationAuthority>());
+        services.AddSingleton<IChangePlanStoreProtectionAuthority>(provider =>
+            provider.GetRequiredService<LocalDurableOperationAuthority>());
+        services.AddSingleton<IOperationLedgerProtectionAuthority>(provider =>
+            provider.GetRequiredService<LocalDurableOperationAuthority>());
+        services.AddSingleton(provider => new DurableChangePlanStore(
+            provider.GetRequiredService<LocalDurableOperationAuthority>().PlanStoreRoot,
+            protectionAuthority: provider.GetRequiredService<IChangePlanStoreProtectionAuthority>()));
+        services.AddSingleton(provider => new DurableOperationLedger(
+            provider.GetRequiredService<LocalDurableOperationAuthority>().LedgerRoot,
+            protectionAuthority: provider.GetRequiredService<IOperationLedgerProtectionAuthority>()));
+        services.AddSingleton(provider => new DurableDispatchIntakeCoordinator(
+            provider.GetRequiredService<DurableChangePlanStore>(),
+            provider.GetRequiredService<DurableOperationLedger>()));
         services.AddSingleton<IDoctorWorkspaceBootstrap, DoctorWorkspaceBootstrap>();
         services.AddSingleton(_ => new RepositoryTrustRegistry());
         services.AddSingleton<TrustAddOperation>();

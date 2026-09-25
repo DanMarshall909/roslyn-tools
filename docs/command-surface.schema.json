@@ -34,7 +34,7 @@
     },
     "groups": {
       "type": "object",
-      "description": "Command-group key to one-line description. Keys are the values used by `command.category`.",
+      "description": "Executable command-group key to one-line description. Root-only categories are not included.",
       "additionalProperties": {
         "type": "string"
       }
@@ -63,17 +63,18 @@
         },
         "category": {
           "type": "string",
-          "description": "Top-level group the command is filed under.",
+          "description": "Discovery category. This is an executable top-level group unless `group` is `root`.",
           "enum": [
             "inspect",
             "analyze",
             "refactor",
-            "ci"
+            "ci",
+            "lifecycle"
           ]
         },
         "mutates": {
           "type": "boolean",
-          "description": "True if the command writes files; false if it is read-only."
+          "description": "Legacy repository-mutation flag. False does not imply read-only; inspect `product.effects` for protected local-state writes."
         },
         "jsonOutput": {
           "type": "boolean",
@@ -113,7 +114,7 @@
         },
         "group": {
           "type": "string",
-          "description": "Optional group override; usually mirrors `category`."
+          "description": "Optional CLI placement override. The value `root` means the command has no grouped route."
         },
         "aliases": {
           "type": "array",

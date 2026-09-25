@@ -1,12 +1,15 @@
 # Tasks: critical platform hardening
 
 The typed RPC recovery coordinator, `PreparedChangeSet`, staged compensating writer,
-host-neutral follow-on metadata, and command-migration ratchet on `main` are
-foundations. The current writer preflights and stages supported changes, retains
-backups during commit, and attempts in-process rollback, but it has no durable plan
-store, journal, status ledger, restart reconciliation, or handle-safe symlink
-boundary. None of the P0 sections below is complete until its failure, recovery, and
-cross-host acceptance tests pass.
+host-neutral follow-on metadata, command-migration ratchet, durable exact-plan and
+operation-ledger engines, and public no-effect stored-plan `Prepare` preview on `main`
+are foundations. The preview proves replay/conflict/access behavior and fresh-composition
+reconciliation through `Prepared` without repository effects, but it is not the
+authority-issued, quota-bounded, status-capable apply protocol below. The current
+writer preflights and stages supported changes, retains backups during commit, and
+attempts in-process rollback, but it has no durable journal, reservation/effect fence,
+verified restart rollback, or handle-safe symlink boundary. None of the P0 sections
+below is complete until its failure, recovery, and cross-host acceptance tests pass.
 
 ## P0.0 containment before further mutation work
 

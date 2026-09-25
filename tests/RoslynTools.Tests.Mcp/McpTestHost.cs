@@ -34,7 +34,9 @@ internal static class McpTestHost
         return project;
     }
 
-    internal static ServiceProvider CreateProvider(McpHostOptions? hostOptions = null)
+    internal static ServiceProvider CreateProvider(
+        McpHostOptions? hostOptions = null,
+        Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
@@ -44,6 +46,7 @@ internal static class McpTestHost
             hostOptions);
         services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
         services.AddSingleton<IDaemonLauncher, UnavailableDaemonLauncher>();
+        configure?.Invoke(services);
         return services.BuildServiceProvider();
     }
 

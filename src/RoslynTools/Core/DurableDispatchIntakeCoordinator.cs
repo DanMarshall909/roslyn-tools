@@ -84,20 +84,98 @@ internal sealed class DurableDispatchIntakeCoordinator
         ArgumentNullException.ThrowIfNull(registration.Request);
         ArgumentNullException.ThrowIfNull(registration.SubmittingPrincipal);
 
-        var existing = _ledger.LoadDispatch(
-            registration.Request.RepositoryId,
-            registration.Request.OperationId);
+        var registered = RegisterRequestIdentity(registration);
+        if (registered.IsErr)
+            return registered;
+        var registrationResult = registered.Match(value => value, _ => null!);
+        if (registrationResult.Disposition != DurableDispatchIntakeDisposition.Ready)
+            return registered;
+
+        var dispatch = registrationResult.Dispatch!;
+        if (dispatch.CurrentPhase == DispatchIntakePhase.RejectedPlanUnavailable)
+            return LoadRejected(dispatch);
+        if (dispatch.CurrentPhase == DispatchIntakePhase.Prepared)
+            return LoadPrepared(dispatch, DurableDispatchIntakeDisposition.Replay);
+
+        var reconciled = ReconcileRegistration(dispatch);
+        if (reconciled.IsErr)
+            return reconciled.Map(value => new DurableDispatchIntakeResult(
+                DurableDispatchIntakeDisposition.Ready,
+                value,
+                null));
+        dispatch = reconciled.Match(value => value, _ => null!);
+        return dispatch.CurrentPhase == DispatchIntakePhase.RejectedPlanUnavailable
+            ? Outcome(DurableDispatchIntakeDisposition.RejectedPlanUnavailable, dispatch)
+            : Outcome(DurableDispatchIntakeDisposition.Ready, dispatch);
+    }
+
+    /// <summary>
+    ///     Reads the retained identity before any new plan-store access. Exact replay,
+    ///     conflicting reuse, and cross-principal access denial can therefore be resolved
+    ///     without publishing or probing caller-selected plan bytes.
+    /// </summary>
+    internal Result<DurableDispatchIntakeResult, DurableDispatchIntakeError> InspectRequestIdentity(
+        CanonicalApplyRequest request,
+        AuthenticatedPrincipalId submittingPrincipal)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(submittingPrincipal);
+
+        var existing = _ledger.LoadDispatch(request.RepositoryId, request.OperationId);
         if (existing.IsErr)
         {
-            var loadError = existing.Match(_ => null!, error => error);
-            if (loadError.Kind != OperationLedgerErrorKind.Missing)
-                return LedgerError<DurableDispatchIntakeResult>(loadError);
-            _planStore.ValidateDispatchIntakeRegistration(
-                registration.DispatchLeaseId,
-                registration.DispatchLeaseExpiresAtUtc,
-                registration.IntakeAttemptId,
-                FormatOperationReference(registration.Request.OperationId));
+            var error = existing.Match(_ => null!, value => value);
+            return error.Kind == OperationLedgerErrorKind.Missing
+                ? Outcome(DurableDispatchIntakeDisposition.Ready)
+                : LedgerError<DurableDispatchIntakeResult>(error);
         }
+
+        var dispatch = existing.Match(value => value, _ => null!);
+        if (!string.Equals(
+                dispatch.SubmittingPrincipalId,
+                submittingPrincipal.Value,
+                StringComparison.Ordinal))
+        {
+            return Outcome(DurableDispatchIntakeDisposition.AccessDenied);
+        }
+        if (!SameRequest(dispatch, request))
+            return Outcome(DurableDispatchIntakeDisposition.Conflict);
+        if (dispatch.CurrentPhase == DispatchIntakePhase.RejectedPlanUnavailable)
+            return LoadRejected(dispatch);
+        if (dispatch.CurrentPhase == DispatchIntakePhase.Prepared)
+            return LoadPrepared(dispatch, DurableDispatchIntakeDisposition.Replay);
+        return Outcome(DurableDispatchIntakeDisposition.Ready, dispatch);
+    }
+
+    /// <summary>
+    ///     Durably binds a new operation identity before the stored plan is opened. This
+    ///     ordering prevents conflicts and access denials from changing plan-store state,
+    ///     while an interrupted first attempt can resume from the retained registration.
+    /// </summary>
+    internal Result<DurableDispatchIntakeResult, DurableDispatchIntakeError> RegisterRequestIdentity(
+        DispatchPlanRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ArgumentNullException.ThrowIfNull(registration.Request);
+        ArgumentNullException.ThrowIfNull(registration.SubmittingPrincipal);
+
+        var inspected = InspectRequestIdentity(
+            registration.Request,
+            registration.SubmittingPrincipal);
+        if (inspected.IsErr)
+            return inspected;
+        var inspection = inspected.Match(value => value, _ => null!);
+        if (inspection.Disposition != DurableDispatchIntakeDisposition.Ready
+            || inspection.Dispatch is not null)
+        {
+            return inspected;
+        }
+
+        _planStore.ValidateDispatchIntakeRegistration(
+            registration.DispatchLeaseId,
+            registration.DispatchLeaseExpiresAtUtc,
+            registration.IntakeAttemptId,
+            FormatOperationReference(registration.Request.OperationId));
 
         var registered = _ledger.RegisterDispatch(
             registration.Request,
@@ -129,27 +207,14 @@ internal sealed class DurableDispatchIntakeCoordinator
         }
         if (registrationResult.Disposition == DispatchIntakeRegistrationDisposition.Registered)
             Reached(DispatchIntakeBoundary.DispatchRecordCommitted);
-        if (registrationResult.Disposition == DispatchIntakeRegistrationDisposition.Conflict)
-            return Outcome(DurableDispatchIntakeDisposition.Conflict);
-        if (registrationResult.Disposition == DispatchIntakeRegistrationDisposition.AccessDenied)
-            return Outcome(DurableDispatchIntakeDisposition.AccessDenied);
-
-        var dispatch = registrationResult.Dispatch!;
-        if (dispatch.CurrentPhase == DispatchIntakePhase.RejectedPlanUnavailable)
-            return LoadRejected(dispatch);
-        if (dispatch.CurrentPhase == DispatchIntakePhase.Prepared)
-            return LoadPrepared(dispatch, DurableDispatchIntakeDisposition.Replay);
-
-        var reconciled = ReconcileRegistration(dispatch);
-        if (reconciled.IsErr)
-            return reconciled.Map(value => new DurableDispatchIntakeResult(
-                DurableDispatchIntakeDisposition.Ready,
-                value,
-                null));
-        dispatch = reconciled.Match(value => value, _ => null!);
-        return dispatch.CurrentPhase == DispatchIntakePhase.RejectedPlanUnavailable
-            ? Outcome(DurableDispatchIntakeDisposition.RejectedPlanUnavailable, dispatch)
-            : Outcome(DurableDispatchIntakeDisposition.Ready, dispatch);
+        return registrationResult.Disposition switch
+        {
+            DispatchIntakeRegistrationDisposition.Conflict =>
+                Outcome(DurableDispatchIntakeDisposition.Conflict),
+            DispatchIntakeRegistrationDisposition.AccessDenied =>
+                Outcome(DurableDispatchIntakeDisposition.AccessDenied),
+            _ => Outcome(DurableDispatchIntakeDisposition.Ready, registrationResult.Dispatch)
+        };
     }
 
     internal Result<DurableDispatchIntakeResult, DurableDispatchIntakeError> ReceiveAndPrepare(

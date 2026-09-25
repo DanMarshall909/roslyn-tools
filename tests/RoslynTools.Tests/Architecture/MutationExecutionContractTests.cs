@@ -1,5 +1,6 @@
 using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Architecture;
@@ -151,6 +152,18 @@ public sealed class MutationExecutionContractTests
         CommandSafety.ReadOnly.Effect.ShouldBe(CommandEffect.ReadOnly);
         CommandSafety.ReadOnly.MutationDefault.ShouldBeNull();
         CommandSafety.ReadOnly.SupportsDryRun.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void local_state_write_safety_is_not_a_repository_mutation_or_fake_dry_run()
+    {
+        CommandSafety.LocalStateWrite.Effect.ShouldBe(CommandEffect.LocalStateWrite);
+        CommandSafety.LocalStateWrite.MutationDefault.ShouldBeNull();
+        CommandSafety.LocalStateWrite.SupportsDryRun.ShouldBeFalse();
+        DurablePrepareCommandDefinition.Definition.Safety.ShouldBeSameAs(CommandSafety.LocalStateWrite);
+        DurablePrepareCommandDefinition.Definition.Info.Mutates.ShouldBeFalse();
+        DurablePrepareCommandDefinition.Definition.Product.Effects.ShouldBe(
+            CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite);
     }
 
     [Fact]

@@ -2358,6 +2358,11 @@ public sealed class DurableDispatchIntakeCoordinatorTests
             lease = new ProtectionLease();
             return null;
         }
+
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
     }
 
     private sealed class SwitchableLedgerProtectionAuthority(string expectedLedgerRoot)
@@ -2366,6 +2371,11 @@ public sealed class DurableDispatchIntakeCoordinatorTests
         private bool _denied;
 
         internal void Deny() => _denied = true;
+
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
 
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
@@ -2389,6 +2399,11 @@ public sealed class DurableDispatchIntakeCoordinatorTests
         int failOnAcquire) : IOperationLedgerProtectionAuthority
     {
         private int _acquisitionCount;
+
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
 
         public OperationLedgerError? Acquire(
             string ledgerRootPath,

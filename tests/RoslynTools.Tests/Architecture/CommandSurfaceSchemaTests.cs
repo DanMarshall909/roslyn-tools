@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using RoslynTools.Core;
 using RoslynTools.Core.CommandSurface;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Architecture;
@@ -48,12 +50,46 @@ public sealed class CommandSurfaceSchemaTests
         => AssertObjectMatchesRecord(Schema["$defs"]!["argument"]!.AsObject(), typeof(ArgumentDescriptor));
 
     [Fact]
-    public void schema_category_enum_matches_known_groups()
+    public void schema_category_enum_matches_known_categories()
     {
         var categoryEnum = Schema["$defs"]!["command"]!["properties"]!["category"]!["enum"]!
             .AsArray().Select(n => n!.GetValue<string>());
 
-        categoryEnum.ShouldBe(App.GroupDescriptions.Keys, ignoreOrder: true);
+        categoryEnum.ShouldBe(App.CategoryDescriptions.Keys, ignoreOrder: true);
+    }
+
+    [Fact]
+    public void generated_public_catalog_uses_schema_categories_and_exposes_root_local_state_lifecycle()
+    {
+        var categoryEnum = Schema["$defs"]!["command"]!["properties"]!["category"]!["enum"]!
+            .AsArray().Select(node => node!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+        var registry = App.CatalogCommands
+            .Select(entry => (Cmd: entry.Build(), entry.Info))
+            .ToArray();
+        var products = new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal)
+        {
+            [DurablePrepareCommandDefinition.Info.Name] = DurablePrepareCommandDefinition.Definition.Product
+        };
+        var json = CommandSurfaceBuilder.ToJson(CommandSurfaceBuilder.Build(
+            registry,
+            App.GroupDescriptions,
+            [],
+            products));
+        var root = JsonNode.Parse(json)!.AsObject();
+        var commands = root["commands"]!.AsArray();
+
+        commands.Select(node => node!["category"]!.GetValue<string>())
+            .ShouldAllBe(category => categoryEnum.Contains(category));
+        var prepare = commands.Single(node =>
+            node!["name"]!.GetValue<string>() == "prepare-operation")!.AsObject();
+        prepare["category"]!.GetValue<string>().ShouldBe("lifecycle");
+        prepare["group"]!.GetValue<string>().ShouldBe("root");
+        prepare["mutates"]!.GetValue<bool>().ShouldBeFalse();
+        prepare["product"]!["effects"]!.AsArray()
+            .Select(node => node!.GetValue<string>())
+            .ShouldContain(nameof(CommandEffects.LocalStateWrite));
+        root["groups"]!.AsObject().Select(property => property.Key)
+            .ShouldBe(App.GroupDescriptions.Keys, ignoreOrder: true);
     }
 
     [Fact]

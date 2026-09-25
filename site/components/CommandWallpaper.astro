@@ -42,6 +42,6 @@ const cycleDuration = wallpaperCommands.length * slotDuration;
     <span
       data-wallpaper-command={command.name}
       style={`--wallpaper-top: ${command.top.toFixed(1)}%; --wallpaper-delay: ${command.index * slotDuration}s; --wallpaper-font-size: clamp(${command.minimumSize.toFixed(2)}rem, ${command.preferredSize.toFixed(2)}vw, ${command.maximumSize.toFixed(2)}rem); --wallpaper-static-left: ${command.staticLeft.toFixed(1)}%;`}
-    >rt {command.group} {command.name}</span>
+    >{command.group === 'root' ? `rt ${command.name}` : `rt ${command.group} ${command.name}`}</span>
   ))}
 </div>

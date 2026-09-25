@@ -128,11 +128,49 @@ internal sealed record AuthenticatedPrincipalId
 }
 
 /// <summary>
+///     Resolves the operation principal from protected host or transport context. The
+///     application request deliberately carries no principal field.
+/// </summary>
+internal interface IAuthenticatedPrincipalProvider
+{
+    AuthenticatedPrincipalId GetPrincipal();
+}
+
+internal sealed record AuthenticatedOperationContext(
+    AuthenticatedPrincipalId Principal,
+    OperationEpochClaims EpochClaims);
+
+/// <summary>
+///     Authenticates public operation-epoch claims against protected host policy before
+///     they contribute to canonical request identity. Request fields cannot self-assert
+///     either the principal or the claims authority.
+/// </summary>
+internal interface IAuthenticatedOperationContextProvider : IAuthenticatedPrincipalProvider
+{
+    Result<AuthenticatedOperationContext, RtError> Authenticate(
+        string repositoryId,
+        OperationId operationId,
+        int maximumOperationCount,
+        long maximumRequestBytes,
+        DateTimeOffset notAfterUtc,
+        long actualRequestBytes);
+}
+
+/// <summary>
 ///     Trusted host boundary that holds the operation ledger's physical location and
 ///     access policy stable for the duration of a read or durable transition.
 /// </summary>
 internal interface IOperationLedgerProtectionAuthority
 {
+    /// <summary>
+    ///     Acquires an already-provisioned ledger without creating its root or protection
+    ///     lease. A missing root or lease is reported as <see cref="OperationLedgerErrorKind.Missing" />.
+    /// </summary>
+    OperationLedgerError? AcquireExisting(
+        string ledgerRootPath,
+        out IOperationLedgerProtectionLease? lease);
+
+    /// <summary>Acquires the ledger for a durable mutation, provisioning it when necessary.</summary>
     OperationLedgerError? Acquire(
         string ledgerRootPath,
         out IOperationLedgerProtectionLease? lease);
@@ -161,9 +199,17 @@ internal sealed class UnavailableOperationLedgerProtectionAuthority
     }
 
     // Stryker disable all : Removing this unavailable provider still reaches the same fail-closed missing-lease result.
+    OperationLedgerError? IOperationLedgerProtectionAuthority.AcquireExisting(
+        string ledgerRootPath,
+        out IOperationLedgerProtectionLease? lease) =>
+        Reject(out lease);
+
     OperationLedgerError? IOperationLedgerProtectionAuthority.Acquire(
         string ledgerRootPath,
-        out IOperationLedgerProtectionLease? lease)
+        out IOperationLedgerProtectionLease? lease) =>
+        Reject(out lease);
+
+    private static OperationLedgerError Reject(out IOperationLedgerProtectionLease? lease)
     {
         lease = null;
         return new OperationLedgerError(
@@ -384,7 +430,7 @@ internal sealed class DurableOperationLedger
 
         try
         {
-            var protectionError = AcquireProtection(out var protectionLease);
+            var protectionError = AcquireExistingProtection(out var protectionLease);
             if (protectionError is not null)
                 return Result<DurableDispatchIntakeRecord, OperationLedgerError>.Err(protectionError);
             using var heldProtectionLease = protectionLease!;
@@ -481,7 +527,7 @@ internal sealed class DurableOperationLedger
 
         try
         {
-            var protectionError = AcquireProtection(out var protectionLease);
+            var protectionError = AcquireExistingProtection(out var protectionLease);
             if (protectionError is not null)
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
             using var heldProtectionLease = protectionLease!;
@@ -600,12 +646,25 @@ internal sealed class DurableOperationLedger
 
     private OperationLedgerError? AcquireProtection(
         out IOperationLedgerProtectionLease? protectionLease)
+        => AcquireProtection(
+            _protectionAuthority.Acquire,
+            out protectionLease);
+
+    private OperationLedgerError? AcquireExistingProtection(
+        out IOperationLedgerProtectionLease? protectionLease)
+        => AcquireProtection(
+            _protectionAuthority.AcquireExisting,
+            out protectionLease);
+
+    private OperationLedgerError? AcquireProtection(
+        ProtectionAcquirer acquire,
+        out IOperationLedgerProtectionLease? protectionLease)
     {
         protectionLease = null;
         IOperationLedgerProtectionLease? acquiredLease = null;
         try
         {
-            var error = _protectionAuthority.Acquire(_rootPath, out acquiredLease);
+            var error = acquire(_rootPath, out acquiredLease);
             if (error is not null)
             {
                 acquiredLease?.Dispose();
@@ -628,6 +687,10 @@ internal sealed class DurableOperationLedger
             throw;
         }
     }
+
+    private delegate OperationLedgerError? ProtectionAcquirer(
+        string ledgerRootPath,
+        out IOperationLedgerProtectionLease? lease);
 
     private void EnsureProtectedRoot()
     {

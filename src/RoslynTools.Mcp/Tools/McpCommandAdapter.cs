@@ -92,7 +92,13 @@ internal sealed class McpCommandAdapter(
                 descriptor.Port.RequestType,
                 RequestOptions);
             if (request is null)
-                return new ToolResult(true, $"Invalid input for tool '{toolName}'.");
+            {
+                return new ToolResult(
+                    true,
+                    SerializeError(new RtError(
+                        RtErrorKind.InvalidInput,
+                        $"Invalid input for tool '{toolName}'.")));
+            }
 
             if (request is not DoctorRequest { InstallationOnly: true })
             {
@@ -125,10 +131,13 @@ internal sealed class McpCommandAdapter(
                         ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
                     })));
         }
-        catch (Exception ex) when (ex is ArgumentException
-                                   or InvalidOperationException
-                                   or JsonException
-                                   or IOException)
+        catch (Exception ex) when (ex is ArgumentException or JsonException)
+        {
+            return new ToolResult(
+                true,
+                SerializeError(new RtError(RtErrorKind.InvalidInput, ex.Message)));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException)
         {
             return new ToolResult(true, ex.Message);
         }

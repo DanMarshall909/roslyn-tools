@@ -3,6 +3,7 @@ using System.Text;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests;
@@ -337,6 +338,69 @@ public sealed class DumpHelp
         output.ShouldContain("## `rt refactor`", Case.Sensitive);
     }
 
+    [Fact]
+    public void rendered_catalog_places_prepare_at_root_and_labels_its_local_state_write()
+    {
+        var snapshot = App.CatalogCommands
+            .Select(entry => (Cmd: entry.Build(), entry.Info))
+            .ToList();
+        var products = new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal)
+        {
+            [DurablePrepareCommandDefinition.Info.Name] = DurablePrepareCommandDefinition.Definition.Product
+        };
+
+        var markdown = DumpHelpCommand.RenderMarkdown(snapshot, products);
+        var capture = new CapturingConsole();
+        using (Core.RtConsole.UseConsole(capture))
+        {
+            DumpHelpCommand.RenderColoured(snapshot, products);
+            DumpHelpCommand.RenderColouredCommandHeader(
+                DurablePrepareCommandDefinition.Info,
+                "Validate an exact stored plan and durably record no-effect Prepared state",
+                DurablePrepareCommandDefinition.Definition.Product);
+        }
+
+        markdown.ShouldContain("Root lifecycle commands", Case.Sensitive);
+        markdown.ShouldContain("**Local-state write**", Case.Sensitive);
+        markdown.ShouldContain("Validate an exact stored plan", Case.Sensitive);
+        markdown.ShouldNotContain("`rt lifecycle`", Case.Sensitive);
+        capture.Text.ShouldContain("root lifecycle", Case.Sensitive);
+        capture.Text.ShouldContain("local-state-write", Case.Sensitive);
+        capture.Text.ShouldNotContain("rt lifecycle", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task compact_catalog_marks_root_prepare_as_a_local_state_write()
+    {
+        var capture = new CapturingConsole();
+        using (Core.RtConsole.UseConsole(capture))
+        {
+            (await App.RunAsync(["dump-help", "--compact"])).ShouldBe(0);
+        }
+
+        var line = capture.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Single(value => value.StartsWith("prepare-operation", StringComparison.Ordinal));
+        line.ShouldContain("lifecycle (root)", Case.Sensitive);
+        line.ShouldContain("[local-state-write]", Case.Sensitive);
+        line.ShouldContain("Validate an exact stored plan", Case.Sensitive);
+        line.ShouldNotContain("Persist an exact plan", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task prepare_help_uses_root_placement_and_local_state_safety()
+    {
+        var capture = new CapturingConsole();
+        using (Core.RtConsole.UseConsole(capture))
+        {
+            (await App.RunAsync(["prepare-operation", "--help"])).ShouldBe(0);
+        }
+
+        capture.Text.ShouldContain("rt prepare-operation", Case.Sensitive);
+        capture.Text.ShouldContain("local-state-write", Case.Sensitive);
+        capture.Text.ShouldContain("Validate an exact stored plan", Case.Sensitive);
+        capture.Text.ShouldNotContain("rt lifecycle", Case.Sensitive);
+    }
+
     // ── RenderColouredCommandHeader (the `rt <cmd> --help` path; US-077) ──────────
 
     private static string CaptureColouredHeader(RtCommandInfo info, string description)
@@ -481,7 +545,7 @@ public sealed class DumpHelp
     {
         var failures = new List<string>();
 
-        foreach (var entry in App.Commands)
+        foreach (var entry in App.CatalogCommands)
         {
             var capture = new CapturingConsole();
             using (Core.RtConsole.UseConsole(capture))
@@ -489,7 +553,13 @@ public sealed class DumpHelp
                 var cmd = entry.Build();
                 try
                 {
-                    DumpHelpCommand.RenderColouredCommandHeader(entry.Info, cmd.Description ?? string.Empty);
+                    var product = entry.Info.Name == DurablePrepareCommandDefinition.Info.Name
+                        ? DurablePrepareCommandDefinition.Definition.Product
+                        : null;
+                    DumpHelpCommand.RenderColouredCommandHeader(
+                        entry.Info,
+                        cmd.Description ?? string.Empty,
+                        product);
                 }
                 catch (Exception ex)
                 {

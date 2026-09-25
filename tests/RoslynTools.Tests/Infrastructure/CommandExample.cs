@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -12,7 +13,7 @@ public class CommandExample
         var parser = BuildParser();
         var failures = new List<string>();
 
-        foreach (var (_, info) in App.Commands.OrderBy(c => c.Info.Name, StringComparer.Ordinal))
+        foreach (var (_, info) in App.CatalogCommands.OrderBy(c => c.Info.Name, StringComparer.Ordinal))
             foreach (var example in info.Examples)
             {
                 var commandLine = StripExecutableName(example);
@@ -38,8 +39,14 @@ public class CommandExample
             kv => new Command(kv.Key, kv.Value),
             StringComparer.Ordinal);
 
-        foreach (var (build, info) in App.Commands)
+        foreach (var (build, info) in App.CatalogCommands)
         {
+            if (info.Placement == CommandPlacement.RootOnly)
+            {
+                root.AddCommand(build());
+                continue;
+            }
+
             groups[info.Category].AddCommand(build());
             if (!groups.ContainsKey(info.Name))
                 root.AddCommand(build());

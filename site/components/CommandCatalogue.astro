@@ -5,8 +5,9 @@ import { commands, commandGroups } from '../lib/commandCatalogue';
 <div class="command-catalogue" data-command-count={commands.length}>
   <p class="catalogue-summary">
     <strong>{commands.length} commands</strong>, generated from the same metadata as
-    <code>rt dump-help</code>. Use <code>rt &lt;group&gt; &lt;command&gt; --help</code>
-    for version-matched arguments, options, examples, and output formats.
+    <code>rt dump-help</code>. Use <code>rt &lt;group&gt; &lt;command&gt; --help</code> for grouped
+    commands or <code>rt &lt;command&gt; --help</code> for root lifecycle commands to see
+    version-matched arguments, options, examples, and output formats.
   </p>
 
   {commandGroups.map((group) => {

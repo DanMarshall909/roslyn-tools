@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Cli.Prime;
+using RoslynTools.Cli.Prepare;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
@@ -28,6 +29,7 @@ internal sealed class CommandDescriptorRegistry
         FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
         PrimeOperation prime,
+        DurablePrepareOperation durablePrepare,
         IGitClient git)
     {
         var portsByName = ports.ToDictionary(
@@ -140,6 +142,10 @@ internal sealed class CommandDescriptorRegistry
             () => PrimeCommand.Build(prime),
             ["prime"],
             prime);
+        AddTypedMetaCommand(
+            () => DurablePrepareCommand.Build(durablePrepare),
+            ["prepare-operation"],
+            durablePrepare);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -205,13 +211,17 @@ internal sealed class CommandDescriptorRegistry
         CommandSafety? daemonSafety,
         bool commandMutates)
     {
-        // The descriptor bridge still supports only the legacy two-state projection. The core
-        // contract retains whether a mutation is apply- or review-default for daemon adapters.
-        return daemonSafety?.Effect == CommandEffect.ReadOnly
-            ? CommandSafetyPolicy.ReadOnly
-            : commandMutates || daemonSafety?.Effect == CommandEffect.Mutation
+        // Descriptor safety distinguishes repository mutation from protected host-local writes.
+        // The core contract separately retains apply- versus review-default mutation behavior.
+        return daemonSafety?.Effect switch
+        {
+            CommandEffect.ReadOnly => CommandSafetyPolicy.ReadOnly,
+            CommandEffect.LocalStateWrite => CommandSafetyPolicy.LocalWrite,
+            CommandEffect.Mutation => CommandSafetyPolicy.DryRunByDefault,
+            _ => commandMutates
                 ? CommandSafetyPolicy.DryRunByDefault
-                : CommandSafetyPolicy.ReadOnly;
+                : CommandSafetyPolicy.ReadOnly
+        };
     }
 
     public IReadOnlyList<ApplicationCommandDescriptor> All => _descriptors;

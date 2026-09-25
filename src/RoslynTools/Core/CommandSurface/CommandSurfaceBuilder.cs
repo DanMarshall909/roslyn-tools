@@ -24,13 +24,14 @@ internal static class CommandSurfaceBuilder
     {
         var commands = registry
             .OrderBy(e => e.Info.Name, StringComparer.Ordinal)
-            .Select(e => Describe(
-                e.Cmd,
-                e.Info,
-                products?.GetValueOrDefault(e.Info.Name)
-                ?? CommandProductMetadata.FromLegacy(
-                    e.Info,
-                    e.Info.Mutates ? CommandSafety.ReviewByDefault : CommandSafety.ReadOnly)))
+            .Select(e =>
+            {
+                var product = products?.GetValueOrDefault(e.Info.Name)
+                              ?? CommandProductMetadata.FromLegacy(
+                                  e.Info,
+                                  e.Info.Mutates ? CommandSafety.ReviewByDefault : CommandSafety.ReadOnly);
+                return Describe(e.Cmd, e.Info, product);
+            })
             .ToList();
 
         return new CommandSurfaceModel(
@@ -54,7 +55,7 @@ internal static class CommandSurfaceBuilder
         cmd.Options.Select(Describe).ToList(),
         cmd.Arguments.Select(Describe).ToList(),
         Describe(product),
-        info.Group,
+        info.Placement == CommandPlacement.RootOnly ? "root" : info.Group,
         info.Aliases,
         info.SeeAlso,
         info.KnownIssues,

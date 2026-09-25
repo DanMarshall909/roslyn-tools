@@ -143,6 +143,7 @@ public sealed class CommandDescriptorTriggerContract
         "doctor", // Installation, trust, workspace, and capability preflight has no built-in counterpart.
         "search_symbols", // Candidate discovery complements focused describe/source tools.
         "prime", // Session orientation over the rt catalog has no built-in counterpart.
+        "prepare_operation", // Durable operation-intake coordination has no built-in counterpart.
         "relationships" // Canonical bounded relation graph has no one built-in counterpart.
     };
 

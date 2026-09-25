@@ -52,6 +52,7 @@ public sealed class McpDependencyInjectionTests
             .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
             .All.Count(descriptor => descriptor.McpVisible
                                      && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
+                                     && !descriptor.Effects.HasFlag(CommandEffects.LocalStateWrite)
                                      && !(descriptor.Effects.HasFlag(CommandEffects.ExternalWrite)
                                           && descriptor.Definition?.Product.TrustRequirement
                                           == TrustRequirement.ExplicitTrustedRepository));

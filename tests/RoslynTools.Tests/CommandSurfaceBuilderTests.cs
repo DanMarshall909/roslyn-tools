@@ -106,6 +106,31 @@ public sealed class CommandSurfaceBuilderTests
     }
 
     [Fact]
+    public void build_projects_root_placement_and_local_state_effects_without_claiming_repository_mutation()
+    {
+        var info = Info("prepare-operation", "lifecycle") with
+        {
+            Placement = CommandPlacement.RootOnly
+        };
+        var product = CommandProductMetadata.FromLegacy(info, CommandSafety.LocalStateWrite);
+
+        var cmd = CommandSurfaceBuilder.Build(
+            [(new Command("prepare-operation"), info)],
+            Groups,
+            [],
+            new Dictionary<string, CommandProductMetadata>
+            {
+                [info.Name] = product
+            }).Commands.Single();
+
+        cmd.Category.ShouldBe("lifecycle");
+        cmd.Group.ShouldBe("root");
+        cmd.Mutates.ShouldBeFalse();
+        cmd.Product.Effects.ShouldContain(nameof(CommandEffects.LocalStateWrite));
+        cmd.Product.Effects.ShouldNotContain(nameof(CommandEffects.RepositoryWrite));
+    }
+
+    [Fact]
     public void build_sorts_commands_by_name()
     {
         var registry = new[]

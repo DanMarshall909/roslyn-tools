@@ -72,20 +72,37 @@ internal sealed record CommandProductMetadata(
         CommandEffects? effects = null,
         WorkspaceRequirement workspaceRequirement = WorkspaceRequirement.Semantic,
         CapabilityMaturity? maturity = null) => new(
-        maturity ?? (safety.Effect == CommandEffect.ReadOnly
-            ? CapabilityMaturity.Preview
-            : CapabilityMaturity.Experimental),
-        effects ?? (safety.Effect == CommandEffect.ReadOnly
-            ? CommandEffects.RepositoryRead
-            : CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite),
-        ConditionallyMutable: safety.Effect == CommandEffect.Mutation,
-        safety.Effect == CommandEffect.ReadOnly
-            ? CommandIdempotency.Idempotent
-            : CommandIdempotency.Unknown,
+        maturity ?? (safety.Effect switch
+        {
+            CommandEffect.ReadOnly => CapabilityMaturity.Preview,
+            CommandEffect.LocalStateWrite or CommandEffect.Mutation => CapabilityMaturity.Experimental,
+            _ => throw new ArgumentOutOfRangeException(nameof(safety))
+        }),
+        effects ?? (safety.Effect switch
+        {
+            CommandEffect.ReadOnly => CommandEffects.RepositoryRead,
+            CommandEffect.LocalStateWrite => CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite,
+            CommandEffect.Mutation => CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite,
+            _ => throw new ArgumentOutOfRangeException(nameof(safety))
+        }),
+        ConditionallyMutable: safety.Effect != CommandEffect.ReadOnly,
+        safety.Effect switch
+        {
+            CommandEffect.ReadOnly => CommandIdempotency.Idempotent,
+            CommandEffect.LocalStateWrite => CommandIdempotency.Conditional,
+            CommandEffect.Mutation => CommandIdempotency.Unknown,
+            _ => throw new ArgumentOutOfRangeException(nameof(safety))
+        },
         audience,
-        TrustRequirement.ExplicitTrustedRepository,
-        workspaceRequirement,
-        [".NET SDK", "Loadable C# solution or project"],
+        safety.Effect == CommandEffect.LocalStateWrite
+            ? TrustRequirement.None
+            : TrustRequirement.ExplicitTrustedRepository,
+        safety.Effect == CommandEffect.LocalStateWrite
+            ? WorkspaceRequirement.None
+            : workspaceRequirement,
+        safety.Effect == CommandEffect.LocalStateWrite
+            ? []
+            : [".NET SDK", "Loadable C# solution or project"],
         CommandCost.Medium,
         CancellationSupport.Cooperative,
         new CommandResourceLimits(

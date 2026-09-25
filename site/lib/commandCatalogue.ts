@@ -7,12 +7,17 @@ export interface CommandEntry {
   description: string;
 }
 
-export const commandGroups = [...source.matchAll(/^- \*\*`rt ([^`]+)`\*\* [-\u2014] (.+)$/gm)]
-  .map(([, name, description]) => ({
-    name,
-    label: name === 'ci' ? 'CI' : name.charAt(0).toUpperCase() + name.slice(1),
-    description,
-  }));
+export const commandGroups = [...source.matchAll(/^- \*\*`rt(?: ([^`]+))?`\*\* [-\u2014] (.+)$/gm)]
+  .map(([, capturedName, description]) => {
+    const name = capturedName ?? 'root';
+    return {
+      name,
+      label: name === 'root'
+        ? 'Root lifecycle'
+        : name === 'ci' ? 'CI' : name.charAt(0).toUpperCase() + name.slice(1),
+      description,
+    };
+  });
 
 const declaredCount = Number(source.match(/Total commands: \*\*(\d+)\*\*/)?.[1]);
 const index = source.match(/## Index\r?\n[\s\S]*?(?=\r?\n## )/)?.[0] ?? '';

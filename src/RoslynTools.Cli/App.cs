@@ -6,6 +6,7 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Prepare;
 using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Commands;
@@ -26,9 +27,8 @@ namespace RoslynTools;
 internal static class App
 {
     /// <summary>
-    ///     The top-level groups under which every command is filed. Each command's
-    ///     <see cref="RtCommandInfo.Category" /> must equal one of these keys exactly — checked
-    ///     at startup in <see cref="RunAsync" />.
+    ///     The executable top-level groups used by category-placed source commands.
+    ///     Root-only lifecycle commands use <see cref="CategoryDescriptions" /> instead.
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, string> GroupDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -37,6 +37,17 @@ internal static class App
             ["analyze"] = "Read-only: scan for cross-cutting issues",
             ["refactor"] = "Mutations: rename, move, extract, replace, modify",
             ["ci"] = "Read-only: enforce configured rules with failing exit status"
+        };
+
+    /// <summary>
+    ///     Public discovery categories include both executable command groups and root-only
+    ///     lifecycle commands. A category is descriptive; <see cref="CommandPlacement" />
+    ///     determines whether a corresponding <c>rt &lt;group&gt;</c> route exists.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> CategoryDescriptions =
+        new Dictionary<string, string>(GroupDescriptions, StringComparer.Ordinal)
+        {
+            ["lifecycle"] = "Root lifecycle commands for durable operation coordination"
         };
 
     /// <summary>
@@ -188,6 +199,18 @@ internal static class App
             .ToArray();
 
     /// <summary>
+    ///     Complete public help and suggestion catalog. Lifecycle meta-commands live at
+    ///     the root because the source-oriented category markers do not describe protected
+    ///     operation coordination, but they remain discoverable from the canonical catalog.
+    /// </summary>
+    internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> CatalogCommands =>
+        Commands
+            .Append<(Func<Command> Build, RtCommandInfo Info)>((
+                BuildDurablePrepareFromRegistry,
+                DurablePrepareCommandDefinition.Info))
+            .ToArray();
+
+    /// <summary>
     /// Runs the application asynchronously with command-line arguments and service provider.
     /// </summary>
     internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null,
@@ -239,6 +262,13 @@ internal static class App
         }
     }
 
+    private static Command BuildDurablePrepareFromRegistry()
+    {
+        var services = _currentServices ?? GetOrCreateRegistryServices();
+        return DurablePrepareCommand.Build(
+            services.GetRequiredService<DurablePrepareOperation>());
+    }
+
     private static async Task<int> RunCoreAsync(string[] args, IServiceProvider services,
         IReadOnlyList<Command>? additionalCommands)
     {
@@ -249,8 +279,14 @@ internal static class App
             kv => new Command(kv.Key, kv.Value),
             StringComparer.Ordinal);
 
-        foreach (var (build, info) in Commands)
+        foreach (var (build, info) in CatalogCommands)
         {
+            if (info.Placement == CommandPlacement.RootOnly)
+            {
+                root.AddCommand(build());
+                continue;
+            }
+
             if (!groups.TryGetValue(info.Category, out var group))
                 throw new InvalidOperationException(
                     $"Command '{info.Name}' has Category='{info.Category}'. Must be one of: "
@@ -458,8 +494,8 @@ internal static class App
     {
         if (ctx.Command is RootCommand)
         {
-            var snapshot = Commands.Select(e => (Cmd: e.Build(), e.Info)).ToList();
-            return [_ => DumpHelpCommand.RenderColoured(snapshot)];
+            var snapshot = CatalogCommands.Select(e => (Cmd: e.Build(), e.Info)).ToList();
+            return [_ => DumpHelpCommand.RenderColoured(snapshot, ResolvePublicProducts())];
         }
 
         if (GroupDescriptions.ContainsKey(ctx.Command.Name))
@@ -472,19 +508,32 @@ internal static class App
             return [_ => DumpHelpCommand.RenderColouredGroup(cat, snapshot)];
         }
 
-        var entry = Commands.FirstOrDefault(e =>
+        var entry = CatalogCommands.FirstOrDefault(e =>
             e.Info.Name == ctx.Command.Name ||
             e.Info.Aliases?.Contains(ctx.Command.Name) == true);
 
         if (entry.Info is not null)
             return
             [
-                c => DumpHelpCommand.RenderColouredCommandHeader(c, entry.Info),
+                c => DumpHelpCommand.RenderColouredCommandHeader(
+                    entry.Info,
+                    c.Command.Description ?? string.Empty,
+                    ResolvePublicProducts().GetValueOrDefault(entry.Info.Name)),
                 HelpBuilder.Default.OptionsSection()
             ];
 
         return HelpBuilder.Default.GetLayout();
     }
+
+    private static Dictionary<string, CommandProductMetadata> ResolvePublicProducts() =>
+        (_currentServices ?? GetOrCreateRegistryServices())
+        .GetServices<ICommandApplicationPort>()
+        .Where(port => port is not ILegacyCommandApplicationPort)
+        .GroupBy(port => port.Definition.Info.Name, StringComparer.Ordinal)
+        .ToDictionary(
+            group => group.Key,
+            group => group.First().Definition.Product,
+            StringComparer.Ordinal);
 
     private static async Task CaptureExceptionAsync(InvocationContext context, Exception ex)
     {

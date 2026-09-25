@@ -34,13 +34,14 @@ internal static class DumpHelpCommand
         cmd.SetHandler(ctx =>
         {
             var compact = ctx.ParseResult.GetValueForOption(compactOpt);
-            var snapshot = App.Commands
+            var snapshot = App.CatalogCommands
                 .Select(e => (Cmd: e.Build(), e.Info))
                 .ToList();
+            var products = ResolveProducts(ctx.BindingContext.GetService<IServiceProvider>());
 
             if (compact)
             {
-                RenderCompact(snapshot);
+                RenderCompact(snapshot, products);
                 return;
             }
 
@@ -48,25 +49,18 @@ internal static class DumpHelpCommand
             {
                 case OutputFormat.Json:
                 case OutputFormat.Yaml:
-                    var products = ctx.BindingContext.GetService<IServiceProvider>()?
-                        .GetServices<ICommandApplicationPort>()
-                        .Where(port => port is not ILegacyCommandApplicationPort)
-                        .ToDictionary(
-                            port => port.Definition.Info.Name,
-                            port => port.Definition.Product,
-                            StringComparer.Ordinal);
                     WriteStructured(snapshot, products);
                     break;
                 case OutputFormat.Markdown:
                     // Explicit --markdown is honoured even in a terminal (previously ignored).
-                    RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
+                    RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot, products)));
                     break;
                 default:
                     // Text: Markdown when piped (the post-build docs/COMMANDS.md target), coloured in a terminal.
                     if (RtConsole.IsOutputRedirected)
-                        RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
+                        RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot, products)));
                     else
-                        RenderColoured(snapshot);
+                        RenderColoured(snapshot, products);
                     break;
             }
         });
@@ -78,7 +72,9 @@ internal static class DumpHelpCommand
     ///     One-line-per-command output: <c>&lt;name&gt; | &lt;category&gt; | &lt;description&gt;</c>.
     ///     ~500 tokens for the full catalog — agent-friendly alternative to the full dump.
     /// </summary>
-    private static void RenderCompact(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
+    private static void RenderCompact(
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
         var sb = new StringBuilder();
         foreach (var (cmd, info) in snapshot.OrderBy(e => e.Info.Category).ThenBy(e => e.Info.Name))
@@ -86,8 +82,13 @@ internal static class DumpHelpCommand
             var raw = cmd.Description;
             var desc = string.IsNullOrEmpty(raw) ? info.WhenToUse ?? "" : raw;
             var firstLine = desc.Split('\n', 2)[0].Trim();
+            if (ResolveSafety(info, products).Effect == CommandEffect.LocalStateWrite)
+                firstLine = $"[local-state-write] {firstLine}";
             if (firstLine.Length > 90) firstLine = firstLine[..89] + "…";
-            sb.AppendLineF($"{info.Name,-28} | {info.Category,-8} | {firstLine}");
+            var placement = IsRootOnly(info)
+                ? $"{info.Category} (root)"
+                : info.Category;
+            sb.AppendLineF($"{info.Name,-28} | {placement,-16} | {firstLine}");
         }
 
         RtResultRenderer.WriteText(RtResult<string>.Ok(sb.ToString().TrimEnd()));
@@ -129,19 +130,19 @@ internal static class DumpHelpCommand
     /// <summary>
     /// Renders the help output as markdown.
     /// </summary>
-    internal static string RenderMarkdown(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    internal static string RenderMarkdown(
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
         var sb = new StringBuilder();
 
-        var byCategory = registry
-            .GroupBy(e => e.Info.Category)
-            .OrderBy(g => CategoryOrder(g.Key));
+        var byCategory = GroupByPlacementAndCategory(registry);
 
         BuildHeader(sb, registry);
         BuildContents(sb, byCategory);
         BuildIndex(sb, registry);
 
-        foreach (var group in byCategory) BuildGroupSection(sb, group);
+        foreach (var group in byCategory) BuildGroupSection(sb, group, products);
 
         return sb.ToString();
     }
@@ -159,7 +160,7 @@ internal static class DumpHelpCommand
         sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
         sb.AppendLine(
-            "Commands are filed under `inspect`, `analyze`, `refactor`, or `ci`. Invoke either way:");
+            "Source commands are filed under `inspect`, `analyze`, `refactor`, or `ci`; lifecycle commands are root-only. Invoke them as shown:");
         sb.AppendLine();
         sb.AppendLine("```bash");
         sb.AppendLine("rt <group> <command> [args...]   # canonical form");
@@ -178,8 +179,11 @@ internal static class DumpHelpCommand
         sb.AppendLine();
         foreach (var group in byCategory)
         {
-            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
-            sb.AppendLineF($"- **`rt {group.Key}`** — {desc}");
+            var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+            var heading = IsRootOnly(group)
+                ? "`rt`"
+                : $"`rt {group.Key}`";
+            sb.AppendLineF($"- **{heading}** — {desc}");
             sb.AppendLineF(
                 $"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
         }
@@ -187,7 +191,9 @@ internal static class DumpHelpCommand
         sb.AppendLine();
     }
 
-    internal static void BuildIndex(StringBuilder sb, IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    internal static void BuildIndex(
+        StringBuilder sb,
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
     {
         sb.AppendLine("## Index");
         sb.AppendLine();
@@ -199,8 +205,11 @@ internal static class DumpHelpCommand
             var aliases = info.Aliases is { Length: > 0 }
                 ? string.Join(", ", info.Aliases.Select(a => $"`{a}`"))
                 : "—";
+            var placement = IsRootOnly(info)
+                ? "root"
+                : $"`{info.Category}`";
             sb.AppendLineF(
-                $"| [`{info.Name}`](#{Anchor(info.Name)}) | `{info.Category}` | {aliases} | {c.Description} |");
+                $"| [`{info.Name}`](#{Anchor(info.Name)}) | {placement} | {aliases} | {c.Description} |");
         }
 
         sb.AppendLine();
@@ -209,19 +218,30 @@ internal static class DumpHelpCommand
     /// <summary>
     /// Builds a group section in the help output.
     /// </summary>
-    internal static void BuildGroupSection(StringBuilder sb, IGrouping<string, (Command Cmd, RtCommandInfo Info)> group)
+    internal static void BuildGroupSection(
+        StringBuilder sb,
+        IGrouping<string, (Command Cmd, RtCommandInfo Info)> group,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
-        var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
-        sb.AppendLineF($"## `rt {group.Key}` — {desc}");
+        var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+        var heading = IsRootOnly(group)
+            ? "`rt`"
+            : $"`rt {group.Key}`";
+        sb.AppendLineF($"## {heading} — {desc}");
         sb.AppendLine();
 
-        foreach (var (c, info) in group.OrderBy(e => e.Info.Name)) BuildCommandSection(sb, c, info);
+        foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
+            BuildCommandSection(sb, c, info, products?.GetValueOrDefault(info.Name));
     }
 
     /// <summary>
     /// Builds a command section in the help output.
     /// </summary>
-    internal static void BuildCommandSection(StringBuilder sb, Command c, RtCommandInfo info)
+    internal static void BuildCommandSection(
+        StringBuilder sb,
+        Command c,
+        RtCommandInfo info,
+        CommandProductMetadata? product = null)
     {
         var shortDescription = c.Description ?? "(no description)";
         sb.AppendLineF($"### {info.Name}");
@@ -231,7 +251,7 @@ internal static class DumpHelpCommand
 
         var badges = new List<string>
         {
-            info.Mutates ? "**Mutation** (writes files)" : "**Read-only**",
+            SafetyBadge(CommandSafety.ForPublication(info, product)),
             info.JsonOutput ? "JSON output" : "Plain-text output"
         };
         sb.AppendLine(string.Join(" | ", badges));
@@ -273,20 +293,20 @@ internal static class DumpHelpCommand
     /// <summary>
     /// Renders the help output with colored text.
     /// </summary>
-    internal static void RenderColoured(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    internal static void RenderColoured(
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
-        var byCategory = registry
-            .GroupBy(e => e.Info.Category)
-            .OrderBy(g => CategoryOrder(g.Key))
-            .ToList();
+        var byCategory = GroupByPlacementAndCategory(registry).ToList();
 
         RtConsole.WriteLine(RtOutputContext.Ui, $"rt Commands  ({registry.Count} total)", ConsoleColor.White);
         RtConsole.WriteLine(RtOutputContext.Ui);
 
         foreach (var group in byCategory)
         {
-            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
-            RtConsole.Write(RtOutputContext.Ui, $"  rt {group.Key}", CategoryColour(group.Key));
+            var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+            var heading = IsRootOnly(group) ? "root lifecycle" : $"rt {group.Key}";
+            RtConsole.Write(RtOutputContext.Ui, $"  {heading}", CategoryColour(group.Key));
             RtConsole.WriteLine(RtOutputContext.Ui, $"   {desc}", ConsoleColor.DarkGray);
             RtConsole.WriteLine(RtOutputContext.Ui, "  " + new string('\u2500', 52), ConsoleColor.DarkGray);
 
@@ -298,8 +318,7 @@ internal static class DumpHelpCommand
                     RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})",
                         ConsoleColor.DarkGray);
 
-                RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
-                    info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+                WriteSafety(ResolveSafety(info, products));
 
                 RtConsole.WriteLine(RtOutputContext.Ui);
                 RtConsole.WriteLine(RtOutputContext.Ui, $"    {c.Description}", ConsoleColor.Gray);
@@ -314,7 +333,8 @@ internal static class DumpHelpCommand
     /// </summary>
     internal static void RenderColouredGroup(
         string category,
-        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
         var desc = App.GroupDescriptions.TryGetValue(category, out var d) ? d : "";
         RtConsole.WriteLine(RtOutputContext.Ui);
@@ -328,8 +348,7 @@ internal static class DumpHelpCommand
             RtConsole.Write(RtOutputContext.Ui, $"    {info.Name}", ConsoleColor.White);
             if (info.Aliases is { Length: > 0 })
                 RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
-            RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
-                info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+            WriteSafety(ResolveSafety(info, products));
             RtConsole.WriteLine(RtOutputContext.Ui);
             RtConsole.WriteLine(RtOutputContext.Ui, $"      {c.Description}", ConsoleColor.Gray);
         }
@@ -342,8 +361,11 @@ internal static class DumpHelpCommand
     /// <see cref="RenderColouredCommandHeader(RtCommandInfo, string)"/> overload —
     /// the latter is the unit-testable surface, free of <see cref="HelpContext"/>.
     /// </summary>
-    internal static void RenderColouredCommandHeader(HelpContext ctx, RtCommandInfo info)
-        => RenderColouredCommandHeader(info, ctx.Command.Description ?? string.Empty);
+    internal static void RenderColouredCommandHeader(
+        HelpContext ctx,
+        RtCommandInfo info,
+        CommandProductMetadata? product = null)
+        => RenderColouredCommandHeader(info, ctx.Command.Description ?? string.Empty, product);
 
     /// <summary>
     /// Renders the same rich content that <c>rt dump-help</c> emits for a single
@@ -351,14 +373,16 @@ internal static class DumpHelpCommand
     /// Examples, supported output formats, and known-issues block. Drives the
     /// <c>rt &lt;cmd&gt; --help</c> output via <see cref="App.BuildHelpLayout"/>.
     /// </summary>
-    internal static void RenderColouredCommandHeader(RtCommandInfo info, string description)
+    internal static void RenderColouredCommandHeader(
+        RtCommandInfo info,
+        string description,
+        CommandProductMetadata? product = null)
     {
         RtConsole.WriteLine(RtOutputContext.Ui);
         RtConsole.Write(RtOutputContext.Ui, $"  rt {info.Name}", ConsoleColor.White);
         if (info.Aliases is { Length: > 0 })
             RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
-        RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
-            info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+        WriteSafety(CommandSafety.ForPublication(info, product));
         RtConsole.WriteLine(RtOutputContext.Ui);
         RtConsole.WriteLine(RtOutputContext.Ui, $"  {description}", ConsoleColor.Gray);
         RtConsole.WriteLine(RtOutputContext.Ui);
@@ -419,4 +443,63 @@ internal static class DumpHelpCommand
     {
         return name.ToLowerInvariant().Replace(' ', '-');
     }
+
+    private static Dictionary<string, CommandProductMetadata> ResolveProducts(
+        IServiceProvider? services) =>
+        services?.GetServices<ICommandApplicationPort>()
+            .Where(port => port is not ILegacyCommandApplicationPort)
+            .GroupBy(port => port.Definition.Info.Name, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().Definition.Product,
+                StringComparer.Ordinal)
+        ?? new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal);
+
+    private static CommandSafety ResolveSafety(
+        RtCommandInfo info,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null) =>
+        CommandSafety.ForPublication(info, products?.GetValueOrDefault(info.Name));
+
+    private static string SafetyBadge(CommandSafety safety) => safety.Effect switch
+    {
+        CommandEffect.Mutation => "**Mutation** (writes repository files)",
+        CommandEffect.LocalStateWrite => "**Local-state write** (does not write repository files)",
+        _ => "**Read-only**"
+    };
+
+    private static string SafetyLabel(CommandSafety safety) => safety.Effect switch
+    {
+        CommandEffect.Mutation => "writes repository",
+        CommandEffect.LocalStateWrite => "local-state-write",
+        _ => "read-only"
+    };
+
+    private static void WriteSafety(CommandSafety safety)
+    {
+        var color = safety.Effect switch
+        {
+            CommandEffect.Mutation => ConsoleColor.DarkRed,
+            CommandEffect.LocalStateWrite => ConsoleColor.DarkYellow,
+            _ => ConsoleColor.DarkGreen
+        };
+        RtConsole.Write(RtOutputContext.Ui, $"  {SafetyLabel(safety)}", color);
+    }
+
+    private static bool IsRootOnly(
+        IEnumerable<(Command Cmd, RtCommandInfo Info)> commands) =>
+        commands.All(command => IsRootOnly(command.Info));
+
+    private static bool IsRootOnly(RtCommandInfo info) =>
+        info.Placement == CommandPlacement.RootOnly;
+
+    private static IEnumerable<IGrouping<string, (Command Cmd, RtCommandInfo Info)>>
+        GroupByPlacementAndCategory(
+            IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry) =>
+        registry
+            .Where(entry => !IsRootOnly(entry.Info))
+            .GroupBy(entry => entry.Info.Category)
+            .Concat(registry
+                .Where(entry => IsRootOnly(entry.Info))
+                .GroupBy(entry => entry.Info.Category))
+            .OrderBy(group => CategoryOrder(group.Key));
 }

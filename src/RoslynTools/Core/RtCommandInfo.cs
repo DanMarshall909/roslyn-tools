@@ -3,8 +3,9 @@ using RoslynTools.Core.Output;
 namespace RoslynTools.Core;
 
 /// <summary>
-///     Metadata describing a command for the auto-generated <c>docs/COMMANDS.md</c> reference.
-///     Every command in <c>Commands/*Command.cs</c> must expose a static <c>Info</c> property of this type.
+///     Metadata describing a command for public discovery and the auto-generated
+///     <c>docs/COMMANDS.md</c> reference. Grouped source commands expose this from their
+///     <c>Commands/*Command.cs</c> type; typed application definitions can also supply it.
 /// </summary>
 internal sealed record RtCommandInfo(
     string Name,
@@ -17,5 +18,12 @@ internal sealed record RtCommandInfo(
     string[]? Aliases = null,
     string[]? SeeAlso = null,
     OutputFormat[]? SupportedFormats = null,
-    string? Group = null
+    string? Group = null,
+    CommandPlacement Placement = CommandPlacement.CategoryAndRoot
 );
+
+internal enum CommandPlacement
+{
+    CategoryAndRoot,
+    RootOnly
+}

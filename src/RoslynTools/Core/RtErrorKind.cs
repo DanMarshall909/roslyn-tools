@@ -26,5 +26,26 @@ internal enum RtErrorKind
     Stale,
 
     /// <summary>An external executable or service was unavailable or rejected the operation.</summary>
-    ExternalToolFailure
+    ExternalToolFailure,
+
+    /// <summary>An existing operation identity names different canonical work.</summary>
+    OperationConflict,
+
+    /// <summary>The authenticated principal is not authorized to observe or change the operation.</summary>
+    OperationAccessDenied,
+
+    /// <summary>The durable outcome cannot yet be determined safely.</summary>
+    OperationIndeterminate,
+
+    /// <summary>The protected coordination boundary cannot be proven safe.</summary>
+    UnsafeCoordination,
+
+    /// <summary>The durable coordination store is temporarily unavailable.</summary>
+    CoordinationUnavailable,
+
+    /// <summary>Persisted coordination evidence is corrupt or internally inconsistent.</summary>
+    CorruptState,
+
+    /// <summary>The exact immutable plan is unavailable, expired, incompatible, or unverified.</summary>
+    PlanUnavailable
 }

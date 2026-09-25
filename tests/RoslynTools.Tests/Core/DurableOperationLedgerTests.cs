@@ -741,6 +741,11 @@ public sealed class DurableOperationLedgerTests
     private sealed class TestProtectionAuthority(string expectedRoot)
         : IOperationLedgerProtectionAuthority
     {
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
+
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
             out IOperationLedgerProtectionLease? lease)
@@ -768,6 +773,11 @@ public sealed class DurableOperationLedgerTests
     private sealed class RejectingProtectionAuthority(IOperationLedgerProtectionLease lease)
         : IOperationLedgerProtectionAuthority
     {
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? protectionLease) =>
+            Acquire(ledgerRootPath, out protectionLease);
+
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
             out IOperationLedgerProtectionLease? protectionLease)
@@ -782,6 +792,11 @@ public sealed class DurableOperationLedgerTests
     private sealed class ThrowingProtectionAuthority(IOperationLedgerProtectionLease lease)
         : IOperationLedgerProtectionAuthority
     {
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? protectionLease) =>
+            Acquire(ledgerRootPath, out protectionLease);
+
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
             out IOperationLedgerProtectionLease? protectionLease)
@@ -793,6 +808,11 @@ public sealed class DurableOperationLedgerTests
 
     private sealed class MissingLeaseProtectionAuthority : IOperationLedgerProtectionAuthority
     {
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
+
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
             out IOperationLedgerProtectionLease? lease)
@@ -804,6 +824,11 @@ public sealed class DurableOperationLedgerTests
 
     private sealed class StorageFailingProtectionAuthority : IOperationLedgerProtectionAuthority
     {
+        public OperationLedgerError? AcquireExisting(
+            string ledgerRootPath,
+            out IOperationLedgerProtectionLease? lease) =>
+            Acquire(ledgerRootPath, out lease);
+
         public OperationLedgerError? Acquire(
             string ledgerRootPath,
             out IOperationLedgerProtectionLease? lease)

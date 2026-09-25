@@ -15,6 +15,8 @@ internal static class McpToolAvailability
                && hostOptions.Configuration.Effective.Mcp.Allows(descriptor.ToolName)
                && (hostOptions.CanDiscoverRepositoryWrites
                    || !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite))
+               && (hostOptions.CanDiscoverLocalStateWrites
+                   || !descriptor.Effects.HasFlag(CommandEffects.LocalStateWrite))
                && (hostOptions.CanDiscoverExplicitTrustExternalWrites
                    || !descriptor.Effects.HasFlag(CommandEffects.ExternalWrite)
                    || descriptor.Definition?.Product.TrustRequirement
