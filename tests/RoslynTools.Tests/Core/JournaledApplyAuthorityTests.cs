@@ -455,6 +455,18 @@ public sealed class JournaledApplyAuthorityTests
                 request.OperationId)).ShouldBeTrue();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
         File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(first.Match(value => value, _ => null!).ArtifactPath).ShouldBeFalse();
+        File.Exists(retried.Match(value => value, _ => null!).ArtifactPath).ShouldBeFalse();
     }
 
     [Theory]
@@ -536,6 +548,730 @@ public sealed class JournaledApplyAuthorityTests
         cancelled.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
         Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task no_effect_cleanup_waits_for_drain_then_removes_artifact_and_releases_pin()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store, new LinuxStagingCleanupBoundary(stagingRoot));
+
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+
+        var cleaned = cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        cleaned.CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved,
+            OperationCleanupJournalKind.CleanupVerified
+        ]);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        Directory.Exists(Path.GetDirectoryName(artifact.ArtifactPath)!).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin =>
+            pin.Kind == ChangePlanPinKind.OperationLedger
+            && pin.ReferenceId == DurableDispatchIntakeCoordinator.FormatOperationReference(
+                request.OperationId)).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+
+        var replay = new JournaledNoEffectCleanup(
+            fixture.CreatePlainLedger(), fixture.Store, new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        replay.CleanupJournal.Select(entry => entry.Sequence)
+            .ShouldBe(cleaned.CleanupJournal.Select(entry => entry.Sequence));
+        replay.CleanupJournal.Select(entry => entry.Kind)
+            .ShouldBe(cleaned.CleanupJournal.Select(entry => entry.Kind));
+        replay.CleanupJournal.SelectMany(entry => entry.Artifacts)
+            .ShouldBe(cleaned.CleanupJournal.SelectMany(entry => entry.Artifacts));
+    }
+
+    [Fact]
+    public async Task uncertain_cleanup_verification_does_not_release_the_plan_pin()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        staged.IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var failing = new JournaledNoEffectCleanup(
+            fixture.CreateLedger(new FailDirectoryFlushFrom(2)),
+            fixture.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot));
+
+        failing.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        failing.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin =>
+            pin.Kind == ChangePlanPinKind.OperationLedger
+            && pin.ReferenceId == DurableDispatchIntakeCoordinator.FormatOperationReference(
+                request.OperationId)).ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin =>
+            pin.Kind == ChangePlanPinKind.OperationLedger
+            && pin.ReferenceId == DurableDispatchIntakeCoordinator.FormatOperationReference(
+                request.OperationId)).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cleanup_leaves_unknown_operation_root_entries_and_pin_pending()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var unknown = Path.Combine(Path.GetDirectoryName(artifact.ArtifactPath)!, "unexpected");
+        File.WriteAllText(unknown, "not admitted");
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store, new LinuxStagingCleanupBoundary(stagingRoot));
+
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+
+        fixture.LoadOperation(request).CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved
+        ]);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        File.Exists(unknown).ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        File.Delete(unknown);
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        Directory.Exists(Path.GetDirectoryName(artifact.ArtifactPath)!).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task interrupted_artifact_unlink_retries_without_claiming_premature_cleanup()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var durability = new RecordingStagingDurability(failedFlush: 3);
+        var interrupted = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot, durability));
+
+        interrupted.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task intent_only_cleanup_verifies_an_absent_operation_root_without_creating_it()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+
+        var uncertainAbsence = new RecordingStagingDurability(failedFlush: 1);
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(
+                    plan.Envelope.Payload.Coordination.StagingRoot, uncertainAbsence))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        uncertainAbsence.Flushes.ShouldBe(["directory"]);
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(
+                    plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+
+        fixture.LoadOperation(request).CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.CleanupVerified
+        ]);
+        Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("changed-bytes")]
+    [InlineData("symlink")]
+    [InlineData("hard-link")]
+    public async Task cleanup_rejects_a_changed_redirected_or_linked_admitted_artifact(string alteration)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var important = Path.Combine(fixture.RepositoryRoot, "src", "Important.cs");
+        File.WriteAllText(important, "class Important;\n");
+        if (alteration == "changed-bytes")
+            File.WriteAllText(artifact.ArtifactPath, "changed\n");
+        else if (alteration == "symlink")
+        {
+            File.Delete(artifact.ArtifactPath);
+            File.CreateSymbolicLink(artifact.ArtifactPath, important);
+        }
+        else
+        {
+            Link(artifact.ArtifactPath, Path.Combine(stagingRoot, "artifact-alias"))
+                .ShouldBe(0);
+        }
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        File.ReadAllText(important).ShouldBe("class Important;\n");
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task interrupted_empty_root_removal_retries_before_cleanup_verification()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var durability = new RecordingStagingDurability(failedFlush: 6);
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot, durability))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+
+        durability.Flushes.Count.ShouldBe(6);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        Directory.Exists(Path.GetDirectoryName(artifact.ArtifactPath)!).ShouldBeFalse();
+        fixture.LoadOperation(request).CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved
+        ]);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        Directory.Delete(stagingRoot, recursive: true);
+        var missingRootDurability = new RecordingStagingDurability(failedFlush: 1);
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot, missingRootDurability))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        missingRootDurability.Flushes.ShouldBe(["directory"]);
+        fixture.LoadOperation(request).CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved
+        ]);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cleanup_removes_all_admitted_artifacts_in_journal_order()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true);
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var writer = new JournaledStagingArtifactWriter(
+            fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot));
+        var first = await writer.StageReplacementAsync(
+            plan, request.OperationId, 1, activity, reservation);
+        var second = await writer.StageReplacementAsync(
+            plan, request.OperationId, 2, activity, reservation);
+        first.IsOk.ShouldBeTrue();
+        second.IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+
+        fixture.LoadOperation(request).CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved,
+            OperationCleanupJournalKind.ArtifactRemoved,
+            OperationCleanupJournalKind.CleanupVerified
+        ]);
+        fixture.LoadOperation(request).CleanupJournal
+            .Where(entry => entry.Kind == OperationCleanupJournalKind.ArtifactRemoved)
+            .SelectMany(entry => entry.Artifacts)
+            .Select(artifact => artifact.EffectSequence).ShouldBe([1, 2]);
+        File.Exists(first.Match(value => value, _ => null!).ArtifactPath).ShouldBeFalse();
+        File.Exists(second.Match(value => value, _ => null!).ArtifactPath).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("missing-removal")]
+    [InlineData("wrong-artifact")]
+    public async Task restart_rejects_changed_cleanup_progress(string tampering)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        staged.IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        var cleanup = json["cleanupJournal"]!.AsArray();
+        if (tampering == "missing-removal")
+        {
+            cleanup.RemoveAt(1);
+            cleanup[1]!["sequence"] = 2;
+        }
+        else
+        {
+            cleanup[1]!["artifacts"]!.AsArray()[0]!["artifactPath"] = fixture.TargetPath;
+        }
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("Changed cleanup progress was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task verified_cleanup_replays_after_the_unpinned_plan_is_collected()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        staged.IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store, new LinuxStagingCleanupBoundary(stagingRoot));
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Now = fixture.Now.AddDays(2);
+        fixture.Store.CollectGarbage().DeletedPlans.ShouldBe(1);
+
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("RejectedStale")]
+    [InlineData("RejectedPlanUnavailable")]
+    [InlineData("RejectedUnsafeCoordination")]
+    [InlineData("Expired")]
+    public async Task drained_no_effect_outcomes_use_the_same_verified_cleanup_path(
+        string outcomeName)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        var outcome = Enum.Parse<OperationLifecycleState>(outcomeName);
+        fixture.Ledger.AppendTransition(request.RepositoryId, request.OperationId,
+                OperationLifecycleState.Prepared, outcome, "No repository effect admitted.")
+            .IsOk.ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+
+        fixture.LoadOperation(request).CurrentState.ShouldBe(outcome);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_new_reservation_cannot_inherit_pending_physical_cleanup()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string artifactPath;
+        using (var original = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            var activity = fixture.Ledger.BeginPreEffectActivity(
+                    request.RepositoryId, request.OperationId, original)
+                .Match(value => value, error => throw new IOException(error.Message));
+            var staged = await new JournaledStagingArtifactWriter(
+                    fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+                .StageReplacementAsync(plan, request.OperationId, 1, activity, original);
+            artifactPath = staged.Match(value => value, error => throw new IOException(error.Message))
+                .ArtifactPath;
+            fixture.Ledger.CompletePreEffectActivity(
+                    request.RepositoryId, request.OperationId, activity, original)
+                .IsOk.ShouldBeTrue();
+            fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+                .IsOk.ShouldBeTrue();
+        }
+        using var replacement = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, replacement)
+            .IsErr.ShouldBeTrue();
+
+        File.Exists(artifactPath).ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cleanup_cannot_remove_artifacts_admitted_by_an_earlier_reservation()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true);
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var writer = new JournaledStagingArtifactWriter(
+            fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot));
+        string firstPath;
+        using (var firstReservation = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            var firstActivity = fixture.Ledger.BeginPreEffectActivity(
+                    request.RepositoryId, request.OperationId, firstReservation)
+                .Match(value => value, error => throw new IOException(error.Message));
+            firstPath = (await writer.StageReplacementAsync(
+                    plan, request.OperationId, 1, firstActivity, firstReservation))
+                .Match(value => value.ArtifactPath, error => throw new IOException(error.Message));
+            fixture.Ledger.CompletePreEffectActivity(
+                    request.RepositoryId, request.OperationId, firstActivity, firstReservation)
+                .IsOk.ShouldBeTrue();
+        }
+
+        using var secondReservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var secondActivity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, secondReservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var secondPath = (await writer.StageReplacementAsync(
+                plan, request.OperationId, 2, secondActivity, secondReservation))
+            .Match(value => value.ArtifactPath, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, secondActivity, secondReservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, secondReservation)
+            .IsErr.ShouldBeTrue();
+
+        File.Exists(firstPath).ShouldBeTrue();
+        File.Exists(secondPath).ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
     }
 
     [Fact]
@@ -2503,6 +3239,7 @@ public sealed class JournaledApplyAuthorityTests
         internal CanonicalApplyRequest? Request { get; private set; }
         internal StoredChangePlan? StoredPlan { get; private set; }
         internal DurableOperationLedger Ledger => _ledger;
+        internal DurableChangePlanStore Store => _store;
         internal string LedgerRoot => _authority.LedgerRoot;
         internal DurableOperationLedger CreatePlainLedger() =>
             new(_authority.LedgerRoot, () => Now, _authority);

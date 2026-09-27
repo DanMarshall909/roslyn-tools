@@ -875,8 +875,16 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   [ADR-0033](adr/0033-no-effect-cleanup-inventory.md) records an ordered
   `InventoryPending` cleanup event with the same durable no-effect transition
   that closes admission. It includes every admitted artifact, even when an
-  earlier staging activity still has to drain. Physical cleanup and exclusive
-  empty-root verification remain open.
+  earlier staging activity still has to drain.
+  [ADR-0034](adr/0034-journaled-no-effect-staging-cleanup.md) adds internal
+  Linux x64 cleanup under the same held staging reservation after the activity
+  fence drains; every admitted artifact must bear that reservation's fence.
+  Mixed-reservation inventory remains pending for shared-authority recovery.
+  It journals each flushed artifact removal, removes only an
+  empty operation root, flushes the parent of any missing root component,
+  confirms durable `CleanupVerified` before releasing the plan pin, and retries
+  interrupted boundaries. Cross-owner cleanup,
+  backup and guard cleanup, and public lifecycle routing remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

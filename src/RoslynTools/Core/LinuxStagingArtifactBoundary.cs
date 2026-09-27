@@ -171,11 +171,19 @@ internal static class LinuxStagingHandles
     private const int NoFollow = 0x20000;
     private const int CloseOnExec = 0x80000;
     private const int AtEmptyPath = 0x1000;
+    private const int AtSymlinkNoFollow = 0x100;
+    private const int AtRemoveDirectory = 0x200;
     private const uint StatxBasicStats = 0x7ff;
     private const uint StatxMountId = 0x1000;
     private const int AlreadyExists = 17;
+    private const int Missing = 2;
 
     internal static SafeFileHandle OpenAbsoluteDirectory(string path)
+        => TryOpenAbsoluteDirectory(path) ?? throw NativeError("openat", Missing);
+
+    internal static SafeFileHandle? TryOpenAbsoluteDirectory(
+        string path,
+        IStagingArtifactDurability? durability = null)
     {
         if (!Path.IsPathFullyQualified(path))
             throw new InvalidOperationException("A fully qualified directory is required.");
@@ -186,7 +194,14 @@ internal static class LinuxStagingHandles
             {
                 if (component is "." or "..")
                     throw new InvalidOperationException("A normalized directory path is required.");
-                var next = OpenAt(handle, component, ReadOnly | Directory | NoFollow | CloseOnExec);
+                var next = TryOpenAt(handle, component,
+                    ReadOnly | Directory | NoFollow | CloseOnExec);
+                if (next is null)
+                {
+                    durability?.FlushDirectory(handle);
+                    handle.Dispose();
+                    return null;
+                }
                 handle.Dispose();
                 handle = next;
             }
@@ -235,6 +250,107 @@ internal static class LinuxStagingHandles
             directory.Dispose();
             throw;
         }
+    }
+
+    internal static SafeFileHandle? TryOpenPrivateDirectory(
+        SafeFileHandle parent,
+        string name,
+        IStagingArtifactDurability durability)
+    {
+        if (name.Length == 0 || name is "." or ".." || name.Contains('/'))
+            throw new InvalidOperationException("A single directory component is required.");
+        var directory = TryOpenAt(parent, name, ReadOnly | Directory | NoFollow | CloseOnExec);
+        if (directory is null)
+        {
+            durability.FlushDirectory(parent);
+            return null;
+        }
+        try
+        {
+            RequirePrivateDirectory(directory);
+            durability.FlushDirectory(parent);
+            return directory;
+        }
+        catch
+        {
+            directory.Dispose();
+            throw;
+        }
+    }
+
+    internal static SafeFileHandle? TryOpenCleanupFile(
+        SafeFileHandle parent,
+        string name,
+        IStagingArtifactDurability durability)
+    {
+        var artifact = TryOpenAt(parent, name,
+            ReadOnly | NonBlocking | NoFollow | CloseOnExec);
+        if (artifact is null)
+        {
+            durability.FlushDirectory(parent);
+            return null;
+        }
+        try
+        {
+            RequirePrivateRegularFile(artifact);
+            return artifact;
+        }
+        catch
+        {
+            artifact.Dispose();
+            throw;
+        }
+    }
+
+    internal static void RemoveVerifiedFile(
+        SafeFileHandle parent,
+        string name,
+        SafeFileHandle artifact,
+        IStagingArtifactDurability durability)
+    {
+        RequireSameIdentity(RequirePrivateRegularFile(artifact), IdentityAt(parent, name));
+        if (UnlinkAt(parent, name, 0) != 0)
+            throw NativeError("unlinkat", Marshal.GetLastPInvokeError());
+        durability.FlushDirectory(parent);
+    }
+
+    internal static void RemoveEmptyPrivateDirectory(
+        SafeFileHandle parent,
+        string name,
+        IStagingArtifactDurability durability)
+    {
+        using var directory = TryOpenPrivateDirectory(parent, name, durability);
+        if (directory is null)
+            return;
+        RequirePrivateDirectory(directory);
+        RequireSameIdentity(Identity(directory), IdentityAt(parent, name));
+        if (UnlinkAt(parent, name, AtRemoveDirectory) != 0)
+            throw NativeError("unlinkat", Marshal.GetLastPInvokeError());
+        durability.FlushDirectory(parent);
+    }
+
+    private static void RequireSameIdentity(StatxIdentity opened, StatxIdentity named)
+    {
+        if (opened.MountId != named.MountId
+            || opened.DeviceMajor != named.DeviceMajor
+            || opened.DeviceMinor != named.DeviceMinor
+            || opened.Inode != named.Inode
+            || opened.Size != named.Size
+            || opened.UserId != named.UserId
+            || opened.Mode != named.Mode
+            || opened.LinkCount != named.LinkCount)
+            throw new InvalidOperationException("The cleanup entry changed after it was opened.");
+    }
+
+    private static StatxIdentity IdentityAt(SafeFileHandle parent, string name)
+    {
+        if (Statx(parent, name, AtSymlinkNoFollow, StatxBasicStats | StatxMountId,
+                out var identity) != 0)
+            throw NativeError("statx", Marshal.GetLastPInvokeError());
+        if ((identity.Mask & (StatxBasicStats | StatxMountId))
+            != (StatxBasicStats | StatxMountId))
+            throw new InvalidOperationException("The cleanup entry has no durable mount identity.");
+        return identity;
     }
 
     internal static (SafeFileHandle Handle, bool Created) OpenAdmittedFile(
@@ -340,6 +456,17 @@ internal static class LinuxStagingHandles
         return new SafeFileHandle(descriptor, ownsHandle: true);
     }
 
+    private static SafeFileHandle? TryOpenAt(SafeFileHandle parent, string name, int flags)
+    {
+        var descriptor = NativeOpenAt(parent, name, flags, 0);
+        if (descriptor >= 0)
+            return new SafeFileHandle(descriptor, ownsHandle: true);
+        var error = Marshal.GetLastPInvokeError();
+        if (error == Missing)
+            return null;
+        throw NativeError("openat", error);
+    }
+
     private static IOException NativeError(string operation, int error) =>
         new($"Linux {operation} failed: {new Win32Exception(error).Message} (errno {error}).");
 
@@ -375,6 +502,10 @@ internal static class LinuxStagingHandles
 
     [DllImport("libc", EntryPoint = "fsync", SetLastError = true)]
     private static extern int Fsync(SafeFileHandle descriptor);
+
+    [DllImport("libc", EntryPoint = "unlinkat", SetLastError = true)]
+    private static extern int UnlinkAt(SafeFileHandle directory,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string path, int flags);
 
     [DllImport("libc", EntryPoint = "geteuid")]
     private static extern uint GetEffectiveUserId();

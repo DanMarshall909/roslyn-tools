@@ -40,3 +40,4 @@ drain, journal each durable removal, and prove the protected operation root
 empty through an exclusive handle-relative rescan before releasing pins.
 Cross-owner restart cleanup additionally needs the shared authority and stale
 writer quiescence proof. Public Apply and repository effects remain disabled.
+ADR-0034 subsequently adds a bounded same-reservation staging cleanup path.

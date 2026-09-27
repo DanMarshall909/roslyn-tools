@@ -89,7 +89,9 @@ internal sealed record OperationStagingJournalEvent(
 
 internal enum OperationCleanupJournalKind
 {
-    InventoryPending
+    InventoryPending,
+    ArtifactRemoved,
+    CleanupVerified
 }
 
 internal sealed record OperationCleanupArtifact(
@@ -1301,6 +1303,108 @@ internal sealed class DurableOperationLedger
         });
     }
 
+    internal static bool CanCleanupNoEffect(DurableOperationRecord operation) =>
+        IsNoEffectTerminal(operation.CurrentState)
+        && operation.EffectJournal.IsEmpty
+        && operation.PreEffectActivity.IsClosed
+        && operation.PreEffectActivity.ActiveAdmissions.IsEmpty
+        && !operation.CleanupJournal.IsEmpty;
+
+    internal static bool CanCleanupNoEffect(
+        DurableOperationRecord operation,
+        RepositoryMutationReservation reservation) =>
+        CanCleanupNoEffect(operation)
+        && !operation.StagingJournal.IsEmpty
+        && operation.StagingJournal[^1].FenceEpoch == reservation.FenceEpoch
+        && operation.StagingJournal[^1].ReservationToken == reservation.FenceToken
+        && operation.CleanupJournal[0].Artifacts.All(artifact =>
+            artifact.FenceEpoch == reservation.FenceEpoch
+            && artifact.ReservationToken == reservation.FenceToken);
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendCleanupArtifactRemoved(
+        string repositoryId,
+        OperationId operationId,
+        OperationCleanupArtifact artifact,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(artifact);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanCleanupNoEffect(operation, reservation))
+                return InvalidCleanupTransition("Pre-effect activity has not drained for cleanup.");
+            var inventory = operation.CleanupJournal[0].Artifacts;
+            var removed = operation.CleanupJournal.Length - 1;
+            if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
+                removed--;
+            if (inventory.Take(removed).Contains(artifact))
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            if (removed >= inventory.Length || inventory[removed] != artifact)
+                return InvalidCleanupTransition("The removal does not match the next admitted artifact.");
+
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.StagingJournal[^1].CommittedAtUtc)
+                now = operation.StagingJournal[^1].CommittedAtUtc;
+            if (now < operation.CleanupJournal[^1].CommittedAtUtc)
+                now = operation.CleanupJournal[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                CleanupJournal = operation.CleanupJournal.Add(new OperationCleanupJournalEvent(
+                    operation.CleanupJournal[^1].Sequence + 1,
+                    OperationCleanupJournalKind.ArtifactRemoved,
+                    [artifact],
+                    now))
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendCleanupVerified(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanCleanupNoEffect(operation, reservation))
+                return InvalidCleanupTransition("Pre-effect activity has not drained for cleanup.");
+            if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            if (operation.CleanupJournal.Length - 1 != operation.CleanupJournal[0].Artifacts.Length)
+                return InvalidCleanupTransition("Admitted artifacts still need removal verification.");
+
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.StagingJournal[^1].CommittedAtUtc)
+                now = operation.StagingJournal[^1].CommittedAtUtc;
+            if (now < operation.CleanupJournal[^1].CommittedAtUtc)
+                now = operation.CleanupJournal[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                CleanupJournal = operation.CleanupJournal.Add(new OperationCleanupJournalEvent(
+                    operation.CleanupJournal[^1].Sequence + 1,
+                    OperationCleanupJournalKind.CleanupVerified,
+                    [],
+                    now))
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    private static Result<DurableOperationRecord, OperationLedgerError> InvalidCleanupTransition(
+        string message) => Result<DurableOperationRecord, OperationLedgerError>.Err(
+            new OperationLedgerError(OperationLedgerErrorKind.InvalidTransition, message));
+
     internal Result<DurableOperationRecord, OperationLedgerError> ClaimApplyOwner(
         string repositoryId,
         OperationId operationId,
@@ -1806,6 +1910,44 @@ internal sealed class DurableOperationLedger
                     new OperationLedgerError(
                         OperationLedgerErrorKind.InvalidTransition,
                         "The drained no-effect cancellation was not found during durability confirmation."));
+            }
+
+            _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(record);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> ConfirmDurableCleanupVerified(
+        string repositoryId,
+        OperationId operationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        try
+        {
+            var protectionError = AcquireExistingProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            using var ledgerLock = AcquireMutationLock();
+            var recordPath = GetRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableOperationRecord>();
+            var loaded = ReadRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            var record = loaded.Match(value => value, _ => null!);
+            if (!CanCleanupNoEffect(record)
+                || record.CleanupJournal[^1].Kind != OperationCleanupJournalKind.CleanupVerified)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(OperationLedgerErrorKind.InvalidTransition,
+                        "The drained and verified cleanup record was not found."));
             }
 
             _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
@@ -2606,10 +2748,10 @@ internal sealed class DurableOperationLedger
             return stagingJournal.IsEmpty
                    || !IsNoEffectTerminal(currentState);
         }
-        if (journal.Length != 1
-            || !IsNoEffectTerminal(currentState)
+        if (!IsNoEffectTerminal(currentState)
             || !effectJournal.IsEmpty
             || stagingJournal.IsEmpty
+            || journal.Length > stagingJournal.Length + 2
             || !activity.IsClosed)
             return false;
 
@@ -2628,8 +2770,43 @@ internal sealed class DurableOperationLedger
                 entry.ExpectedHash,
                 entry.CreationToken!.Value,
                 entry.FenceEpoch,
-                entry.ReservationToken));
-        return pending.Artifacts.SequenceEqual(expected);
+                entry.ReservationToken))
+            .ToImmutableArray();
+        if (!pending.Artifacts.SequenceEqual(expected))
+            return false;
+
+        var removed = 0;
+        for (var index = 1; index < journal.Length; index++)
+        {
+            var entry = journal[index];
+            if (entry is null
+                || entry.Sequence != index + 1
+                || entry.Artifacts.IsDefault
+                || entry.CommittedAtUtc < journal[index - 1].CommittedAtUtc
+                || entry.CommittedAtUtc < stagingJournal[^1].CommittedAtUtc
+                || !activity.ActiveAdmissions.IsEmpty)
+                return false;
+            if (entry.Kind == OperationCleanupJournalKind.ArtifactRemoved)
+            {
+                if (removed >= expected.Length
+                    || entry.Artifacts.Length != 1
+                    || entry.Artifacts[0] != expected[removed])
+                    return false;
+                removed++;
+            }
+            else if (entry.Kind == OperationCleanupJournalKind.CleanupVerified)
+            {
+                if (index != journal.Length - 1
+                    || removed != expected.Length
+                    || !entry.Artifacts.IsEmpty)
+                    return false;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool ValidEffectJournal(

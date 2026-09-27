@@ -1,0 +1,158 @@
+namespace RoslynTools.Core;
+
+internal enum NoEffectCleanupErrorKind
+{
+    LedgerUnavailable,
+    NotReady,
+    UnsafeRoot,
+    ArtifactUnavailable,
+    PinReleaseUnavailable
+}
+
+internal sealed record NoEffectCleanupError(
+    NoEffectCleanupErrorKind Kind,
+    string Message,
+    Exception? Cause = null);
+
+/// <summary>
+///     Cleans only no-effect staging artifacts whose admission fence has drained.
+///     The durable inventory authorizes removals; each completed removal and the
+///     empty operation root are recorded before releasing the plan pin.
+/// </summary>
+internal sealed class JournaledNoEffectCleanup
+{
+    private readonly DurableOperationLedger _ledger;
+    private readonly DurableChangePlanStore _store;
+    private readonly LinuxStagingCleanupBoundary _boundary;
+
+    internal JournaledNoEffectCleanup(
+        DurableOperationLedger ledger,
+        DurableChangePlanStore store,
+        LinuxStagingCleanupBoundary boundary)
+    {
+        _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _boundary = boundary ?? throw new ArgumentNullException(nameof(boundary));
+    }
+
+    internal Result<DurableOperationRecord, NoEffectCleanupError> Cleanup(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        var loaded = _ledger.Load(repositoryId, operationId);
+        if (loaded.IsErr)
+            return LedgerFailure(loaded.Match(_ => null!, error => error));
+        var operation = loaded.Match(value => value, _ => null!);
+        if (!DurableOperationLedger.CanCleanupNoEffect(operation))
+            return Fail(NoEffectCleanupErrorKind.NotReady,
+                "No-effect cleanup requires a closed and drained pre-effect activity fence.");
+        if (operation.StagingJournal.Any(entry =>
+                !string.Equals(entry.StagingRoot, _boundary.TrustedRoot, StringComparison.Ordinal)))
+        {
+            return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                "The durable staging journal does not name the configured cleanup root.");
+        }
+
+        if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
+            return ReleasePin(operation);
+        if (!DurableOperationLedger.CanCleanupNoEffect(operation, reservation))
+            return Fail(NoEffectCleanupErrorKind.NotReady,
+                "Physical cleanup requires the staging activity's held reservation.");
+
+        var artifacts = operation.CleanupJournal[0].Artifacts;
+        var removed = operation.CleanupJournal.Length - 1;
+        LinuxStagingCleanupBoundary.Session session;
+        try
+        {
+            session = _boundary.Acquire(allowMissingRoot: removed == artifacts.Length);
+        }
+        catch (Exception exception) when (IsBoundaryException(exception))
+        {
+            return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                "The protected staging root is unavailable for cleanup.", exception);
+        }
+
+        using (session)
+        {
+            for (var index = removed; index < artifacts.Length; index++)
+            {
+                var artifact = artifacts[index];
+                try
+                {
+                    session.RemoveArtifact(operationId, artifact);
+                }
+                catch (Exception exception) when (IsBoundaryException(exception))
+                {
+                    return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
+                        "The admitted staging artifact could not be durably removed.", exception);
+                }
+                var recorded = _ledger.AppendCleanupArtifactRemoved(
+                    repositoryId, operationId, artifact, reservation);
+                if (recorded.IsErr)
+                    return LedgerFailure(recorded.Match(_ => null!, error => error));
+                operation = recorded.Match(value => value, _ => null!);
+            }
+
+            try
+            {
+                session.RemoveEmptyOperationRoot(operationId);
+            }
+            catch (Exception exception) when (IsBoundaryException(exception))
+            {
+                return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
+                    "The protected operation root is not durably empty.", exception);
+            }
+        }
+
+        var verified = _ledger.AppendCleanupVerified(repositoryId, operationId, reservation);
+        if (verified.IsErr)
+            return LedgerFailure(verified.Match(_ => null!, error => error));
+        return ReleasePin(verified.Match(value => value, _ => null!));
+    }
+
+    private Result<DurableOperationRecord, NoEffectCleanupError> ReleasePin(
+        DurableOperationRecord operation)
+    {
+        var confirmed = _ledger.ConfirmDurableCleanupVerified(
+            operation.RepositoryId, operation.OperationId);
+        if (confirmed.IsErr)
+            return LedgerFailure(confirmed.Match(_ => null!, error => error));
+        operation = confirmed.Match(value => value, _ => null!);
+        var key = new ChangePlanStoreKey(
+            operation.RepositoryId,
+            operation.RequestIdentity.PlanId,
+            operation.RequestIdentity.PlanHash);
+        var released = _store.ReleasePin(
+            key,
+            ChangePlanPinKind.OperationLedger,
+            DurableDispatchIntakeCoordinator.FormatOperationReference(operation.OperationId));
+        if (released.IsErr)
+        {
+            var error = released.Match(_ => null!, value => value);
+            if (error.Kind == ChangePlanStoreErrorKind.Missing)
+                return Result<DurableOperationRecord, NoEffectCleanupError>.Ok(operation);
+            return Fail(NoEffectCleanupErrorKind.PinReleaseUnavailable,
+                "Cleanup was verified but the plan pin could not be released: " + error.Message);
+        }
+        return Result<DurableOperationRecord, NoEffectCleanupError>.Ok(operation);
+    }
+
+    private static Result<DurableOperationRecord, NoEffectCleanupError> LedgerFailure(
+        OperationLedgerError error) => Fail(NoEffectCleanupErrorKind.LedgerUnavailable,
+            error.Message);
+
+    private static Result<DurableOperationRecord, NoEffectCleanupError> Fail(
+        NoEffectCleanupErrorKind kind,
+        string message,
+        Exception? cause = null) =>
+        Result<DurableOperationRecord, NoEffectCleanupError>.Err(new(kind, message, cause));
+
+    private static bool IsBoundaryException(Exception exception) =>
+        exception is IOException or InvalidOperationException
+            or UnauthorizedAccessException or PlatformNotSupportedException;
+}
