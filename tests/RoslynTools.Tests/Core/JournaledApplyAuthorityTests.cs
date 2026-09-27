@@ -37,16 +37,25 @@ public sealed class JournaledApplyAuthorityTests
         Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
 
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        creation.CreationToken.ShouldNotBeNull();
+        Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
+
         var verified = fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+                plan, request.OperationId, 1, Hash(fixture.Content), creation.CreationToken.Value,
+                admission, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
         verified.StagingJournal.Select(entry => entry.Kind).ShouldBe([
             OperationStagingJournalKind.Intent,
+            OperationStagingJournalKind.CreationAdmitted,
             OperationStagingJournalKind.Verified
         ]);
         fixture.LoadOperation(request).StagingJournal.ShouldBe(verified.StagingJournal);
         fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+                plan, request.OperationId, 1, Hash(fixture.Content), creation.CreationToken.Value,
+                admission, reservation)
             .Match(value => value, error => throw new IOException(error.Message))
             .StagingJournal.ShouldBe(verified.StagingJournal);
     }
@@ -68,8 +77,12 @@ public sealed class JournaledApplyAuthorityTests
         fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
             .IsOk.ShouldBeTrue();
 
+        fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .IsErr.ShouldBeTrue();
         fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+                plan, request.OperationId, 1, Hash(fixture.Content), Guid.NewGuid(),
+                admission, reservation)
             .IsErr.ShouldBeTrue();
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
             .IsErr.ShouldBeTrue();
@@ -77,6 +90,85 @@ public sealed class JournaledApplyAuthorityTests
         retained.StagingJournal.ShouldHaveSingleItem();
         retained.StagingJournal[0].Kind.ShouldBe(OperationStagingJournalKind.Intent);
         retained.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task an_admitted_staging_creation_can_finish_after_cancellation_then_drain()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, activity, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), Guid.NewGuid(),
+                activity, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), creation.CreationToken!.Value,
+                activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        var restarted = fixture.LoadOperation(request);
+        restarted.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        restarted.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        restarted.StagingJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationStagingJournalKind.Intent,
+            OperationStagingJournalKind.CreationAdmitted,
+            OperationStagingJournalKind.Verified
+        ]);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task unresolved_staging_creation_cannot_drain_or_clear_the_repository_barrier()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.ConfirmDurableCancelledNoEffect(request.RepositoryId, request.OperationId)
+            .IsErr.ShouldBeTrue();
+        var nextRequest = fixture.Prepare();
+        fixture.Ledger.HasUnresolvedRepositoryMutation(
+                request.RepositoryId, nextRequest.OperationId)
+            .Match(value => value, error => throw new IOException(error.Message))
+            .ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal[^1].Kind
+            .ShouldBe(OperationStagingJournalKind.CreationAdmitted);
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -136,10 +228,14 @@ public sealed class JournaledApplyAuthorityTests
         fixture.LoadOperation(request).StagingJournal.ShouldBeEmpty();
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
             .IsOk.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
         var original = fixture.LoadOperation(request).StagingJournal;
 
         fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, new string('c', 64), admission, reservation)
+                plan, request.OperationId, 1, new string('c', 64), creation.CreationToken!.Value,
+                admission, reservation)
             .IsErr.ShouldBeTrue();
 
         fixture.LoadOperation(request).StagingJournal.ShouldBe(original);
@@ -170,6 +266,38 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
+    public async Task visible_creation_admission_after_directory_flush_failure_replays_one_token()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var failing = fixture.CreateLedger(new FailNthDirectoryFlush(1));
+
+        failing.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        var visible = fixture.LoadOperation(request);
+        visible.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        var token = visible.StagingJournal[^1].CreationToken;
+        token.ShouldNotBeNull();
+
+        var replayed = failing.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        replayed.CreationToken.ShouldBe(token);
+        fixture.LoadOperation(request).StagingJournal.ShouldBe(visible.StagingJournal);
+        Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task tampered_staging_inventory_is_rejected_after_restart()
     {
         using var fixture = new ApplyFixture();
@@ -195,6 +323,79 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
+    public async Task creation_admission_without_its_token_is_rejected_after_restart()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json["stagingJournal"]!.AsArray()[1]!["creationToken"] = Guid.Empty.ToString();
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("A missing creation token was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Theory]
+    [InlineData("mismatched-token")]
+    [InlineData("missing-admission")]
+    public async Task restart_rejects_a_mismatched_or_missing_staging_creation_admission(
+        string tampering)
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), creation.CreationToken!.Value,
+                admission, reservation)
+            .IsOk.ShouldBeTrue();
+
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        var journal = json["stagingJournal"]!.AsArray();
+        if (tampering == "mismatched-token")
+        {
+            journal[2]!["creationToken"] = Guid.NewGuid().ToString();
+        }
+        else
+        {
+            journal.RemoveAt(1);
+            journal[1]!["sequence"] = 2;
+        }
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("A broken staging phase was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
     public async Task staging_verification_rechecks_the_pinned_plan_bytes()
     {
         using var fixture = new ApplyFixture();
@@ -207,14 +408,19 @@ public sealed class JournaledApplyAuthorityTests
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
             .IsOk.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
         var recordPath = DurableOperationLedger.GetRecordPath(
             fixture.LedgerRoot, request.RepositoryId, request.OperationId);
         var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
         json["stagingJournal"]!.AsArray()[0]!["expectedHash"] = new string('c', 64);
+        json["stagingJournal"]!.AsArray()[1]!["expectedHash"] = new string('c', 64);
         File.WriteAllText(recordPath, json.ToJsonString());
 
         fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, new string('c', 64), admission, reservation)
+                plan, request.OperationId, 1, new string('c', 64), creation.CreationToken!.Value,
+                admission, reservation)
             .IsErr.ShouldBeTrue();
         fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
             .IsOk.ShouldBeTrue();
@@ -266,14 +472,19 @@ public sealed class JournaledApplyAuthorityTests
             .IsOk.ShouldBeTrue();
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 2, admission, reservation)
             .IsErr.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
         fixture.Ledger.AppendStagingVerification(
-                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+                plan, request.OperationId, 1, Hash(fixture.Content), creation.CreationToken!.Value,
+                admission, reservation)
             .IsOk.ShouldBeTrue();
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 2, admission, reservation)
             .IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).StagingJournal.Select(entry =>
             (entry.EffectSequence, entry.Kind)).ShouldBe([
             (1, OperationStagingJournalKind.Intent),
+            (1, OperationStagingJournalKind.CreationAdmitted),
             (1, OperationStagingJournalKind.Verified),
             (2, OperationStagingJournalKind.Intent)
         ]);

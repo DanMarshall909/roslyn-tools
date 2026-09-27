@@ -67,8 +67,9 @@ internal enum OperationEffectJournalKind
 
 internal enum OperationStagingJournalKind
 {
-    Intent,
-    Verified
+    Intent = 0,
+    Verified = 1,
+    CreationAdmitted = 2
 }
 
 internal sealed record OperationStagingJournalEvent(
@@ -83,7 +84,8 @@ internal sealed record OperationStagingJournalEvent(
     Guid AdmissionToken,
     long FenceEpoch,
     Guid ReservationToken,
-    DateTimeOffset CommittedAtUtc);
+    DateTimeOffset CommittedAtUtc,
+    Guid? CreationToken = null);
 
 internal sealed record OperationGuardToken(
     string Path,
@@ -876,12 +878,15 @@ internal sealed class DurableOperationLedger
             var activity = operation.PreEffectActivity;
             if (admission.FenceEpoch != reservation.FenceEpoch
                 || admission.ReservationToken != reservation.FenceToken
-                || !activity.ActiveAdmissions.Contains(admission))
+                || !activity.ActiveAdmissions.Contains(admission)
+                || (!operation.StagingJournal.IsEmpty
+                    && operation.StagingJournal[^1].Kind == OperationStagingJournalKind.CreationAdmitted
+                    && operation.StagingJournal[^1].AdmissionToken == admission.Token))
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(
                     new OperationLedgerError(
                         OperationLedgerErrorKind.InvalidTransition,
-                        "Only the admitted reservation may complete pre-effect activity."));
+                        "Only a drained activity under its admitted reservation may complete."));
             }
 
             var next = operation with
@@ -950,11 +955,11 @@ internal sealed class DurableOperationLedger
                     OperationLedgerErrorKind.InvalidTransition,
                     "Staging must follow the verified plan's replacement-effect order."));
             }
-            if (journal.Length >= MaximumStagingJournalEvents - 1)
+            if (journal.Length >= MaximumStagingJournalEvents - 2)
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
                     OperationLedgerErrorKind.InvalidTransition,
-                    "The bounded staging journal has no room for the intent and verification."));
+                    "The bounded staging journal has no room for intent, creation admission, and verification."));
             }
             if (!journal.IsEmpty
                 && (journal[^1].Kind != OperationStagingJournalKind.Verified
@@ -988,11 +993,15 @@ internal sealed class DurableOperationLedger
         });
     }
 
-    internal Result<DurableOperationRecord, OperationLedgerError> AppendStagingVerification(
+    /// <summary>
+    ///     Atomically arbitrates an exact artifact-creation attempt against no-effect
+    ///     fence closure. Only an action admitted here may subsequently create its
+    ///     named artifact; the activity remains active until its outcome drains.
+    /// </summary>
+    internal Result<OperationStagingJournalEvent, OperationLedgerError> AppendStagingCreationAdmission(
         StoredChangePlan plan,
         OperationId operationId,
         int effectSequence,
-        string observedHash,
         PreEffectActivityAdmission admission,
         RepositoryMutationReservation reservation)
     {
@@ -1001,6 +1010,70 @@ internal sealed class DurableOperationLedger
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(reservation);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveStagedEffect(plan, effectSequence);
+        if (effect is null)
+            return Result<OperationStagingJournalEvent, OperationLedgerError>.Err(
+                new(OperationLedgerErrorKind.InvalidTransition,
+                    "Creation admission requires exact replacement bytes from the verified plan."));
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.ReplacementContent.AsSpan()))
+            .ToLowerInvariant();
+        var result = UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanJournalStaging(operation, plan, admission, reservation)
+                || operation.StagingJournal.IsEmpty)
+                return InvalidStagingActivity();
+            var last = operation.StagingJournal[^1];
+            if (last.EffectSequence != effectSequence
+                || last.AdmissionToken != admission.Token
+                || last.ArtifactPath != StagingArtifactPath(
+                    plan.Envelope.Payload.Coordination.StagingRoot, operationId, effectSequence)
+                || !FixedTimeHashEquals(last.ExpectedHash, expectedHash))
+                return InvalidStagingActivity();
+            if (last.Kind == OperationStagingJournalKind.CreationAdmitted)
+            {
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            if (last.Kind != OperationStagingJournalKind.Intent)
+                return InvalidStagingActivity();
+            var now = _utcNow().ToUniversalTime();
+            if (now < last.CommittedAtUtc)
+                now = last.CommittedAtUtc;
+            var admitted = last with
+            {
+                Sequence = operation.StagingJournal.Length + 1,
+                Kind = OperationStagingJournalKind.CreationAdmitted,
+                CreationToken = Guid.NewGuid(),
+                CommittedAtUtc = now
+            };
+            var next = operation with { StagingJournal = operation.StagingJournal.Add(admitted) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+        return result.Match(
+            operation => Result<OperationStagingJournalEvent, OperationLedgerError>.Ok(
+                operation.StagingJournal[^1]),
+            Result<OperationStagingJournalEvent, OperationLedgerError>.Err);
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendStagingVerification(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        string observedHash,
+        Guid creationToken,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        if (creationToken == Guid.Empty)
+            throw new ArgumentException("A staging observation requires its creation token.", nameof(creationToken));
         observedHash = ChangePlanValidation.NormalizeSha256(observedHash, nameof(observedHash));
         reservation.AssertHeld(plan.Key.RepositoryId);
 
@@ -1011,11 +1084,16 @@ internal sealed class DurableOperationLedger
             .ToLowerInvariant();
         return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
         {
-            if (!CanJournalStaging(operation, plan, admission, reservation))
+            if (!CanFinishAdmittedStaging(operation, plan, admission, reservation))
                 return InvalidStagingActivity();
             var intent = operation.StagingJournal.FirstOrDefault(entry =>
                 entry.EffectSequence == effectSequence && entry.Kind == OperationStagingJournalKind.Intent);
+            var creation = operation.StagingJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence
+                && entry.Kind == OperationStagingJournalKind.CreationAdmitted);
             if (intent is null
+                || creation is null
+                || creation.CreationToken != creationToken
                 || intent.AdmissionToken != admission.Token
                 || intent.StagingRoot != plan.Envelope.Payload.Coordination.StagingRoot
                 || intent.ArtifactPath != StagingArtifactPath(intent.StagingRoot, operationId, effectSequence)
@@ -1030,14 +1108,18 @@ internal sealed class DurableOperationLedger
                 entry.EffectSequence == effectSequence && entry.Kind == OperationStagingJournalKind.Verified);
             if (existing is not null)
             {
+                if (existing.CreationToken != creationToken)
+                    return InvalidStagingActivity();
                 _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
                 return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
             }
             var journal = operation.StagingJournal;
+            if (journal[^1] != creation)
+                return InvalidStagingActivity();
             var now = _utcNow().ToUniversalTime();
             if (now < journal[^1].CommittedAtUtc)
                 now = journal[^1].CommittedAtUtc;
-            var verified = intent with
+            var verified = creation with
             {
                 Sequence = journal.Length + 1,
                 Kind = OperationStagingJournalKind.Verified,
@@ -1088,6 +1170,23 @@ internal sealed class DurableOperationLedger
         && (operation.CurrentState != OperationLifecycleState.Applying
             || (OwnerMatches(operation.OwnerLease, reservation)
                 && operation.OwnerLease!.ExpiresAtUtc > _utcNow().ToUniversalTime()));
+
+    private bool CanFinishAdmittedStaging(
+        DurableOperationRecord operation,
+        StoredChangePlan plan,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation) =>
+        operation.RequestIdentity.PlanId == plan.Key.PlanId
+        && FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+        && operation.EffectJournal.IsEmpty
+        && operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+        && admission.FenceEpoch == reservation.FenceEpoch
+        && admission.ReservationToken == reservation.FenceToken
+        && (CanJournalStaging(operation, plan, admission, reservation)
+            || (operation.CurrentState == OperationLifecycleState.CancelledNoEffect
+                && operation.PreEffectActivity.IsClosed
+                && operation.PreEffectActivity.ControlGeneration
+                    == admission.ControlGeneration + 1));
 
     private static Result<DurableOperationRecord, OperationLedgerError> InvalidStagingPlan() =>
         Result<DurableOperationRecord, OperationLedgerError>.Err(new(
@@ -2346,7 +2445,8 @@ internal sealed class DurableOperationLedger
         if (prepared is null || journal[0].CommittedAtUtc < prepared.CommittedAtUtc)
             return false;
 
-        OperationStagingJournalEvent? pending = null;
+        OperationStagingJournalEvent? intent = null;
+        OperationStagingJournalEvent? creation = null;
         var priorEffectSequence = 0;
         for (var index = 0; index < journal.Length; index++)
         {
@@ -2372,29 +2472,48 @@ internal sealed class DurableOperationLedger
 
             if (entry.Kind == OperationStagingJournalKind.Intent)
             {
-                if (pending is not null
+                if (intent is not null
                     || entry.ObservedHash is not null
+                    || entry.CreationToken is not null
                     || entry.EffectSequence <= priorEffectSequence)
                     return false;
-                pending = entry;
+                intent = entry;
                 priorEffectSequence = entry.EffectSequence;
                 continue;
             }
 
-            if (pending is null
-                || entry.EffectSequence != pending.EffectSequence
-                || entry.StagingRoot != pending.StagingRoot
-                || entry.ArtifactPath != pending.ArtifactPath
-                || entry.ExpectedHash != pending.ExpectedHash
-                || entry.ObservedHash != pending.ExpectedHash
-                || entry.ControlGeneration != pending.ControlGeneration
-                || entry.AdmissionToken != pending.AdmissionToken
-                || entry.FenceEpoch != pending.FenceEpoch
-                || entry.ReservationToken != pending.ReservationToken)
+            if (intent is null
+                || entry.EffectSequence != intent.EffectSequence
+                || entry.StagingRoot != intent.StagingRoot
+                || entry.ArtifactPath != intent.ArtifactPath
+                || entry.ExpectedHash != intent.ExpectedHash
+                || entry.ControlGeneration != intent.ControlGeneration
+                || entry.AdmissionToken != intent.AdmissionToken
+                || entry.FenceEpoch != intent.FenceEpoch
+                || entry.ReservationToken != intent.ReservationToken)
                 return false;
-            pending = null;
+            if (entry.Kind == OperationStagingJournalKind.CreationAdmitted)
+            {
+                if (creation is not null
+                    || entry.ObservedHash is not null
+                    || entry.CreationToken is null || entry.CreationToken == Guid.Empty)
+                    return false;
+                creation = entry;
+                continue;
+            }
+            if (creation is null
+                || entry.CreationToken != creation.CreationToken
+                || entry.ObservedHash != intent.ExpectedHash)
+                return false;
+            intent = null;
+            creation = null;
         }
-        return true;
+        return creation is null
+               || activity.ActiveAdmissions.Any(admission =>
+                   admission.Token == creation.AdmissionToken
+                   && admission.ControlGeneration == creation.ControlGeneration
+                   && admission.FenceEpoch == creation.FenceEpoch
+                   && admission.ReservationToken == creation.ReservationToken);
     }
 
     private static bool ValidEffectJournal(

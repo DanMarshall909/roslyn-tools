@@ -856,6 +856,11 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   blocks the first effect. It creates no staging file; protected artifact
   writes, backups, per-action control-root enforcement, cleanup, and public
   cancellation remain open in #140 and #123.
+  [ADR-0030](adr/0030-internal-staging-creation-admission.md) inserts durable
+  creation admission between intent and verification. It orders one named
+  staging action against cancellation under the ledger lock and keeps an
+  unresolved admitted action active across cancellation. No physical artifact
+  writer consumes this admission yet, and the event is not OS effect authority.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
