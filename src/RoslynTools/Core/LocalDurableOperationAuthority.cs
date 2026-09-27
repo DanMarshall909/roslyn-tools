@@ -15,6 +15,7 @@ namespace RoslynTools.Core;
 internal sealed class LocalDurableOperationAuthority
     : IChangePlanStoreProtectionAuthority,
       IOperationLedgerProtectionAuthority,
+      IRepositoryMutationReservationProtectionAuthority,
       IAuthenticatedPrincipalProvider,
       IAuthenticatedOperationContextProvider
 {
@@ -32,6 +33,7 @@ internal sealed class LocalDurableOperationAuthority
             controlRoot ?? DefaultControlRoot));
         PlanStoreRoot = Path.Combine(ControlRoot, "plan-store");
         LedgerRoot = Path.Combine(ControlRoot, "operation-ledger");
+        MutationReservationRoot = Path.Combine(ControlRoot, "mutation-reservations");
         _principal = ResolvePrincipal();
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
@@ -49,6 +51,8 @@ internal sealed class LocalDurableOperationAuthority
     internal string PlanStoreRoot { get; }
 
     internal string LedgerRoot { get; }
+
+    internal string MutationReservationRoot { get; }
 
     /// <summary>Returns the stable OS principal captured by this host authority.</summary>
     public AuthenticatedPrincipalId GetPrincipal() => _principal;
@@ -186,6 +190,27 @@ internal sealed class LocalDurableOperationAuthority
             return UnsafeLedger(acquired.Error);
         lease = new LedgerProtectionLease(acquired.Stream!);
         return null;
+    }
+
+    bool IRepositoryMutationReservationProtectionAuthority.TryAcquire(
+        string controlRoot,
+        ChangePlanRepository repository,
+        out IDisposable? protectionLease)
+    {
+        ArgumentNullException.ThrowIfNull(repository);
+        protectionLease = null;
+        if (!SamePath(controlRoot, MutationReservationRoot)
+            || PathsOverlap(ControlRoot, repository.RepositoryRoot)
+            || PathsOverlap(ControlRoot, repository.ResolvedRepositoryRoot))
+        {
+            return false;
+        }
+
+        var acquired = AcquireRoot(MutationReservationRoot, createIfMissing: true);
+        if (acquired.Error is not null)
+            return false;
+        protectionLease = acquired.Stream;
+        return true;
     }
 
     private static (FileStream? Stream, string? Error) AcquireRoot(

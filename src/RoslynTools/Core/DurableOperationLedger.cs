@@ -58,6 +58,38 @@ internal sealed record OperationTransition(
     DateTimeOffset CommittedAtUtc,
     string? Evidence);
 
+internal enum OperationEffectJournalKind
+{
+    Intent,
+    Admitted,
+    Observed
+}
+
+internal sealed record OperationGuardToken(
+    string Path,
+    ChangePlanGuardKind Kind,
+    string VersionToken);
+
+internal sealed record OperationOwnerLease(
+    Guid OwnerInstanceId,
+    long FenceEpoch,
+    Guid ReservationToken,
+    DateTimeOffset HeartbeatAtUtc,
+    DateTimeOffset ExpiresAtUtc);
+
+internal sealed record OperationEffectJournalEvent(
+    long Sequence,
+    int EffectSequence,
+    OperationEffectJournalKind Kind,
+    string EvidenceHash,
+    DateTimeOffset CommittedAtUtc)
+{
+    internal long? FenceEpoch { get; init; }
+    internal Guid? FenceToken { get; init; }
+    internal string? EffectHash { get; init; }
+    internal ImmutableArray<OperationGuardToken> GuardTokens { get; init; } = [];
+}
+
 internal sealed record DurableOperationRecord(
     string RepositoryId,
     OperationId OperationId,
@@ -65,7 +97,11 @@ internal sealed record DurableOperationRecord(
     ImmutableArray<byte> CanonicalRequestBytes,
     string SubmittingPrincipalId,
     OperationLifecycleState CurrentState,
-    ImmutableArray<OperationTransition> Transitions);
+    ImmutableArray<OperationTransition> Transitions)
+{
+    internal ImmutableArray<OperationEffectJournalEvent> EffectJournal { get; init; } = [];
+    internal OperationOwnerLease? OwnerLease { get; init; }
+}
 
 internal sealed record OperationIntakeResult(
     OperationIntakeDisposition Disposition,
@@ -227,6 +263,7 @@ internal sealed class UnavailableOperationLedgerProtectionAuthority
 internal sealed class DurableOperationLedger
 {
     private const int StoreSchemaVersion = 1;
+    private static readonly TimeSpan ApplyOwnerLeaseLifetime = TimeSpan.FromMinutes(1);
     private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
     private const uint MoveFileWriteThrough = 0x8;
@@ -545,6 +582,79 @@ internal sealed class DurableOperationLedger
         }
     }
 
+    internal Result<bool, OperationLedgerError> HasUnresolvedRepositoryMutation(
+        string repositoryId,
+        OperationId excludedOperationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(excludedOperationId);
+
+        try
+        {
+            var protectionError = AcquireExistingProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<bool, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            if (!Directory.Exists(_rootPath))
+                return Missing<bool>();
+            using var ledgerLock = AcquireMutationLock();
+
+            var repositoryPath = Path.Combine(_operationsPath, Digest(repositoryId));
+            if (!Directory.Exists(repositoryPath))
+                return Result<bool, OperationLedgerError>.Ok(false);
+            if ((File.GetAttributes(repositoryPath) & FileAttributes.ReparsePoint) != 0)
+                return Corrupt<bool>("The repository operation directory is a link.");
+            foreach (var epochPath in Directory.EnumerateDirectories(repositoryPath))
+            {
+                if ((File.GetAttributes(epochPath) & FileAttributes.ReparsePoint) != 0
+                    || !long.TryParse(Path.GetFileName(epochPath), out var epoch)
+                    || epoch <= 0)
+                {
+                    return Corrupt<bool>("The repository contains an invalid operation address.");
+                }
+                foreach (var recordPath in Directory.EnumerateFiles(
+                             epochPath,
+                             "*.operation",
+                             SearchOption.TopDirectoryOnly))
+                {
+                    var nonceName = Path.GetFileNameWithoutExtension(recordPath);
+                    if (!Guid.TryParseExact(nonceName, "D", out var nonce)
+                        || nonce == Guid.Empty)
+                    {
+                        return Corrupt<bool>("The repository contains an invalid operation address.");
+                    }
+                    var operationId = new OperationId(epoch, nonce);
+                    var loaded = ReadRecord(recordPath, repositoryId, operationId);
+                    if (loaded.IsErr)
+                        return loaded.Map(_ => false);
+                    var operation = loaded.Match(value => value, _ => null!);
+                    if (operationId == excludedOperationId)
+                        continue;
+                    if (operation.CurrentState == OperationLifecycleState.Applied)
+                    {
+                        // An atomic replacement may have been visible after its
+                        // directory flush failed. Prove that terminal record durable
+                        // before admitting a later mutation in this repository.
+                        _durability.FlushDirectoryMetadata(epochPath);
+                    }
+                    if (operation.CurrentState is OperationLifecycleState.Applying
+                        or OperationLifecycleState.OwnerQuiescencePending
+                        or OperationLifecycleState.Reconciling
+                        or OperationLifecycleState.RecoveryRequired
+                        or OperationLifecycleState.Recovering)
+                    {
+                        return Result<bool, OperationLedgerError>.Ok(true);
+                    }
+                }
+            }
+            return Result<bool, OperationLedgerError>.Ok(false);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<bool, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
     internal Result<DurableOperationRecord, OperationLedgerError> AppendTransition(
         string repositoryId,
         OperationId operationId,
@@ -590,6 +700,13 @@ internal sealed class DurableOperationLedger
                         // Stryker disable once String : Transition wording is diagnostic; the typed kind is the contract.
                         $"Operation lifecycle cannot transition from '{expectedCurrentState}' to '{nextState}'."));
             }
+            if (RequiresMutationProof(expectedCurrentState, nextState))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "A repository mutation outcome requires durable effect or no-effect verification."));
+            }
 
             var committedAtUtc = _utcNow().ToUniversalTime();
             var previousCommittedAtUtc = operation.Transitions[^1].CommittedAtUtc;
@@ -597,6 +714,11 @@ internal sealed class DurableOperationLedger
             committedAtUtc = committedAtUtc < previousCommittedAtUtc
                 ? previousCommittedAtUtc
                 : committedAtUtc;
+            if (!operation.EffectJournal.IsEmpty
+                && committedAtUtc < operation.EffectJournal[^1].CommittedAtUtc)
+            {
+                committedAtUtc = operation.EffectJournal[^1].CommittedAtUtc;
+            }
             var transitions = operation.Transitions.Add(new OperationTransition(
                 operation.Transitions[^1].Sequence + 1,
                 nextState,
@@ -609,6 +731,491 @@ internal sealed class DurableOperationLedger
             };
             WriteRecord(recordPath, updated);
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> ClaimApplyOwner(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation,
+        string planHash)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+        planHash = ChangePlanValidation.NormalizeSha256(planHash, nameof(planHash));
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.CurrentState != OperationLifecycleState.Prepared
+                || operation.OwnerLease is not null
+                || !FixedTimeHashEquals(operation.RequestIdentity.PlanHash, planHash))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "A prepared exact plan is required to claim apply ownership."));
+            }
+
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            var updated = operation with
+            {
+                CurrentState = OperationLifecycleState.Applying,
+                OwnerLease = new OperationOwnerLease(
+                    Guid.NewGuid(),
+                    reservation.FenceEpoch,
+                    reservation.FenceToken,
+                    now,
+                    now + ApplyOwnerLeaseLifetime),
+                Transitions = operation.Transitions.Add(new OperationTransition(
+                    operation.Transitions[^1].Sequence + 1,
+                    OperationLifecycleState.Applying,
+                    now,
+                    planHash))
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> RenewApplyOwner(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var observedNow = _utcNow().ToUniversalTime();
+            if (operation.CurrentState != OperationLifecycleState.Applying
+                || !OwnerMatches(operation.OwnerLease, reservation)
+                || operation.OwnerLease!.ExpiresAtUtc <= observedNow)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Only the held apply owner may renew its lease."));
+            }
+            var now = observedNow;
+            if (now < operation.OwnerLease!.HeartbeatAtUtc)
+                now = operation.OwnerLease.HeartbeatAtUtc;
+            var updated = operation with
+            {
+                OwnerLease = operation.OwnerLease with
+                {
+                    HeartbeatAtUtc = now,
+                    ExpiresAtUtc = now + ApplyOwnerLeaseLifetime
+                }
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendEffectIntent(
+        string repositoryId,
+        OperationId operationId,
+        int effectSequence,
+        string planEffectHash,
+        RepositoryMutationReservation? reservation = null,
+        string? effectHash = null,
+        ImmutableArray<OperationGuardToken> guardTokens = default)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        planEffectHash = ChangePlanValidation.NormalizeSha256(planEffectHash, nameof(planEffectHash));
+        if (effectHash is not null)
+            effectHash = ChangePlanValidation.NormalizeSha256(effectHash, nameof(effectHash));
+        if (reservation is not null && guardTokens.IsDefaultOrEmpty)
+            throw new ArgumentException("A guarded effect intent requires guard tokens.", nameof(guardTokens));
+        reservation?.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.CurrentState != OperationLifecycleState.Applying)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "An effect intent requires an applying operation."));
+            }
+            if (reservation is not null
+                && (!OwnerMatches(operation.OwnerLease, reservation)
+                    || operation.OwnerLease!.ExpiresAtUtc <= _utcNow().ToUniversalTime()))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Effect intent requires the current unexpired apply owner."));
+            }
+
+            var journal = operation.EffectJournal;
+            if (!journal.IsEmpty && journal[^1].Kind is
+                    OperationEffectJournalKind.Intent or OperationEffectJournalKind.Admitted)
+            {
+                var pending = journal[^1];
+                return pending.Kind == OperationEffectJournalKind.Intent
+                       && pending.EffectSequence == effectSequence
+                       && FixedTimeHashEquals(pending.EvidenceHash, planEffectHash)
+                    ? Result<DurableOperationRecord, OperationLedgerError>.Ok(operation)
+                    : Result<DurableOperationRecord, OperationLedgerError>.Err(
+                        new OperationLedgerError(
+                            OperationLedgerErrorKind.Conflict,
+                            "A different effect intent is already pending."));
+            }
+
+            var nextEffectSequence = journal.IsEmpty ? 1 : journal[^1].EffectSequence + 1;
+            if (effectSequence != nextEffectSequence)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Effect intents must follow the reviewed plan order."));
+            }
+
+            var committedAtUtc = _utcNow().ToUniversalTime();
+            var lastCommit = journal.IsEmpty
+                ? operation.Transitions[^1].CommittedAtUtc
+                : journal[^1].CommittedAtUtc;
+            if (committedAtUtc < lastCommit)
+                committedAtUtc = lastCommit;
+            var updated = operation with
+            {
+                EffectJournal = journal.Add(new OperationEffectJournalEvent(
+                    journal.IsEmpty ? 1 : journal[^1].Sequence + 1,
+                    effectSequence,
+                    OperationEffectJournalKind.Intent,
+                    planEffectHash,
+                    committedAtUtc)
+                {
+                    FenceEpoch = reservation?.FenceEpoch,
+                    FenceToken = reservation?.FenceToken,
+                    EffectHash = effectHash,
+                    GuardTokens = guardTokens.IsDefault ? [] : guardTokens
+                })
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendEffectAdmission(
+        string repositoryId,
+        OperationId operationId,
+        int effectSequence,
+        string intentHash,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+        intentHash = ChangePlanValidation.NormalizeSha256(intentHash, nameof(intentHash));
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var journal = operation.EffectJournal;
+            if (operation.CurrentState != OperationLifecycleState.Applying
+                || journal.IsEmpty
+                || !OwnerMatches(operation.OwnerLease, reservation)
+                || operation.OwnerLease!.ExpiresAtUtc <= _utcNow().ToUniversalTime()
+                || journal[^1].Kind != OperationEffectJournalKind.Intent
+                || journal[^1].EffectSequence != effectSequence
+                || journal[^1].FenceEpoch != reservation.FenceEpoch
+                || journal[^1].FenceToken != reservation.FenceToken
+                || !FixedTimeHashEquals(journal[^1].EvidenceHash, intentHash))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Effect admission requires the current fenced durable intent."));
+            }
+
+            var intent = journal[^1];
+            var committedAtUtc = _utcNow().ToUniversalTime();
+            if (committedAtUtc < intent.CommittedAtUtc)
+                committedAtUtc = intent.CommittedAtUtc;
+            var updated = operation with
+            {
+                EffectJournal = journal.Add(new OperationEffectJournalEvent(
+                    intent.Sequence + 1,
+                    effectSequence,
+                    OperationEffectJournalKind.Admitted,
+                    intentHash,
+                    committedAtUtc)
+                {
+                    FenceEpoch = intent.FenceEpoch,
+                    FenceToken = intent.FenceToken,
+                    EffectHash = intent.EffectHash,
+                    GuardTokens = intent.GuardTokens
+                })
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendEffectObservation(
+        string repositoryId,
+        OperationId operationId,
+        int effectSequence,
+        string observedStateHash,
+        RepositoryMutationReservation? reservation = null)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        observedStateHash = ChangePlanValidation.NormalizeSha256(
+            observedStateHash,
+            nameof(observedStateHash));
+        reservation?.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.CurrentState != OperationLifecycleState.Applying)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "An effect observation requires an applying operation."));
+            }
+
+            var journal = operation.EffectJournal;
+            if (journal.IsEmpty)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "An effect cannot be observed before its intent is durable."));
+            }
+            var last = journal[^1];
+            if (last.FenceEpoch.HasValue
+                && (reservation is null
+                    || !OwnerMatches(operation.OwnerLease, reservation)))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "A guarded observation requires the held apply owner."));
+            }
+            if (last.Kind == OperationEffectJournalKind.Observed)
+            {
+                return last.EffectSequence == effectSequence
+                       && FixedTimeHashEquals(last.EvidenceHash, observedStateHash)
+                    ? Result<DurableOperationRecord, OperationLedgerError>.Ok(operation)
+                    : Result<DurableOperationRecord, OperationLedgerError>.Err(
+                        new OperationLedgerError(
+                            OperationLedgerErrorKind.Conflict,
+                            "A different effect observation is already durable."));
+            }
+            if (last.EffectSequence != effectSequence
+                || (last.FenceEpoch.HasValue
+                    && last.Kind != OperationEffectJournalKind.Admitted)
+                || (!last.FenceEpoch.HasValue
+                    && last.Kind != OperationEffectJournalKind.Intent))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "An effect observation must match the pending intent."));
+            }
+
+            var committedAtUtc = _utcNow().ToUniversalTime();
+            if (committedAtUtc < last.CommittedAtUtc)
+                committedAtUtc = last.CommittedAtUtc;
+            var updated = operation with
+            {
+                EffectJournal = journal.Add(new OperationEffectJournalEvent(
+                    last.Sequence + 1,
+                    effectSequence,
+                    OperationEffectJournalKind.Observed,
+                    observedStateHash,
+                    committedAtUtc)
+                {
+                    FenceEpoch = last.FenceEpoch,
+                    FenceToken = last.FenceToken,
+                    EffectHash = last.EffectHash,
+                    GuardTokens = last.GuardTokens
+                })
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendVerifiedApplied(
+        StoredChangePlan plan,
+        OperationId operationId,
+        RepositoryMutationReservation reservation,
+        string verificationHash)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        var repositoryId = plan.Key.RepositoryId;
+        reservation.AssertHeld(repositoryId);
+        verificationHash = ChangePlanValidation.NormalizeSha256(
+            verificationHash,
+            nameof(verificationHash));
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.CurrentState != OperationLifecycleState.Applying
+                || !OwnerMatches(operation.OwnerLease, reservation)
+                || operation.OwnerLease!.ExpiresAtUtc <= _utcNow().ToUniversalTime()
+                || operation.RequestIdentity.PlanId != plan.Key.PlanId
+                || !FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+                || !plan.Pins.Any(pin =>
+                    pin.Kind == ChangePlanPinKind.OperationLedger
+                    && string.Equals(
+                        pin.ReferenceId,
+                        DurableDispatchIntakeCoordinator.FormatOperationReference(operationId),
+                        StringComparison.Ordinal))
+                || operation.EffectJournal.Length != plan.Envelope.Payload.Effects.Length * 3)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Applied requires the exact pinned plan and complete observed effect journal."));
+            }
+            for (var index = 0; index < plan.Envelope.Payload.Effects.Length; index++)
+            {
+                var effect = plan.Envelope.Payload.Effects[index];
+                var intent = operation.EffectJournal[index * 3];
+                var admission = operation.EffectJournal[index * 3 + 1];
+                var observed = operation.EffectJournal[index * 3 + 2];
+                if (intent.Kind != OperationEffectJournalKind.Intent
+                    || admission.Kind != OperationEffectJournalKind.Admitted
+                    || observed.Kind != OperationEffectJournalKind.Observed
+                    || intent.EffectSequence != effect.Sequence
+                    || admission.EffectSequence != effect.Sequence
+                    || observed.EffectSequence != effect.Sequence
+                    || intent.FenceEpoch != reservation.FenceEpoch
+                    || intent.FenceToken != reservation.FenceToken
+                    || observed.FenceEpoch != reservation.FenceEpoch
+                    || observed.FenceToken != reservation.FenceToken
+                    || admission.FenceEpoch != reservation.FenceEpoch
+                    || admission.FenceToken != reservation.FenceToken
+                    || intent.EffectHash is null
+                    || !FixedTimeHashEquals(
+                        intent.EffectHash,
+                        CanonicalChangePlan.ComputeEffectHash(effect))
+                    || observed.EffectHash != intent.EffectHash
+                    || admission.EffectHash != intent.EffectHash
+                    || !intent.GuardTokens.SequenceEqual(
+                        OperationGuardTokenSet.Expected(plan.Envelope.Payload))
+                    || !admission.GuardTokens.SequenceEqual(intent.GuardTokens)
+                    || !observed.GuardTokens.SequenceEqual(intent.GuardTokens)
+                    || !FixedTimeHashEquals(
+                        intent.EvidenceHash,
+                        OperationEffectIntentIdentity.Compute(
+                            plan.Key.PlanHash,
+                            effect.Sequence,
+                            reservation.FenceToken,
+                            reservation.FenceEpoch)))
+                {
+                    return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                        new OperationLedgerError(
+                            OperationLedgerErrorKind.InvalidTransition,
+                            "The observed effect journal does not match the held plan and fence."));
+                }
+            }
+
+            var committedAtUtc = _utcNow().ToUniversalTime();
+            if (committedAtUtc < operation.EffectJournal[^1].CommittedAtUtc)
+                committedAtUtc = operation.EffectJournal[^1].CommittedAtUtc;
+            var updated = operation with
+            {
+                CurrentState = OperationLifecycleState.Applied,
+                Transitions = operation.Transitions.Add(new OperationTransition(
+                    operation.Transitions[^1].Sequence + 1,
+                    OperationLifecycleState.Applied,
+                    committedAtUtc,
+                    verificationHash))
+            };
+            WriteRecord(recordPath, updated);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> ConfirmDurableApplied(
+        string repositoryId,
+        OperationId operationId,
+        string verificationHash)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        verificationHash = ChangePlanValidation.NormalizeSha256(
+            verificationHash,
+            nameof(verificationHash));
+
+        try
+        {
+            var protectionError = AcquireExistingProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            using var ledgerLock = AcquireMutationLock();
+            var recordPath = GetRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableOperationRecord>();
+            var loaded = ReadRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            var record = loaded.Match(value => value, _ => null!);
+            if (record.CurrentState != OperationLifecycleState.Applied
+                || record.Transitions[^1].Evidence != verificationHash)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "The verified applied outcome was not found during durability confirmation."));
+            }
+
+            _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(record);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
+    private Result<DurableOperationRecord, OperationLedgerError> UpdateEffectJournal(
+        string repositoryId,
+        OperationId operationId,
+        Func<DurableOperationRecord, string, Result<DurableOperationRecord, OperationLedgerError>> update)
+    {
+        try
+        {
+            var protectionError = AcquireProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            if (!Directory.Exists(_rootPath))
+                return Missing<DurableOperationRecord>();
+            using var ledgerLock = AcquireMutationLock();
+
+            var recordPath = GetRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableOperationRecord>();
+            var loaded = ReadRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            return update(loaded.Match(record => record, _ => null!), recordPath);
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -806,6 +1413,54 @@ internal sealed class DurableOperationLedger
                 // Stryker disable once String : Corruption wording is diagnostic; the typed kind is the contract.
                 return Corrupt<DurableOperationRecord>("The operation lifecycle history is inconsistent.");
 
+            if (stored.EffectJournal is not null
+                && stored.EffectJournal.Any(static journalEvent => journalEvent is null))
+            {
+                return Corrupt<DurableOperationRecord>("The effect journal contains a missing event.");
+            }
+            var effectJournal = stored.EffectJournal is null
+                ? ImmutableArray<OperationEffectJournalEvent>.Empty
+                : stored.EffectJournal.Select(journalEvent => new OperationEffectJournalEvent(
+                    journalEvent!.Sequence,
+                    journalEvent.EffectSequence,
+                    journalEvent.Kind,
+                    ChangePlanValidation.NormalizeSha256(
+                        journalEvent.EvidenceHash,
+                        nameof(journalEvent.EvidenceHash)),
+                    journalEvent.CommittedAtUtc.ToUniversalTime())
+                {
+                    FenceEpoch = journalEvent.FenceEpoch,
+                    FenceToken = journalEvent.FenceToken,
+                    EffectHash = journalEvent.EffectHash is null
+                        ? null
+                        : ChangePlanValidation.NormalizeSha256(
+                            journalEvent.EffectHash,
+                            nameof(journalEvent.EffectHash)),
+                    GuardTokens = journalEvent.GuardTokens is null
+                        ? []
+                        : journalEvent.GuardTokens.ToImmutableArray()
+                }).ToImmutableArray();
+            if (!ValidEffectJournal(effectJournal, transitions))
+                return Corrupt<DurableOperationRecord>("The effect journal is inconsistent.");
+            var ownerLease = stored.OwnerLease;
+            if (ownerLease is not null
+                && (ownerLease.OwnerInstanceId == Guid.Empty
+                    || ownerLease.FenceEpoch <= 0
+                    || ownerLease.ReservationToken == Guid.Empty
+                    || ownerLease.ExpiresAtUtc <= ownerLease.HeartbeatAtUtc
+                    || !transitions.Any(transition =>
+                        transition.State == OperationLifecycleState.Applying)))
+            {
+                return Corrupt<DurableOperationRecord>("The apply owner lease is invalid.");
+            }
+            if (effectJournal.Any(journalEvent => journalEvent.FenceEpoch.HasValue
+                && (ownerLease is null
+                    || journalEvent.FenceEpoch != ownerLease.FenceEpoch
+                    || journalEvent.FenceToken != ownerLease.ReservationToken)))
+            {
+                return Corrupt<DurableOperationRecord>("The effect journal does not match its apply owner.");
+            }
+
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(new DurableOperationRecord(
                 stored.RepositoryId,
                 operationId,
@@ -813,7 +1468,11 @@ internal sealed class DurableOperationLedger
                 ImmutableArray.CreateRange(canonicalBytes),
                 OperationRequestText.Required(stored.SubmittingPrincipalId, nameof(stored.SubmittingPrincipalId)),
                 stored.CurrentState,
-                transitions));
+                transitions)
+            {
+                EffectJournal = effectJournal,
+                OwnerLease = ownerLease
+            });
         }
         catch (Exception exception) when (exception is ArgumentException or FormatException)
         {
@@ -979,7 +1638,18 @@ internal sealed class DurableOperationLedger
                 transition.Sequence,
                 transition.State,
                 transition.CommittedAtUtc,
-                transition.Evidence)).ToArray());
+                transition.Evidence)).ToArray(),
+            record.EffectJournal.Select(journalEvent => new EffectJournalRecord(
+                journalEvent.Sequence,
+                journalEvent.EffectSequence,
+                journalEvent.Kind,
+                journalEvent.EvidenceHash,
+                journalEvent.CommittedAtUtc,
+                journalEvent.FenceEpoch,
+                journalEvent.FenceToken,
+                journalEvent.EffectHash,
+                journalEvent.GuardTokens.ToArray())).ToArray(),
+            record.OwnerLease);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -1159,6 +1829,87 @@ internal sealed class DurableOperationLedger
         return true;
     }
 
+    private static bool ValidEffectJournal(
+        ImmutableArray<OperationEffectJournalEvent> journal,
+        ImmutableArray<OperationTransition> transitions)
+    {
+        if (journal.IsEmpty)
+            return true;
+        var applyingIndex = -1;
+        for (var index = 0; index < transitions.Length; index++)
+        {
+            if (transitions[index].State != OperationLifecycleState.Applying)
+                continue;
+            applyingIndex = index;
+            break;
+        }
+        if (applyingIndex < 0
+            || journal[0].Sequence != 1
+            || journal[0].EffectSequence != 1
+            || journal[0].Kind != OperationEffectJournalKind.Intent
+            || journal[0].CommittedAtUtc < transitions[applyingIndex].CommittedAtUtc
+            || (applyingIndex + 1 < transitions.Length
+                && journal[^1].CommittedAtUtc > transitions[applyingIndex + 1].CommittedAtUtc))
+        {
+            return false;
+        }
+        foreach (var journalEvent in journal)
+        {
+            if (journalEvent.FenceEpoch.HasValue != journalEvent.FenceToken.HasValue
+                || journalEvent.FenceEpoch is <= 0
+                || journalEvent.FenceToken == Guid.Empty
+                || (journalEvent.FenceEpoch.HasValue
+                    && (journalEvent.EffectHash is null || journalEvent.GuardTokens.IsEmpty))
+                || journalEvent.GuardTokens.Any(guard => guard is null
+                    || string.IsNullOrWhiteSpace(guard.Path)
+                    || string.IsNullOrWhiteSpace(guard.VersionToken)
+                    || !Enum.IsDefined(guard.Kind)))
+            {
+                return false;
+            }
+        }
+
+        for (var index = 1; index < journal.Length; index++)
+        {
+            var previous = journal[index - 1];
+            var current = journal[index];
+            if (current.Sequence != previous.Sequence + 1
+                || current.CommittedAtUtc < previous.CommittedAtUtc
+                || current.FenceEpoch != previous.FenceEpoch
+                || current.FenceToken != previous.FenceToken)
+            {
+                return false;
+            }
+            if (previous.Kind == OperationEffectJournalKind.Intent)
+            {
+                var expectedNext = previous.FenceEpoch.HasValue
+                    ? OperationEffectJournalKind.Admitted
+                    : OperationEffectJournalKind.Observed;
+                if (current.Kind != expectedNext
+                    || current.EffectSequence != previous.EffectSequence
+                    || current.EffectHash != previous.EffectHash
+                    || !current.GuardTokens.SequenceEqual(previous.GuardTokens)
+                    || (current.Kind == OperationEffectJournalKind.Admitted
+                        && !FixedTimeHashEquals(current.EvidenceHash, previous.EvidenceHash)))
+                    return false;
+            }
+            else if (previous.Kind == OperationEffectJournalKind.Admitted)
+            {
+                if (current.Kind != OperationEffectJournalKind.Observed
+                    || current.EffectSequence != previous.EffectSequence
+                    || current.EffectHash != previous.EffectHash
+                    || !current.GuardTokens.SequenceEqual(previous.GuardTokens))
+                    return false;
+            }
+            else if (current.Kind != OperationEffectJournalKind.Intent
+                     || current.EffectSequence != previous.EffectSequence + 1)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static bool CanTransition(
         OperationLifecycleState current,
         OperationLifecycleState next) => current switch
@@ -1208,6 +1959,23 @@ internal sealed class DurableOperationLedger
                 or OperationLifecycleState.Reconciling,
             _ => false
         };
+
+    private static bool RequiresMutationProof(
+        OperationLifecycleState current,
+        OperationLifecycleState next) =>
+        current is OperationLifecycleState.Applying
+            or OperationLifecycleState.Reconciling
+            or OperationLifecycleState.Recovering
+        && next is not OperationLifecycleState.OwnerQuiescencePending
+            and not OperationLifecycleState.Reconciling
+            and not OperationLifecycleState.RecoveryRequired;
+
+    private static bool OwnerMatches(
+        OperationOwnerLease? owner,
+        RepositoryMutationReservation reservation) =>
+        owner is not null
+        && owner.FenceEpoch == reservation.FenceEpoch
+        && owner.ReservationToken == reservation.FenceToken;
 
     private static bool FixedTimeHashEquals(string left, string right)
     {
@@ -1259,7 +2027,20 @@ internal sealed class DurableOperationLedger
         string CanonicalRequestBase64,
         string SubmittingPrincipalId,
         OperationLifecycleState CurrentState,
-        IReadOnlyList<TransitionRecord> Transitions);
+        IReadOnlyList<TransitionRecord> Transitions,
+        IReadOnlyList<EffectJournalRecord>? EffectJournal = null,
+        OperationOwnerLease? OwnerLease = null);
+
+    private sealed record EffectJournalRecord(
+        long Sequence,
+        int EffectSequence,
+        OperationEffectJournalKind Kind,
+        string EvidenceHash,
+        DateTimeOffset CommittedAtUtc,
+        long? FenceEpoch = null,
+        Guid? FenceToken = null,
+        string? EffectHash = null,
+        IReadOnlyList<OperationGuardToken>? GuardTokens = null);
 
     private sealed record DispatchRecord(
         int SchemaVersion,
@@ -1316,7 +2097,7 @@ internal sealed class DurableOperationLedger
     [DllImport("libc", EntryPoint = "fsync", SetLastError = true)]
     private static extern int Fsync(SafeFileHandle handle);
 
-    private sealed class PlatformOperationLedgerDurability : IOperationLedgerDurability
+    internal sealed class PlatformOperationLedgerDurability : IOperationLedgerDurability
     {
         internal static PlatformOperationLedgerDurability Instance { get; } = new();
 

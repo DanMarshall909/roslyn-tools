@@ -173,6 +173,321 @@ public sealed class DurableOperationLedgerTests
         File.ReadAllBytes(fixture.RecordPath(request)).ShouldBe(bytesBefore);
     }
 
+    [Theory]
+    [InlineData((int)OperationLifecycleState.Applying, (int)OperationLifecycleState.Applied)]
+    [InlineData((int)OperationLifecycleState.Applying, (int)OperationLifecycleState.RolledBack)]
+    [InlineData((int)OperationLifecycleState.Applying, (int)OperationLifecycleState.CancelledNoEffect)]
+    [InlineData((int)OperationLifecycleState.Reconciling, (int)OperationLifecycleState.Applied)]
+    [InlineData((int)OperationLifecycleState.Reconciling, (int)OperationLifecycleState.RejectedStale)]
+    [InlineData((int)OperationLifecycleState.Recovering, (int)OperationLifecycleState.RecoveredApplied)]
+    [InlineData((int)OperationLifecycleState.Recovering, (int)OperationLifecycleState.RecoveredRolledBack)]
+    public void unproven_mutation_outcomes_cannot_change_durable_history(
+        int currentStateValue,
+        int claimedOutcomeValue)
+    {
+        var currentState = (OperationLifecycleState)currentStateValue;
+        var claimedOutcome = (OperationLifecycleState)claimedOutcomeValue;
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Received,
+            OperationLifecycleState.Prepared,
+            "plan-loaded"));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Prepared,
+            OperationLifecycleState.Applying,
+            "owner-claimed"));
+        if (currentState == OperationLifecycleState.Reconciling)
+        {
+            Unwrap(ledger.AppendTransition(
+                request.RepositoryId,
+                request.OperationId,
+                OperationLifecycleState.Applying,
+                OperationLifecycleState.Reconciling,
+                "owner-lost"));
+        }
+        if (currentState == OperationLifecycleState.Recovering)
+        {
+            Unwrap(ledger.AppendTransition(
+                request.RepositoryId,
+                request.OperationId,
+                OperationLifecycleState.Applying,
+                OperationLifecycleState.RecoveryRequired,
+                "outcome-uncertain"));
+            Unwrap(ledger.AppendTransition(
+                request.RepositoryId,
+                request.OperationId,
+                OperationLifecycleState.RecoveryRequired,
+                OperationLifecycleState.Recovering,
+                "recovery-started"));
+        }
+        var recordBefore = File.ReadAllBytes(fixture.RecordPath(request));
+
+        var result = ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            currentState,
+            claimedOutcome,
+            "claimed-complete");
+
+        Error(result).Kind.ShouldBe(OperationLedgerErrorKind.InvalidTransition);
+        File.ReadAllBytes(fixture.RecordPath(request)).ShouldBe(recordBefore);
+    }
+
+    [Fact]
+    public void a_fresh_ledger_sees_the_first_effect_intent_before_any_effect_is_observed()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Received,
+            OperationLifecycleState.Prepared,
+            "plan-loaded"));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Prepared,
+            OperationLifecycleState.Applying,
+            "owner-claimed"));
+
+        var intent = Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId,
+            request.OperationId,
+            effectSequence: 1,
+            planEffectHash: new string('c', 64)));
+        var restarted = Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId));
+
+        intent.EffectJournal.ShouldHaveSingleItem();
+        restarted.EffectJournal.ShouldBe(intent.EffectJournal);
+        restarted.EffectJournal[0].Kind.ShouldBe(OperationEffectJournalKind.Intent);
+        restarted.EffectJournal[0].EffectSequence.ShouldBe(1);
+        restarted.EffectJournal[0].EvidenceHash.ShouldBe(new string('c', 64));
+        restarted.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+    }
+
+    [Fact]
+    public void pending_effect_intent_replays_exactly_and_rejects_different_or_out_of_order_work()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+
+        Error(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 2, new string('c', 64)))
+            .Kind.ShouldBe(OperationLedgerErrorKind.InvalidTransition);
+        var first = Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+        var bytes = File.ReadAllBytes(fixture.RecordPath(request));
+
+        var replay = Unwrap(fixture.CreateLedger().AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+        var conflict = Error(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)));
+        var nextBeforeObservation = Error(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 2, new string('e', 64)));
+
+        replay.EffectJournal.ShouldBe(first.EffectJournal);
+        conflict.Kind.ShouldBe(OperationLedgerErrorKind.Conflict);
+        nextBeforeObservation.Kind.ShouldBe(OperationLedgerErrorKind.Conflict);
+        File.ReadAllBytes(fixture.RecordPath(request)).ShouldBe(bytes);
+    }
+
+    [Fact]
+    public void an_observed_effect_allows_the_next_reviewed_effect_after_restart()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+        Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+
+        var observed = Unwrap(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)));
+        var restarted = fixture.CreateLedger();
+        var next = Unwrap(restarted.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 2, new string('e', 64)));
+
+        observed.EffectJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationEffectJournalKind.Intent,
+            OperationEffectJournalKind.Observed
+        ]);
+        next.EffectJournal.Select(entry => entry.EffectSequence).ShouldBe([1, 1, 2]);
+        next.EffectJournal.Select(entry => entry.Sequence).ShouldBe([1L, 2L, 3L]);
+        Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId))
+            .EffectJournal.ShouldBe(next.EffectJournal);
+        next.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+    }
+
+    [Fact]
+    public void effect_observation_requires_the_matching_intent_and_replays_without_history_churn()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+
+        Error(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)))
+            .Kind.ShouldBe(OperationLedgerErrorKind.InvalidTransition);
+        Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+        Error(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 2, new string('d', 64)))
+            .Kind.ShouldBe(OperationLedgerErrorKind.InvalidTransition);
+
+        var observed = Unwrap(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)));
+        var bytes = File.ReadAllBytes(fixture.RecordPath(request));
+        var replay = Unwrap(fixture.CreateLedger().AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)));
+        var conflict = Error(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('e', 64)));
+
+        replay.EffectJournal.ShouldBe(observed.EffectJournal);
+        conflict.Kind.ShouldBe(OperationLedgerErrorKind.Conflict);
+        File.ReadAllBytes(fixture.RecordPath(request)).ShouldBe(bytes);
+    }
+
+    [Fact]
+    public void a_complete_observed_journal_does_not_itself_authorize_applied()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+
+        Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+        Unwrap(ledger.AppendEffectObservation(
+            request.RepositoryId, request.OperationId, 1, new string('d', 64)));
+        Error(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Applying, OperationLifecycleState.Applied,
+            new string('f', 64))).Kind.ShouldBe(OperationLedgerErrorKind.InvalidTransition);
+        Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId))
+            .CurrentState.ShouldBe(OperationLifecycleState.Applying);
+    }
+
+    [Fact]
+    public void corrupted_effect_journal_cannot_be_read_as_a_healthy_operation()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+        Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+
+        var recordPath = fixture.RecordPath(request);
+        var stored = JsonNode.Parse(File.ReadAllText(recordPath))!;
+        stored["effectJournal"]![0]!["sequence"] = 9;
+        File.WriteAllText(recordPath, stored.ToJsonString());
+
+        Error(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId))
+            .Kind.ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
+    public void a_backward_clock_cannot_place_recovery_before_a_durable_effect_intent()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+        fixture.Now += TimeSpan.FromSeconds(2);
+        var intent = Unwrap(ledger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)));
+        fixture.Now -= TimeSpan.FromSeconds(3);
+
+        var recovering = Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired,
+            "effect-outcome-unknown"));
+
+        recovering.Transitions[^1].CommittedAtUtc.ShouldBe(intent.EffectJournal[^1].CommittedAtUtc);
+        Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId))
+            .CurrentState.ShouldBe(OperationLifecycleState.RecoveryRequired);
+    }
+
+    [Theory]
+    [InlineData(DurableBoundary.FlushFile, false)]
+    [InlineData(DurableBoundary.Replace, false)]
+    [InlineData(DurableBoundary.FlushDirectory, true)]
+    public void interrupted_intent_publication_never_reports_a_completed_effect(
+        DurableBoundary boundary,
+        bool intentWasPublished)
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Received, OperationLifecycleState.Prepared, null));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId, request.OperationId,
+            OperationLifecycleState.Prepared, OperationLifecycleState.Applying, null));
+        var failingLedger = fixture.CreateLedger(new BoundaryFailingDurability(boundary));
+
+        Error(failingLedger.AppendEffectIntent(
+            request.RepositoryId, request.OperationId, 1, new string('c', 64)))
+            .Kind.ShouldBe(OperationLedgerErrorKind.Unreadable);
+        var restarted = Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId));
+
+        restarted.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+        restarted.EffectJournal.Length.ShouldBe(intentWasPublished ? 1 : 0);
+        if (intentWasPublished)
+            restarted.EffectJournal[0].Kind.ShouldBe(OperationEffectJournalKind.Intent);
+    }
+
     [Fact]
     public void stale_expected_state_is_a_conflict_without_changing_history()
     {
@@ -304,7 +619,7 @@ public sealed class DurableOperationLedgerTests
     }
 
     [Fact]
-    public void every_supported_lifecycle_edge_round_trips_through_the_durable_record()
+    public void unproven_lifecycle_edges_round_trip_through_the_durable_record()
     {
         using var fixture = new LedgerFixture();
         var paths = SupportedLifecyclePaths();
@@ -644,7 +959,6 @@ public sealed class DurableOperationLedgerTests
 
     private static IReadOnlyList<OperationLifecycleState[]> SupportedLifecyclePaths() =>
     [
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Applied],
         [OperationLifecycleState.CancelledNoEffect],
         [OperationLifecycleState.RejectedStale],
         [OperationLifecycleState.RejectedPlanUnavailable],
@@ -655,21 +969,10 @@ public sealed class DurableOperationLedgerTests
         [OperationLifecycleState.Prepared, OperationLifecycleState.RejectedPlanUnavailable],
         [OperationLifecycleState.Prepared, OperationLifecycleState.RejectedUnsafeCoordination],
         [OperationLifecycleState.Prepared, OperationLifecycleState.Expired],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RolledBack],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.CancelledNoEffect],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RejectedStale],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RejectedUnsafeCoordination],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Expired],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.OwnerQuiescencePending, OperationLifecycleState.Reconciling, OperationLifecycleState.Applied],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.RolledBack],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.CancelledNoEffect],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.RejectedStale],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.RejectedPlanUnavailable],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.RejectedUnsafeCoordination],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.Expired],
+        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying],
+        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.OwnerQuiescencePending, OperationLifecycleState.Reconciling, OperationLifecycleState.RecoveryRequired],
+        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.Reconciling, OperationLifecycleState.RecoveryRequired],
         [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.RecoveryAcknowledged],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.Recovering, OperationLifecycleState.RecoveredApplied],
-        [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.Recovering, OperationLifecycleState.RecoveredRolledBack],
         [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.Recovering, OperationLifecycleState.RecoveryRequired],
         [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.Recovering, OperationLifecycleState.OwnerQuiescencePending, OperationLifecycleState.Reconciling, OperationLifecycleState.RecoveryRequired],
         [OperationLifecycleState.Prepared, OperationLifecycleState.Applying, OperationLifecycleState.RecoveryRequired, OperationLifecycleState.Recovering, OperationLifecycleState.Reconciling, OperationLifecycleState.RecoveryRequired]

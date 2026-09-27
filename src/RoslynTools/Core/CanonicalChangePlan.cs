@@ -49,6 +49,19 @@ internal static class CanonicalChangePlan
     internal static string ComputeHash(ChangePlanPayload payload) =>
         Convert.ToHexString(SHA256.HashData(Serialize(payload))).ToLowerInvariant();
 
+    internal static string ComputeEffectHash(ChangePlanEffect effect)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            WriteEffects(writer, [effect]);
+            writer.WriteEndObject();
+        }
+        return Convert.ToHexString(SHA256.HashData(buffer.WrittenSpan)).ToLowerInvariant();
+    }
+
     internal static bool VerifyHash(ChangePlanPayload payload, string claimedHash)
     {
         ArgumentNullException.ThrowIfNull(payload);

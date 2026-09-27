@@ -838,7 +838,13 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   protection, repository enrollment, bounded attempt expiry and `NotRecorded`, public
   status and lifecycle authorization, repository reservation/barriers, a durable
   journal, verified rollback, automatic startup reconciliation, and recovery commands
-  remain missing.
+  remain missing from the public path. [ADR-0027](adr/0027-internal-journaled-apply-barrier.md)
+  adds an internal exclusive reservation and per-effect journaled apply authority.
+  It loads the exact pinned plan and blocks a second operation while a mutation is
+  unresolved. Its production effect broker is deliberately unavailable: no supported
+  physical broker yet proves complete external-writer exclusion or conditional
+  effects. Simulated fault tests cover the internal ordering and truthful unresolved
+  state, but no public Apply or verified rollback/recovery is implied.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

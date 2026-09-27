@@ -54,6 +54,8 @@
       "**/Core/CanonicalChangePlanReader.cs",
       "**/Core/DurableChangePlanStore.cs",
       "**/Core/DurableOperationLedger.cs",
+      "**/Core/JournaledApplyAuthority.cs",
+      "**/Core/RepositoryMutationReservation.cs",
       "**/Core/DurableDispatchIntakeCoordinator.cs",
       "**/Core/LocalDurableOperationAuthority.cs",
       "**/Core/OperationRequestIdentity.cs",
