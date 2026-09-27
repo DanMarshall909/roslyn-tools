@@ -1721,7 +1721,7 @@ internal sealed class DurableOperationLedger
         && operation.PreEffectActivity.ActiveAdmissions.IsEmpty
         && !operation.CleanupJournal.IsEmpty;
 
-    internal static bool CanCleanupNoEffect(
+    private static bool CanCleanupWithOriginalReservation(
         DurableOperationRecord operation,
         RepositoryMutationReservation reservation) =>
         CanCleanupNoEffect(operation)
@@ -1735,6 +1735,36 @@ internal sealed class DurableOperationLedger
         && operation.CleanupJournal[0].Artifacts.All(artifact =>
             artifact.FenceEpoch == reservation.FenceEpoch
             && artifact.ReservationToken == reservation.FenceToken);
+
+    internal bool CanCleanupUnderReservation(
+        DurableOperationRecord operation,
+        RepositoryMutationReservation reservation)
+    {
+        if (CanCleanupWithOriginalReservation(operation, reservation))
+            return true;
+        if (!CanCleanupNoEffect(operation)
+            || _protectionAuthority is not INoEffectCleanupReservationAuthority authority
+            || !authority.OwnsReservationRoot(reservation))
+            return false;
+
+        // A later exclusive holder can finish a terminal, drained no-effect
+        // cleanup only when the entire immutable inventory came from one
+        // earlier reservation in this protected local authority.
+        var sourceEpoch = !operation.StagingJournal.IsEmpty
+            ? operation.StagingJournal[0].FenceEpoch
+            : operation.BackupJournal[0].FenceEpoch;
+        var sourceToken = !operation.StagingJournal.IsEmpty
+            ? operation.StagingJournal[0].ReservationToken
+            : operation.BackupJournal[0].ReservationToken;
+        return reservation.FenceEpoch > sourceEpoch
+               && reservation.FenceToken != sourceToken
+               && operation.StagingJournal.All(entry =>
+                   entry.FenceEpoch == sourceEpoch && entry.ReservationToken == sourceToken)
+               && operation.BackupJournal.All(entry =>
+                   entry.FenceEpoch == sourceEpoch && entry.ReservationToken == sourceToken)
+               && operation.CleanupJournal[0].Artifacts.All(artifact =>
+                   artifact.FenceEpoch == sourceEpoch && artifact.ReservationToken == sourceToken);
+    }
 
     internal Result<DurableOperationRecord, OperationLedgerError> AppendCleanupArtifactRemoved(
         string repositoryId,
@@ -1750,7 +1780,7 @@ internal sealed class DurableOperationLedger
 
         return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
         {
-            if (!CanCleanupNoEffect(operation, reservation))
+            if (!CanCleanupUnderReservation(operation, reservation))
                 return InvalidCleanupTransition("Pre-effect activity has not drained for cleanup.");
             var inventory = operation.CleanupJournal[0].Artifacts;
             var removed = operation.CleanupJournal.Length - 1;
@@ -1795,7 +1825,7 @@ internal sealed class DurableOperationLedger
 
         return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
         {
-            if (!CanCleanupNoEffect(operation, reservation))
+            if (!CanCleanupUnderReservation(operation, reservation))
                 return InvalidCleanupTransition("Pre-effect activity has not drained for cleanup.");
             if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
                 return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);

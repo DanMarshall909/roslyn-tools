@@ -55,6 +55,7 @@
       "**/Core/DurableChangePlanStore.cs",
       "**/Core/DurableOperationLedger.cs",
       "**/Core/JournaledApplyAuthority.cs",
+      "**/Core/JournaledNoEffectCleanup.cs",
       "**/Core/RepositoryMutationReservation.cs",
       "**/Core/DurableDispatchIntakeCoordinator.cs",
       "**/Core/LocalDurableOperationAuthority.cs",

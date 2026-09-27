@@ -40,7 +40,8 @@ the durable terminal outcome remains queryable.
 This is an internal Linux x64 integration exercised with a simulated effect
 broker. A host that does not configure cleanup retains the terminal inventory
 and pin for explicit cleanup. The default production broker remains unavailable;
-no public Apply is enabled. Cross-owner restart reconciliation and cleanup after
-uncertain guard release or first-effect handoff remain #140 follow-up. This
+no public Apply is enabled. [ADR-0039](0039-local-restart-no-effect-cleanup.md)
+adds local terminal cleanup after restart; cleanup after uncertain guard
+release or first-effect handoff remains #140 follow-up. This
 decision does not prove the live repository original, a physical effect guard,
 or effectful rollback and recovery.

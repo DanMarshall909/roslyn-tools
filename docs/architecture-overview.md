@@ -913,8 +913,15 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   A configured trusted
   cleanup capability then removes staging and backup artifacts under the same
   reservation, verifies empty operation roots, and releases the plan pin.
-  Failure retains the terminal inventory and pin. Cross-owner reconciliation
+  Failure retains the terminal inventory and pin. Active or uncertain owners
   and effectful cleanup remain open; the production broker stays unavailable.
+  [ADR-0039](adr/0039-local-restart-no-effect-cleanup.md) lets a fresh
+  reservation from the same protected local authority resume a terminal,
+  drained no-effect cleanup when all admitted artifacts share one earlier
+  reservation. The cleanup service rescans operation roots before releasing
+  the pin, including after a durable `CleanupVerified` record. Foreign roots,
+  mixed provenance, active guard admission, and uncertain effects remain
+  blocked. Shared authority and effectful recovery remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

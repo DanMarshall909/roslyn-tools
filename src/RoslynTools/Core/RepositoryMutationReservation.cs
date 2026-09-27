@@ -13,6 +13,11 @@ internal interface IRepositoryMutationReservationProtectionAuthority
         out IDisposable? protectionLease);
 }
 
+internal interface INoEffectCleanupReservationAuthority
+{
+    bool OwnsReservationRoot(RepositoryMutationReservation reservation);
+}
+
 internal sealed class RepositoryMutationReservation : IDisposable
 {
     private readonly FileStream _stream;
@@ -30,6 +35,8 @@ internal sealed class RepositoryMutationReservation : IDisposable
         RepositoryId = repositoryId;
         FenceEpoch = fenceEpoch;
         FenceToken = Guid.NewGuid();
+        ReservationRoot = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(Path.GetDirectoryName(stream.Name)!));
     }
 
     internal string RepositoryId { get; }
@@ -37,6 +44,8 @@ internal sealed class RepositoryMutationReservation : IDisposable
     internal Guid FenceToken { get; }
 
     internal long FenceEpoch { get; }
+
+    internal string ReservationRoot { get; }
 
     internal void AssertHeld(string repositoryId)
     {

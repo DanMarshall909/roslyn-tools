@@ -16,6 +16,7 @@ internal sealed class LocalDurableOperationAuthority
     : IChangePlanStoreProtectionAuthority,
       IOperationLedgerProtectionAuthority,
       IRepositoryMutationReservationProtectionAuthority,
+      INoEffectCleanupReservationAuthority,
       IAuthenticatedPrincipalProvider,
       IAuthenticatedOperationContextProvider
 {
@@ -212,6 +213,10 @@ internal sealed class LocalDurableOperationAuthority
         protectionLease = acquired.Stream;
         return true;
     }
+
+    bool INoEffectCleanupReservationAuthority.OwnsReservationRoot(
+        RepositoryMutationReservation reservation) =>
+        SamePath(reservation.ReservationRoot, MutationReservationRoot);
 
     private static (FileStream? Stream, string? Error) AcquireRoot(
         string rootPath,

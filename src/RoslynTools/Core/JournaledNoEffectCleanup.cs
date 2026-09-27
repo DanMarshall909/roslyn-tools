@@ -70,11 +70,11 @@ internal sealed class JournaledNoEffectCleanup
                 "The durable backup journal does not name the configured cleanup root.");
         }
 
-        if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
-            return ReleasePin(operation);
-        if (!DurableOperationLedger.CanCleanupNoEffect(operation, reservation))
+        if (!_ledger.CanCleanupUnderReservation(operation, reservation))
             return Fail(NoEffectCleanupErrorKind.NotReady,
-                "Physical cleanup requires every admitted artifact's held reservation.");
+                "Physical cleanup requires the original reservation or a verified local successor.");
+        if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
+            return ReleasePin(operation, reservation);
 
         var artifacts = operation.CleanupJournal[0].Artifacts;
         var removed = operation.CleanupJournal.Length - 1;
@@ -145,12 +145,51 @@ internal sealed class JournaledNoEffectCleanup
         var verified = _ledger.AppendCleanupVerified(repositoryId, operationId, reservation);
         if (verified.IsErr)
             return LedgerFailure(verified.Match(_ => null!, error => error));
-        return ReleasePin(verified.Match(value => value, _ => null!));
+        return ReleasePin(verified.Match(value => value, _ => null!), reservation);
     }
 
     private Result<DurableOperationRecord, NoEffectCleanupError> ReleasePin(
-        DurableOperationRecord operation)
+        DurableOperationRecord operation,
+        RepositoryMutationReservation reservation)
     {
+        reservation.AssertHeld(operation.RepositoryId);
+        LinuxControlCleanupBoundary.Session stagingSession;
+        try
+        {
+            stagingSession = _stagingBoundary.Acquire(allowMissingRoot: true);
+        }
+        catch (Exception exception) when (IsBoundaryException(exception))
+        {
+            return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                "The protected staging root is unavailable for cleanup confirmation.", exception);
+        }
+        using (stagingSession)
+        {
+            LinuxControlCleanupBoundary.Session? backupSession;
+            try
+            {
+                backupSession = _backupBoundary?.Acquire(allowMissingRoot: true);
+            }
+            catch (Exception exception) when (IsBoundaryException(exception))
+            {
+                return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                    "The protected backup root is unavailable for cleanup confirmation.", exception);
+            }
+            using (backupSession)
+            {
+                try
+                {
+                    stagingSession.RemoveEmptyOperationRoot(operation.OperationId);
+                    backupSession?.RemoveEmptyOperationRoot(operation.OperationId);
+                }
+                catch (Exception exception) when (IsBoundaryException(exception))
+                {
+                    return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
+                        "The protected operation roots are not empty at pin release.", exception);
+                }
+            }
+        }
+
         var confirmed = _ledger.ConfirmDurableCleanupVerified(
             operation.RepositoryId, operation.OperationId);
         if (confirmed.IsErr)
