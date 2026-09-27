@@ -859,8 +859,13 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   [ADR-0030](adr/0030-internal-staging-creation-admission.md) inserts durable
   creation admission between intent and verification. It orders one named
   staging action against cancellation under the ledger lock and keeps an
-  unresolved admitted action active across cancellation. No physical artifact
-  writer consumes this admission yet, and the event is not OS effect authority.
+  unresolved admitted action active across cancellation.
+  [ADR-0031](adr/0031-handle-relative-physical-staging.md) adds an internal
+  Linux x64 writer that holds a configured private staging root, creates one
+  operation-scoped artifact after durable admission, flushes it, and verifies
+  its physical bytes before journaling verification. This is not a deployment
+  proof for a separate writer principal or repository effect authority; public
+  Apply, backup, guard, cleanup, and recovery remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
