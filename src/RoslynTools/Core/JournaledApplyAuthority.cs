@@ -25,7 +25,9 @@ internal sealed record JournaledApplyError(
 ///     against the still-held reservation and durable intent at the filesystem boundary.
 ///     AcquireAsync receives the current pre-effect activity and must reject a closed
 ///     generation at the actual guard-acquisition boundary.
-///     A host without that capability must return no session.
+///     A null result proves no guard remains held. An exception has no such
+///     meaning: the caller retains the activity until guard release is proved.
+///     A host without this capability must return no session.
 /// </summary>
 internal interface IJournaledRepositoryEffectBroker
 {
@@ -355,12 +357,21 @@ internal sealed class JournaledApplyAuthority
                 return Fail(JournaledApplyErrorKind.RecoveryRequired,
                     "The pre-effect activity is no longer current before guard acquisition.");
             }
-            IJournaledRepositoryEffectSession? session = null;
+            IJournaledRepositoryEffectSession? session;
+            try
+            {
+                session = await _broker.AcquireAsync(plan, activity, reservation, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                return Fail(JournaledApplyErrorKind.UnsafeCoordination,
+                    "Guard acquisition did not return a releasable session; its activity remains active.",
+                    exception);
+            }
             GuardedPreflightEvidence? preflight = null;
             Exception? preflightError = null;
             try
             {
-                session = await _broker.AcquireAsync(plan, activity, reservation, cancellationToken);
                 if (session is not null)
                     preflight = await session.FinalPreflightAsync(cancellationToken);
             }

@@ -4253,6 +4253,64 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
+    public async Task uncertain_guard_acquisition_keeps_pre_effect_activity_and_artifacts_pinned()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var plan = fixture.StoredPlan!;
+        var broker = new SimulatedBroker(fixture) { ThrowDuringAcquire = true };
+
+        var attempt = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        attempt.IsErr.ShouldBeTrue();
+        var failure = attempt.Match(
+            _ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error);
+        failure.Kind.ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        failure.Cause.ShouldBeOfType<IOException>().Message
+            .ShouldContain("uncertain guard acquisition");
+        broker.Acquired.ShouldBeTrue();
+        var unresolved = fixture.LoadOperation(request);
+        unresolved.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        unresolved.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        unresolved.EffectJournal.ShouldBeEmpty();
+        unresolved.CleanupJournal.ShouldBeEmpty();
+        unresolved.StagingJournal.Any(entry =>
+            entry.Kind == OperationStagingJournalKind.Verified
+            && File.Exists(entry.ArtifactPath)).ShouldBeTrue();
+        unresolved.BackupJournal.Any(entry =>
+            entry.Kind == OperationBackupJournalKind.Verified
+            && File.Exists(entry.ArtifactPath)).ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+
+        var retryBroker = new SimulatedBroker(fixture);
+        var retry = await fixture.CreateAuthority(retryBroker).ApplyAsync(request);
+        retry.IsErr.ShouldBeTrue();
+        retry.Match(_ => throw new InvalidOperationException("Unsafe retry unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.RecoveryRequired);
+        retryBroker.Acquired.ShouldBeFalse();
+
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.HasUnresolvedRepositoryMutation(
+                request.RepositoryId, new OperationId(42, Guid.NewGuid()))
+            .Match(value => value, error => throw new IOException(error.Message))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task failed_preflight_and_terminal_record_preserve_the_preflight_cause()
     {
         using var fixture = new ApplyFixture();
@@ -4782,6 +4840,7 @@ public sealed class JournaledApplyAuthorityTests
         internal bool FailDisposeAfterCancellation { get; init; }
         internal bool FailDisposeAfterPreflightFailure { get; init; }
         internal bool FailPreflight { get; init; }
+        internal bool ThrowDuringAcquire { get; init; }
         internal bool TamperArtifactBeforeFailedPreflight { get; init; }
         internal bool DeclineAfterInspect { get; init; }
         internal bool TamperArtifactBeforeDecline { get; init; }
@@ -4816,6 +4875,11 @@ public sealed class JournaledApplyAuthorityTests
                     && File.Exists(entry.ArtifactPath)
                     && File.ReadAllBytes(entry.ArtifactPath).SequenceEqual(effect.OriginalContent))));
             Acquired = true;
+            if (ThrowDuringAcquire)
+            {
+                return Task.FromException<IJournaledRepositoryEffectSession?>(
+                    new IOException("Injected uncertain guard acquisition."));
+            }
             if (DeclineAfterInspect)
             {
                 if (TamperArtifactBeforeDecline)

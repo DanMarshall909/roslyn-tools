@@ -906,10 +906,14 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   and passes the activity token to the broker for boundary-time revocation.
   This remains an internal Linux x64 path with a disabled
   production broker. Restart reconciliation remains required before public Apply.
-  [ADR-0038](adr/0038-terminal-no-effect-apply-cleanup.md) closes a declined
-  broker or guarded preflight only after guard release. One ledger replacement
-  drains the pre-effect activity and records `RejectedUnsafeCoordination` with
-  a durable artifact inventory, or retains an earlier `CancelledNoEffect`.
+  [ADR-0038](adr/0038-terminal-no-effect-apply-cleanup.md) closes a completed
+  broker refusal or guarded preflight only after guard release. An exception
+  before guard acquisition returns a session leaves its activity active,
+  artifacts pinned, and the repository mutation barrier in force because guard
+  release is unproved. For a completed broker refusal or guarded preflight
+  failure, one ledger replacement drains the pre-effect activity and records
+  `RejectedUnsafeCoordination` with a durable artifact inventory, or retains
+  an earlier `CancelledNoEffect`.
   A configured trusted
   cleanup capability then removes staging and backup artifacts under the same
   reservation, verifies empty operation roots, and releases the plan pin.

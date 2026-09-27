@@ -17,8 +17,9 @@ physical cleanup service.
 
 ## Decision
 
-After a failed broker acquisition or guarded preflight, the authority first
-releases any session. One ledger replacement then drains its pre-effect activity
+After a completed broker refusal or failed guarded preflight, the authority first
+releases any returned session. A completed null result proves that the broker
+retains no guard. One ledger replacement then drains its pre-effect activity
 and, if still `Prepared`, records `RejectedUnsafeCoordination` with an inventory
 of all admitted staging and backup artifacts. Cancellation may win before that
 replacement; the ledger then drains the activity while retaining the durable
@@ -34,6 +35,14 @@ If the guard cannot be released, the atomic resolution cannot be persisted, or
 physical cleanup fails, the authority leaves the pin and remaining evidence in
 place. A failed cleanup reports `CleanupRequired` while
 the durable terminal outcome remains queryable.
+
+If guard acquisition throws before returning a session, the authority cannot
+prove whether a guard was acquired or released. It leaves the pre-effect
+admission active, keeps the plan pin and artifacts, and reports unsafe
+coordination without recording a terminal no-effect outcome. The unresolved
+admission blocks a retry and other repository mutations until explicit
+reconciliation proves the guard boundary. A failed preflight after a session
+was returned still disposes that session before draining the admission.
 
 ## Limits and follow-up
 
