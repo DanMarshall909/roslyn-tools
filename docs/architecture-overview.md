@@ -869,8 +869,9 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   [ADR-0032](adr/0032-admitted-staging-retry.md) allows the exact admitted
   artifact to be reopened and verified after an interruption while the original
   reservation remains held. Fresh creation refuses an existing file; a new
-  reservation cannot inherit the old admission. Cross-owner restart
-  reconciliation and cleanup remain open.
+  reservation cannot inherit the old admission. A same-activity repeat after
+  `Verified` rechecks the existing bytes without creating an artifact.
+  Cross-owner restart reconciliation and cleanup remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

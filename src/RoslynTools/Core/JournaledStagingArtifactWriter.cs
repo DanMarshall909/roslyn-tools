@@ -23,6 +23,10 @@ internal interface IStagingArtifactSession : IDisposable
         OperationStagingJournalEvent creation,
         ReadOnlyMemory<byte> replacementBytes,
         bool allowExistingAdmittedArtifact);
+
+    Task<string> VerifyExistingAsync(
+        OperationStagingJournalEvent verification,
+        ReadOnlyMemory<byte> replacementBytes);
 }
 
 internal sealed class JournaledStagingArtifactWriter
@@ -69,31 +73,53 @@ internal sealed class JournaledStagingArtifactWriter
             var loaded = _ledger.Load(plan.Key.RepositoryId, operationId);
             if (loaded.IsErr)
                 return LedgerFailure(loaded.Match(_ => null!, error => error));
-            var pendingCreation = loaded.Match(
-                operation => !operation.StagingJournal.IsEmpty
-                             && operation.StagingJournal[^1].Kind
-                                 == OperationStagingJournalKind.CreationAdmitted
-                             && operation.StagingJournal[^1].EffectSequence == effectSequence,
-                _ => false);
-            if (!pendingCreation)
+            var last = loaded.Match(
+                operation => operation.StagingJournal.IsEmpty
+                    ? null
+                    : operation.StagingJournal[^1],
+                _ => null);
+            var matchingLast = last?.EffectSequence == effectSequence;
+            var verifiedReplay = matchingLast && last!.Kind == OperationStagingJournalKind.Verified;
+            var pendingCreation = matchingLast
+                                  && last!.Kind == OperationStagingJournalKind.CreationAdmitted;
+            OperationStagingJournalEvent admitted;
+            if (verifiedReplay)
             {
-                var intent = _ledger.AppendStagingIntent(
-                    plan, operationId, effectSequence, admission, reservation);
-                if (intent.IsErr)
-                    return LedgerFailure(intent.Match(_ => null!, error => error));
+                // An idempotent verification append first confirms the original
+                // activity and reservation under the ledger lock, before any
+                // control-root file flush on this replay.
+                var confirmed = _ledger.AppendStagingVerification(
+                    plan, operationId, effectSequence, last!.ObservedHash!,
+                    last.CreationToken!.Value, admission, reservation);
+                if (confirmed.IsErr)
+                    return LedgerFailure(confirmed.Match(_ => null!, error => error));
+                admitted = confirmed.Match(value => value, _ => null!).StagingJournal[^1];
             }
-            var creation = _ledger.AppendStagingCreationAdmission(
-                plan, operationId, effectSequence, admission, reservation);
-            if (creation.IsErr)
-                return LedgerFailure(creation.Match(_ => null!, error => error));
-            var admitted = creation.Match(value => value, _ => null!);
+            else
+            {
+                if (!pendingCreation)
+                {
+                    var intent = _ledger.AppendStagingIntent(
+                        plan, operationId, effectSequence, admission, reservation);
+                    if (intent.IsErr)
+                        return LedgerFailure(intent.Match(_ => null!, error => error));
+                }
+                var creation = _ledger.AppendStagingCreationAdmission(
+                    plan, operationId, effectSequence, admission, reservation);
+                if (creation.IsErr)
+                    return LedgerFailure(creation.Match(_ => null!, error => error));
+                admitted = creation.Match(value => value, _ => null!);
+            }
             var effect = plan.Envelope.Payload.Effects.Single(candidate =>
                 candidate.Sequence == effectSequence && candidate.HasReplacementContent);
             string observedHash;
             try
             {
-                observedHash = await session.CreateAndHashAsync(
-                    admitted, effect.ReplacementContent.ToArray(), pendingCreation);
+                observedHash = verifiedReplay
+                    ? await session.VerifyExistingAsync(
+                        admitted, effect.ReplacementContent.ToArray())
+                    : await session.CreateAndHashAsync(
+                        admitted, effect.ReplacementContent.ToArray(), pendingCreation);
             }
             catch (Exception exception) when (exception is IOException or InvalidOperationException
                         or UnauthorizedAccessException)

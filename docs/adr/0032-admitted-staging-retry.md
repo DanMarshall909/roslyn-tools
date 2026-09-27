@@ -32,6 +32,12 @@ creation. A fresh admission refuses `EEXIST`, even when the existing bytes
 match. Changed, short, linked, or symlinked files remain unresolved and are
 never overwritten by this retry.
 
+While the same activity and reservation remain held, a repeated call after
+`Verified` confirms that authority under the ledger lock, opens only the
+existing artifact and directories, rechecks the reviewed hash, and returns the
+same journal event. Missing or changed bytes leave the operation unresolved;
+the replay never recreates a previously verified artifact.
+
 ## Limits and follow-up
 
 This is a same-reservation retry contract. A new reservation cannot take over
@@ -39,5 +45,5 @@ the old activity or use its creation token. Process restart after loss of the
 original reservation requires a separate recovery authority that proves the
 former writer and its write capabilities quiescent, reconciles the physical
 artifact, and records a new fenced observation. This slice does not clean up a
-bad artifact, reconcile a verified artifact on replay, or enable public Apply.
+bad artifact, reconcile across a new reservation, or enable public Apply.
 The production repository effect broker remains unavailable.

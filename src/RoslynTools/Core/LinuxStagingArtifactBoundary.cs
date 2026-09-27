@@ -64,18 +64,35 @@ internal sealed class LinuxStagingArtifactBoundary : IStagingArtifactBoundary
         SafeFileHandle staging,
         IStagingArtifactDurability durability) : IStagingArtifactSession
     {
-        async Task<string> IStagingArtifactSession.CreateAndHashAsync(
+        Task<string> IStagingArtifactSession.CreateAndHashAsync(
             OperationStagingJournalEvent creation,
             ReadOnlyMemory<byte> replacementBytes,
-            bool allowExistingAdmittedArtifact)
+            bool allowExistingAdmittedArtifact) =>
+            HashAsync(creation, replacementBytes, allowExistingAdmittedArtifact,
+                requireExisting: false);
+
+        Task<string> IStagingArtifactSession.VerifyExistingAsync(
+            OperationStagingJournalEvent verification,
+            ReadOnlyMemory<byte> replacementBytes) =>
+            HashAsync(verification, replacementBytes, allowExistingAdmittedArtifact: true,
+                requireExisting: true);
+
+        private async Task<string> HashAsync(
+            OperationStagingJournalEvent artifactEvent,
+            ReadOnlyMemory<byte> replacementBytes,
+            bool allowExistingAdmittedArtifact,
+            bool requireExisting)
         {
-            ArgumentNullException.ThrowIfNull(creation);
-            if (creation.Kind != OperationStagingJournalKind.CreationAdmitted
-                || creation.CreationToken is null || creation.CreationToken == Guid.Empty
-                || creation.StagingRoot != root)
+            ArgumentNullException.ThrowIfNull(artifactEvent);
+            if (artifactEvent.Kind != (requireExisting
+                    ? OperationStagingJournalKind.Verified
+                    : OperationStagingJournalKind.CreationAdmitted)
+                || artifactEvent.CreationToken is null
+                || artifactEvent.CreationToken == Guid.Empty
+                || artifactEvent.StagingRoot != root)
                 throw new InvalidOperationException("An exact staging creation admission is required.");
 
-            var relative = Path.GetRelativePath(root, creation.ArtifactPath);
+            var relative = Path.GetRelativePath(root, artifactEvent.ArtifactPath);
             var parts = relative.Split(Path.DirectorySeparatorChar);
             if (parts.Length != 3
                 || !long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture,
@@ -84,22 +101,27 @@ internal sealed class LinuxStagingArtifactBoundary : IStagingArtifactBoundary
                 || !int.TryParse(Path.GetFileNameWithoutExtension(parts[2]),
                     NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence <= 0
                 || parts[2] != $"{sequence:D8}.stage"
-                || creation.EffectSequence != sequence
-                || Path.Combine(root, parts[0], parts[1], parts[2]) != creation.ArtifactPath)
+                || artifactEvent.EffectSequence != sequence
+                || Path.Combine(root, parts[0], parts[1], parts[2]) != artifactEvent.ArtifactPath)
                 throw new InvalidOperationException("The admitted artifact path is not operation scoped.");
 
             var sourceHash = Convert.ToHexString(SHA256.HashData(replacementBytes.Span))
                 .ToLowerInvariant();
-            if (!string.Equals(sourceHash, creation.ExpectedHash, StringComparison.Ordinal))
+            if (!string.Equals(sourceHash, artifactEvent.ExpectedHash, StringComparison.Ordinal))
                 throw new InvalidOperationException("The replacement bytes differ from the durable intent.");
 
-            using var epochDirectory = LinuxStagingHandles.OpenOrCreatePrivateDirectory(
-                staging, parts[0], durability);
-            using var operationDirectory = LinuxStagingHandles.OpenOrCreatePrivateDirectory(
-                epochDirectory, parts[1], durability);
-            var (artifact, created) = LinuxStagingHandles.OpenAdmittedFile(
-                operationDirectory, parts[2], replacementBytes.Length,
-                allowExistingAdmittedArtifact);
+            using var epochDirectory = requireExisting
+                ? LinuxStagingHandles.OpenPrivateDirectory(staging, parts[0], durability)
+                : LinuxStagingHandles.OpenOrCreatePrivateDirectory(staging, parts[0], durability);
+            using var operationDirectory = requireExisting
+                ? LinuxStagingHandles.OpenPrivateDirectory(epochDirectory, parts[1], durability)
+                : LinuxStagingHandles.OpenOrCreatePrivateDirectory(epochDirectory, parts[1], durability);
+            var (artifact, created) = requireExisting
+                ? (LinuxStagingHandles.OpenVerifiedFile(
+                    operationDirectory, parts[2], replacementBytes.Length), false)
+                : LinuxStagingHandles.OpenAdmittedFile(
+                    operationDirectory, parts[2], replacementBytes.Length,
+                    allowExistingAdmittedArtifact);
             using (artifact)
             using (var stream = new FileStream(artifact,
                        created ? FileAccess.ReadWrite : FileAccess.Read, 4096, isAsync: false))
@@ -111,7 +133,7 @@ internal sealed class LinuxStagingArtifactBoundary : IStagingArtifactBoundary
                 stream.Position = 0;
                 var observedHash = Convert.ToHexString(await SHA256.HashDataAsync(
                     stream, CancellationToken.None)).ToLowerInvariant();
-                if (!string.Equals(observedHash, creation.ExpectedHash, StringComparison.Ordinal))
+                if (!string.Equals(observedHash, artifactEvent.ExpectedHash, StringComparison.Ordinal))
                     throw new IOException("The durable artifact hash differs from the reviewed replacement.");
                 return observedHash;
             }
@@ -190,6 +212,16 @@ internal static class LinuxStagingHandles
             if (error != AlreadyExists)
                 throw NativeError("mkdirat", error);
         }
+        return OpenPrivateDirectory(parent, name, durability);
+    }
+
+    internal static SafeFileHandle OpenPrivateDirectory(
+        SafeFileHandle parent,
+        string name,
+        IStagingArtifactDurability durability)
+    {
+        if (name.Length == 0 || name is "." or ".." || name.Contains('/'))
+            throw new InvalidOperationException("A single directory component is required.");
         var directory = OpenAt(parent, name, ReadOnly | Directory | NoFollow | CloseOnExec);
         try
         {
@@ -234,13 +266,21 @@ internal static class LinuxStagingHandles
         if (!allowExistingAdmittedArtifact)
             throw new IOException("A fresh staging admission cannot adopt an existing artifact.");
 
+        return (OpenVerifiedFile(parent, name, expectedLength), false);
+    }
+
+    internal static SafeFileHandle OpenVerifiedFile(
+        SafeFileHandle parent,
+        string name,
+        int expectedLength)
+    {
         var existing = OpenAt(parent, name, ReadOnly | NonBlocking | NoFollow | CloseOnExec);
         try
         {
             var identity = RequirePrivateRegularFile(existing);
             if (identity.Size != (ulong)expectedLength)
                 throw new IOException("The existing admitted artifact has a different byte length.");
-            return (existing, false);
+            return existing;
         }
         catch
         {
