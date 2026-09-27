@@ -100,3 +100,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0033](0033-no-effect-cleanup-inventory.md) | No-effect cleanup inventory at the terminal transition | Accepted | 2026-09-28 |
 | [0034](0034-journaled-no-effect-staging-cleanup.md) | Journaled same-reservation no-effect staging cleanup | Accepted | 2026-09-28 |
 | [0035](0035-journaled-original-backup-and-cleanup.md) | Journaled original backup and no-effect cleanup | Accepted | 2026-09-28 |
+| [0036](0036-atomic-pre-effect-guard-handoff.md) | Atomic pre-effect guard handoff | Accepted | 2026-09-28 |

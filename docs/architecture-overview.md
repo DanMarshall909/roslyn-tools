@@ -497,6 +497,14 @@ empty before cleanup can be marked verified; otherwise the terminal no-effect re
 remains `CleanupPending` with its plan, journal, artifacts, quota, and cleanup capability
 pinned.
 
+The internal guarded apply path follows [ADR-0036](adr/0036-atomic-pre-effect-guard-handoff.md):
+failed or cancelled preflight releases its guard before draining the activity.
+Successful preflight hands that guard to `Applying`, the owner lease, the closed
+pre-effect fence, and the first effect intent in one durable ledger replacement.
+If the replacement is visible but its flush fails, no effect runs and the
+unresolved intent remains for reconciliation. A physical guard and public Apply
+still require the platform authority work tracked in #138 and #140.
+
 - `Received` or authoritative `NotRecorded` during replayable dispatch resolution;
 - `Applying`, `Recovering`, `OwnerQuiescencePending`, or bounded `Reconciling` while nonterminal;
 - `Applied`;

@@ -1774,6 +1774,132 @@ internal sealed class DurableOperationLedger
         string message) => Result<DurableOperationRecord, OperationLedgerError>.Err(
             new OperationLedgerError(OperationLedgerErrorKind.InvalidTransition, message));
 
+    /// <summary>
+    ///     Hands a successfully preflighted guard from its active control admission
+    ///     to the first durable effect intent in one ledger replacement. Cancellation
+    ///     may win the same lock, in which case the admission remains active until
+    ///     the caller releases the guard and explicitly drains it.
+    /// </summary>
+    internal Result<DurableOperationRecord, OperationLedgerError> BeginApplyingWithFirstEffectIntent(
+        StoredChangePlan plan,
+        OperationId operationId,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation,
+        ImmutableArray<OperationGuardToken> guardTokens)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(plan.Key.RepositoryId);
+        if (!plan.Envelope.Verify()
+            || plan.Key.PlanId != plan.Envelope.Payload.PlanId
+            || !FixedTimeHashEquals(plan.Key.PlanHash, plan.Envelope.PlanHash)
+            || !string.Equals(plan.Key.RepositoryId,
+                plan.Envelope.Payload.Repository.RepositoryId, StringComparison.Ordinal)
+            || plan.Envelope.Payload.Effects.IsEmpty
+            || guardTokens.IsDefaultOrEmpty
+            || !guardTokens.SequenceEqual(OperationGuardTokenSet.Expected(plan.Envelope.Payload)))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                OperationLedgerErrorKind.InvalidTransition,
+                "First-effect handoff requires the exact plan and complete guard evidence."));
+        }
+
+        var effect = plan.Envelope.Payload.Effects[0];
+        var effectHash = CanonicalChangePlan.ComputeEffectHash(effect);
+        var intentHash = OperationEffectIntentIdentity.Compute(
+            plan.Key.PlanHash, effect.Sequence, reservation.FenceToken, reservation.FenceEpoch);
+        return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            var activity = operation.PreEffectActivity;
+            if (admission.FenceEpoch != reservation.FenceEpoch
+                || admission.ReservationToken != reservation.FenceToken
+                || !activity.ActiveAdmissions.Contains(admission)
+                || operation.RequestIdentity.PlanId != plan.Key.PlanId
+                || !FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+                || !plan.Pins.Any(pin =>
+                    pin.Kind == ChangePlanPinKind.OperationLedger
+                    && string.Equals(
+                        pin.ReferenceId,
+                        DurableDispatchIntakeCoordinator.FormatOperationReference(operationId),
+                        StringComparison.Ordinal)))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "The exact pinned plan and guard activity are not held by this reservation."));
+            }
+            if (operation.CurrentState == OperationLifecycleState.CancelledNoEffect)
+            {
+                if (!activity.IsClosed
+                    || activity.ControlGeneration != admission.ControlGeneration + 1
+                    || !operation.EffectJournal.IsEmpty)
+                {
+                    return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "The cancelled guard activity has no durable no-effect fence."));
+                }
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            if (operation.CurrentState != OperationLifecycleState.Prepared
+                || activity.IsClosed
+                || activity.ControlGeneration != admission.ControlGeneration
+                || activity.ActiveAdmissions.Length != 1
+                || operation.OwnerLease is not null
+                || !operation.EffectJournal.IsEmpty
+                || (!operation.StagingJournal.IsEmpty
+                    && operation.StagingJournal[^1].Kind != OperationStagingJournalKind.Verified)
+                || (!operation.BackupJournal.IsEmpty
+                    && operation.BackupJournal[^1].Kind != OperationBackupJournalKind.Verified))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "First-effect handoff requires a prepared pinned plan and drained control work."));
+            }
+
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            if (!operation.StagingJournal.IsEmpty && now < operation.StagingJournal[^1].CommittedAtUtc)
+                now = operation.StagingJournal[^1].CommittedAtUtc;
+            if (!operation.BackupJournal.IsEmpty && now < operation.BackupJournal[^1].CommittedAtUtc)
+                now = operation.BackupJournal[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                CurrentState = OperationLifecycleState.Applying,
+                OwnerLease = new OperationOwnerLease(
+                    Guid.NewGuid(), reservation.FenceEpoch, reservation.FenceToken,
+                    now, now + ApplyOwnerLeaseLifetime),
+                PreEffectActivity = activity with
+                {
+                    IsClosed = true,
+                    ControlGeneration = checked(activity.ControlGeneration + 1),
+                    ActiveAdmissions = []
+                },
+                Transitions = operation.Transitions.Add(new OperationTransition(
+                    operation.Transitions[^1].Sequence + 1,
+                    OperationLifecycleState.Applying,
+                    now,
+                    plan.Key.PlanHash)),
+                EffectJournal = [new OperationEffectJournalEvent(
+                    1,
+                    effect.Sequence,
+                    OperationEffectJournalKind.Intent,
+                    intentHash,
+                    now)
+                {
+                    FenceEpoch = reservation.FenceEpoch,
+                    FenceToken = reservation.FenceToken,
+                    EffectHash = effectHash,
+                    GuardTokens = guardTokens
+                }]
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
     internal Result<DurableOperationRecord, OperationLedgerError> ClaimApplyOwner(
         string repositoryId,
         OperationId operationId,

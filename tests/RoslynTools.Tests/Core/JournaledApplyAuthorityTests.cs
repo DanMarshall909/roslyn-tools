@@ -2377,23 +2377,12 @@ public sealed class JournaledApplyAuthorityTests
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
             .IsOk.ShouldBeTrue();
-        fixture.Ledger.CompletePreEffectActivity(
-                request.RepositoryId, request.OperationId, admission, reservation)
-            .IsOk.ShouldBeTrue();
-        fixture.Ledger.ClaimApplyOwner(
-                request.RepositoryId, request.OperationId, reservation, plan.Key.PlanHash)
-            .IsOk.ShouldBeTrue();
-
-        var intent = fixture.Ledger.AppendEffectIntent(
-            request.RepositoryId,
-            request.OperationId,
-            1,
-            new string('a', 64),
-            reservation,
-            CanonicalChangePlan.ComputeEffectHash(plan.Envelope.Payload.Effects[0]),
+        var intent = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+            plan, request.OperationId, admission, reservation,
             OperationGuardTokenSet.Expected(plan.Envelope.Payload));
 
         intent.IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
         fixture.LoadOperation(request).EffectJournal.ShouldBeEmpty();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
@@ -2901,7 +2890,7 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
-    public async Task first_effect_intent_waits_for_pre_effect_activity_and_defeats_late_cancellation()
+    public async Task first_effect_handoff_waits_for_other_pre_effect_activity_and_defeats_late_cancellation()
     {
         using var fixture = new ApplyFixture();
         var request = fixture.Prepare();
@@ -2914,42 +2903,24 @@ public sealed class JournaledApplyAuthorityTests
                 request.OperationId,
                 reservation)
             .Match(value => value, error => throw new IOException(error.Message));
-        fixture.Ledger.ClaimApplyOwner(
+        var otherActivity = fixture.Ledger.BeginPreEffectActivity(
                 request.RepositoryId,
                 request.OperationId,
-                reservation,
-                request.Identity.PlanHash)
-            .IsOk.ShouldBeTrue();
-        var effect = plan.Envelope.Payload.Effects[0];
-        var effectHash = CanonicalChangePlan.ComputeEffectHash(effect);
-        var intentHash = OperationEffectIntentIdentity.Compute(
-            request.Identity.PlanHash,
-            effect.Sequence,
-            reservation.FenceToken,
-            reservation.FenceEpoch);
+                reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
 
-        fixture.Ledger.AppendEffectIntent(
-                request.RepositoryId,
-                request.OperationId,
-                effect.Sequence,
-                intentHash,
-                reservation,
-                effectHash,
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation,
                 OperationGuardTokenSet.Expected(plan.Envelope.Payload))
             .IsErr.ShouldBeTrue();
         fixture.Ledger.CompletePreEffectActivity(
                 request.RepositoryId,
                 request.OperationId,
-                activity,
+                otherActivity,
                 reservation)
             .IsOk.ShouldBeTrue();
-        fixture.Ledger.AppendEffectIntent(
-                request.RepositoryId,
-                request.OperationId,
-                effect.Sequence,
-                intentHash,
-                reservation,
-                effectHash,
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation,
                 OperationGuardTokenSet.Expected(plan.Envelope.Payload))
             .IsOk.ShouldBeTrue();
 
@@ -2962,6 +2933,77 @@ public sealed class JournaledApplyAuthorityTests
         reloaded.PreEffectActivity.IsClosed.ShouldBeTrue();
         reloaded.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
         reloaded.EffectJournal.Single().Kind.ShouldBe(OperationEffectJournalKind.Intent);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task first_effect_handoff_closes_cancellation_with_owner_and_intent_in_one_record()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var preparedAt = fixture.LoadOperation(request).Transitions[^1].CommittedAtUtc;
+        fixture.Now = fixture.Now.AddMinutes(-1);
+
+        var handedOff = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation,
+                OperationGuardTokenSet.Expected(plan.Envelope.Payload))
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        handedOff.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+        handedOff.PreEffectActivity.IsClosed.ShouldBeTrue();
+        handedOff.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        handedOff.OwnerLease.ShouldNotBeNull();
+        handedOff.OwnerLease.FenceEpoch.ShouldBe(reservation.FenceEpoch);
+        handedOff.Transitions[^1].CommittedAtUtc.ShouldBeGreaterThanOrEqualTo(preparedAt);
+        handedOff.EffectJournal.ShouldHaveSingleItem();
+        handedOff.EffectJournal[0].Kind.ShouldBe(OperationEffectJournalKind.Intent);
+        handedOff.EffectJournal[0].EffectHash.ShouldBe(
+            CanonicalChangePlan.ComputeEffectHash(plan.Envelope.Payload.Effects[0]));
+        var reloaded = fixture.LoadOperation(request);
+        reloaded.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+        reloaded.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        reloaded.EffectJournal[0].EvidenceHash.ShouldBe(handedOff.EffectJournal[0].EvidenceHash);
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsErr.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task first_effect_handoff_rejects_wrong_plan_guard_and_activity_without_changing_state()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var guards = OperationGuardTokenSet.Expected(plan.Envelope.Payload);
+        var wrongPlan = plan with { Key = plan.Key with { PlanHash = new string('b', 64) } };
+        var wrongGuards = guards.SetItem(0, guards[0] with { VersionToken = "wrong" });
+        var wrongActivity = activity with { Token = Guid.NewGuid() };
+
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                wrongPlan, request.OperationId, activity, reservation, guards)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation, wrongGuards)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, wrongActivity, reservation, guards)
+            .IsErr.ShouldBeTrue();
+
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldContain(activity);
+        operation.EffectJournal.ShouldBeEmpty();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -2980,6 +3022,99 @@ public sealed class JournaledApplyAuthorityTests
         reloaded.PreEffectActivity.IsClosed.ShouldBeTrue();
         reloaded.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
         reloaded.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancelled_preflight_releases_its_guard_before_the_activity_drains()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            CancelDuringPreflight = true,
+            RequireActiveAtDisposeAfterCancellation = true
+        };
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsOk.ShouldBeTrue();
+        broker.SawActiveAtDispose.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_guard_release_keeps_cancelled_activity_active_and_blocks_cleanup()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            CancelDuringPreflight = true,
+            RequireActiveAtDisposeAfterCancellation = true,
+            FailDisposeAfterCancellation = true
+        };
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => null!, error => error).Kind
+            .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        broker.SawActiveAtDispose.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        fixture.Ledger.ConfirmDurableCancelledNoEffect(
+                request.RepositoryId, request.OperationId)
+            .IsErr.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_preflight_releases_guard_before_draining_its_activity()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            FailPreflight = true,
+            RequireActiveAtDisposeAfterPreflightFailure = true
+        };
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => null!, error => error).Kind
+            .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        broker.SawActiveAtDispose.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task rejected_first_effect_handoff_releases_guard_without_an_effect()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture);
+
+        var result = await fixture.CreateAuthority(
+            broker, new FailNthReplace(2)).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => null!, error => error).Kind
+            .ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.EffectJournal.ShouldBeEmpty();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -3090,13 +3225,25 @@ public sealed class JournaledApplyAuthorityTests
         result.Match(_ => null!, error => error).Kind
             .ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
         broker.Acquired.ShouldBe(brokerWasAcquired);
-        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
-        fixture.LoadOperation(request).EffectJournal.ShouldBeEmpty();
+        var visible = fixture.LoadOperation(request);
+        if (failedFlush == 1)
+        {
+            visible.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+            visible.EffectJournal.ShouldBeEmpty();
+        }
+        else
+        {
+            visible.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+            visible.EffectJournal.ShouldHaveSingleItem();
+            visible.EffectJournal[0].Kind.ShouldBe(OperationEffectJournalKind.Intent);
+            visible.PreEffectActivity.IsClosed.ShouldBeTrue();
+            visible.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        }
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task uncertain_activity_completion_durability_blocks_later_mutation()
+    public async Task uncertain_first_effect_handoff_durability_blocks_later_mutation()
     {
         using var fixture = new ApplyFixture();
         var request = fixture.Prepare();
@@ -3106,7 +3253,10 @@ public sealed class JournaledApplyAuthorityTests
                 new SimulatedBroker(fixture), failingDurability).ApplyAsync(request))
             .IsErr.ShouldBeTrue();
         var visible = fixture.LoadOperation(request);
-        visible.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        visible.CurrentState.ShouldBe(OperationLifecycleState.Applying);
+        visible.EffectJournal.ShouldHaveSingleItem();
+        visible.EffectJournal[0].Kind.ShouldBe(OperationEffectJournalKind.Intent);
+        visible.PreEffectActivity.IsClosed.ShouldBeTrue();
         visible.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
         var otherRequest = fixture.Prepare();
 
@@ -3322,7 +3472,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(7)).ApplyAsync(request);
+            new FailNthDirectoryFlush(5)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState
@@ -3339,7 +3489,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(6)).ApplyAsync(request);
+            new FailNthDirectoryFlush(4)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var restarted = fixture.LoadOperation(request);
@@ -3357,7 +3507,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthReplace(6)).ApplyAsync(request);
+            new FailNthReplace(4)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var restarted = fixture.LoadOperation(request);
@@ -3375,7 +3525,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(9)).ApplyAsync(request);
+            new FailNthDirectoryFlush(7)).ApplyAsync(request);
 
         result.IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Applied);
@@ -3387,7 +3537,7 @@ public sealed class JournaledApplyAuthorityTests
     {
         using var fixture = new ApplyFixture();
         var firstRequest = fixture.Prepare();
-        var durability = new FailDirectoryFlushFrom(9);
+        var durability = new FailDirectoryFlushFrom(7);
 
         var first = await fixture.CreateAuthority(
             new SimulatedBroker(fixture), durability).ApplyAsync(firstRequest);
@@ -3448,6 +3598,11 @@ public sealed class JournaledApplyAuthorityTests
         internal bool ExpireBeforeAdmission { get; init; }
         internal bool ExpireBeforeFinalVerification { get; init; }
         internal bool CancelDuringPreflight { get; init; }
+        internal bool RequireActiveAtDisposeAfterCancellation { get; init; }
+        internal bool FailDisposeAfterCancellation { get; init; }
+        internal bool FailPreflight { get; init; }
+        internal bool RequireActiveAtDisposeAfterPreflightFailure { get; init; }
+        internal bool SawActiveAtDispose { get; private set; }
         internal bool Acquired { get; private set; }
         internal bool SawDurableIntent { get; private set; }
         internal bool SawDurableAdmission { get; private set; }
@@ -3481,6 +3636,8 @@ public sealed class JournaledApplyAuthorityTests
                             fixture.Request.OperationId)
                         .IsOk.ShouldBeTrue();
                 }
+                if (broker.FailPreflight)
+                    throw new IOException("Injected guard preflight failure.");
                 return Task.FromResult<GuardedPreflightEvidence?>(
                     File.Exists(fixture.TargetPath)
                         ? null
@@ -3535,7 +3692,30 @@ public sealed class JournaledApplyAuthorityTests
                         : null);
             }
 
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+            public ValueTask DisposeAsync()
+            {
+                if (broker.RequireActiveAtDisposeAfterCancellation)
+                {
+                    var operation = fixture.LoadOperation(fixture.Request!);
+                    operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+                    operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+                    fixture.Ledger.ConfirmDurableCancelledNoEffect(
+                            fixture.Request!.RepositoryId,
+                            fixture.Request.OperationId)
+                        .IsErr.ShouldBeTrue();
+                    broker.SawActiveAtDispose = true;
+                    if (broker.FailDisposeAfterCancellation)
+                        throw new IOException("Injected guard-release failure.");
+                }
+                if (broker.RequireActiveAtDisposeAfterPreflightFailure)
+                {
+                    var operation = fixture.LoadOperation(fixture.Request!);
+                    operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+                    operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+                    broker.SawActiveAtDispose = true;
+                }
+                return ValueTask.CompletedTask;
+            }
         }
     }
 

@@ -266,97 +266,61 @@ internal sealed class JournaledApplyAuthority
             IJournaledRepositoryEffectSession? session = null;
             GuardedPreflightEvidence? preflight = null;
             Exception? preflightError = null;
-            Result<DurableOperationRecord, OperationLedgerError>? completedActivity = null;
-            var preflightReturned = false;
             try
             {
-                try
-                {
-                    session = await _broker.AcquireAsync(plan, reservation, cancellationToken);
-                    if (session is not null)
-                        preflight = await session.FinalPreflightAsync(cancellationToken);
-                    preflightReturned = true;
-                }
-                catch (Exception exception) when (exception is IOException or InvalidOperationException)
-                {
-                    preflightError = exception;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    completedActivity = _ledger.CompletePreEffectActivity(
-                        request.RepositoryId,
-                        request.OperationId,
-                        activity,
-                        reservation);
-                }
-                finally
-                {
-                    if ((!preflightReturned || completedActivity is null) && session is not null)
-                    {
-                        await session.DisposeAsync();
-                        session = null;
-                    }
-                }
-            }
-            if (completedActivity.IsErr)
-            {
+                session = await _broker.AcquireAsync(plan, reservation, cancellationToken);
                 if (session is not null)
-                    await session.DisposeAsync();
-                var error = completedActivity.Match(_ => null!, value => value);
-                return Fail(JournaledApplyErrorKind.LedgerUnavailable,
-                    "Pre-effect activity could not be durably drained: " + error.Message);
+                    preflight = await session.FinalPreflightAsync(cancellationToken);
             }
-            var afterPreflight = completedActivity.Match(value => value, _ => null!);
-            if (afterPreflight.CurrentState == OperationLifecycleState.CancelledNoEffect)
+            catch (Exception exception)
             {
-                if (session is not null)
-                    await session.DisposeAsync();
-                return Result<DurableOperationRecord, JournaledApplyError>.Ok(afterPreflight);
+                preflightError = exception;
             }
-            if (preflightError is not null)
+            if (preflightError is not null || session is null || preflight is null
+                || !preflight.GuardTokens.SequenceEqual(
+                    OperationGuardTokenSet.Expected(plan.Envelope.Payload)))
             {
-                if (session is not null)
-                    await session.DisposeAsync();
-                return Fail(JournaledApplyErrorKind.UnsafeCoordination,
-                    "The required repository effect guard or preflight failed.", preflightError);
+                var message = preflightError is not null
+                    ? "The required repository effect guard or preflight failed."
+                    : session is null
+                        ? "No OS-enforced repository effect broker is available."
+                        : "Final guarded preflight did not prove every plan dependency.";
+                return await ReleaseAndDrainPreEffectAsync(
+                    request, activity, reservation, session,
+                    JournaledApplyErrorKind.UnsafeCoordination, message, preflightError);
             }
-            if (session is null)
+
+            var handoff = _ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation, preflight.GuardTokens);
+            if (handoff.IsErr)
             {
-                return Fail(JournaledApplyErrorKind.UnsafeCoordination,
-                    "No OS-enforced repository effect broker is available.");
+                var error = handoff.Match(_ => null!, value => value);
+                var visible = _ledger.Load(request.RepositoryId, request.OperationId);
+                if (visible.IsErr
+                    || !visible.Match(value => value, _ => null!).EffectJournal.IsEmpty)
+                {
+                    // A failed directory flush can leave the atomic handoff
+                    // visible. No effect has run, but its durable intent must
+                    // be reconciled before another owner enters.
+                    return await ReleasePreEffectSessionAfterUncertainHandoffAsync(
+                        session, error);
+                }
+                return await ReleaseAndDrainPreEffectAsync(
+                    request, activity, reservation, session,
+                    JournaledApplyErrorKind.LedgerUnavailable,
+                    "The first-effect guard handoff was not durable: " + error.Message);
+            }
+            var handedOff = handoff.Match(value => value, _ => null!);
+            if (handedOff.CurrentState == OperationLifecycleState.CancelledNoEffect)
+            {
+                return await ReleaseAndDrainPreEffectAsync(
+                    request, activity, reservation, session,
+                    JournaledApplyErrorKind.LedgerUnavailable,
+                    "Cancellation retained the pre-effect guard activity.");
             }
 
             await using (session)
             {
-                if (preflight is null
-                    || !preflight.GuardTokens.SequenceEqual(
-                        OperationGuardTokenSet.Expected(plan.Envelope.Payload)))
-                {
-                    return Fail(JournaledApplyErrorKind.UnsafeCoordination,
-                        "Final guarded preflight did not prove every plan dependency.");
-                }
-
-                var applying = _ledger.ClaimApplyOwner(
-                    request.RepositoryId,
-                    request.OperationId,
-                    reservation,
-                    request.Identity.PlanHash);
-                if (applying.IsErr)
-                {
-                    var current = _ledger.Load(request.RepositoryId, request.OperationId);
-                    if (current.IsOk
-                        && current.Match(value => value, _ => null!).CurrentState
-                            == OperationLifecycleState.CancelledNoEffect)
-                    {
-                        return ConfirmCancelledNoEffect(request);
-                    }
-                    var error = applying.Match(_ => null!, value => value);
-                    return Fail(JournaledApplyErrorKind.LedgerUnavailable, error.Message);
-                }
-
                 try
                 {
                     foreach (var effect in plan.Envelope.Payload.Effects)
@@ -481,6 +445,63 @@ internal sealed class JournaledApplyAuthority
                 }
             }
         }
+    }
+
+    private async Task<Result<DurableOperationRecord, JournaledApplyError>>
+        ReleaseAndDrainPreEffectAsync(
+            CanonicalApplyRequest request,
+            PreEffectActivityAdmission activity,
+            RepositoryMutationReservation reservation,
+            IJournaledRepositoryEffectSession? session,
+            JournaledApplyErrorKind failureKind,
+            string failureMessage,
+            Exception? failureCause = null)
+    {
+        try
+        {
+            if (session is not null)
+                await session.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            return Fail(JournaledApplyErrorKind.UnsafeCoordination,
+                "The pre-effect guard could not be released; its activity remains active.",
+                exception);
+        }
+
+        var completed = _ledger.CompletePreEffectActivity(
+            request.RepositoryId, request.OperationId, activity, reservation);
+        if (completed.IsErr)
+        {
+            var error = completed.Match(_ => null!, value => value);
+            return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                "Released pre-effect guard activity could not be durably drained: " + error.Message);
+        }
+        if (completed.Match(value => value, _ => null!).CurrentState
+            == OperationLifecycleState.CancelledNoEffect)
+        {
+            return ConfirmCancelledNoEffect(request);
+        }
+        return Fail(failureKind, failureMessage, failureCause);
+    }
+
+    private static async Task<Result<DurableOperationRecord, JournaledApplyError>>
+        ReleasePreEffectSessionAfterUncertainHandoffAsync(
+            IJournaledRepositoryEffectSession session,
+            OperationLedgerError handoffError)
+    {
+        try
+        {
+            await session.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            return Fail(JournaledApplyErrorKind.UnsafeCoordination,
+                "The first-effect handoff and guard release could not be proved.", exception);
+        }
+        return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+            "The first-effect handoff may be visible but its durability is uncertain: "
+            + handoffError.Message);
     }
 
     private Result<DurableOperationRecord, JournaledApplyError> ConfirmCancelledNoEffect(
