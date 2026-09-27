@@ -22,12 +22,15 @@ internal sealed record JournaledApplyError(
 ///     over the entire reviewed plan, or make every effect conditional on all reviewed
 ///     dependency tokens. ApplyEffectAsync must atomically check its one-use admission
 ///     against the still-held reservation and durable intent at the filesystem boundary.
+///     AcquireAsync receives the current pre-effect activity and must reject a closed
+///     generation at the actual guard-acquisition boundary.
 ///     A host without that capability must return no session.
 /// </summary>
 internal interface IJournaledRepositoryEffectBroker
 {
     Task<IJournaledRepositoryEffectSession?> AcquireAsync(
         StoredChangePlan plan,
+        PreEffectActivityAdmission activity,
         RepositoryMutationReservation reservation,
         CancellationToken cancellationToken);
 }
@@ -74,11 +77,12 @@ internal sealed class UnavailableJournaledRepositoryEffectBroker : IJournaledRep
     internal static UnavailableJournaledRepositoryEffectBroker Instance { get; } = new();
 
     /// <summary>
-    ///     Returns no effect session. The default host therefore cannot make a
-    ///     repository effect, even when an exact plan and reservation exist.
+    ///     Returns no effect session for any plan, activity, or reservation. The
+    ///     default host therefore cannot make a repository effect.
     /// </summary>
     public Task<IJournaledRepositoryEffectSession?> AcquireAsync(
         StoredChangePlan plan,
+        PreEffectActivityAdmission activity,
         RepositoryMutationReservation reservation,
         CancellationToken cancellationToken) =>
         Task.FromResult<IJournaledRepositoryEffectSession?>(null);
@@ -155,17 +159,23 @@ internal sealed class JournaledApplyAuthority
     private readonly DurableOperationLedger _ledger;
     private readonly RepositoryMutationReservationProvider _reservations;
     private readonly IJournaledRepositoryEffectBroker _broker;
+    private readonly IStagingArtifactBoundary? _stagingBoundary;
+    private readonly IBackupArtifactBoundary? _backupBoundary;
 
     internal JournaledApplyAuthority(
         DurableChangePlanStore planStore,
         DurableOperationLedger ledger,
         RepositoryMutationReservationProvider reservations,
-        IJournaledRepositoryEffectBroker? broker = null)
+        IJournaledRepositoryEffectBroker? broker = null,
+        IStagingArtifactBoundary? stagingBoundary = null,
+        IBackupArtifactBoundary? backupBoundary = null)
     {
         _planStore = planStore;
         _ledger = ledger;
         _reservations = reservations;
         _broker = broker ?? UnavailableJournaledRepositoryEffectBroker.Instance;
+        _stagingBoundary = stagingBoundary;
+        _backupBoundary = backupBoundary;
     }
 
     internal async Task<Result<DurableOperationRecord, JournaledApplyError>> ApplyAsync(
@@ -251,6 +261,20 @@ internal sealed class JournaledApplyAuthority
                     "Another repository mutation remains unresolved.");
             }
 
+            if (_broker is UnavailableJournaledRepositoryEffectBroker)
+            {
+                return Fail(JournaledApplyErrorKind.UnsafeCoordination,
+                    "No OS-enforced repository effect broker is available.");
+            }
+            if ((plan.Envelope.Payload.Effects.Any(effect => effect.HasReplacementContent)
+                 && _stagingBoundary is null)
+                || (plan.Envelope.Payload.Effects.Any(effect => effect.HasOriginalContent)
+                    && _backupBoundary is null))
+            {
+                return Fail(JournaledApplyErrorKind.UnsafeCoordination,
+                    "The protected staging or backup artifact authority is unavailable.");
+            }
+
             var begun = _ledger.BeginPreEffectActivity(
                 request.RepositoryId,
                 request.OperationId,
@@ -263,12 +287,76 @@ internal sealed class JournaledApplyAuthority
                     + error.Message);
             }
             var activity = begun.Match(value => value, _ => null!);
+            foreach (var effect in plan.Envelope.Payload.Effects)
+            {
+                if (effect.HasReplacementContent)
+                {
+                    var staged = await new JournaledStagingArtifactWriter(
+                            _ledger, _stagingBoundary!)
+                        .StageReplacementAsync(
+                            plan, request.OperationId, effect.Sequence, activity, reservation);
+                    if (staged.IsErr)
+                    {
+                        var error = staged.Match(_ => null!, value => value);
+                        return await ReleaseAndDrainPreEffectAsync(
+                            request, activity, reservation, null,
+                            error.Kind == StagingArtifactErrorKind.UnsafeRoot
+                                ? JournaledApplyErrorKind.UnsafeCoordination
+                                : JournaledApplyErrorKind.LedgerUnavailable,
+                            "Replacement staging failed before guard acquisition: " + error.Message,
+                            error.Cause);
+                    }
+                }
+                if (effect.HasOriginalContent)
+                {
+                    var backedUp = await new JournaledBackupArtifactWriter(
+                            _ledger, _backupBoundary!)
+                        .BackupOriginalAsync(
+                            plan, request.OperationId, effect.Sequence, activity, reservation);
+                    if (backedUp.IsErr)
+                    {
+                        var error = backedUp.Match(_ => null!, value => value);
+                        return await ReleaseAndDrainPreEffectAsync(
+                            request, activity, reservation, null,
+                            error.Kind == BackupArtifactErrorKind.UnsafeRoot
+                                ? JournaledApplyErrorKind.UnsafeCoordination
+                                : JournaledApplyErrorKind.LedgerUnavailable,
+                            "Original backup failed before guard acquisition: " + error.Message,
+                            error.Cause);
+                    }
+                }
+            }
+            var beforeGuard = _ledger.Load(request.RepositoryId, request.OperationId);
+            if (beforeGuard.IsErr)
+            {
+                var error = beforeGuard.Match(_ => null!, value => value);
+                return await ReleaseAndDrainPreEffectAsync(
+                    request, activity, reservation, null,
+                    JournaledApplyErrorKind.LedgerUnavailable,
+                    "The pre-effect fence could not be rechecked before guard acquisition: "
+                    + error.Message);
+            }
+            var preGuardOperation = beforeGuard.Match(value => value, _ => null!);
+            if (preGuardOperation.CurrentState == OperationLifecycleState.CancelledNoEffect)
+            {
+                return await ReleaseAndDrainPreEffectAsync(
+                    request, activity, reservation, null,
+                    JournaledApplyErrorKind.LedgerUnavailable,
+                    "Cancellation closed the pre-effect fence before guard acquisition.");
+            }
+            if (preGuardOperation.CurrentState != OperationLifecycleState.Prepared
+                || preGuardOperation.PreEffectActivity.IsClosed
+                || !preGuardOperation.PreEffectActivity.ActiveAdmissions.Contains(activity))
+            {
+                return Fail(JournaledApplyErrorKind.RecoveryRequired,
+                    "The pre-effect activity is no longer current before guard acquisition.");
+            }
             IJournaledRepositoryEffectSession? session = null;
             GuardedPreflightEvidence? preflight = null;
             Exception? preflightError = null;
             try
             {
-                session = await _broker.AcquireAsync(plan, reservation, cancellationToken);
+                session = await _broker.AcquireAsync(plan, activity, reservation, cancellationToken);
                 if (session is not null)
                     preflight = await session.FinalPreflightAsync(cancellationToken);
             }

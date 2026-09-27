@@ -898,6 +898,15 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   both staging and backup artifacts for same-reservation cleanup. It does not
   verify the live repository original or grant repository effect authority.
   Cross-owner cleanup, guard cleanup, and public lifecycle routing remain open.
+  [ADR-0037](adr/0037-verified-artifacts-before-effect-guard.md) routes exact-plan
+  staging and original backup through the internal apply authority's current
+  pre-effect activity before effect-broker acquisition. First-effect handoff
+  now requires complete ordered verification evidence bound to that activity
+  and reservation. The authority rechecks cancellation before guard acquisition
+  and passes the activity token to the broker for boundary-time revocation.
+  This remains an internal Linux x64 path with a disabled
+  production broker. Guard rejection after artifact creation still needs
+  terminal no-effect cleanup and restart reconciliation before public Apply.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

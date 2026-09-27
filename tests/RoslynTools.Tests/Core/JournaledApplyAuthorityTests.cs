@@ -2890,6 +2890,89 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
+    public async Task first_effect_handoff_requires_every_planned_artifact_to_be_verified()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        var result = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+            plan, request.OperationId, activity, reservation,
+            OperationGuardTokenSet.Expected(plan.Envelope.Payload));
+
+        result.IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Fact]
+    public async Task first_effect_handoff_rejects_a_verified_prefix_of_a_multi_effect_plan()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true);
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalVerifiedArtifacts(plan, request, activity, reservation, 1);
+
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation,
+                OperationGuardTokenSet.Expected(plan.Envelope.Payload))
+            .IsErr.ShouldBeTrue();
+
+        fixture.JournalVerifiedArtifacts(plan, request, activity, reservation, 2);
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, activity, reservation,
+                OperationGuardTokenSet.Expected(plan.Envelope.Payload))
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal
+            .Where(entry => entry.Kind == OperationStagingJournalKind.Verified)
+            .Select(entry => entry.EffectSequence).ShouldBe([1, 2]);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task first_effect_handoff_rejects_artifacts_verified_under_an_earlier_activity(
+        bool replacement)
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: replacement);
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var earlier = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalVerifiedArtifacts(plan, request, earlier, reservation);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, earlier, reservation)
+            .IsOk.ShouldBeTrue();
+        var current = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+                plan, request.OperationId, current, reservation,
+                OperationGuardTokenSet.Expected(plan.Envelope.Payload))
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        if (replacement)
+            File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+        else
+            File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task first_effect_handoff_waits_for_other_pre_effect_activity_and_defeats_late_cancellation()
     {
         using var fixture = new ApplyFixture();
@@ -2908,6 +2991,7 @@ public sealed class JournaledApplyAuthorityTests
                 request.OperationId,
                 reservation)
             .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalVerifiedArtifacts(plan, request, activity, reservation);
 
         fixture.Ledger.BeginApplyingWithFirstEffectIntent(
                 plan, request.OperationId, activity, reservation,
@@ -2947,6 +3031,7 @@ public sealed class JournaledApplyAuthorityTests
         var activity = fixture.Ledger.BeginPreEffectActivity(
                 request.RepositoryId, request.OperationId, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalVerifiedArtifacts(plan, request, activity, reservation);
         var preparedAt = fixture.LoadOperation(request).Transitions[^1].CommittedAtUtc;
         fixture.Now = fixture.Now.AddMinutes(-1);
 
@@ -3005,6 +3090,188 @@ public sealed class JournaledApplyAuthorityTests
         operation.PreEffectActivity.ActiveAdmissions.ShouldContain(activity);
         operation.EffectJournal.ShouldBeEmpty();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task apply_verifies_staging_and_backup_before_acquiring_the_effect_guard()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var broker = new SimulatedBroker(fixture);
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsOk.ShouldBeTrue();
+        broker.ArtifactsVerifiedAtAcquire.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        operation.BackupJournal[^1].Kind.ShouldBe(OperationBackupJournalKind.Verified);
+    }
+
+    [Fact]
+    public async Task apply_verifies_every_effect_artifact_before_broker_acquisition()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true, replacement: true);
+        var broker = new SimulatedBroker(fixture) { DeclineAfterInspect = true };
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        broker.Acquired.ShouldBeTrue();
+        broker.ArtifactsVerifiedAtAcquire.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.StagingJournal.Where(entry => entry.Kind == OperationStagingJournalKind.Verified)
+            .Select(entry => entry.EffectSequence).ShouldBe([1, 2]);
+        operation.BackupJournal.Where(entry => entry.Kind == OperationBackupJournalKind.Verified)
+            .Select(entry => entry.EffectSequence).ShouldBe([1]);
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+        File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task interrupted_staging_keeps_its_admission_and_never_acquires_an_effect_guard()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture);
+        var stagingRoot = fixture.StoredPlan!.Envelope.Payload.Coordination.StagingRoot;
+        var staging = new ThrowAfterArtifactBoundary(
+            new LinuxStagingArtifactBoundary(stagingRoot), fixture, request);
+
+        var result = await fixture.CreateAuthority(
+            broker, stagingBoundary: staging).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancellation_during_staging_does_not_acquire_an_effect_guard()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture);
+        var staging = new CancelAfterArtifactBoundary(
+            new LinuxStagingArtifactBoundary(
+                fixture.StoredPlan!.Envelope.Payload.Coordination.StagingRoot),
+            fixture, request);
+
+        var result = await fixture.CreateAuthority(
+            broker, stagingBoundary: staging).ApplyAsync(request);
+
+        result.IsOk.ShouldBeTrue();
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task interrupted_backup_keeps_its_admission_and_never_acquires_an_effect_guard()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var broker = new SimulatedBroker(fixture);
+        var backupRoot = fixture.StoredPlan!.Envelope.Payload.Coordination.BackupRoot;
+
+        var result = await fixture.CreateAuthority(
+            broker,
+            backupBoundary: new LinuxBackupArtifactBoundary(
+                backupRoot, new RecordingStagingDurability(failedFlush: 1)))
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        operation.BackupJournal[^1].Kind.ShouldBe(OperationBackupJournalKind.CreationAdmitted);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Fact]
+    public async Task missing_artifact_authority_rejects_before_pre_effect_activity_or_broker_acquisition()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture);
+        var apply = new JournaledApplyAuthority(
+            fixture.Store, fixture.Ledger, fixture.Reservations, broker);
+
+        var result = await apply.ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => null!, error => error).Kind
+            .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        broker.Acquired.ShouldBeFalse();
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task unsafe_artifact_root_rejects_before_intent_or_effect_guard(
+        bool backupRoot)
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: backupRoot);
+        var broker = new SimulatedBroker(fixture);
+        var wrongRoot = Path.Combine(fixture.RepositoryRoot, "not-a-control-root");
+
+        var result = await fixture.CreateAuthority(
+                broker,
+                stagingBoundary: backupRoot ? null : new LinuxStagingArtifactBoundary(wrongRoot),
+                backupBoundary: backupRoot ? new LinuxBackupArtifactBoundary(wrongRoot) : null)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => null!, error => error).Kind
+            .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        if (backupRoot)
+        {
+            operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.Verified);
+            operation.BackupJournal.ShouldBeEmpty();
+            File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+        }
+        else
+        {
+            operation.StagingJournal.ShouldBeEmpty();
+            File.Exists(fixture.TargetPath).ShouldBeFalse();
+        }
     }
 
     [Fact]
@@ -3106,7 +3373,7 @@ public sealed class JournaledApplyAuthorityTests
         var broker = new SimulatedBroker(fixture);
 
         var result = await fixture.CreateAuthority(
-            broker, new FailNthReplace(2)).ApplyAsync(request);
+            broker, new FailNthReplace(5)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         result.Match(_ => null!, error => error).Kind
@@ -3208,7 +3475,7 @@ public sealed class JournaledApplyAuthorityTests
 
     [Theory]
     [InlineData(1, false)]
-    [InlineData(2, true)]
+    [InlineData(5, true)]
     public async Task pre_effect_fence_persistence_failure_prevents_repository_effect(
         int failedFlush,
         bool brokerWasAcquired)
@@ -3247,7 +3514,7 @@ public sealed class JournaledApplyAuthorityTests
     {
         using var fixture = new ApplyFixture();
         var request = fixture.Prepare();
-        var failingDurability = new FailDirectoryFlushFrom(2);
+        var failingDurability = new FailDirectoryFlushFrom(5);
 
         (await fixture.CreateAuthority(
                 new SimulatedBroker(fixture), failingDurability).ApplyAsync(request))
@@ -3472,7 +3739,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(5)).ApplyAsync(request);
+            new FailNthDirectoryFlush(8)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState
@@ -3489,7 +3756,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(4)).ApplyAsync(request);
+            new FailNthDirectoryFlush(7)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var restarted = fixture.LoadOperation(request);
@@ -3507,7 +3774,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthReplace(4)).ApplyAsync(request);
+            new FailNthReplace(7)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var restarted = fixture.LoadOperation(request);
@@ -3525,7 +3792,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(7)).ApplyAsync(request);
+            new FailNthDirectoryFlush(10)).ApplyAsync(request);
 
         result.IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Applied);
@@ -3537,7 +3804,7 @@ public sealed class JournaledApplyAuthorityTests
     {
         using var fixture = new ApplyFixture();
         var firstRequest = fixture.Prepare();
-        var durability = new FailDirectoryFlushFrom(7);
+        var durability = new FailDirectoryFlushFrom(10);
 
         var first = await fixture.CreateAuthority(
             new SimulatedBroker(fixture), durability).ApplyAsync(firstRequest);
@@ -3601,20 +3868,40 @@ public sealed class JournaledApplyAuthorityTests
         internal bool RequireActiveAtDisposeAfterCancellation { get; init; }
         internal bool FailDisposeAfterCancellation { get; init; }
         internal bool FailPreflight { get; init; }
+        internal bool DeclineAfterInspect { get; init; }
         internal bool RequireActiveAtDisposeAfterPreflightFailure { get; init; }
         internal bool SawActiveAtDispose { get; private set; }
         internal bool Acquired { get; private set; }
         internal bool SawDurableIntent { get; private set; }
         internal bool SawDurableAdmission { get; private set; }
         internal bool ReservationWasHeldThroughVerification { get; private set; }
+        internal bool ArtifactsVerifiedAtAcquire { get; private set; }
 
         public Task<IJournaledRepositoryEffectSession?> AcquireAsync(
             StoredChangePlan plan,
+            PreEffectActivityAdmission activity,
             RepositoryMutationReservation reservation,
             CancellationToken cancellationToken)
         {
             reservation.AssertHeld(plan.Key.RepositoryId);
+            var operation = fixture.LoadOperation(fixture.Request!);
+            if (operation.CurrentState != OperationLifecycleState.Prepared
+                || !operation.PreEffectActivity.ActiveAdmissions.Contains(activity))
+                return Task.FromResult<IJournaledRepositoryEffectSession?>(null);
+            ArtifactsVerifiedAtAcquire = plan.Envelope.Payload.Effects.All(effect =>
+                (!effect.HasReplacementContent || operation.StagingJournal.Any(entry =>
+                    entry.EffectSequence == effect.Sequence
+                    && entry.Kind == OperationStagingJournalKind.Verified
+                    && File.Exists(entry.ArtifactPath)
+                    && File.ReadAllBytes(entry.ArtifactPath).SequenceEqual(effect.ReplacementContent)))
+                && (!effect.HasOriginalContent || operation.BackupJournal.Any(entry =>
+                    entry.EffectSequence == effect.Sequence
+                    && entry.Kind == OperationBackupJournalKind.Verified
+                    && File.Exists(entry.ArtifactPath)
+                    && File.ReadAllBytes(entry.ArtifactPath).SequenceEqual(effect.OriginalContent))));
             Acquired = true;
+            if (DeclineAfterInspect)
+                return Task.FromResult<IJournaledRepositoryEffectSession?>(null);
             return Task.FromResult<IJournaledRepositoryEffectSession?>(
                 new Session(this, fixture, plan, reservation));
         }
@@ -3638,8 +3925,12 @@ public sealed class JournaledApplyAuthorityTests
                 }
                 if (broker.FailPreflight)
                     throw new IOException("Injected guard preflight failure.");
+                var expectedTarget = plan.Envelope.Payload.Effects[0].HasOriginalContent
+                    ? File.Exists(fixture.TargetPath)
+                      && File.ReadAllBytes(fixture.TargetPath).SequenceEqual(fixture.OriginalContent)
+                    : !File.Exists(fixture.TargetPath);
                 return Task.FromResult<GuardedPreflightEvidence?>(
-                    File.Exists(fixture.TargetPath)
+                    !expectedTarget
                         ? null
                         : new GuardedPreflightEvidence(
                             broker.OmitOneGuard
@@ -3744,6 +4035,46 @@ public sealed class JournaledApplyAuthorityTests
         }
     }
 
+    // The apply-state tests run on every OS. Linux's handle-relative artifact
+    // boundary has separate physical tests; this stand-in exercises only the
+    // journal handoff on platforms that cannot acquire that boundary.
+    private sealed class SimulatedArtifactBoundary
+        : IStagingArtifactBoundary, IBackupArtifactBoundary
+    {
+        IStagingArtifactSession IStagingArtifactBoundary.Acquire(StoredChangePlan plan) => new Session();
+
+        IBackupArtifactSession IBackupArtifactBoundary.Acquire(StoredChangePlan plan) => new Session();
+
+        private sealed class Session : IStagingArtifactSession, IBackupArtifactSession
+        {
+            public Task<string> CreateAndHashAsync(
+                OperationStagingJournalEvent creation,
+                ReadOnlyMemory<byte> replacementBytes,
+                bool allowExistingAdmittedArtifact) =>
+                Task.FromResult(Hash(replacementBytes.ToArray()));
+
+            public Task<string> VerifyExistingAsync(
+                OperationStagingJournalEvent verification,
+                ReadOnlyMemory<byte> replacementBytes) =>
+                Task.FromResult(Hash(replacementBytes.ToArray()));
+
+            public Task<string> CreateAndHashAsync(
+                OperationBackupJournalEvent creation,
+                ReadOnlyMemory<byte> originalBytes,
+                bool allowExistingAdmittedArtifact) =>
+                Task.FromResult(Hash(originalBytes.ToArray()));
+
+            public Task<string> VerifyExistingAsync(
+                OperationBackupJournalEvent verification,
+                ReadOnlyMemory<byte> originalBytes) =>
+                Task.FromResult(Hash(originalBytes.ToArray()));
+
+            public void Dispose()
+            {
+            }
+        }
+    }
+
     private sealed class ThrowAfterArtifactBoundary(
         IStagingArtifactBoundary inner,
         ApplyFixture fixture,
@@ -3774,6 +4105,41 @@ public sealed class JournaledApplyAuthorityTests
                 await inner.CreateAndHashAsync(
                     creation, replacementBytes, allowExistingAdmittedArtifact);
                 throw new IOException("Injected interruption after durable artifact creation.");
+            }
+
+            public Task<string> VerifyExistingAsync(
+                OperationStagingJournalEvent verification,
+                ReadOnlyMemory<byte> replacementBytes) =>
+                inner.VerifyExistingAsync(verification, replacementBytes);
+
+            public void Dispose() => inner.Dispose();
+        }
+    }
+
+    private sealed class CancelAfterArtifactBoundary(
+        IStagingArtifactBoundary inner,
+        ApplyFixture fixture,
+        CanonicalApplyRequest request) : IStagingArtifactBoundary
+    {
+        public IStagingArtifactSession Acquire(StoredChangePlan plan) =>
+            new Session(inner.Acquire(plan), fixture, request);
+
+        private sealed class Session(
+            IStagingArtifactSession inner,
+            ApplyFixture fixture,
+            CanonicalApplyRequest request) : IStagingArtifactSession
+        {
+            public async Task<string> CreateAndHashAsync(
+                OperationStagingJournalEvent creation,
+                ReadOnlyMemory<byte> replacementBytes,
+                bool allowExistingAdmittedArtifact)
+            {
+                var hash = await inner.CreateAndHashAsync(
+                    creation, replacementBytes, allowExistingAdmittedArtifact);
+                fixture.Ledger.CancelBeforeFirstEffect(
+                        request.RepositoryId, request.OperationId)
+                    .IsOk.ShouldBeTrue();
+                return hash;
             }
 
             public Task<string> VerifyExistingAsync(
@@ -3862,6 +4228,47 @@ public sealed class JournaledApplyAuthorityTests
         internal StoredChangePlan ReloadPlan() =>
             _store.Load(StoredPlan!.Key)
                 .Match(value => value, error => throw new IOException(error.Message));
+
+        internal void JournalVerifiedArtifacts(
+            StoredChangePlan plan,
+            CanonicalApplyRequest request,
+            PreEffectActivityAdmission activity,
+            RepositoryMutationReservation reservation,
+            int? onlySequence = null)
+        {
+            foreach (var effect in plan.Envelope.Payload.Effects.Where(effect =>
+                         onlySequence is null || effect.Sequence == onlySequence))
+            {
+                if (effect.HasReplacementContent)
+                {
+                    _ledger.AppendStagingIntent(
+                            plan, request.OperationId, effect.Sequence, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                    var creation = _ledger.AppendStagingCreationAdmission(
+                            plan, request.OperationId, effect.Sequence, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                    _ledger.AppendStagingVerification(
+                            plan, request.OperationId, effect.Sequence,
+                            Hash(effect.ReplacementContent.ToArray()),
+                            creation.CreationToken!.Value, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                }
+                if (effect.HasOriginalContent)
+                {
+                    _ledger.AppendBackupIntent(
+                            plan, request.OperationId, effect.Sequence, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                    var creation = _ledger.AppendBackupCreationAdmission(
+                            plan, request.OperationId, effect.Sequence, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                    _ledger.AppendBackupVerification(
+                            plan, request.OperationId, effect.Sequence,
+                            Hash(effect.OriginalContent.ToArray()),
+                            creation.CreationToken!.Value, activity, reservation)
+                        .Match(value => value, error => throw new IOException(error.Message));
+                }
+            }
+        }
         internal RepositoryMutationReservationProvider Reservations => new(
             _authority.MutationReservationRoot, _authority);
         internal DurableOperationLedger CreateLedger(IOperationLedgerDurability durability) =>
@@ -3912,14 +4319,42 @@ public sealed class JournaledApplyAuthorityTests
 
         internal JournaledApplyAuthority CreateAuthority(
             IJournaledRepositoryEffectBroker? broker = null,
-            IOperationLedgerDurability? ledgerDurability = null) => new(
-            _store,
-            ledgerDurability is null
+            IOperationLedgerDurability? ledgerDurability = null,
+            IStagingArtifactBoundary? stagingBoundary = null,
+            IBackupArtifactBoundary? backupBoundary = null)
+        {
+            foreach (var root in new[]
+                     {
+                         Path.Combine(_authority.ControlRoot, "staging"),
+                         Path.Combine(_authority.ControlRoot, "backup")
+                     })
+            {
+                Directory.CreateDirectory(root);
+                if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+                    File.SetUnixFileMode(root,
+                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+            return new JournaledApplyAuthority(
+                _store,
+                ledgerDurability is null
                 ? _ledger
                 : new DurableOperationLedger(
                     _authority.LedgerRoot, () => Now, _authority, ledgerDurability),
-            new RepositoryMutationReservationProvider(_authority.MutationReservationRoot, _authority),
-            broker);
+                new RepositoryMutationReservationProvider(_authority.MutationReservationRoot, _authority),
+                broker,
+                stagingBoundary ?? (OperatingSystem.IsLinux()
+                                   && RuntimeInformation.ProcessArchitecture
+                                   == System.Runtime.InteropServices.Architecture.X64
+                    ? new LinuxStagingArtifactBoundary(
+                        Path.Combine(_authority.ControlRoot, "staging"))
+                    : new SimulatedArtifactBoundary()),
+                backupBoundary ?? (OperatingSystem.IsLinux()
+                                  && RuntimeInformation.ProcessArchitecture
+                                  == System.Runtime.InteropServices.Architecture.X64
+                    ? new LinuxBackupArtifactBoundary(
+                        Path.Combine(_authority.ControlRoot, "backup"))
+                    : new SimulatedArtifactBoundary()));
+        }
 
         internal DurableOperationRecord LoadOperation(CanonicalApplyRequest request) =>
             new DurableOperationLedger(_authority.LedgerRoot, () => Now, _authority)
@@ -3928,8 +4363,6 @@ public sealed class JournaledApplyAuthorityTests
 
         private ChangePlanEnvelope CreateEnvelope(bool twoEffects, bool replacement)
         {
-            if (twoEffects && replacement)
-                throw new ArgumentException("The fixture does not combine replacement and two effects.");
             var controlRoot = _authority.ControlRoot;
             var sourcePath = "src/Added.cs";
             var after = new ChangePlanPathState(

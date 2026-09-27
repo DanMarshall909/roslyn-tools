@@ -1851,7 +1851,31 @@ internal sealed class DurableOperationLedger
                 || (!operation.StagingJournal.IsEmpty
                     && operation.StagingJournal[^1].Kind != OperationStagingJournalKind.Verified)
                 || (!operation.BackupJournal.IsEmpty
-                    && operation.BackupJournal[^1].Kind != OperationBackupJournalKind.Verified))
+                    && operation.BackupJournal[^1].Kind != OperationBackupJournalKind.Verified)
+                || !plan.Envelope.Payload.Effects
+                    .Where(candidate => candidate.HasReplacementContent)
+                    .Select(candidate => candidate.Sequence)
+                    .SequenceEqual(operation.StagingJournal
+                        .Where(entry => entry.Kind == OperationStagingJournalKind.Verified)
+                        .Select(entry => entry.EffectSequence))
+                || !plan.Envelope.Payload.Effects
+                    .Where(candidate => candidate.HasOriginalContent)
+                    .Select(candidate => candidate.Sequence)
+                    .SequenceEqual(operation.BackupJournal
+                        .Where(entry => entry.Kind == OperationBackupJournalKind.Verified)
+                        .Select(entry => entry.EffectSequence))
+                || operation.StagingJournal.Any(entry =>
+                    entry.Kind == OperationStagingJournalKind.Verified
+                    && (entry.AdmissionToken != admission.Token
+                        || entry.ControlGeneration != admission.ControlGeneration
+                        || entry.FenceEpoch != reservation.FenceEpoch
+                        || entry.ReservationToken != reservation.FenceToken))
+                || operation.BackupJournal.Any(entry =>
+                    entry.Kind == OperationBackupJournalKind.Verified
+                    && (entry.AdmissionToken != admission.Token
+                        || entry.ControlGeneration != admission.ControlGeneration
+                        || entry.FenceEpoch != reservation.FenceEpoch
+                        || entry.ReservationToken != reservation.FenceToken)))
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
                     OperationLedgerErrorKind.InvalidTransition,
