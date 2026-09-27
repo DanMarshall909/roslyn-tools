@@ -32,6 +32,52 @@ public sealed class DurableOperationLedgerTests
     }
 
     [Fact]
+    public void version_one_records_without_an_activity_fence_remain_readable_but_cannot_start_a_late_effect()
+    {
+        using var fixture = new LedgerFixture();
+        var request = fixture.CreateRequest();
+        var ledger = fixture.CreateLedger();
+        Unwrap(ledger.Receive(request, Principal("principal-001")));
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Received,
+            OperationLifecycleState.Prepared,
+            null));
+        var recordPath = fixture.RecordPath(request);
+        var preparedJson = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        preparedJson.Remove("preEffectActivity").ShouldBeTrue();
+        File.WriteAllText(recordPath, preparedJson.ToJsonString());
+
+        var prepared = Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId));
+
+        prepared.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        prepared.PreEffectActivity.IsClosed.ShouldBeFalse();
+        prepared.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+
+        Unwrap(ledger.AppendTransition(
+            request.RepositoryId,
+            request.OperationId,
+            OperationLifecycleState.Prepared,
+            OperationLifecycleState.Applying,
+            null));
+        var applyingJson = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        applyingJson.Remove("preEffectActivity").ShouldBeTrue();
+        File.WriteAllText(recordPath, applyingJson.ToJsonString());
+
+        var applying = Unwrap(fixture.CreateLedger().Load(request.RepositoryId, request.OperationId));
+
+        applying.PreEffectActivity.IsClosed.ShouldBeTrue();
+        applying.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        ledger.AppendEffectIntent(
+                request.RepositoryId,
+                request.OperationId,
+                1,
+                new string('a', 64))
+            .IsErr.ShouldBeTrue();
+    }
+
+    [Fact]
     public void constructor_and_authority_inputs_are_rejected_before_filesystem_access()
     {
         Should.Throw<ArgumentException>(() => new DurableOperationLedger(" "));

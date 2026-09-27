@@ -77,6 +77,21 @@ internal sealed record OperationOwnerLease(
     DateTimeOffset HeartbeatAtUtc,
     DateTimeOffset ExpiresAtUtc);
 
+internal sealed record PreEffectActivityAdmission(
+    Guid Token,
+    long ControlGeneration,
+    long FenceEpoch,
+    Guid ReservationToken);
+
+internal sealed record PreEffectActivityState(
+    long ControlGeneration,
+    bool IsClosed,
+    ImmutableArray<PreEffectActivityAdmission> ActiveAdmissions,
+    bool HasAdmissionHistory = false)
+{
+    internal static PreEffectActivityState Open { get; } = new(1, false, []);
+}
+
 internal sealed record OperationEffectJournalEvent(
     long Sequence,
     int EffectSequence,
@@ -101,6 +116,7 @@ internal sealed record DurableOperationRecord(
 {
     internal ImmutableArray<OperationEffectJournalEvent> EffectJournal { get; init; } = [];
     internal OperationOwnerLease? OwnerLease { get; init; }
+    internal PreEffectActivityState PreEffectActivity { get; init; } = PreEffectActivityState.Open;
 }
 
 internal sealed record OperationIntakeResult(
@@ -263,6 +279,7 @@ internal sealed class UnavailableOperationLedgerProtectionAuthority
 internal sealed class DurableOperationLedger
 {
     private const int StoreSchemaVersion = 1;
+    private const int MaximumActivePreEffectActivities = 32;
     private static readonly TimeSpan ApplyOwnerLeaseLifetime = TimeSpan.FromMinutes(1);
     private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
@@ -628,16 +645,23 @@ internal sealed class DurableOperationLedger
                     if (loaded.IsErr)
                         return loaded.Map(_ => false);
                     var operation = loaded.Match(value => value, _ => null!);
-                    if (operationId == excludedOperationId)
-                        continue;
-                    if (operation.CurrentState == OperationLifecycleState.Applied)
+                    if (operation.CurrentState is OperationLifecycleState.Applied
+                        or OperationLifecycleState.CancelledNoEffect
+                        or OperationLifecycleState.RejectedStale
+                        or OperationLifecycleState.RejectedPlanUnavailable
+                        or OperationLifecycleState.RejectedUnsafeCoordination
+                        or OperationLifecycleState.Expired
+                        || operation.PreEffectActivity.HasAdmissionHistory)
                     {
-                        // An atomic replacement may have been visible after its
-                        // directory flush failed. Prove that terminal record durable
-                        // before admitting a later mutation in this repository.
+                        // A terminal or drained-admission replacement may be
+                        // visible after its directory flush failed. Prove its
+                        // durability before admitting any later mutation.
                         _durability.FlushDirectoryMetadata(epochPath);
                     }
-                    if (operation.CurrentState is OperationLifecycleState.Applying
+                    if (operationId == excludedOperationId)
+                        continue;
+                    if (!operation.PreEffectActivity.ActiveAdmissions.IsEmpty
+                        || operation.CurrentState is OperationLifecycleState.Applying
                         or OperationLifecycleState.OwnerQuiescencePending
                         or OperationLifecycleState.Reconciling
                         or OperationLifecycleState.RecoveryRequired
@@ -707,6 +731,20 @@ internal sealed class DurableOperationLedger
                         OperationLedgerErrorKind.InvalidTransition,
                         "A repository mutation outcome requires durable effect or no-effect verification."));
             }
+            var noEffectTerminal = nextState is OperationLifecycleState.CancelledNoEffect
+                or OperationLifecycleState.RejectedStale
+                or OperationLifecycleState.RejectedPlanUnavailable
+                or OperationLifecycleState.RejectedUnsafeCoordination
+                or OperationLifecycleState.Expired;
+            if (noEffectTerminal
+                && (!operation.EffectJournal.IsEmpty
+                    || !operation.PreEffectActivity.ActiveAdmissions.IsEmpty))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "A no-effect outcome with active control work requires fenced resolution."));
+            }
 
             var committedAtUtc = _utcNow().ToUniversalTime();
             var previousCommittedAtUtc = operation.Transitions[^1].CommittedAtUtc;
@@ -727,7 +765,18 @@ internal sealed class DurableOperationLedger
             var updated = operation with
             {
                 CurrentState = nextState,
-                Transitions = transitions
+                Transitions = transitions,
+                PreEffectActivity = nextState is not (OperationLifecycleState.Received
+                        or OperationLifecycleState.Prepared
+                        or OperationLifecycleState.Applying)
+                    && !operation.PreEffectActivity.IsClosed
+                    ? operation.PreEffectActivity with
+                    {
+                        IsClosed = true,
+                        ControlGeneration = checked(
+                            operation.PreEffectActivity.ControlGeneration + 1)
+                    }
+                    : operation.PreEffectActivity
             };
             WriteRecord(recordPath, updated);
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(updated);
@@ -736,6 +785,134 @@ internal sealed class DurableOperationLedger
         {
             return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
         }
+    }
+
+    internal Result<PreEffectActivityAdmission, OperationLedgerError> BeginPreEffectActivity(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        var token = Guid.NewGuid();
+        var updated = UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var activity = operation.PreEffectActivity;
+            if (operation.CurrentState is not (OperationLifecycleState.Prepared or OperationLifecycleState.Applying)
+                || activity.IsClosed
+                || !operation.EffectJournal.IsEmpty
+                || activity.ActiveAdmissions.Length >= MaximumActivePreEffectActivities
+                || (operation.CurrentState == OperationLifecycleState.Applying
+                    && (!OwnerMatches(operation.OwnerLease, reservation)
+                        || operation.OwnerLease!.ExpiresAtUtc <= _utcNow().ToUniversalTime())))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Pre-effect activity is closed or the current owner cannot admit more work."));
+            }
+
+            var admission = new PreEffectActivityAdmission(
+                token,
+                activity.ControlGeneration,
+                reservation.FenceEpoch,
+                reservation.FenceToken);
+            var next = operation with
+            {
+                PreEffectActivity = activity with
+                {
+                    HasAdmissionHistory = true,
+                    ActiveAdmissions = activity.ActiveAdmissions.Add(admission)
+                }
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+        return updated.Match(
+            record => Result<PreEffectActivityAdmission, OperationLedgerError>.Ok(
+                record.PreEffectActivity.ActiveAdmissions[^1]),
+            Result<PreEffectActivityAdmission, OperationLedgerError>.Err);
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> CompletePreEffectActivity(
+        string repositoryId,
+        OperationId operationId,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var activity = operation.PreEffectActivity;
+            if (admission.FenceEpoch != reservation.FenceEpoch
+                || admission.ReservationToken != reservation.FenceToken
+                || !activity.ActiveAdmissions.Contains(admission))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Only the admitted reservation may complete pre-effect activity."));
+            }
+
+            var next = operation with
+            {
+                PreEffectActivity = activity with
+                {
+                    ActiveAdmissions = activity.ActiveAdmissions.Remove(admission)
+                }
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> CancelBeforeFirstEffect(
+        string repositoryId,
+        OperationId operationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.CurrentState is not (OperationLifecycleState.Prepared or OperationLifecycleState.Applying)
+                || !operation.EffectJournal.IsEmpty
+                || operation.PreEffectActivity.IsClosed)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Cancellation cannot prove no repository effect after first-effect admission."));
+            }
+
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                CurrentState = OperationLifecycleState.CancelledNoEffect,
+                PreEffectActivity = operation.PreEffectActivity with
+                {
+                    IsClosed = true,
+                    ControlGeneration = checked(operation.PreEffectActivity.ControlGeneration + 1)
+                },
+                Transitions = operation.Transitions.Add(new OperationTransition(
+                    operation.Transitions[^1].Sequence + 1,
+                    OperationLifecycleState.CancelledNoEffect,
+                    now,
+                    "Cancellation won before the first repository effect intent."))
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
     }
 
     internal Result<DurableOperationRecord, OperationLedgerError> ClaimApplyOwner(
@@ -884,6 +1061,15 @@ internal sealed class DurableOperationLedger
                         OperationLedgerErrorKind.InvalidTransition,
                         "Effect intents must follow the reviewed plan order."));
             }
+            if ((journal.IsEmpty && operation.PreEffectActivity.IsClosed)
+                || !operation.PreEffectActivity.ActiveAdmissions.IsEmpty
+                || (!journal.IsEmpty && !operation.PreEffectActivity.IsClosed))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "The first effect requires a drained pre-effect activity fence."));
+            }
 
             var committedAtUtc = _utcNow().ToUniversalTime();
             var lastCommit = journal.IsEmpty
@@ -893,6 +1079,14 @@ internal sealed class DurableOperationLedger
                 committedAtUtc = lastCommit;
             var updated = operation with
             {
+                PreEffectActivity = journal.IsEmpty
+                    ? operation.PreEffectActivity with
+                    {
+                        IsClosed = true,
+                        ControlGeneration = checked(
+                            operation.PreEffectActivity.ControlGeneration + 1)
+                    }
+                    : operation.PreEffectActivity,
                 EffectJournal = journal.Add(new OperationEffectJournalEvent(
                     journal.IsEmpty ? 1 : journal[^1].Sequence + 1,
                     effectSequence,
@@ -1194,6 +1388,47 @@ internal sealed class DurableOperationLedger
         }
     }
 
+    internal Result<DurableOperationRecord, OperationLedgerError> ConfirmDurableCancelledNoEffect(
+        string repositoryId,
+        OperationId operationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        try
+        {
+            var protectionError = AcquireExistingProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            using var ledgerLock = AcquireMutationLock();
+            var recordPath = GetRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableOperationRecord>();
+            var loaded = ReadRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            var record = loaded.Match(value => value, _ => null!);
+            if (record.CurrentState != OperationLifecycleState.CancelledNoEffect
+                || !record.EffectJournal.IsEmpty
+                || !record.PreEffectActivity.IsClosed
+                || !record.PreEffectActivity.ActiveAdmissions.IsEmpty)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(
+                    new OperationLedgerError(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "The drained no-effect cancellation was not found during durability confirmation."));
+            }
+
+            _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(record);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
     private Result<DurableOperationRecord, OperationLedgerError> UpdateEffectJournal(
         string repositoryId,
         OperationId operationId,
@@ -1460,6 +1695,32 @@ internal sealed class DurableOperationLedger
             {
                 return Corrupt<DurableOperationRecord>("The effect journal does not match its apply owner.");
             }
+            var preEffectActivity = stored.PreEffectActivity ?? new PreEffectActivityState(
+                1,
+                stored.CurrentState is not (OperationLifecycleState.Received or OperationLifecycleState.Prepared),
+                []);
+            if (preEffectActivity.ControlGeneration <= 0
+                || preEffectActivity.ActiveAdmissions.IsDefault
+                || preEffectActivity.ActiveAdmissions.Length > MaximumActivePreEffectActivities
+                || (!preEffectActivity.HasAdmissionHistory
+                    && !preEffectActivity.ActiveAdmissions.IsEmpty)
+                || preEffectActivity.ActiveAdmissions.Any(admission =>
+                    admission is null
+                    || admission.Token == Guid.Empty
+                    || admission.ControlGeneration <= 0
+                    || admission.ControlGeneration > preEffectActivity.ControlGeneration
+                    || admission.FenceEpoch <= 0
+                    || admission.ReservationToken == Guid.Empty)
+                || preEffectActivity.ActiveAdmissions.Select(admission => admission.Token).Distinct().Count()
+                    != preEffectActivity.ActiveAdmissions.Length
+                || (!preEffectActivity.IsClosed
+                    && (effectJournal.Length > 0
+                        || stored.CurrentState is not (OperationLifecycleState.Received
+                            or OperationLifecycleState.Prepared
+                            or OperationLifecycleState.Applying))))
+            {
+                return Corrupt<DurableOperationRecord>("The pre-effect activity fence is inconsistent.");
+            }
 
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(new DurableOperationRecord(
                 stored.RepositoryId,
@@ -1471,7 +1732,8 @@ internal sealed class DurableOperationLedger
                 transitions)
             {
                 EffectJournal = effectJournal,
-                OwnerLease = ownerLease
+                OwnerLease = ownerLease,
+                PreEffectActivity = preEffectActivity
             });
         }
         catch (Exception exception) when (exception is ArgumentException or FormatException)
@@ -1649,7 +1911,8 @@ internal sealed class DurableOperationLedger
                 journalEvent.FenceToken,
                 journalEvent.EffectHash,
                 journalEvent.GuardTokens.ToArray())).ToArray(),
-            record.OwnerLease);
+            record.OwnerLease,
+            record.PreEffectActivity);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -2029,7 +2292,8 @@ internal sealed class DurableOperationLedger
         OperationLifecycleState CurrentState,
         IReadOnlyList<TransitionRecord> Transitions,
         IReadOnlyList<EffectJournalRecord>? EffectJournal = null,
-        OperationOwnerLease? OwnerLease = null);
+        OperationOwnerLease? OwnerLease = null,
+        PreEffectActivityState? PreEffectActivity = null);
 
     private sealed record EffectJournalRecord(
         long Sequence,

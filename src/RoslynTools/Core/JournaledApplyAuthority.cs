@@ -231,6 +231,11 @@ internal sealed class JournaledApplyAuthority
                 return Fail(JournaledApplyErrorKind.LedgerUnavailable,
                     "The operation is not the prepared exact request.");
             }
+            if (!operation.PreEffectActivity.ActiveAdmissions.IsEmpty)
+            {
+                return Fail(JournaledApplyErrorKind.RecoveryRequired,
+                    "An earlier pre-effect activity has not been durably drained.");
+            }
 
             var repositoryBarrier = _ledger.HasUnresolvedRepositoryMutation(
                 request.RepositoryId,
@@ -246,15 +251,77 @@ internal sealed class JournaledApplyAuthority
                     "Another repository mutation remains unresolved.");
             }
 
-            IJournaledRepositoryEffectSession? session;
+            var begun = _ledger.BeginPreEffectActivity(
+                request.RepositoryId,
+                request.OperationId,
+                reservation);
+            if (begun.IsErr)
+            {
+                var error = begun.Match(_ => null!, value => value);
+                return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                    "Final preflight could not enter the durable pre-effect activity fence: "
+                    + error.Message);
+            }
+            var activity = begun.Match(value => value, _ => null!);
+            IJournaledRepositoryEffectSession? session = null;
+            GuardedPreflightEvidence? preflight = null;
+            Exception? preflightError = null;
+            Result<DurableOperationRecord, OperationLedgerError>? completedActivity = null;
+            var preflightReturned = false;
             try
             {
-                session = await _broker.AcquireAsync(plan, reservation, cancellationToken);
+                try
+                {
+                    session = await _broker.AcquireAsync(plan, reservation, cancellationToken);
+                    if (session is not null)
+                        preflight = await session.FinalPreflightAsync(cancellationToken);
+                    preflightReturned = true;
+                }
+                catch (Exception exception) when (exception is IOException or InvalidOperationException)
+                {
+                    preflightError = exception;
+                }
             }
-            catch (Exception exception) when (exception is IOException or InvalidOperationException)
+            finally
             {
+                try
+                {
+                    completedActivity = _ledger.CompletePreEffectActivity(
+                        request.RepositoryId,
+                        request.OperationId,
+                        activity,
+                        reservation);
+                }
+                finally
+                {
+                    if ((!preflightReturned || completedActivity is null) && session is not null)
+                    {
+                        await session.DisposeAsync();
+                        session = null;
+                    }
+                }
+            }
+            if (completedActivity.IsErr)
+            {
+                if (session is not null)
+                    await session.DisposeAsync();
+                var error = completedActivity.Match(_ => null!, value => value);
+                return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                    "Pre-effect activity could not be durably drained: " + error.Message);
+            }
+            var afterPreflight = completedActivity.Match(value => value, _ => null!);
+            if (afterPreflight.CurrentState == OperationLifecycleState.CancelledNoEffect)
+            {
+                if (session is not null)
+                    await session.DisposeAsync();
+                return Result<DurableOperationRecord, JournaledApplyError>.Ok(afterPreflight);
+            }
+            if (preflightError is not null)
+            {
+                if (session is not null)
+                    await session.DisposeAsync();
                 return Fail(JournaledApplyErrorKind.UnsafeCoordination,
-                    "The required repository effect guard could not be acquired.", exception);
+                    "The required repository effect guard or preflight failed.", preflightError);
             }
             if (session is null)
             {
@@ -264,7 +331,6 @@ internal sealed class JournaledApplyAuthority
 
             await using (session)
             {
-                var preflight = await session.FinalPreflightAsync(cancellationToken);
                 if (preflight is null
                     || !preflight.GuardTokens.SequenceEqual(
                         OperationGuardTokenSet.Expected(plan.Envelope.Payload)))
@@ -280,6 +346,13 @@ internal sealed class JournaledApplyAuthority
                     request.Identity.PlanHash);
                 if (applying.IsErr)
                 {
+                    var current = _ledger.Load(request.RepositoryId, request.OperationId);
+                    if (current.IsOk
+                        && current.Match(value => value, _ => null!).CurrentState
+                            == OperationLifecycleState.CancelledNoEffect)
+                    {
+                        return ConfirmCancelledNoEffect(request);
+                    }
                     var error = applying.Match(_ => null!, value => value);
                     return Fail(JournaledApplyErrorKind.LedgerUnavailable, error.Message);
                 }
@@ -387,6 +460,13 @@ internal sealed class JournaledApplyAuthority
                 }
                 catch (Exception exception)
                 {
+                    var current = _ledger.Load(request.RepositoryId, request.OperationId);
+                    if (current.IsOk
+                        && current.Match(value => value, _ => null!).CurrentState
+                            == OperationLifecycleState.CancelledNoEffect)
+                    {
+                        return ConfirmCancelledNoEffect(request);
+                    }
                     // A durable intent conservatively means its effect may have run.
                     // Keep the plan pin and journal for a later guarded reconciler.
                     _ledger.AppendTransition(
@@ -401,6 +481,18 @@ internal sealed class JournaledApplyAuthority
                 }
             }
         }
+    }
+
+    private Result<DurableOperationRecord, JournaledApplyError> ConfirmCancelledNoEffect(
+        CanonicalApplyRequest request)
+    {
+        var confirmed = _ledger.ConfirmDurableCancelledNoEffect(
+            request.RepositoryId,
+            request.OperationId);
+        return confirmed.Match(
+            Result<DurableOperationRecord, JournaledApplyError>.Ok,
+            error => Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                "The no-effect cancellation could not be durably confirmed: " + error.Message));
     }
 
     private static Result<DurableOperationRecord, JournaledApplyError> Fail(

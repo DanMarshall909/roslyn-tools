@@ -92,3 +92,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0025](0025-restart-safe-dispatch-intake-handoff.md) | Restart-safe dispatch and intake handoff | Accepted | 2026-09-25 |
 | [0026](0026-public-no-effect-durable-prepare.md) | Public no-effect durable Prepare boundary | Accepted | 2026-09-26 |
 | [0027](0027-internal-journaled-apply-barrier.md) | Internal journaled apply barrier | Accepted | 2026-09-27 |
+| [0028](0028-internal-pre-effect-activity-fence.md) | Internal pre-effect activity fence | Accepted | 2026-09-27 |
