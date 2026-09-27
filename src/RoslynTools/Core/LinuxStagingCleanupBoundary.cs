@@ -6,19 +6,25 @@ using Microsoft.Win32.SafeHandles;
 namespace RoslynTools.Core;
 
 /// <summary>
-///     Handle-relative cleanup of an admitted operation's staging artifacts.
+///     Handle-relative cleanup of an admitted operation's control artifacts.
 ///     The caller must first prove the operation's pre-effect activity is drained.
 /// </summary>
-internal sealed class LinuxStagingCleanupBoundary
+internal abstract class LinuxControlCleanupBoundary
 {
     private readonly IStagingArtifactDurability _durability;
+    private readonly OperationCleanupArtifactKind _artifactKind;
+    private readonly string _extension;
 
-    internal LinuxStagingCleanupBoundary(
-        string trustedStagingRoot,
+    protected LinuxControlCleanupBoundary(
+        string trustedRoot,
+        OperationCleanupArtifactKind artifactKind,
+        string extension,
         IStagingArtifactDurability? durability = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(trustedStagingRoot);
-        TrustedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(trustedStagingRoot));
+        ArgumentException.ThrowIfNullOrWhiteSpace(trustedRoot);
+        TrustedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(trustedRoot));
+        _artifactKind = artifactKind;
+        _extension = extension;
         _durability = durability ?? LinuxStagingArtifactDurability.Instance;
     }
 
@@ -32,13 +38,13 @@ internal sealed class LinuxStagingCleanupBoundary
         if (root is null)
         {
             if (!allowMissingRoot)
-                throw new IOException("The protected staging root is missing before artifact removal.");
-            return new Session(TrustedRoot, null, _durability);
+                throw new IOException("The protected control root is missing before artifact removal.");
+            return new Session(TrustedRoot, null, _durability, _artifactKind, _extension);
         }
         try
         {
             LinuxStagingHandles.RequirePrivateDirectory(root);
-            return new Session(TrustedRoot, root, _durability);
+            return new Session(TrustedRoot, root, _durability, _artifactKind, _extension);
         }
         catch
         {
@@ -50,19 +56,22 @@ internal sealed class LinuxStagingCleanupBoundary
     internal sealed class Session(
         string rootPath,
         SafeFileHandle? root,
-        IStagingArtifactDurability durability) : IDisposable
+        IStagingArtifactDurability durability,
+        OperationCleanupArtifactKind artifactKind,
+        string extension) : IDisposable
     {
         internal void RemoveArtifact(OperationId operationId, OperationCleanupArtifact artifact)
         {
             ArgumentNullException.ThrowIfNull(operationId);
             ArgumentNullException.ThrowIfNull(artifact);
             if (root is null)
-                throw new IOException("The protected staging root is unavailable for artifact removal.");
+                throw new IOException("The protected control root is unavailable for artifact removal.");
             var epoch = operationId.Epoch.ToString(CultureInfo.InvariantCulture);
             var nonce = operationId.Nonce.ToString("N");
-            var name = $"{artifact.EffectSequence:D8}.stage";
+            var name = $"{artifact.EffectSequence:D8}{extension}";
             var expectedPath = Path.Combine(rootPath, epoch, nonce, name);
             if (artifact.EffectSequence <= 0
+                || artifact.Kind != artifactKind
                 || artifact.ArtifactPath != expectedPath)
                 throw new InvalidOperationException("The cleanup artifact is outside the admitted operation root.");
 
@@ -99,5 +108,25 @@ internal sealed class LinuxStagingCleanupBoundary
         }
 
         void IDisposable.Dispose() => root?.Dispose();
+    }
+}
+
+internal sealed class LinuxStagingCleanupBoundary : LinuxControlCleanupBoundary
+{
+    internal LinuxStagingCleanupBoundary(
+        string trustedStagingRoot,
+        IStagingArtifactDurability? durability = null)
+        : base(trustedStagingRoot, OperationCleanupArtifactKind.Staging, ".stage", durability)
+    {
+    }
+}
+
+internal sealed class LinuxBackupCleanupBoundary : LinuxControlCleanupBoundary
+{
+    internal LinuxBackupCleanupBoundary(
+        string trustedBackupRoot,
+        IStagingArtifactDurability? durability = null)
+        : base(trustedBackupRoot, OperationCleanupArtifactKind.Backup, ".backup", durability)
+    {
     }
 }

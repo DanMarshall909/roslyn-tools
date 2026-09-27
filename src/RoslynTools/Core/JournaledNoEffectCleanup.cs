@@ -15,7 +15,7 @@ internal sealed record NoEffectCleanupError(
     Exception? Cause = null);
 
 /// <summary>
-///     Cleans only no-effect staging artifacts whose admission fence has drained.
+///     Cleans only no-effect control artifacts whose admission fence has drained.
 ///     The durable inventory authorizes removals; each completed removal and the
 ///     empty operation root are recorded before releasing the plan pin.
 /// </summary>
@@ -23,16 +23,19 @@ internal sealed class JournaledNoEffectCleanup
 {
     private readonly DurableOperationLedger _ledger;
     private readonly DurableChangePlanStore _store;
-    private readonly LinuxStagingCleanupBoundary _boundary;
+    private readonly LinuxStagingCleanupBoundary _stagingBoundary;
+    private readonly LinuxBackupCleanupBoundary? _backupBoundary;
 
     internal JournaledNoEffectCleanup(
         DurableOperationLedger ledger,
         DurableChangePlanStore store,
-        LinuxStagingCleanupBoundary boundary)
+        LinuxStagingCleanupBoundary stagingBoundary,
+        LinuxBackupCleanupBoundary? backupBoundary = null)
     {
         _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
         _store = store ?? throw new ArgumentNullException(nameof(store));
-        _boundary = boundary ?? throw new ArgumentNullException(nameof(boundary));
+        _stagingBoundary = stagingBoundary ?? throw new ArgumentNullException(nameof(stagingBoundary));
+        _backupBoundary = backupBoundary;
     }
 
     internal Result<DurableOperationRecord, NoEffectCleanupError> Cleanup(
@@ -52,24 +55,34 @@ internal sealed class JournaledNoEffectCleanup
             return Fail(NoEffectCleanupErrorKind.NotReady,
                 "No-effect cleanup requires a closed and drained pre-effect activity fence.");
         if (operation.StagingJournal.Any(entry =>
-                !string.Equals(entry.StagingRoot, _boundary.TrustedRoot, StringComparison.Ordinal)))
+                !string.Equals(entry.StagingRoot, _stagingBoundary.TrustedRoot, StringComparison.Ordinal)))
         {
             return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
                 "The durable staging journal does not name the configured cleanup root.");
+        }
+        if (!operation.BackupJournal.IsEmpty
+            && (_backupBoundary is null
+                || operation.BackupJournal.Any(entry =>
+                    !string.Equals(entry.BackupRoot, _backupBoundary.TrustedRoot,
+                        StringComparison.Ordinal))))
+        {
+            return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                "The durable backup journal does not name the configured cleanup root.");
         }
 
         if (operation.CleanupJournal[^1].Kind == OperationCleanupJournalKind.CleanupVerified)
             return ReleasePin(operation);
         if (!DurableOperationLedger.CanCleanupNoEffect(operation, reservation))
             return Fail(NoEffectCleanupErrorKind.NotReady,
-                "Physical cleanup requires the staging activity's held reservation.");
+                "Physical cleanup requires every admitted artifact's held reservation.");
 
         var artifacts = operation.CleanupJournal[0].Artifacts;
         var removed = operation.CleanupJournal.Length - 1;
-        LinuxStagingCleanupBoundary.Session session;
+        LinuxControlCleanupBoundary.Session stagingSession;
         try
         {
-            session = _boundary.Acquire(allowMissingRoot: removed == artifacts.Length);
+            stagingSession = _stagingBoundary.Acquire(allowMissingRoot: !artifacts
+                .Skip(removed).Any(artifact => artifact.Kind == OperationCleanupArtifactKind.Staging));
         }
         catch (Exception exception) when (IsBoundaryException(exception))
         {
@@ -77,35 +90,55 @@ internal sealed class JournaledNoEffectCleanup
                 "The protected staging root is unavailable for cleanup.", exception);
         }
 
-        using (session)
+        using (stagingSession)
         {
-            for (var index = removed; index < artifacts.Length; index++)
+            LinuxControlCleanupBoundary.Session? backupSession;
+            try
             {
-                var artifact = artifacts[index];
+                backupSession = _backupBoundary?.Acquire(allowMissingRoot: !artifacts
+                    .Skip(removed).Any(artifact => artifact.Kind == OperationCleanupArtifactKind.Backup));
+            }
+            catch (Exception exception) when (IsBoundaryException(exception))
+            {
+                return Fail(NoEffectCleanupErrorKind.UnsafeRoot,
+                    "The protected backup root is unavailable for cleanup.", exception);
+            }
+
+            using (backupSession)
+            {
+                for (var index = removed; index < artifacts.Length; index++)
+                {
+                    var artifact = artifacts[index];
+                    try
+                    {
+                        var session = artifact.Kind == OperationCleanupArtifactKind.Staging
+                            ? stagingSession
+                            : backupSession ?? throw new InvalidOperationException(
+                                "The admitted backup has no cleanup boundary.");
+                        session.RemoveArtifact(operationId, artifact);
+                    }
+                    catch (Exception exception) when (IsBoundaryException(exception))
+                    {
+                        return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
+                            "The admitted control artifact could not be durably removed.", exception);
+                    }
+                    var recorded = _ledger.AppendCleanupArtifactRemoved(
+                        repositoryId, operationId, artifact, reservation);
+                    if (recorded.IsErr)
+                        return LedgerFailure(recorded.Match(_ => null!, error => error));
+                    operation = recorded.Match(value => value, _ => null!);
+                }
+
                 try
                 {
-                    session.RemoveArtifact(operationId, artifact);
+                    stagingSession.RemoveEmptyOperationRoot(operationId);
+                    backupSession?.RemoveEmptyOperationRoot(operationId);
                 }
                 catch (Exception exception) when (IsBoundaryException(exception))
                 {
                     return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
-                        "The admitted staging artifact could not be durably removed.", exception);
+                        "The protected operation roots are not durably empty.", exception);
                 }
-                var recorded = _ledger.AppendCleanupArtifactRemoved(
-                    repositoryId, operationId, artifact, reservation);
-                if (recorded.IsErr)
-                    return LedgerFailure(recorded.Match(_ => null!, error => error));
-                operation = recorded.Match(value => value, _ => null!);
-            }
-
-            try
-            {
-                session.RemoveEmptyOperationRoot(operationId);
-            }
-            catch (Exception exception) when (IsBoundaryException(exception))
-            {
-                return Fail(NoEffectCleanupErrorKind.ArtifactUnavailable,
-                    "The protected operation root is not durably empty.", exception);
             }
         }
 

@@ -87,6 +87,34 @@ internal sealed record OperationStagingJournalEvent(
     DateTimeOffset CommittedAtUtc,
     Guid? CreationToken = null);
 
+internal enum OperationBackupJournalKind
+{
+    Intent = 0,
+    Verified = 1,
+    CreationAdmitted = 2
+}
+
+internal sealed record OperationBackupJournalEvent(
+    long Sequence,
+    int EffectSequence,
+    OperationBackupJournalKind Kind,
+    string BackupRoot,
+    string ArtifactPath,
+    string ExpectedHash,
+    string? ObservedHash,
+    long ControlGeneration,
+    Guid AdmissionToken,
+    long FenceEpoch,
+    Guid ReservationToken,
+    DateTimeOffset CommittedAtUtc,
+    Guid? CreationToken = null);
+
+internal enum OperationCleanupArtifactKind
+{
+    Staging,
+    Backup
+}
+
 internal enum OperationCleanupJournalKind
 {
     InventoryPending,
@@ -100,7 +128,8 @@ internal sealed record OperationCleanupArtifact(
     string ExpectedHash,
     Guid CreationToken,
     long FenceEpoch,
-    Guid ReservationToken);
+    Guid ReservationToken,
+    OperationCleanupArtifactKind Kind = OperationCleanupArtifactKind.Staging);
 
 internal sealed record OperationCleanupJournalEvent(
     long Sequence,
@@ -159,6 +188,7 @@ internal sealed record DurableOperationRecord(
 {
     internal ImmutableArray<OperationEffectJournalEvent> EffectJournal { get; init; } = [];
     internal ImmutableArray<OperationStagingJournalEvent> StagingJournal { get; init; } = [];
+    internal ImmutableArray<OperationBackupJournalEvent> BackupJournal { get; init; } = [];
     internal ImmutableArray<OperationCleanupJournalEvent> CleanupJournal { get; init; } = [];
     internal OperationOwnerLease? OwnerLease { get; init; }
     internal PreEffectActivityState PreEffectActivity { get; init; } = PreEffectActivityState.Open;
@@ -326,6 +356,7 @@ internal sealed class DurableOperationLedger
     private const int StoreSchemaVersion = 1;
     private const int MaximumActivePreEffectActivities = 32;
     private const int MaximumStagingJournalEvents = 4096;
+    private const int MaximumBackupJournalEvents = 4096;
     private static readonly TimeSpan ApplyOwnerLeaseLifetime = TimeSpan.FromMinutes(1);
     private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
@@ -804,6 +835,11 @@ internal sealed class DurableOperationLedger
             {
                 committedAtUtc = operation.StagingJournal[^1].CommittedAtUtc;
             }
+            if (!operation.BackupJournal.IsEmpty
+                && committedAtUtc < operation.BackupJournal[^1].CommittedAtUtc)
+            {
+                committedAtUtc = operation.BackupJournal[^1].CommittedAtUtc;
+            }
             var transitions = operation.Transitions.Add(new OperationTransition(
                 operation.Transitions[^1].Sequence + 1,
                 nextState,
@@ -907,7 +943,10 @@ internal sealed class DurableOperationLedger
                 || !activity.ActiveAdmissions.Contains(admission)
                 || (!operation.StagingJournal.IsEmpty
                     && operation.StagingJournal[^1].Kind == OperationStagingJournalKind.CreationAdmitted
-                    && operation.StagingJournal[^1].AdmissionToken == admission.Token))
+                    && operation.StagingJournal[^1].AdmissionToken == admission.Token)
+                || (!operation.BackupJournal.IsEmpty
+                    && operation.BackupJournal[^1].Kind == OperationBackupJournalKind.CreationAdmitted
+                    && operation.BackupJournal[^1].AdmissionToken == admission.Token))
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(
                     new OperationLedgerError(
@@ -1229,13 +1268,315 @@ internal sealed class DurableOperationLedger
             OperationLedgerErrorKind.InvalidTransition,
             "Staging requires the current open pre-effect admission and reservation."));
 
+    /// <summary>
+    ///     Durably names the exact original bytes and operation-scoped backup path.
+    ///     A control-root broker must require this record before creating an artifact.
+    /// </summary>
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendBackupIntent(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveBackupEffect(plan, effectSequence);
+        if (effect is null)
+            return InvalidBackupPlan();
+        var backupRoot = plan.Envelope.Payload.Coordination.BackupRoot;
+        var artifactPath = BackupArtifactPath(backupRoot, operationId, effectSequence);
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.OriginalContent.AsSpan()))
+            .ToLowerInvariant();
+        return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanJournalBackup(operation, plan, admission, reservation))
+                return InvalidBackupActivity();
+            var journal = operation.BackupJournal;
+            var existing = journal.FirstOrDefault(entry => entry.EffectSequence == effectSequence);
+            if (existing is not null)
+            {
+                if (existing.Kind != OperationBackupJournalKind.Intent
+                    || existing.ArtifactPath != artifactPath
+                    || existing.ExpectedHash != expectedHash
+                    || existing.AdmissionToken != admission.Token)
+                {
+                    return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                        OperationLedgerErrorKind.Conflict,
+                        "A different backup intent already owns this reviewed effect."));
+                }
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            var priorEffectSequence = journal.IsEmpty ? 0 : journal[^1].EffectSequence;
+            var nextBackupEffect = plan.Envelope.Payload.Effects.FirstOrDefault(candidate =>
+                candidate.HasOriginalContent && candidate.Sequence > priorEffectSequence);
+            if (nextBackupEffect?.Sequence != effectSequence)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Backup must follow the verified plan's original-content effect order."));
+            }
+            if (journal.Length >= MaximumBackupJournalEvents - 2)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "The bounded backup journal has no room for intent, creation admission, and verification."));
+            }
+            if (!journal.IsEmpty
+                && (journal[^1].Kind != OperationBackupJournalKind.Verified
+                    || journal[^1].EffectSequence >= effectSequence))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Backup intents must follow the reviewed effect order after verification."));
+            }
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            if (!journal.IsEmpty && now < journal[^1].CommittedAtUtc)
+                now = journal[^1].CommittedAtUtc;
+            var intent = new OperationBackupJournalEvent(
+                journal.Length + 1,
+                effectSequence,
+                OperationBackupJournalKind.Intent,
+                backupRoot,
+                artifactPath,
+                expectedHash,
+                null,
+                admission.ControlGeneration,
+                admission.Token,
+                reservation.FenceEpoch,
+                reservation.FenceToken,
+                now);
+            var next = operation with { BackupJournal = journal.Add(intent) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    /// <summary>
+    ///     Atomically arbitrates an exact artifact-creation attempt against no-effect
+    ///     fence closure. Only an action admitted here may subsequently create its
+    ///     named artifact; the activity remains active until its outcome drains.
+    /// </summary>
+    internal Result<OperationBackupJournalEvent, OperationLedgerError> AppendBackupCreationAdmission(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveBackupEffect(plan, effectSequence);
+        if (effect is null)
+            return Result<OperationBackupJournalEvent, OperationLedgerError>.Err(
+                new(OperationLedgerErrorKind.InvalidTransition,
+                    "Creation admission requires exact original bytes from the verified plan."));
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.OriginalContent.AsSpan()))
+            .ToLowerInvariant();
+        var result = UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (operation.BackupJournal.IsEmpty)
+                return InvalidBackupActivity();
+            var last = operation.BackupJournal[^1];
+            if (last.EffectSequence != effectSequence
+                || last.AdmissionToken != admission.Token
+                || last.ControlGeneration != admission.ControlGeneration
+                || last.FenceEpoch != admission.FenceEpoch
+                || last.ReservationToken != admission.ReservationToken
+                || last.ArtifactPath != BackupArtifactPath(
+                    plan.Envelope.Payload.Coordination.BackupRoot, operationId, effectSequence)
+                || !FixedTimeHashEquals(last.ExpectedHash, expectedHash))
+                return InvalidBackupActivity();
+            if (last.Kind == OperationBackupJournalKind.CreationAdmitted)
+            {
+                if (!CanFinishAdmittedBackup(operation, plan, admission, reservation))
+                    return InvalidBackupActivity();
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            if (last.Kind != OperationBackupJournalKind.Intent
+                || !CanJournalBackup(operation, plan, admission, reservation))
+                return InvalidBackupActivity();
+            var now = _utcNow().ToUniversalTime();
+            if (now < last.CommittedAtUtc)
+                now = last.CommittedAtUtc;
+            var admitted = last with
+            {
+                Sequence = operation.BackupJournal.Length + 1,
+                Kind = OperationBackupJournalKind.CreationAdmitted,
+                CreationToken = Guid.NewGuid(),
+                CommittedAtUtc = now
+            };
+            var next = operation with { BackupJournal = operation.BackupJournal.Add(admitted) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+        return result.Match(
+            operation => Result<OperationBackupJournalEvent, OperationLedgerError>.Ok(
+                operation.BackupJournal[^1]),
+            Result<OperationBackupJournalEvent, OperationLedgerError>.Err);
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendBackupVerification(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        string observedHash,
+        Guid creationToken,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        if (creationToken == Guid.Empty)
+            throw new ArgumentException("A backup observation requires its creation token.", nameof(creationToken));
+        observedHash = ChangePlanValidation.NormalizeSha256(observedHash, nameof(observedHash));
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveBackupEffect(plan, effectSequence);
+        if (effect is null)
+            return InvalidBackupPlan();
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.OriginalContent.AsSpan()))
+            .ToLowerInvariant();
+        return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanFinishAdmittedBackup(operation, plan, admission, reservation))
+                return InvalidBackupActivity();
+            var intent = operation.BackupJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence && entry.Kind == OperationBackupJournalKind.Intent);
+            var creation = operation.BackupJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence
+                && entry.Kind == OperationBackupJournalKind.CreationAdmitted);
+            if (intent is null
+                || creation is null
+                || creation.CreationToken != creationToken
+                || intent.AdmissionToken != admission.Token
+                || intent.BackupRoot != plan.Envelope.Payload.Coordination.BackupRoot
+                || intent.ArtifactPath != BackupArtifactPath(intent.BackupRoot, operationId, effectSequence)
+                || !FixedTimeHashEquals(intent.ExpectedHash, expectedHash)
+                || !FixedTimeHashEquals(intent.ExpectedHash, observedHash))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.Conflict,
+                    "The backed up artifact does not match the durable exact-plan intent."));
+            }
+            var existing = operation.BackupJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence && entry.Kind == OperationBackupJournalKind.Verified);
+            if (existing is not null)
+            {
+                if (existing.CreationToken != creationToken)
+                    return InvalidBackupActivity();
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            var journal = operation.BackupJournal;
+            if (journal[^1] != creation)
+                return InvalidBackupActivity();
+            var now = _utcNow().ToUniversalTime();
+            if (now < journal[^1].CommittedAtUtc)
+                now = journal[^1].CommittedAtUtc;
+            var verified = creation with
+            {
+                Sequence = journal.Length + 1,
+                Kind = OperationBackupJournalKind.Verified,
+                ObservedHash = observedHash,
+                CommittedAtUtc = now
+            };
+            var next = operation with { BackupJournal = journal.Add(verified) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    private static ChangePlanEffect? ResolveBackupEffect(StoredChangePlan plan, int effectSequence)
+    {
+        if (!plan.Envelope.Verify()
+            || plan.Key.PlanId != plan.Envelope.Payload.PlanId
+            || !FixedTimeHashEquals(plan.Key.PlanHash, plan.Envelope.PlanHash)
+            || !string.Equals(plan.Key.RepositoryId,
+                plan.Envelope.Payload.Repository.RepositoryId, StringComparison.Ordinal))
+            return null;
+        return plan.Envelope.Payload.Effects.FirstOrDefault(effect =>
+            effect.Sequence == effectSequence && effect.HasOriginalContent);
+    }
+
+    private static string BackupArtifactPath(
+        string backupRoot,
+        OperationId operationId,
+        int effectSequence) => Path.Combine(
+        backupRoot,
+        operationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        operationId.Nonce.ToString("N"),
+        $"{effectSequence:D8}.backup");
+
+    private bool CanJournalBackup(
+        DurableOperationRecord operation,
+        StoredChangePlan plan,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation) =>
+        operation.CurrentState is OperationLifecycleState.Prepared or OperationLifecycleState.Applying
+        && operation.RequestIdentity.PlanId == plan.Key.PlanId
+        && FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+        && operation.EffectJournal.IsEmpty
+        && !operation.PreEffectActivity.IsClosed
+        && operation.PreEffectActivity.ControlGeneration == admission.ControlGeneration
+        && operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+        && admission.FenceEpoch == reservation.FenceEpoch
+        && admission.ReservationToken == reservation.FenceToken
+        && (operation.CurrentState != OperationLifecycleState.Applying
+            || (OwnerMatches(operation.OwnerLease, reservation)
+                && operation.OwnerLease!.ExpiresAtUtc > _utcNow().ToUniversalTime()));
+
+    private bool CanFinishAdmittedBackup(
+        DurableOperationRecord operation,
+        StoredChangePlan plan,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation) =>
+        operation.RequestIdentity.PlanId == plan.Key.PlanId
+        && FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+        && operation.EffectJournal.IsEmpty
+        && operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+        && admission.FenceEpoch == reservation.FenceEpoch
+        && admission.ReservationToken == reservation.FenceToken
+        && (CanJournalBackup(operation, plan, admission, reservation)
+            || (operation.CurrentState == OperationLifecycleState.CancelledNoEffect
+                && operation.PreEffectActivity.IsClosed
+                && operation.PreEffectActivity.ControlGeneration
+                    == admission.ControlGeneration + 1));
+
+    private static Result<DurableOperationRecord, OperationLedgerError> InvalidBackupPlan() =>
+        Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+            OperationLedgerErrorKind.InvalidTransition,
+            "Backup requires exact original bytes from the verified plan."));
+
+    private static Result<DurableOperationRecord, OperationLedgerError> InvalidBackupActivity() =>
+        Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+            OperationLedgerErrorKind.InvalidTransition,
+            "Backup requires the current open pre-effect admission and reservation."));
+
     private static ImmutableArray<OperationCleanupJournalEvent> BeginCleanupInventory(
         DurableOperationRecord operation,
         DateTimeOffset committedAtUtc)
     {
-        if (operation.StagingJournal.IsEmpty)
+        if (operation.StagingJournal.IsEmpty && operation.BackupJournal.IsEmpty)
             return [];
-        var artifacts = operation.StagingJournal
+        var stagingArtifacts = operation.StagingJournal
             .Where(entry => entry.Kind == OperationStagingJournalKind.CreationAdmitted)
             .Select(entry => new OperationCleanupArtifact(
                 entry.EffectSequence,
@@ -1245,6 +1586,17 @@ internal sealed class DurableOperationLedger
                 entry.FenceEpoch,
                 entry.ReservationToken))
             .ToImmutableArray();
+        var backupArtifacts = operation.BackupJournal
+            .Where(entry => entry.Kind == OperationBackupJournalKind.CreationAdmitted)
+            .Select(entry => new OperationCleanupArtifact(
+                entry.EffectSequence,
+                entry.ArtifactPath,
+                entry.ExpectedHash,
+                entry.CreationToken!.Value,
+                entry.FenceEpoch,
+                entry.ReservationToken,
+                OperationCleanupArtifactKind.Backup));
+        var artifacts = stagingArtifacts.AddRange(backupArtifacts);
         return [new OperationCleanupJournalEvent(
             1, OperationCleanupJournalKind.InventoryPending, artifacts, committedAtUtc)];
     }
@@ -1283,6 +1635,11 @@ internal sealed class DurableOperationLedger
             {
                 now = operation.StagingJournal[^1].CommittedAtUtc;
             }
+            if (!operation.BackupJournal.IsEmpty
+                && now < operation.BackupJournal[^1].CommittedAtUtc)
+            {
+                now = operation.BackupJournal[^1].CommittedAtUtc;
+            }
             var next = operation with
             {
                 CurrentState = OperationLifecycleState.CancelledNoEffect,
@@ -1314,9 +1671,13 @@ internal sealed class DurableOperationLedger
         DurableOperationRecord operation,
         RepositoryMutationReservation reservation) =>
         CanCleanupNoEffect(operation)
-        && !operation.StagingJournal.IsEmpty
-        && operation.StagingJournal[^1].FenceEpoch == reservation.FenceEpoch
-        && operation.StagingJournal[^1].ReservationToken == reservation.FenceToken
+        && (!operation.StagingJournal.IsEmpty || !operation.BackupJournal.IsEmpty)
+        && (operation.StagingJournal.IsEmpty
+            || (operation.StagingJournal[^1].FenceEpoch == reservation.FenceEpoch
+                && operation.StagingJournal[^1].ReservationToken == reservation.FenceToken))
+        && (operation.BackupJournal.IsEmpty
+            || (operation.BackupJournal[^1].FenceEpoch == reservation.FenceEpoch
+                && operation.BackupJournal[^1].ReservationToken == reservation.FenceToken))
         && operation.CleanupJournal[0].Artifacts.All(artifact =>
             artifact.FenceEpoch == reservation.FenceEpoch
             && artifact.ReservationToken == reservation.FenceToken);
@@ -1347,8 +1708,12 @@ internal sealed class DurableOperationLedger
                 return InvalidCleanupTransition("The removal does not match the next admitted artifact.");
 
             var now = _utcNow().ToUniversalTime();
-            if (now < operation.StagingJournal[^1].CommittedAtUtc)
+            if (!operation.StagingJournal.IsEmpty
+                && now < operation.StagingJournal[^1].CommittedAtUtc)
                 now = operation.StagingJournal[^1].CommittedAtUtc;
+            if (!operation.BackupJournal.IsEmpty
+                && now < operation.BackupJournal[^1].CommittedAtUtc)
+                now = operation.BackupJournal[^1].CommittedAtUtc;
             if (now < operation.CleanupJournal[^1].CommittedAtUtc)
                 now = operation.CleanupJournal[^1].CommittedAtUtc;
             var next = operation with
@@ -1384,8 +1749,12 @@ internal sealed class DurableOperationLedger
                 return InvalidCleanupTransition("Admitted artifacts still need removal verification.");
 
             var now = _utcNow().ToUniversalTime();
-            if (now < operation.StagingJournal[^1].CommittedAtUtc)
+            if (!operation.StagingJournal.IsEmpty
+                && now < operation.StagingJournal[^1].CommittedAtUtc)
                 now = operation.StagingJournal[^1].CommittedAtUtc;
+            if (!operation.BackupJournal.IsEmpty
+                && now < operation.BackupJournal[^1].CommittedAtUtc)
+                now = operation.BackupJournal[^1].CommittedAtUtc;
             if (now < operation.CleanupJournal[^1].CommittedAtUtc)
                 now = operation.CleanupJournal[^1].CommittedAtUtc;
             var next = operation with
@@ -1555,6 +1924,8 @@ internal sealed class DurableOperationLedger
                 || !operation.PreEffectActivity.ActiveAdmissions.IsEmpty
                 || (!operation.StagingJournal.IsEmpty
                     && operation.StagingJournal[^1].Kind != OperationStagingJournalKind.Verified)
+                || (!operation.BackupJournal.IsEmpty
+                    && operation.BackupJournal[^1].Kind != OperationBackupJournalKind.Verified)
                 || (!journal.IsEmpty && !operation.PreEffectActivity.IsClosed))
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(
@@ -2261,6 +2632,16 @@ internal sealed class DurableOperationLedger
                 : stored.StagingJournal.ToImmutableArray()!;
             if (!ValidStagingJournal(stagingJournal, operationId, transitions, preEffectActivity))
                 return Corrupt<DurableOperationRecord>("The staging journal is inconsistent.");
+            if (stored.BackupJournal is not null
+                && stored.BackupJournal.Any(static entry => entry is null))
+            {
+                return Corrupt<DurableOperationRecord>("The backup journal contains a missing event.");
+            }
+            var backupJournal = stored.BackupJournal is null
+                ? ImmutableArray<OperationBackupJournalEvent>.Empty
+                : stored.BackupJournal.ToImmutableArray()!;
+            if (!ValidBackupJournal(backupJournal, operationId, transitions, preEffectActivity))
+                return Corrupt<DurableOperationRecord>("The backup journal is inconsistent.");
             if (stored.CleanupJournal is not null
                 && stored.CleanupJournal.Any(static entry => entry is null))
             {
@@ -2269,7 +2650,7 @@ internal sealed class DurableOperationLedger
             var cleanupJournal = stored.CleanupJournal is null
                 ? ImmutableArray<OperationCleanupJournalEvent>.Empty
                 : stored.CleanupJournal.ToImmutableArray()!;
-            if (!ValidCleanupJournal(cleanupJournal, stagingJournal, transitions,
+            if (!ValidCleanupJournal(cleanupJournal, stagingJournal, backupJournal, transitions,
                     stored.CurrentState, effectJournal, preEffectActivity))
             {
                 return Corrupt<DurableOperationRecord>("The cleanup journal is inconsistent.");
@@ -2286,6 +2667,7 @@ internal sealed class DurableOperationLedger
             {
                 EffectJournal = effectJournal,
                 StagingJournal = stagingJournal,
+                BackupJournal = backupJournal,
                 CleanupJournal = cleanupJournal,
                 OwnerLease = ownerLease,
                 PreEffectActivity = preEffectActivity
@@ -2469,7 +2851,8 @@ internal sealed class DurableOperationLedger
             record.OwnerLease,
             record.PreEffectActivity,
             record.StagingJournal.ToArray(),
-            record.CleanupJournal.ToArray());
+            record.CleanupJournal.ToArray(),
+            record.BackupJournal.ToArray());
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -2735,9 +3118,96 @@ internal sealed class DurableOperationLedger
                    && admission.ReservationToken == creation.ReservationToken);
     }
 
+    private static bool ValidBackupJournal(
+        ImmutableArray<OperationBackupJournalEvent> journal,
+        OperationId operationId,
+        ImmutableArray<OperationTransition> transitions,
+        PreEffectActivityState activity)
+    {
+        if (journal.IsEmpty)
+            return true;
+        if (journal.Length > MaximumBackupJournalEvents || !activity.HasAdmissionHistory)
+            return false;
+        var prepared = transitions.FirstOrDefault(transition =>
+            transition.State == OperationLifecycleState.Prepared);
+        if (prepared is null || journal[0].CommittedAtUtc < prepared.CommittedAtUtc)
+            return false;
+
+        OperationBackupJournalEvent? intent = null;
+        OperationBackupJournalEvent? creation = null;
+        var priorEffectSequence = 0;
+        for (var index = 0; index < journal.Length; index++)
+        {
+            var entry = journal[index];
+            if (entry is null
+                || entry.Sequence != index + 1
+                || entry.EffectSequence <= 0
+                || !Enum.IsDefined(entry.Kind)
+                || entry.ControlGeneration <= 0
+                || entry.ControlGeneration > activity.ControlGeneration
+                || entry.AdmissionToken == Guid.Empty
+                || entry.FenceEpoch <= 0
+                || entry.ReservationToken == Guid.Empty
+                || entry.BackupRoot != ChangePlanValidation.NormalizeAbsolutePath(
+                    entry.BackupRoot, nameof(entry.BackupRoot))
+                || entry.ArtifactPath != BackupArtifactPath(
+                    entry.BackupRoot, operationId, entry.EffectSequence)
+                || entry.ExpectedHash != ChangePlanValidation.NormalizeSha256(
+                    entry.ExpectedHash, nameof(entry.ExpectedHash))
+                || entry.CommittedAtUtc < prepared.CommittedAtUtc
+                || (index > 0 && entry.CommittedAtUtc < journal[index - 1].CommittedAtUtc))
+                return false;
+
+            if (entry.Kind == OperationBackupJournalKind.Intent)
+            {
+                if (intent is not null
+                    || entry.ObservedHash is not null
+                    || entry.CreationToken is not null
+                    || entry.EffectSequence <= priorEffectSequence)
+                    return false;
+                intent = entry;
+                priorEffectSequence = entry.EffectSequence;
+                continue;
+            }
+
+            if (intent is null
+                || entry.EffectSequence != intent.EffectSequence
+                || entry.BackupRoot != intent.BackupRoot
+                || entry.ArtifactPath != intent.ArtifactPath
+                || entry.ExpectedHash != intent.ExpectedHash
+                || entry.ControlGeneration != intent.ControlGeneration
+                || entry.AdmissionToken != intent.AdmissionToken
+                || entry.FenceEpoch != intent.FenceEpoch
+                || entry.ReservationToken != intent.ReservationToken)
+                return false;
+            if (entry.Kind == OperationBackupJournalKind.CreationAdmitted)
+            {
+                if (creation is not null
+                    || entry.ObservedHash is not null
+                    || entry.CreationToken is null || entry.CreationToken == Guid.Empty)
+                    return false;
+                creation = entry;
+                continue;
+            }
+            if (creation is null
+                || entry.CreationToken != creation.CreationToken
+                || entry.ObservedHash != intent.ExpectedHash)
+                return false;
+            intent = null;
+            creation = null;
+        }
+        return creation is null
+               || activity.ActiveAdmissions.Any(admission =>
+                   admission.Token == creation.AdmissionToken
+                   && admission.ControlGeneration == creation.ControlGeneration
+                   && admission.FenceEpoch == creation.FenceEpoch
+                   && admission.ReservationToken == creation.ReservationToken);
+    }
+
     private static bool ValidCleanupJournal(
         ImmutableArray<OperationCleanupJournalEvent> journal,
         ImmutableArray<OperationStagingJournalEvent> stagingJournal,
+        ImmutableArray<OperationBackupJournalEvent> backupJournal,
         ImmutableArray<OperationTransition> transitions,
         OperationLifecycleState currentState,
         ImmutableArray<OperationEffectJournalEvent> effectJournal,
@@ -2745,13 +3215,13 @@ internal sealed class DurableOperationLedger
     {
         if (journal.IsEmpty)
         {
-            return stagingJournal.IsEmpty
+            return (stagingJournal.IsEmpty && backupJournal.IsEmpty)
                    || !IsNoEffectTerminal(currentState);
         }
         if (!IsNoEffectTerminal(currentState)
             || !effectJournal.IsEmpty
-            || stagingJournal.IsEmpty
-            || journal.Length > stagingJournal.Length + 2
+            || (stagingJournal.IsEmpty && backupJournal.IsEmpty)
+            || journal.Length > stagingJournal.Length + backupJournal.Length + 2
             || !activity.IsClosed)
             return false;
 
@@ -2762,7 +3232,7 @@ internal sealed class DurableOperationLedger
             || pending.Artifacts.IsDefault
             || pending.CommittedAtUtc != transitions[^1].CommittedAtUtc)
             return false;
-        var expected = stagingJournal
+        var stagingArtifacts = stagingJournal
             .Where(entry => entry.Kind == OperationStagingJournalKind.CreationAdmitted)
             .Select(entry => new OperationCleanupArtifact(
                 entry.EffectSequence,
@@ -2772,6 +3242,17 @@ internal sealed class DurableOperationLedger
                 entry.FenceEpoch,
                 entry.ReservationToken))
             .ToImmutableArray();
+        var backupArtifacts = backupJournal
+            .Where(entry => entry.Kind == OperationBackupJournalKind.CreationAdmitted)
+            .Select(entry => new OperationCleanupArtifact(
+                entry.EffectSequence,
+                entry.ArtifactPath,
+                entry.ExpectedHash,
+                entry.CreationToken!.Value,
+                entry.FenceEpoch,
+                entry.ReservationToken,
+                OperationCleanupArtifactKind.Backup));
+        var expected = stagingArtifacts.AddRange(backupArtifacts);
         if (!pending.Artifacts.SequenceEqual(expected))
             return false;
 
@@ -2783,7 +3264,10 @@ internal sealed class DurableOperationLedger
                 || entry.Sequence != index + 1
                 || entry.Artifacts.IsDefault
                 || entry.CommittedAtUtc < journal[index - 1].CommittedAtUtc
-                || entry.CommittedAtUtc < stagingJournal[^1].CommittedAtUtc
+                || (!stagingJournal.IsEmpty
+                    && entry.CommittedAtUtc < stagingJournal[^1].CommittedAtUtc)
+                || (!backupJournal.IsEmpty
+                    && entry.CommittedAtUtc < backupJournal[^1].CommittedAtUtc)
                 || !activity.ActiveAdmissions.IsEmpty)
                 return false;
             if (entry.Kind == OperationCleanupJournalKind.ArtifactRemoved)
@@ -3012,7 +3496,8 @@ internal sealed class DurableOperationLedger
         OperationOwnerLease? OwnerLease = null,
         PreEffectActivityState? PreEffectActivity = null,
         IReadOnlyList<OperationStagingJournalEvent>? StagingJournal = null,
-        IReadOnlyList<OperationCleanupJournalEvent>? CleanupJournal = null);
+        IReadOnlyList<OperationCleanupJournalEvent>? CleanupJournal = null,
+        IReadOnlyList<OperationBackupJournalEvent>? BackupJournal = null);
 
     private sealed record EffectJournalRecord(
         long Sequence,
