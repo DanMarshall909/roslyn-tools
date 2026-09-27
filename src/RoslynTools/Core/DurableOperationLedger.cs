@@ -65,6 +65,26 @@ internal enum OperationEffectJournalKind
     Observed
 }
 
+internal enum OperationStagingJournalKind
+{
+    Intent,
+    Verified
+}
+
+internal sealed record OperationStagingJournalEvent(
+    long Sequence,
+    int EffectSequence,
+    OperationStagingJournalKind Kind,
+    string StagingRoot,
+    string ArtifactPath,
+    string ExpectedHash,
+    string? ObservedHash,
+    long ControlGeneration,
+    Guid AdmissionToken,
+    long FenceEpoch,
+    Guid ReservationToken,
+    DateTimeOffset CommittedAtUtc);
+
 internal sealed record OperationGuardToken(
     string Path,
     ChangePlanGuardKind Kind,
@@ -115,6 +135,7 @@ internal sealed record DurableOperationRecord(
     ImmutableArray<OperationTransition> Transitions)
 {
     internal ImmutableArray<OperationEffectJournalEvent> EffectJournal { get; init; } = [];
+    internal ImmutableArray<OperationStagingJournalEvent> StagingJournal { get; init; } = [];
     internal OperationOwnerLease? OwnerLease { get; init; }
     internal PreEffectActivityState PreEffectActivity { get; init; } = PreEffectActivityState.Open;
 }
@@ -280,6 +301,7 @@ internal sealed class DurableOperationLedger
 {
     private const int StoreSchemaVersion = 1;
     private const int MaximumActivePreEffectActivities = 32;
+    private const int MaximumStagingJournalEvents = 4096;
     private static readonly TimeSpan ApplyOwnerLeaseLifetime = TimeSpan.FromMinutes(1);
     private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
@@ -874,6 +896,209 @@ internal sealed class DurableOperationLedger
         });
     }
 
+    /// <summary>
+    ///     Durably names the exact replacement bytes and operation-scoped staging path.
+    ///     A control-root broker must require this record before creating an artifact.
+    /// </summary>
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendStagingIntent(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveStagedEffect(plan, effectSequence);
+        if (effect is null)
+            return InvalidStagingPlan();
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        var artifactPath = StagingArtifactPath(stagingRoot, operationId, effectSequence);
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.ReplacementContent.AsSpan()))
+            .ToLowerInvariant();
+        return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanJournalStaging(operation, plan, admission, reservation))
+                return InvalidStagingActivity();
+            var journal = operation.StagingJournal;
+            var existing = journal.FirstOrDefault(entry => entry.EffectSequence == effectSequence);
+            if (existing is not null)
+            {
+                if (existing.Kind != OperationStagingJournalKind.Intent
+                    || existing.ArtifactPath != artifactPath
+                    || existing.ExpectedHash != expectedHash
+                    || existing.AdmissionToken != admission.Token)
+                {
+                    return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                        OperationLedgerErrorKind.Conflict,
+                        "A different staging intent already owns this reviewed effect."));
+                }
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            var priorEffectSequence = journal.IsEmpty ? 0 : journal[^1].EffectSequence;
+            var nextStagedEffect = plan.Envelope.Payload.Effects.FirstOrDefault(candidate =>
+                candidate.HasReplacementContent && candidate.Sequence > priorEffectSequence);
+            if (nextStagedEffect?.Sequence != effectSequence)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Staging must follow the verified plan's replacement-effect order."));
+            }
+            if (journal.Length >= MaximumStagingJournalEvents - 1)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "The bounded staging journal has no room for the intent and verification."));
+            }
+            if (!journal.IsEmpty
+                && (journal[^1].Kind != OperationStagingJournalKind.Verified
+                    || journal[^1].EffectSequence >= effectSequence))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Staging intents must follow the reviewed effect order after verification."));
+            }
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            if (!journal.IsEmpty && now < journal[^1].CommittedAtUtc)
+                now = journal[^1].CommittedAtUtc;
+            var intent = new OperationStagingJournalEvent(
+                journal.Length + 1,
+                effectSequence,
+                OperationStagingJournalKind.Intent,
+                stagingRoot,
+                artifactPath,
+                expectedHash,
+                null,
+                admission.ControlGeneration,
+                admission.Token,
+                reservation.FenceEpoch,
+                reservation.FenceToken,
+                now);
+            var next = operation with { StagingJournal = journal.Add(intent) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> AppendStagingVerification(
+        StoredChangePlan plan,
+        OperationId operationId,
+        int effectSequence,
+        string observedHash,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(effectSequence);
+        observedHash = ChangePlanValidation.NormalizeSha256(observedHash, nameof(observedHash));
+        reservation.AssertHeld(plan.Key.RepositoryId);
+
+        var effect = ResolveStagedEffect(plan, effectSequence);
+        if (effect is null)
+            return InvalidStagingPlan();
+        var expectedHash = Convert.ToHexString(SHA256.HashData(effect.ReplacementContent.AsSpan()))
+            .ToLowerInvariant();
+        return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanJournalStaging(operation, plan, admission, reservation))
+                return InvalidStagingActivity();
+            var intent = operation.StagingJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence && entry.Kind == OperationStagingJournalKind.Intent);
+            if (intent is null
+                || intent.AdmissionToken != admission.Token
+                || intent.StagingRoot != plan.Envelope.Payload.Coordination.StagingRoot
+                || intent.ArtifactPath != StagingArtifactPath(intent.StagingRoot, operationId, effectSequence)
+                || !FixedTimeHashEquals(intent.ExpectedHash, expectedHash)
+                || !FixedTimeHashEquals(intent.ExpectedHash, observedHash))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.Conflict,
+                    "The staged artifact does not match the durable exact-plan intent."));
+            }
+            var existing = operation.StagingJournal.FirstOrDefault(entry =>
+                entry.EffectSequence == effectSequence && entry.Kind == OperationStagingJournalKind.Verified);
+            if (existing is not null)
+            {
+                _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            }
+            var journal = operation.StagingJournal;
+            var now = _utcNow().ToUniversalTime();
+            if (now < journal[^1].CommittedAtUtc)
+                now = journal[^1].CommittedAtUtc;
+            var verified = intent with
+            {
+                Sequence = journal.Length + 1,
+                Kind = OperationStagingJournalKind.Verified,
+                ObservedHash = observedHash,
+                CommittedAtUtc = now
+            };
+            var next = operation with { StagingJournal = journal.Add(verified) };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    private static ChangePlanEffect? ResolveStagedEffect(StoredChangePlan plan, int effectSequence)
+    {
+        if (!plan.Envelope.Verify()
+            || plan.Key.PlanId != plan.Envelope.Payload.PlanId
+            || !FixedTimeHashEquals(plan.Key.PlanHash, plan.Envelope.PlanHash)
+            || !string.Equals(plan.Key.RepositoryId,
+                plan.Envelope.Payload.Repository.RepositoryId, StringComparison.Ordinal))
+            return null;
+        return plan.Envelope.Payload.Effects.FirstOrDefault(effect =>
+            effect.Sequence == effectSequence && effect.HasReplacementContent);
+    }
+
+    private static string StagingArtifactPath(
+        string stagingRoot,
+        OperationId operationId,
+        int effectSequence) => Path.Combine(
+        stagingRoot,
+        operationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        operationId.Nonce.ToString("N"),
+        $"{effectSequence:D8}.stage");
+
+    private bool CanJournalStaging(
+        DurableOperationRecord operation,
+        StoredChangePlan plan,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation) =>
+        operation.CurrentState is OperationLifecycleState.Prepared or OperationLifecycleState.Applying
+        && operation.RequestIdentity.PlanId == plan.Key.PlanId
+        && FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
+        && operation.EffectJournal.IsEmpty
+        && !operation.PreEffectActivity.IsClosed
+        && operation.PreEffectActivity.ControlGeneration == admission.ControlGeneration
+        && operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+        && admission.FenceEpoch == reservation.FenceEpoch
+        && admission.ReservationToken == reservation.FenceToken
+        && (operation.CurrentState != OperationLifecycleState.Applying
+            || (OwnerMatches(operation.OwnerLease, reservation)
+                && operation.OwnerLease!.ExpiresAtUtc > _utcNow().ToUniversalTime()));
+
+    private static Result<DurableOperationRecord, OperationLedgerError> InvalidStagingPlan() =>
+        Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+            OperationLedgerErrorKind.InvalidTransition,
+            "Staging requires exact replacement bytes from the verified plan."));
+
+    private static Result<DurableOperationRecord, OperationLedgerError> InvalidStagingActivity() =>
+        Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+            OperationLedgerErrorKind.InvalidTransition,
+            "Staging requires the current open pre-effect admission and reservation."));
+
     internal Result<DurableOperationRecord, OperationLedgerError> CancelBeforeFirstEffect(
         string repositoryId,
         OperationId operationId)
@@ -1063,12 +1288,14 @@ internal sealed class DurableOperationLedger
             }
             if ((journal.IsEmpty && operation.PreEffectActivity.IsClosed)
                 || !operation.PreEffectActivity.ActiveAdmissions.IsEmpty
+                || (!operation.StagingJournal.IsEmpty
+                    && operation.StagingJournal[^1].Kind != OperationStagingJournalKind.Verified)
                 || (!journal.IsEmpty && !operation.PreEffectActivity.IsClosed))
             {
                 return Result<DurableOperationRecord, OperationLedgerError>.Err(
                     new OperationLedgerError(
                         OperationLedgerErrorKind.InvalidTransition,
-                        "The first effect requires a drained pre-effect activity fence."));
+                        "The first effect requires drained and verified pre-effect activity."));
             }
 
             var committedAtUtc = _utcNow().ToUniversalTime();
@@ -1721,6 +1948,16 @@ internal sealed class DurableOperationLedger
             {
                 return Corrupt<DurableOperationRecord>("The pre-effect activity fence is inconsistent.");
             }
+            if (stored.StagingJournal is not null
+                && stored.StagingJournal.Any(static entry => entry is null))
+            {
+                return Corrupt<DurableOperationRecord>("The staging journal contains a missing event.");
+            }
+            var stagingJournal = stored.StagingJournal is null
+                ? ImmutableArray<OperationStagingJournalEvent>.Empty
+                : stored.StagingJournal.ToImmutableArray()!;
+            if (!ValidStagingJournal(stagingJournal, operationId, transitions, preEffectActivity))
+                return Corrupt<DurableOperationRecord>("The staging journal is inconsistent.");
 
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(new DurableOperationRecord(
                 stored.RepositoryId,
@@ -1732,6 +1969,7 @@ internal sealed class DurableOperationLedger
                 transitions)
             {
                 EffectJournal = effectJournal,
+                StagingJournal = stagingJournal,
                 OwnerLease = ownerLease,
                 PreEffectActivity = preEffectActivity
             });
@@ -1912,7 +2150,8 @@ internal sealed class DurableOperationLedger
                 journalEvent.EffectHash,
                 journalEvent.GuardTokens.ToArray())).ToArray(),
             record.OwnerLease,
-            record.PreEffectActivity);
+            record.PreEffectActivity,
+            record.StagingJournal.ToArray());
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -2088,6 +2327,72 @@ internal sealed class DurableOperationLedger
             {
                 return false;
             }
+        }
+        return true;
+    }
+
+    private static bool ValidStagingJournal(
+        ImmutableArray<OperationStagingJournalEvent> journal,
+        OperationId operationId,
+        ImmutableArray<OperationTransition> transitions,
+        PreEffectActivityState activity)
+    {
+        if (journal.IsEmpty)
+            return true;
+        if (journal.Length > MaximumStagingJournalEvents || !activity.HasAdmissionHistory)
+            return false;
+        var prepared = transitions.FirstOrDefault(transition =>
+            transition.State == OperationLifecycleState.Prepared);
+        if (prepared is null || journal[0].CommittedAtUtc < prepared.CommittedAtUtc)
+            return false;
+
+        OperationStagingJournalEvent? pending = null;
+        var priorEffectSequence = 0;
+        for (var index = 0; index < journal.Length; index++)
+        {
+            var entry = journal[index];
+            if (entry is null
+                || entry.Sequence != index + 1
+                || entry.EffectSequence <= 0
+                || !Enum.IsDefined(entry.Kind)
+                || entry.ControlGeneration <= 0
+                || entry.ControlGeneration > activity.ControlGeneration
+                || entry.AdmissionToken == Guid.Empty
+                || entry.FenceEpoch <= 0
+                || entry.ReservationToken == Guid.Empty
+                || entry.StagingRoot != ChangePlanValidation.NormalizeAbsolutePath(
+                    entry.StagingRoot, nameof(entry.StagingRoot))
+                || entry.ArtifactPath != StagingArtifactPath(
+                    entry.StagingRoot, operationId, entry.EffectSequence)
+                || entry.ExpectedHash != ChangePlanValidation.NormalizeSha256(
+                    entry.ExpectedHash, nameof(entry.ExpectedHash))
+                || entry.CommittedAtUtc < prepared.CommittedAtUtc
+                || (index > 0 && entry.CommittedAtUtc < journal[index - 1].CommittedAtUtc))
+                return false;
+
+            if (entry.Kind == OperationStagingJournalKind.Intent)
+            {
+                if (pending is not null
+                    || entry.ObservedHash is not null
+                    || entry.EffectSequence <= priorEffectSequence)
+                    return false;
+                pending = entry;
+                priorEffectSequence = entry.EffectSequence;
+                continue;
+            }
+
+            if (pending is null
+                || entry.EffectSequence != pending.EffectSequence
+                || entry.StagingRoot != pending.StagingRoot
+                || entry.ArtifactPath != pending.ArtifactPath
+                || entry.ExpectedHash != pending.ExpectedHash
+                || entry.ObservedHash != pending.ExpectedHash
+                || entry.ControlGeneration != pending.ControlGeneration
+                || entry.AdmissionToken != pending.AdmissionToken
+                || entry.FenceEpoch != pending.FenceEpoch
+                || entry.ReservationToken != pending.ReservationToken)
+                return false;
+            pending = null;
         }
         return true;
     }
@@ -2293,7 +2598,8 @@ internal sealed class DurableOperationLedger
         IReadOnlyList<TransitionRecord> Transitions,
         IReadOnlyList<EffectJournalRecord>? EffectJournal = null,
         OperationOwnerLease? OwnerLease = null,
-        PreEffectActivityState? PreEffectActivity = null);
+        PreEffectActivityState? PreEffectActivity = null,
+        IReadOnlyList<OperationStagingJournalEvent>? StagingJournal = null);
 
     private sealed record EffectJournalRecord(
         long Sequence,

@@ -849,9 +849,13 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   admission, generation closure, and drain evidence for broker acquisition and
   final preflight. A cancellation that wins before first effect intent closes
   admission and retains active work until it drains; an intent that wins requires
-  the pre-effect activity set to be empty. Journaled staging/backups, per-action
-  control-root enforcement, cleanup, and public cancellation remain open in #140
-  and #123.
+  the pre-effect activity set to be empty.
+  [ADR-0029](adr/0029-internal-staging-intent-journal.md) adds an internal,
+  restart-readable staging intent and verification journal bound to the exact
+  plan, operation path, control generation, and reservation. Unverified intent
+  blocks the first effect. It creates no staging file; protected artifact
+  writes, backups, per-action control-root enforcement, cleanup, and public
+  cancellation remain open in #140 and #123.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

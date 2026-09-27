@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using RoslynTools.Core;
 using Shouldly;
 
@@ -7,6 +8,277 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public sealed class JournaledApplyAuthorityTests
 {
+    [Fact]
+    public async Task exact_staging_intent_is_durable_before_artifact_work_and_verification_survives_restart()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        var intent = fixture.Ledger.AppendStagingIntent(
+                plan, request.OperationId, 1, admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var restarted = fixture.LoadOperation(request);
+
+        intent.StagingJournal.ShouldHaveSingleItem();
+        restarted.StagingJournal.ShouldBe(intent.StagingJournal);
+        restarted.StagingJournal[0].Kind.ShouldBe(OperationStagingJournalKind.Intent);
+        restarted.StagingJournal[0].ExpectedHash.ShouldBe(Hash(fixture.Content));
+        restarted.StagingJournal[0].ArtifactPath.ShouldBe(Path.Combine(
+            plan.Envelope.Payload.Coordination.StagingRoot,
+            request.OperationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.OperationId.Nonce.ToString("N"),
+            "00000001.stage"));
+        Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+
+        var verified = fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        verified.StagingJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationStagingJournalKind.Intent,
+            OperationStagingJournalKind.Verified
+        ]);
+        fixture.LoadOperation(request).StagingJournal.ShouldBe(verified.StagingJournal);
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+            .Match(value => value, error => throw new IOException(error.Message))
+            .StagingJournal.ShouldBe(verified.StagingJournal);
+    }
+
+    [Fact]
+    public async Task cancelled_generation_retains_staging_intent_but_cannot_verify_or_add_artifacts()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        var retained = fixture.LoadOperation(request);
+        retained.StagingJournal.ShouldHaveSingleItem();
+        retained.StagingJournal[0].Kind.ShouldBe(OperationStagingJournalKind.Intent);
+        retained.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task first_repository_effect_cannot_start_while_staging_intent_is_unverified()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.ClaimApplyOwner(
+                request.RepositoryId, request.OperationId, reservation, plan.Key.PlanHash)
+            .IsOk.ShouldBeTrue();
+
+        var intent = fixture.Ledger.AppendEffectIntent(
+            request.RepositoryId,
+            request.OperationId,
+            1,
+            new string('a', 64),
+            reservation,
+            CanonicalChangePlan.ComputeEffectHash(plan.Envelope.Payload.Effects[0]),
+            OperationGuardTokenSet.Expected(plan.Envelope.Payload));
+
+        intent.IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task staging_rejects_wrong_plan_admission_and_digest_without_changing_journal()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var wrongPlan = plan with { Key = plan.Key with { PlanHash = new string('b', 64) } };
+
+        fixture.Ledger.AppendStagingIntent(
+                wrongPlan, request.OperationId, 1, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendStagingIntent(
+                plan, request.OperationId, 1, admission with { Token = Guid.NewGuid() }, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal.ShouldBeEmpty();
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var original = fixture.LoadOperation(request).StagingJournal;
+
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, new string('c', 64), admission, reservation)
+            .IsErr.ShouldBeTrue();
+
+        fixture.LoadOperation(request).StagingJournal.ShouldBe(original);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task visible_staging_intent_after_directory_flush_failure_must_be_reconfirmed()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var failing = fixture.CreateLedger(new FailNthDirectoryFlush(1));
+
+        failing.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal.ShouldHaveSingleItem();
+        failing.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal.ShouldHaveSingleItem();
+        Directory.Exists(plan.Envelope.Payload.Coordination.StagingRoot).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task tampered_staging_inventory_is_rejected_after_restart()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json["stagingJournal"]!.AsArray()[0]!["artifactPath"] = fixture.TargetPath;
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("Tampered inventory was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
+    public async Task staging_verification_rechecks_the_pinned_plan_bytes()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json["stagingJournal"]!.AsArray()[0]!["expectedHash"] = new string('c', 64);
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, new string('c', 64), admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_new_admission_cannot_take_over_a_prior_staging_intent()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var first = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, first, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, first, reservation)
+            .IsOk.ShouldBeTrue();
+        var second = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, second, reservation)
+            .Match(_ => throw new ShouldAssertException("A second owner replaced the intent."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Conflict);
+        fixture.LoadOperation(request).StagingJournal.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task staged_replacements_follow_reviewed_effect_order()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true);
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var admission = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 2, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 2, admission, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendStagingVerification(
+                plan, request.OperationId, 1, Hash(fixture.Content), admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 2, admission, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal.Select(entry =>
+            (entry.EffectSequence, entry.Kind)).ShouldBe([
+            (1, OperationStagingJournalKind.Intent),
+            (1, OperationStagingJournalKind.Verified),
+            (2, OperationStagingJournalKind.Intent)
+        ]);
+    }
+
     [Fact]
     public async Task cancellation_closes_pre_effect_activity_while_an_admitted_write_drains()
     {
@@ -746,14 +1018,17 @@ public sealed class JournaledApplyAuthorityTests
         internal CanonicalApplyRequest? Request { get; private set; }
         internal StoredChangePlan? StoredPlan { get; private set; }
         internal DurableOperationLedger Ledger => _ledger;
+        internal string LedgerRoot => _authority.LedgerRoot;
+        internal DurableOperationLedger CreatePlainLedger() =>
+            new(_authority.LedgerRoot, () => Now, _authority);
         internal RepositoryMutationReservationProvider Reservations => new(
             _authority.MutationReservationRoot, _authority);
         internal DurableOperationLedger CreateLedger(IOperationLedgerDurability durability) =>
             new(_authority.LedgerRoot, () => Now, _authority, durability);
 
-        internal CanonicalApplyRequest Prepare(bool pin = true)
+        internal CanonicalApplyRequest Prepare(bool pin = true, bool twoEffects = false)
         {
-            var envelope = CreateEnvelope();
+            var envelope = CreateEnvelope(twoEffects);
             var key = _store.Persist(envelope).Match(value => value, error => throw new IOException(error.Message));
             var operationId = new OperationId(42, Guid.NewGuid());
             var claims = new OperationEpochClaims(
@@ -805,7 +1080,7 @@ public sealed class JournaledApplyAuthorityTests
                 .Load(request.RepositoryId, request.OperationId)
                 .Match(value => value, error => throw new IOException(error.Message));
 
-        private ChangePlanEnvelope CreateEnvelope()
+        private ChangePlanEnvelope CreateEnvelope(bool twoEffects)
         {
             var controlRoot = _authority.ControlRoot;
             var sourcePath = "src/Added.cs";
@@ -815,23 +1090,41 @@ public sealed class JournaledApplyAuthorityTests
             var directory = new ChangePlanPathState(
                 true, ChangePlanPathKind.Directory, null, "device:test;inode:src", 2, [],
                 null, null, null, "0755", true, false, null);
+            var operations = new List<ChangePlanOperation>
+            {
+                new(1, "create", sourcePath, [])
+            };
+            var effects = new List<ChangePlanEffect>
+            {
+                new(1, ChangePlanEffectKind.Create, ChangePlanArtifactKind.RoslynDocument,
+                    sourcePath, TargetPath, null, null,
+                    ChangePlanPathState.Missing, after, null, null, null, Content,
+                    [new ChangePlanGuardRequirement(
+                        sourcePath, ChangePlanGuardKind.ExternalWriteGuard, "guard-target")])
+            };
+            if (twoEffects)
+            {
+                const string secondPath = "src/Added2.cs";
+                operations.Add(new ChangePlanOperation(2, "create", secondPath, []));
+                effects.Add(new ChangePlanEffect(
+                    2, ChangePlanEffectKind.Create, ChangePlanArtifactKind.RoslynDocument,
+                    secondPath, Path.Combine(RepositoryRoot, "src", "Added2.cs"), null, null,
+                    ChangePlanPathState.Missing, after, null, null, null, Content,
+                    [new ChangePlanGuardRequirement(
+                        secondPath, ChangePlanGuardKind.ExternalWriteGuard, "guard-target-2")]));
+            }
             var payload = new ChangePlanPayload(
                 Guid.NewGuid(),
                 new ChangePlanRepository(
                     "repository-001", RepositoryRoot, RepositoryRoot,
                     "device:test;inode:repository", new string('a', 40), new string('b', 64)),
                 Now.AddMinutes(-1), Now.AddMinutes(20),
-                [new ChangePlanOperation(1, "create", sourcePath, [])],
+                operations,
                 [new ChangePlanDependency(
                     "src", Path.Combine(RepositoryRoot, "src"),
                     ChangePlanDependencyKind.DirectoryEntry, directory,
                     new ChangePlanGuardRequirement("src", ChangePlanGuardKind.ExternalWriteGuard, "guard-dir"))],
-                [new ChangePlanEffect(
-                    1, ChangePlanEffectKind.Create, ChangePlanArtifactKind.RoslynDocument,
-                    sourcePath, TargetPath, null, null,
-                    ChangePlanPathState.Missing, after, null, null, null, Content,
-                    [new ChangePlanGuardRequirement(
-                        sourcePath, ChangePlanGuardKind.ExternalWriteGuard, "guard-target")])],
+                effects,
                 [], [], new ChangePlanConfidence("Proof", "Complete workspace", ["All inputs loaded"]), [],
                 new ChangePlanWorkspace(
                     WorkspaceCompletenessState.Complete,
