@@ -42,7 +42,8 @@ control a rootful Docker socket can bypass same-host discretionary access
 controls. A supported deployment needs a service-owned root under protected
 ancestors and a deployment proof that the editor lacks root-equivalent access.
 
-The current worker does not reconcile an existing file after a crash, inventory
-backup or guard artifacts, clean up staged files, or enforce one-use tokens at a
-cross-process OS effect boundary. #140 and #123 remain open. No repository
-effect authority, rollback, recovery, or public Apply is enabled.
+The current worker does not reconcile an existing file after losing its
+reservation, inventory backup or guard artifacts, clean up staged files, or
+enforce one-use tokens at a cross-process OS effect boundary. #140 and #123
+remain open. No repository effect authority, rollback, recovery, or public
+Apply is enabled.

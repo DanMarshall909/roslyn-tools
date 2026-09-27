@@ -66,7 +66,8 @@ internal sealed class LinuxStagingArtifactBoundary : IStagingArtifactBoundary
     {
         async Task<string> IStagingArtifactSession.CreateAndHashAsync(
             OperationStagingJournalEvent creation,
-            ReadOnlyMemory<byte> replacementBytes)
+            ReadOnlyMemory<byte> replacementBytes,
+            bool allowExistingAdmittedArtifact)
         {
             ArgumentNullException.ThrowIfNull(creation);
             if (creation.Kind != OperationStagingJournalKind.CreationAdmitted
@@ -96,10 +97,15 @@ internal sealed class LinuxStagingArtifactBoundary : IStagingArtifactBoundary
                 staging, parts[0], durability);
             using var operationDirectory = LinuxStagingHandles.OpenOrCreatePrivateDirectory(
                 epochDirectory, parts[1], durability);
-            using var artifact = LinuxStagingHandles.CreateExclusiveFile(operationDirectory, parts[2]);
-            using (var stream = new FileStream(artifact, FileAccess.ReadWrite, 4096, isAsync: false))
+            var (artifact, created) = LinuxStagingHandles.OpenAdmittedFile(
+                operationDirectory, parts[2], replacementBytes.Length,
+                allowExistingAdmittedArtifact);
+            using (artifact)
+            using (var stream = new FileStream(artifact,
+                       created ? FileAccess.ReadWrite : FileAccess.Read, 4096, isAsync: false))
             {
-                await stream.WriteAsync(replacementBytes, CancellationToken.None);
+                if (created)
+                    await stream.WriteAsync(replacementBytes, CancellationToken.None);
                 durability.FlushFile(stream);
                 durability.FlushDirectory(operationDirectory);
                 stream.Position = 0;
@@ -138,6 +144,7 @@ internal static class LinuxStagingHandles
     private const int ReadWrite = 2;
     private const int Create = 0x40;
     private const int Exclusive = 0x80;
+    private const int NonBlocking = 0x800;
     private const int Directory = 0x10000;
     private const int NoFollow = 0x20000;
     private const int CloseOnExec = 0x80000;
@@ -198,9 +205,49 @@ internal static class LinuxStagingHandles
         }
     }
 
-    internal static SafeFileHandle CreateExclusiveFile(SafeFileHandle parent, string name) =>
-        OpenAt(parent, name, ReadWrite | Create | Exclusive | NoFollow | CloseOnExec,
+    internal static (SafeFileHandle Handle, bool Created) OpenAdmittedFile(
+        SafeFileHandle parent,
+        string name,
+        int expectedLength,
+        bool allowExistingAdmittedArtifact)
+    {
+        var descriptor = NativeOpenAt(parent, name,
+            ReadWrite | Create | Exclusive | NoFollow | CloseOnExec,
             Convert.ToUInt32("600", 8));
+        if (descriptor >= 0)
+        {
+            var created = new SafeFileHandle(descriptor, ownsHandle: true);
+            try
+            {
+                RequirePrivateRegularFile(created);
+                return (created, true);
+            }
+            catch
+            {
+                created.Dispose();
+                throw;
+            }
+        }
+        var error = Marshal.GetLastPInvokeError();
+        if (error != AlreadyExists)
+            throw NativeError("openat", error);
+        if (!allowExistingAdmittedArtifact)
+            throw new IOException("A fresh staging admission cannot adopt an existing artifact.");
+
+        var existing = OpenAt(parent, name, ReadOnly | NonBlocking | NoFollow | CloseOnExec);
+        try
+        {
+            var identity = RequirePrivateRegularFile(existing);
+            if (identity.Size != (ulong)expectedLength)
+                throw new IOException("The existing admitted artifact has a different byte length.");
+            return (existing, false);
+        }
+        catch
+        {
+            existing.Dispose();
+            throw;
+        }
+    }
 
     internal static void RequirePrivateDirectory(SafeFileHandle handle)
     {
@@ -208,6 +255,16 @@ internal static class LinuxStagingHandles
         if (identity.UserId != GetEffectiveUserId() || (identity.Mode & 0x3f) != 0
             || (identity.Mode & 0xf000) != 0x4000)
             throw new InvalidOperationException("The staging directory is not private to the service user.");
+    }
+
+    private static StatxIdentity RequirePrivateRegularFile(SafeFileHandle handle)
+    {
+        var identity = Identity(handle);
+        if (identity.UserId != GetEffectiveUserId() || (identity.Mode & 0x3f) != 0
+            || (identity.Mode & 0xf000) != 0x8000 || identity.LinkCount != 1)
+            throw new InvalidOperationException(
+                "The admitted artifact is not a private, singly linked regular file.");
+        return identity;
     }
 
     internal static StatxIdentity Identity(SafeFileHandle handle)
@@ -250,9 +307,11 @@ internal static class LinuxStagingHandles
     internal struct StatxIdentity
     {
         [FieldOffset(0)] internal uint Mask;
+        [FieldOffset(16)] internal uint LinkCount;
         [FieldOffset(20)] internal uint UserId;
         [FieldOffset(28)] internal ushort Mode;
         [FieldOffset(32)] internal ulong Inode;
+        [FieldOffset(40)] internal ulong Size;
         [FieldOffset(136)] internal uint DeviceMajor;
         [FieldOffset(140)] internal uint DeviceMinor;
         [FieldOffset(144)] internal ulong MountId;

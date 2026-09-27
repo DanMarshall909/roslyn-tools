@@ -21,7 +21,8 @@ internal interface IStagingArtifactSession : IDisposable
 {
     Task<string> CreateAndHashAsync(
         OperationStagingJournalEvent creation,
-        ReadOnlyMemory<byte> replacementBytes);
+        ReadOnlyMemory<byte> replacementBytes,
+        bool allowExistingAdmittedArtifact);
 }
 
 internal sealed class JournaledStagingArtifactWriter
@@ -65,10 +66,22 @@ internal sealed class JournaledStagingArtifactWriter
 
         using (session)
         {
-            var intent = _ledger.AppendStagingIntent(
-                plan, operationId, effectSequence, admission, reservation);
-            if (intent.IsErr)
-                return LedgerFailure(intent.Match(_ => null!, error => error));
+            var loaded = _ledger.Load(plan.Key.RepositoryId, operationId);
+            if (loaded.IsErr)
+                return LedgerFailure(loaded.Match(_ => null!, error => error));
+            var pendingCreation = loaded.Match(
+                operation => !operation.StagingJournal.IsEmpty
+                             && operation.StagingJournal[^1].Kind
+                                 == OperationStagingJournalKind.CreationAdmitted
+                             && operation.StagingJournal[^1].EffectSequence == effectSequence,
+                _ => false);
+            if (!pendingCreation)
+            {
+                var intent = _ledger.AppendStagingIntent(
+                    plan, operationId, effectSequence, admission, reservation);
+                if (intent.IsErr)
+                    return LedgerFailure(intent.Match(_ => null!, error => error));
+            }
             var creation = _ledger.AppendStagingCreationAdmission(
                 plan, operationId, effectSequence, admission, reservation);
             if (creation.IsErr)
@@ -80,7 +93,7 @@ internal sealed class JournaledStagingArtifactWriter
             try
             {
                 observedHash = await session.CreateAndHashAsync(
-                    admitted, effect.ReplacementContent.ToArray());
+                    admitted, effect.ReplacementContent.ToArray(), pendingCreation);
             }
             catch (Exception exception) when (exception is IOException or InvalidOperationException
                         or UnauthorizedAccessException)

@@ -125,6 +125,383 @@ public sealed class JournaledApplyAuthorityTests
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task admitted_artifact_can_be_verified_on_retry_under_the_same_reservation()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new ThrowAfterArtifactBoundary(
+                    new LinuxStagingArtifactBoundary(stagingRoot), fixture, request))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        interrupted.IsErr.ShouldBeTrue();
+        var pending = fixture.LoadOperation(request).StagingJournal[^1];
+        pending.Kind.ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+
+        var retried = await new JournaledStagingArtifactWriter(
+                fixture.CreatePlainLedger(), new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+
+        var verified = retried.Match(value => value, error => throw new IOException(error.Message));
+        verified.Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        verified.CreationToken.ShouldBe(pending.CreationToken);
+        verified.ObservedHash.ShouldBe(Hash(fixture.Content));
+        fixture.LoadOperation(request).StagingJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationStagingJournalKind.Intent,
+            OperationStagingJournalKind.CreationAdmitted,
+            OperationStagingJournalKind.Verified
+        ]);
+        File.ReadAllBytes(verified.ArtifactPath).ShouldBe(fixture.Content);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_fresh_creation_does_not_adopt_a_preexisting_matching_artifact()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        var epochDirectory = Path.Combine(stagingRoot,
+            request.OperationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var operationDirectory = Path.Combine(epochDirectory, request.OperationId.Nonce.ToString("N"));
+        Directory.CreateDirectory(operationDirectory);
+        foreach (var path in new[] { stagingRoot, epochDirectory, operationDirectory })
+            File.SetUnixFileMode(path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var artifactPath = Path.Combine(operationDirectory, "00000001.stage");
+        File.WriteAllBytes(artifactPath, fixture.Content);
+        File.SetUnixFileMode(artifactPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+
+        staged.IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).StagingJournal[^1].Kind
+            .ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        File.ReadAllBytes(artifactPath).ShouldBe(fixture.Content);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("different-bytes")]
+    [InlineData("short-content")]
+    [InlineData("hard-link")]
+    [InlineData("symbolic-link")]
+    [InlineData("public-permissions")]
+    public async Task retry_rejects_an_unexpected_existing_artifact_without_overwriting_it(
+        string artifactState)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new ThrowAfterArtifactBoundary(
+                    new LinuxStagingArtifactBoundary(stagingRoot), fixture, request))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        interrupted.IsErr.ShouldBeTrue();
+        var pending = fixture.LoadOperation(request).StagingJournal[^1];
+        var repositorySource = Path.Combine(fixture.RepositoryRoot, "src", "Original.cs");
+        if (artifactState is "hard-link" or "symbolic-link")
+        {
+            File.WriteAllBytes(repositorySource, fixture.Content);
+            File.SetUnixFileMode(repositorySource, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            File.Delete(pending.ArtifactPath);
+        }
+        switch (artifactState)
+        {
+            case "different-bytes":
+                File.WriteAllText(pending.ArtifactPath, "class Other;\n");
+                break;
+            case "short-content":
+                File.WriteAllText(pending.ArtifactPath, "short");
+                break;
+            case "hard-link":
+                Link(repositorySource, pending.ArtifactPath).ShouldBe(0);
+                break;
+            case "symbolic-link":
+                File.CreateSymbolicLink(pending.ArtifactPath, repositorySource);
+                break;
+            case "public-permissions":
+                File.SetUnixFileMode(pending.ArtifactPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite
+                    | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(artifactState));
+        }
+
+        var retried = await new JournaledStagingArtifactWriter(
+                fixture.CreatePlainLedger(), new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+
+        retried.IsErr.ShouldBeTrue();
+        var failure = retried.Match(
+            _ => throw new InvalidOperationException("Expected staging failure."),
+            error => error);
+        failure.Kind.ShouldBe(StagingArtifactErrorKind.ArtifactUnavailable);
+        if (artifactState == "short-content")
+            failure.Cause!.Message.ShouldContain("byte length");
+        if (artifactState == "hard-link")
+            failure.Cause!.Message.ShouldContain("singly linked");
+        if (artifactState == "public-permissions")
+            failure.Cause!.Message.ShouldContain("private");
+        fixture.LoadOperation(request).StagingJournal[^1].Kind
+            .ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        if (artifactState is "different-bytes" or "short-content")
+            File.ReadAllText(pending.ArtifactPath).ShouldBe(
+                artifactState == "different-bytes" ? "class Other;\n" : "short");
+        else if (artifactState == "public-permissions")
+            File.ReadAllBytes(pending.ArtifactPath).ShouldBe(fixture.Content);
+        else
+            File.ReadAllBytes(repositorySource).ShouldBe(fixture.Content);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task retry_rejects_a_fifo_without_waiting_for_a_writer()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new ThrowAfterArtifactBoundary(
+                    new LinuxStagingArtifactBoundary(stagingRoot), fixture, request))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        interrupted.IsErr.ShouldBeTrue();
+        var pending = fixture.LoadOperation(request).StagingJournal[^1];
+        File.Delete(pending.ArtifactPath);
+        MkFifo(pending.ArtifactPath, Convert.ToUInt32("600", 8)).ShouldBe(0);
+
+        using var started = new ManualResetEventSlim();
+        var retryTask = Task.Run(async () =>
+        {
+            started.Set();
+            return await new JournaledStagingArtifactWriter(
+                    fixture.CreatePlainLedger(), new LinuxStagingArtifactBoundary(stagingRoot))
+                .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        });
+        started.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue();
+        var finishedWithoutWriter = await Task.WhenAny(
+            retryTask, Task.Delay(TimeSpan.FromSeconds(3))) == retryTask;
+        if (!finishedWithoutWriter)
+        {
+            using var unblock = new FileStream(pending.ArtifactPath, FileMode.Open,
+                FileAccess.ReadWrite, FileShare.ReadWrite);
+            await retryTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        finishedWithoutWriter.ShouldBeTrue();
+        var retry = await retryTask;
+        retry.IsErr.ShouldBeTrue();
+        var failure = retry.Match(
+            _ => throw new InvalidOperationException("Expected staging failure."),
+            error => error);
+        failure.Kind.ShouldBe(StagingArtifactErrorKind.ArtifactUnavailable);
+        failure.Cause!.Message.ShouldContain("singly linked regular file");
+        fixture.LoadOperation(request).StagingJournal[^1].Kind
+            .ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task admitted_artifact_retry_can_finish_after_no_effect_cancellation()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new ThrowAfterArtifactBoundary(
+                    new LinuxStagingArtifactBoundary(stagingRoot), fixture, request))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        interrupted.IsErr.ShouldBeTrue();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        var retried = await new JournaledStagingArtifactWriter(
+                fixture.CreatePlainLedger(), new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+
+        var verified = retried.Match(value => value, error => throw new IOException(error.Message));
+        verified.Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task admitted_creation_can_make_a_missing_artifact_after_no_effect_cancellation()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new LinuxStagingArtifactBoundary(stagingRoot,
+                    new RecordingStagingDurability(failedFlush: 1)))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+        interrupted.IsErr.ShouldBeTrue();
+        var pending = fixture.LoadOperation(request).StagingJournal[^1];
+        pending.Kind.ShouldBe(OperationStagingJournalKind.CreationAdmitted);
+        File.Exists(pending.ArtifactPath).ShouldBeFalse();
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        var retried = await new JournaledStagingArtifactWriter(
+                fixture.CreatePlainLedger(), new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, reservation);
+
+        var verified = retried.Match(value => value, error => throw new IOException(error.Message));
+        verified.Kind.ShouldBe(OperationStagingJournalKind.Verified);
+        verified.CreationToken.ShouldBe(pending.CreationToken);
+        File.ReadAllBytes(verified.ArtifactPath).ShouldBe(fixture.Content);
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_new_reservation_cannot_take_over_an_admitted_artifact_retry()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var previousReservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, previousReservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var interrupted = await new JournaledStagingArtifactWriter(
+                fixture.Ledger,
+                new ThrowAfterArtifactBoundary(
+                    new LinuxStagingArtifactBoundary(stagingRoot), fixture, request))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, previousReservation);
+        interrupted.IsErr.ShouldBeTrue();
+        var pending = fixture.LoadOperation(request).StagingJournal;
+        previousReservation.Dispose();
+        using var newReservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        newReservation.FenceEpoch.ShouldBeGreaterThan(activity.FenceEpoch);
+
+        var boundary = new TouchTrackingArtifactBoundary(
+            new LinuxStagingArtifactBoundary(stagingRoot));
+        var retried = await new JournaledStagingArtifactWriter(
+                fixture.CreatePlainLedger(), boundary)
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, newReservation);
+
+        retried.IsErr.ShouldBeTrue();
+        boundary.Touched.ShouldBeFalse();
+        fixture.LoadOperation(request).StagingJournal.ShouldBe(pending);
+        File.ReadAllBytes(pending[^1].ArtifactPath).ShouldBe(fixture.Content);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData(1, false, false)]
     [InlineData(2, true, false)]
@@ -1573,7 +1950,8 @@ public sealed class JournaledApplyAuthorityTests
         {
             public async Task<string> CreateAndHashAsync(
                 OperationStagingJournalEvent creation,
-                ReadOnlyMemory<byte> replacementBytes)
+                ReadOnlyMemory<byte> replacementBytes,
+                bool allowExistingAdmittedArtifact)
             {
                 var journal = fixture.LoadOperation(request).StagingJournal;
                 journal.Select(entry => entry.Kind).ShouldBe([
@@ -1583,8 +1961,35 @@ public sealed class JournaledApplyAuthorityTests
                 journal[^1].CreationToken.ShouldBe(creation.CreationToken);
                 journal[^1].ArtifactPath.ShouldBe(creation.ArtifactPath);
                 File.Exists(creation.ArtifactPath).ShouldBeFalse();
-                await inner.CreateAndHashAsync(creation, replacementBytes);
+                await inner.CreateAndHashAsync(
+                    creation, replacementBytes, allowExistingAdmittedArtifact);
                 throw new IOException("Injected interruption after durable artifact creation.");
+            }
+
+            public void Dispose() => inner.Dispose();
+        }
+    }
+
+    private sealed class TouchTrackingArtifactBoundary(IStagingArtifactBoundary inner)
+        : IStagingArtifactBoundary
+    {
+        internal bool Touched { get; private set; }
+
+        public IStagingArtifactSession Acquire(StoredChangePlan plan) =>
+            new Session(inner.Acquire(plan), this);
+
+        private sealed class Session(
+            IStagingArtifactSession inner,
+            TouchTrackingArtifactBoundary boundary) : IStagingArtifactSession
+        {
+            public Task<string> CreateAndHashAsync(
+                OperationStagingJournalEvent creation,
+                ReadOnlyMemory<byte> replacementBytes,
+                bool allowExistingAdmittedArtifact)
+            {
+                boundary.Touched = true;
+                return inner.CreateAndHashAsync(
+                    creation, replacementBytes, allowExistingAdmittedArtifact);
             }
 
             public void Dispose() => inner.Dispose();
@@ -1769,6 +2174,19 @@ public sealed class JournaledApplyAuthorityTests
 
     private static string Hash(byte[] content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA2101", Justification =
+        "Linux libc paths use UTF-8 and both arguments are explicitly marshaled as LPUTF8Str.")]
+    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
+    private static extern int Link(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string existingPath,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string newPath);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA2101", Justification =
+        "Linux libc paths use UTF-8 and the argument is explicitly marshaled as LPUTF8Str.")]
+    [DllImport("libc", EntryPoint = "mkfifo", SetLastError = true)]
+    private static extern int MkFifo(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string path, uint mode);
 
     private sealed class FailNthDirectoryFlush(int failureNumber) : IOperationLedgerDurability
     {

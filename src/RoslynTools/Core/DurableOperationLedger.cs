@@ -1021,22 +1021,27 @@ internal sealed class DurableOperationLedger
             .ToLowerInvariant();
         var result = UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
         {
-            if (!CanJournalStaging(operation, plan, admission, reservation)
-                || operation.StagingJournal.IsEmpty)
+            if (operation.StagingJournal.IsEmpty)
                 return InvalidStagingActivity();
             var last = operation.StagingJournal[^1];
             if (last.EffectSequence != effectSequence
                 || last.AdmissionToken != admission.Token
+                || last.ControlGeneration != admission.ControlGeneration
+                || last.FenceEpoch != admission.FenceEpoch
+                || last.ReservationToken != admission.ReservationToken
                 || last.ArtifactPath != StagingArtifactPath(
                     plan.Envelope.Payload.Coordination.StagingRoot, operationId, effectSequence)
                 || !FixedTimeHashEquals(last.ExpectedHash, expectedHash))
                 return InvalidStagingActivity();
             if (last.Kind == OperationStagingJournalKind.CreationAdmitted)
             {
+                if (!CanFinishAdmittedStaging(operation, plan, admission, reservation))
+                    return InvalidStagingActivity();
                 _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
                 return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
             }
-            if (last.Kind != OperationStagingJournalKind.Intent)
+            if (last.Kind != OperationStagingJournalKind.Intent
+                || !CanJournalStaging(operation, plan, admission, reservation))
                 return InvalidStagingActivity();
             var now = _utcNow().ToUniversalTime();
             if (now < last.CommittedAtUtc)
