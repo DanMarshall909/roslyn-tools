@@ -9,6 +9,7 @@ internal enum JournaledApplyErrorKind
     PlanUnavailable,
     LedgerUnavailable,
     UnsafeCoordination,
+    CleanupRequired,
     RecoveryRequired
 }
 
@@ -161,6 +162,7 @@ internal sealed class JournaledApplyAuthority
     private readonly IJournaledRepositoryEffectBroker _broker;
     private readonly IStagingArtifactBoundary? _stagingBoundary;
     private readonly IBackupArtifactBoundary? _backupBoundary;
+    private readonly JournaledNoEffectCleanup? _noEffectCleanup;
 
     internal JournaledApplyAuthority(
         DurableChangePlanStore planStore,
@@ -168,7 +170,8 @@ internal sealed class JournaledApplyAuthority
         RepositoryMutationReservationProvider reservations,
         IJournaledRepositoryEffectBroker? broker = null,
         IStagingArtifactBoundary? stagingBoundary = null,
-        IBackupArtifactBoundary? backupBoundary = null)
+        IBackupArtifactBoundary? backupBoundary = null,
+        JournaledNoEffectCleanup? noEffectCleanup = null)
     {
         _planStore = planStore;
         _ledger = ledger;
@@ -176,6 +179,7 @@ internal sealed class JournaledApplyAuthority
         _broker = broker ?? UnavailableJournaledRepositoryEffectBroker.Instance;
         _stagingBoundary = stagingBoundary;
         _backupBoundary = backupBoundary;
+        _noEffectCleanup = noEffectCleanup;
     }
 
     internal async Task<Result<DurableOperationRecord, JournaledApplyError>> ApplyAsync(
@@ -375,7 +379,8 @@ internal sealed class JournaledApplyAuthority
                         : "Final guarded preflight did not prove every plan dependency.";
                 return await ReleaseAndDrainPreEffectAsync(
                     request, activity, reservation, session,
-                    JournaledApplyErrorKind.UnsafeCoordination, message, preflightError);
+                    JournaledApplyErrorKind.UnsafeCoordination, message, preflightError,
+                    OperationLifecycleState.RejectedUnsafeCoordination);
             }
 
             var handoff = _ledger.BeginApplyingWithFirstEffectIntent(
@@ -543,7 +548,8 @@ internal sealed class JournaledApplyAuthority
             IJournaledRepositoryEffectSession? session,
             JournaledApplyErrorKind failureKind,
             string failureMessage,
-            Exception? failureCause = null)
+            Exception? failureCause = null,
+            OperationLifecycleState? terminalOutcome = null)
     {
         try
         {
@@ -554,21 +560,44 @@ internal sealed class JournaledApplyAuthority
         {
             return Fail(JournaledApplyErrorKind.UnsafeCoordination,
                 "The pre-effect guard could not be released; its activity remains active.",
-                exception);
+                CombineFailureCauses(failureCause, exception));
         }
 
         var completed = _ledger.CompletePreEffectActivity(
-            request.RepositoryId, request.OperationId, activity, reservation);
+            request.RepositoryId, request.OperationId, activity, reservation,
+            terminalOutcome);
         if (completed.IsErr)
         {
             var error = completed.Match(_ => null!, value => value);
             return Fail(JournaledApplyErrorKind.LedgerUnavailable,
-                "Released pre-effect guard activity could not be durably drained: " + error.Message);
+                "Released pre-effect activity could not be durably resolved: " + error.Message,
+                failureCause);
         }
         if (completed.Match(value => value, _ => null!).CurrentState
             == OperationLifecycleState.CancelledNoEffect)
         {
-            return ConfirmCancelledNoEffect(request);
+            return ConfirmCancelledNoEffect(request, reservation, failureCause);
+        }
+        if (terminalOutcome is not null)
+        {
+            if (completed.Match(value => value, _ => null!).CurrentState != terminalOutcome)
+            {
+                return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                    "The no-effect guard rejection did not reach its terminal state.");
+            }
+            if (_noEffectCleanup is not null)
+            {
+                var cleaned = _noEffectCleanup.Cleanup(
+                    request.RepositoryId, request.OperationId, reservation);
+                if (cleaned.IsErr)
+                {
+                    var error = cleaned.Match(_ => null!, value => value);
+                    return Fail(JournaledApplyErrorKind.CleanupRequired,
+                        "The no-effect guard rejection is durable but cleanup remains pending: "
+                        + failureMessage + " Cleanup failed: " + error.Message,
+                        CombineFailureCauses(failureCause, error.Cause));
+                }
+            }
         }
         return Fail(failureKind, failureMessage, failureCause);
     }
@@ -593,16 +622,40 @@ internal sealed class JournaledApplyAuthority
     }
 
     private Result<DurableOperationRecord, JournaledApplyError> ConfirmCancelledNoEffect(
-        CanonicalApplyRequest request)
+        CanonicalApplyRequest request,
+        RepositoryMutationReservation? reservation = null,
+        Exception? earlierFailure = null)
     {
         var confirmed = _ledger.ConfirmDurableCancelledNoEffect(
             request.RepositoryId,
             request.OperationId);
-        return confirmed.Match(
-            Result<DurableOperationRecord, JournaledApplyError>.Ok,
-            error => Fail(JournaledApplyErrorKind.LedgerUnavailable,
-                "The no-effect cancellation could not be durably confirmed: " + error.Message));
+        if (confirmed.IsErr)
+        {
+            var error = confirmed.Match(_ => null!, value => value);
+            return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                "The no-effect cancellation could not be durably confirmed: " + error.Message,
+                earlierFailure);
+        }
+        if (_noEffectCleanup is null || reservation is null)
+            return Result<DurableOperationRecord, JournaledApplyError>.Ok(
+                confirmed.Match(value => value, _ => null!));
+        var cleaned = _noEffectCleanup.Cleanup(
+            request.RepositoryId, request.OperationId, reservation);
+        if (cleaned.IsErr)
+        {
+            var error = cleaned.Match(_ => null!, value => value);
+            return Fail(JournaledApplyErrorKind.CleanupRequired,
+                "No-effect cancellation is durable but cleanup remains pending: "
+                + error.Message, CombineFailureCauses(earlierFailure, error.Cause));
+        }
+        return Result<DurableOperationRecord, JournaledApplyError>.Ok(
+            cleaned.Match(value => value, _ => null!));
     }
+
+    private static Exception? CombineFailureCauses(Exception? primary, Exception? secondary) =>
+        primary is null ? secondary
+        : secondary is null ? primary
+        : new AggregateException(primary, secondary);
 
     private static Result<DurableOperationRecord, JournaledApplyError> Fail(
         JournaledApplyErrorKind kind,

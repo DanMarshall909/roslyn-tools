@@ -3129,12 +3129,219 @@ public sealed class JournaledApplyAuthorityTests
         broker.Acquired.ShouldBeTrue();
         broker.ArtifactsVerifiedAtAcquire.ShouldBeTrue();
         var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.CleanupJournal[0].Kind.ShouldBe(OperationCleanupJournalKind.InventoryPending);
         operation.StagingJournal.Where(entry => entry.Kind == OperationStagingJournalKind.Verified)
             .Select(entry => entry.EffectSequence).ShouldBe([1, 2]);
         operation.BackupJournal.Where(entry => entry.Kind == OperationBackupJournalKind.Verified)
             .Select(entry => entry.EffectSequence).ShouldBe([1]);
         File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
         File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task guard_rejection_cleans_every_verified_artifact_before_releasing_the_plan_pin()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(twoEffects: true, replacement: true);
+        var broker = new SimulatedBroker(fixture) { DeclineAfterInspect = true };
+        var plan = fixture.StoredPlan!;
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger,
+            fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+
+        var result = await fixture.CreateAuthority(broker, noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        broker.ArtifactsVerifiedAtAcquire.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        operation.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        operation.CleanupJournal[0].Artifacts.Length.ShouldBe(3);
+        operation.CleanupJournal[0].Artifacts.All(artifact => !File.Exists(artifact.ArtifactPath))
+            .ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+        File.Exists(Path.Combine(fixture.RepositoryRoot, "src", "Added2.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task guard_rejection_keeps_the_plan_pinned_when_physical_cleanup_cannot_be_verified()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var broker = new SimulatedBroker(fixture)
+        {
+            DeclineAfterInspect = true,
+            TamperArtifactBeforeDecline = true
+        };
+        var plan = fixture.StoredPlan!;
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger,
+            fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+
+        var result = await fixture.CreateAuthority(broker, noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.CleanupRequired);
+        broker.ArtifactsVerifiedAtAcquire.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        operation.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.InventoryPending);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task failed_preflight_and_cleanup_retain_both_failure_causes(
+        bool cancellationWins)
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            FailPreflight = true,
+            CancelDuringPreflight = cancellationWins,
+            TamperArtifactBeforeFailedPreflight = true
+        };
+        var plan = fixture.StoredPlan!;
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot));
+
+        var result = await fixture.CreateAuthority(broker, noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        var error = result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            value => value);
+        error.Kind.ShouldBe(JournaledApplyErrorKind.CleanupRequired);
+        var causes = error.Cause.ShouldBeOfType<AggregateException>().InnerExceptions;
+        causes.Count.ShouldBe(2);
+        causes[0].Message.ShouldContain("preflight");
+        causes[1].Message.ShouldContain("artifact");
+        fixture.LoadOperation(request).CurrentState.ShouldBe(cancellationWins
+            ? OperationLifecycleState.CancelledNoEffect
+            : OperationLifecycleState.RejectedUnsafeCoordination);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.InventoryPending);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task guard_rejection_keeps_the_plan_pinned_when_its_terminal_record_cannot_be_written()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture) { DeclineAfterInspect = true };
+        var plan = fixture.StoredPlan!;
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot));
+
+        var result = await fixture.CreateAuthority(
+                broker, ledgerDurability: new FailNthReplace(5), noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        broker.Acquired.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        operation.CleanupJournal.ShouldBeEmpty();
+        var artifact = operation.StagingJournal.Single(entry =>
+            entry.Kind == OperationStagingJournalKind.Verified);
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancellation_and_guard_rejection_have_one_atomic_no_effect_winner()
+    {
+        using var cancellationFirst = new ApplyFixture();
+        var cancelledRequest = cancellationFirst.Prepare();
+        var cancelledPlan = cancellationFirst.StoredPlan!;
+        using (var reservation = await cancellationFirst.Reservations.AcquireAsync(
+                   cancelledPlan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            var activity = cancellationFirst.Ledger.BeginPreEffectActivity(
+                    cancelledRequest.RepositoryId, cancelledRequest.OperationId, reservation)
+                .Match(value => value, error => throw new IOException(error.Message));
+            cancellationFirst.JournalVerifiedArtifacts(
+                cancelledPlan, cancelledRequest, activity, reservation);
+            cancellationFirst.Ledger.CancelBeforeFirstEffect(
+                    cancelledRequest.RepositoryId, cancelledRequest.OperationId)
+                .IsOk.ShouldBeTrue();
+
+            var resolved = cancellationFirst.Ledger.CompletePreEffectActivity(
+                cancelledRequest.RepositoryId, cancelledRequest.OperationId,
+                activity, reservation, OperationLifecycleState.RejectedUnsafeCoordination);
+
+            resolved.IsOk.ShouldBeTrue();
+            resolved.Match(value => value, _ => null!).CurrentState
+                .ShouldBe(OperationLifecycleState.CancelledNoEffect);
+            resolved.Match(value => value, _ => null!).PreEffectActivity.ActiveAdmissions
+                .ShouldBeEmpty();
+            resolved.Match(value => value, _ => null!).CleanupJournal[0].Artifacts
+                .ShouldHaveSingleItem();
+        }
+
+        using var rejectionFirst = new ApplyFixture();
+        var rejectedRequest = rejectionFirst.Prepare();
+        var rejectedPlan = rejectionFirst.StoredPlan!;
+        using var rejectedReservation = await rejectionFirst.Reservations.AcquireAsync(
+            rejectedPlan.Envelope.Payload.Repository, CancellationToken.None);
+        var rejectedActivity = rejectionFirst.Ledger.BeginPreEffectActivity(
+                rejectedRequest.RepositoryId, rejectedRequest.OperationId, rejectedReservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        rejectionFirst.JournalVerifiedArtifacts(
+            rejectedPlan, rejectedRequest, rejectedActivity, rejectedReservation);
+
+        var rejection = rejectionFirst.Ledger.CompletePreEffectActivity(
+            rejectedRequest.RepositoryId, rejectedRequest.OperationId,
+            rejectedActivity, rejectedReservation,
+            OperationLifecycleState.RejectedUnsafeCoordination);
+
+        rejection.IsOk.ShouldBeTrue();
+        rejection.Match(value => value, _ => null!).CurrentState
+            .ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        rejection.Match(value => value, _ => null!).PreEffectActivity.ActiveAdmissions
+            .ShouldBeEmpty();
+        rejection.Match(value => value, _ => null!).CleanupJournal[0].Artifacts
+            .ShouldHaveSingleItem();
+        rejectionFirst.Ledger.CancelBeforeFirstEffect(
+                rejectedRequest.RepositoryId, rejectedRequest.OperationId)
+            .IsErr.ShouldBeTrue();
     }
 
     [Fact]
@@ -3185,6 +3392,74 @@ public sealed class JournaledApplyAuthorityTests
         operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
         operation.StagingJournal[^1].Kind.ShouldBe(OperationStagingJournalKind.Verified);
         operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancellation_after_staging_cleans_the_artifact_and_releases_the_plan_pin()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var broker = new SimulatedBroker(fixture);
+        var staging = new CancelAfterArtifactBoundary(
+            new LinuxStagingArtifactBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            fixture, request);
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+
+        var result = await fixture.CreateAuthority(
+                broker, stagingBoundary: staging, noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsOk.ShouldBeTrue();
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        operation.CleanupJournal[0].Artifacts.ShouldHaveSingleItem();
+        File.Exists(operation.CleanupJournal[0].Artifacts[0].ArtifactPath).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancellation_keeps_the_plan_pinned_when_physical_cleanup_cannot_be_verified()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var broker = new SimulatedBroker(fixture);
+        var staging = new CancelAfterArtifactBoundary(
+            new LinuxStagingArtifactBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            fixture, request, tamperAfterCancellation: true);
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.Ledger, fixture.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+
+        var result = await fixture.CreateAuthority(
+                broker, stagingBoundary: staging, noEffectCleanup: cleanup)
+            .ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.CleanupRequired);
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.InventoryPending);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -3359,9 +3634,67 @@ public sealed class JournaledApplyAuthorityTests
             .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
         broker.SawActiveAtDispose.ShouldBeTrue();
         var operation = fixture.LoadOperation(request);
-        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
         operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.CleanupJournal[0].Kind.ShouldBe(OperationCleanupJournalKind.InventoryPending);
         operation.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_preflight_and_guard_release_report_both_failures()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            FailPreflight = true,
+            RequireActiveAtDisposeAfterPreflightFailure = true,
+            FailDisposeAfterPreflightFailure = true
+        };
+
+        var result = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        var error = result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            value => value);
+        error.Kind.ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
+        var causes = error.Cause.ShouldBeOfType<AggregateException>().InnerExceptions;
+        causes.Count.ShouldBe(2);
+        causes[0].Message.ShouldContain("preflight");
+        causes[1].Message.ShouldContain("guard-release");
+        broker.SawActiveAtDispose.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        operation.EffectJournal.ShouldBeEmpty();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_preflight_and_terminal_record_preserve_the_preflight_cause()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture) { FailPreflight = true };
+
+        var result = await fixture.CreateAuthority(
+                broker, ledgerDurability: new FailNthReplace(5)).ApplyAsync(request);
+
+        result.IsErr.ShouldBeTrue();
+        var error = result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            value => value);
+        error.Kind.ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        error.Message.ShouldContain("durably resolved");
+        error.Cause.ShouldBeOfType<IOException>().Message.ShouldContain("preflight");
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        operation.CleanupJournal.ShouldBeEmpty();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -3670,7 +4003,8 @@ public sealed class JournaledApplyAuthorityTests
         result.IsErr.ShouldBeTrue();
         result.Match(_ => null!, error => error).Kind
             .ShouldBe(JournaledApplyErrorKind.UnsafeCoordination);
-        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        fixture.LoadOperation(request).CurrentState
+            .ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
         fixture.LoadOperation(request).EffectJournal.ShouldBeEmpty();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
@@ -3867,8 +4201,11 @@ public sealed class JournaledApplyAuthorityTests
         internal bool CancelDuringPreflight { get; init; }
         internal bool RequireActiveAtDisposeAfterCancellation { get; init; }
         internal bool FailDisposeAfterCancellation { get; init; }
+        internal bool FailDisposeAfterPreflightFailure { get; init; }
         internal bool FailPreflight { get; init; }
+        internal bool TamperArtifactBeforeFailedPreflight { get; init; }
         internal bool DeclineAfterInspect { get; init; }
+        internal bool TamperArtifactBeforeDecline { get; init; }
         internal bool RequireActiveAtDisposeAfterPreflightFailure { get; init; }
         internal bool SawActiveAtDispose { get; private set; }
         internal bool Acquired { get; private set; }
@@ -3901,7 +4238,15 @@ public sealed class JournaledApplyAuthorityTests
                     && File.ReadAllBytes(entry.ArtifactPath).SequenceEqual(effect.OriginalContent))));
             Acquired = true;
             if (DeclineAfterInspect)
+            {
+                if (TamperArtifactBeforeDecline)
+                {
+                    var staged = operation.StagingJournal.Single(entry =>
+                        entry.Kind == OperationStagingJournalKind.Verified);
+                    File.WriteAllBytes(staged.ArtifactPath, "tampered"u8.ToArray());
+                }
                 return Task.FromResult<IJournaledRepositoryEffectSession?>(null);
+            }
             return Task.FromResult<IJournaledRepositoryEffectSession?>(
                 new Session(this, fixture, plan, reservation));
         }
@@ -3924,7 +4269,16 @@ public sealed class JournaledApplyAuthorityTests
                         .IsOk.ShouldBeTrue();
                 }
                 if (broker.FailPreflight)
+                {
+                    if (broker.TamperArtifactBeforeFailedPreflight)
+                    {
+                        var operation = fixture.LoadOperation(fixture.Request!);
+                        var staged = operation.StagingJournal.Single(entry =>
+                            entry.Kind == OperationStagingJournalKind.Verified);
+                        File.WriteAllBytes(staged.ArtifactPath, "tampered"u8.ToArray());
+                    }
                     throw new IOException("Injected guard preflight failure.");
+                }
                 var expectedTarget = plan.Envelope.Payload.Effects[0].HasOriginalContent
                     ? File.Exists(fixture.TargetPath)
                       && File.ReadAllBytes(fixture.TargetPath).SequenceEqual(fixture.OriginalContent)
@@ -4004,6 +4358,8 @@ public sealed class JournaledApplyAuthorityTests
                     operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
                     operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
                     broker.SawActiveAtDispose = true;
+                    if (broker.FailDisposeAfterPreflightFailure)
+                        throw new IOException("Injected guard-release failure.");
                 }
                 return ValueTask.CompletedTask;
             }
@@ -4119,15 +4475,17 @@ public sealed class JournaledApplyAuthorityTests
     private sealed class CancelAfterArtifactBoundary(
         IStagingArtifactBoundary inner,
         ApplyFixture fixture,
-        CanonicalApplyRequest request) : IStagingArtifactBoundary
+        CanonicalApplyRequest request,
+        bool tamperAfterCancellation = false) : IStagingArtifactBoundary
     {
         public IStagingArtifactSession Acquire(StoredChangePlan plan) =>
-            new Session(inner.Acquire(plan), fixture, request);
+            new Session(inner.Acquire(plan), fixture, request, tamperAfterCancellation);
 
         private sealed class Session(
             IStagingArtifactSession inner,
             ApplyFixture fixture,
-            CanonicalApplyRequest request) : IStagingArtifactSession
+            CanonicalApplyRequest request,
+            bool tamperAfterCancellation) : IStagingArtifactSession
         {
             public async Task<string> CreateAndHashAsync(
                 OperationStagingJournalEvent creation,
@@ -4139,6 +4497,8 @@ public sealed class JournaledApplyAuthorityTests
                 fixture.Ledger.CancelBeforeFirstEffect(
                         request.RepositoryId, request.OperationId)
                     .IsOk.ShouldBeTrue();
+                if (tamperAfterCancellation)
+                    File.WriteAllBytes(creation.ArtifactPath, "tampered"u8.ToArray());
                 return hash;
             }
 
@@ -4321,7 +4681,8 @@ public sealed class JournaledApplyAuthorityTests
             IJournaledRepositoryEffectBroker? broker = null,
             IOperationLedgerDurability? ledgerDurability = null,
             IStagingArtifactBoundary? stagingBoundary = null,
-            IBackupArtifactBoundary? backupBoundary = null)
+            IBackupArtifactBoundary? backupBoundary = null,
+            JournaledNoEffectCleanup? noEffectCleanup = null)
         {
             foreach (var root in new[]
                      {
@@ -4353,7 +4714,8 @@ public sealed class JournaledApplyAuthorityTests
                                   == System.Runtime.InteropServices.Architecture.X64
                     ? new LinuxBackupArtifactBoundary(
                         Path.Combine(_authority.ControlRoot, "backup"))
-                    : new SimulatedArtifactBoundary()));
+                    : new SimulatedArtifactBoundary()),
+                noEffectCleanup);
         }
 
         internal DurableOperationRecord LoadOperation(CanonicalApplyRequest request) =>

@@ -927,13 +927,19 @@ internal sealed class DurableOperationLedger
         string repositoryId,
         OperationId operationId,
         PreEffectActivityAdmission admission,
-        RepositoryMutationReservation reservation)
+        RepositoryMutationReservation reservation,
+        OperationLifecycleState? rejectedOutcome = null)
     {
         repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
         ArgumentNullException.ThrowIfNull(operationId);
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(reservation);
         reservation.AssertHeld(repositoryId);
+        if (rejectedOutcome is not null
+            && rejectedOutcome != OperationLifecycleState.RejectedUnsafeCoordination)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rejectedOutcome));
+        }
 
         return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
         {
@@ -954,13 +960,61 @@ internal sealed class DurableOperationLedger
                         "Only a drained activity under its admitted reservation may complete."));
             }
 
-            var next = operation with
+            if (rejectedOutcome is not null
+                && operation.CurrentState is not (OperationLifecycleState.Prepared
+                    or OperationLifecycleState.CancelledNoEffect))
             {
-                PreEffectActivity = activity with
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Guard rejection cannot resolve an operation after effect admission."));
+            }
+            var remaining = activity.ActiveAdmissions.Remove(admission);
+            DurableOperationRecord next;
+            if (rejectedOutcome is not null
+                && operation.CurrentState == OperationLifecycleState.Prepared)
+            {
+                if (!remaining.IsEmpty || !operation.EffectJournal.IsEmpty || activity.IsClosed)
                 {
-                    ActiveAdmissions = activity.ActiveAdmissions.Remove(admission)
+                    return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                        OperationLedgerErrorKind.InvalidTransition,
+                        "Guard rejection requires no other pre-effect activity or repository intent."));
                 }
-            };
+                var now = _utcNow().ToUniversalTime();
+                if (now < operation.Transitions[^1].CommittedAtUtc)
+                    now = operation.Transitions[^1].CommittedAtUtc;
+                if (!operation.StagingJournal.IsEmpty
+                    && now < operation.StagingJournal[^1].CommittedAtUtc)
+                    now = operation.StagingJournal[^1].CommittedAtUtc;
+                if (!operation.BackupJournal.IsEmpty
+                    && now < operation.BackupJournal[^1].CommittedAtUtc)
+                    now = operation.BackupJournal[^1].CommittedAtUtc;
+                next = operation with
+                {
+                    CurrentState = rejectedOutcome.Value,
+                    Transitions = operation.Transitions.Add(new OperationTransition(
+                        operation.Transitions[^1].Sequence + 1,
+                        rejectedOutcome.Value,
+                        now,
+                        "The required guarded preflight did not admit a repository effect.")),
+                    CleanupJournal = BeginCleanupInventory(operation, now),
+                    PreEffectActivity = activity with
+                    {
+                        IsClosed = true,
+                        ControlGeneration = checked(activity.ControlGeneration + 1),
+                        ActiveAdmissions = remaining
+                    }
+                };
+            }
+            else
+            {
+                next = operation with
+                {
+                    PreEffectActivity = activity with
+                    {
+                        ActiveAdmissions = remaining
+                    }
+                };
+            }
             WriteRecord(recordPath, next);
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
         });

@@ -102,3 +102,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0035](0035-journaled-original-backup-and-cleanup.md) | Journaled original backup and no-effect cleanup | Accepted | 2026-09-28 |
 | [0036](0036-atomic-pre-effect-guard-handoff.md) | Atomic pre-effect guard handoff | Accepted | 2026-09-28 |
 | [0037](0037-verified-artifacts-before-effect-guard.md) | Verified plan artifacts before effect guard | Accepted | 2026-09-28 |
+| [0038](0038-terminal-no-effect-apply-cleanup.md) | Terminal no-effect apply cleanup | Accepted | 2026-09-28 |
