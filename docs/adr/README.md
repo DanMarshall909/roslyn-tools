@@ -97,3 +97,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0030](0030-internal-staging-creation-admission.md) | Internal staging creation admission | Accepted | 2026-09-27 |
 | [0031](0031-handle-relative-physical-staging.md) | Handle-relative physical staging artifact | Accepted | 2026-09-28 |
 | [0032](0032-admitted-staging-retry.md) | Admitted staging retry under a held reservation | Accepted | 2026-09-28 |
+| [0033](0033-no-effect-cleanup-inventory.md) | No-effect cleanup inventory at the terminal transition | Accepted | 2026-09-28 |

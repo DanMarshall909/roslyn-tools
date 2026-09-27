@@ -958,8 +958,9 @@ atomically close new effect and pre-effect activity admission and advance the co
 generation. Activity admitted first MAY drain, but a stale generation SHALL NOT create
 or journal another artifact or acquire a guard afterward.
 
-A terminal no-effect outcome MAY report `CleanupPending`, but cleanup SHALL NOT
-inventory/remove artifacts or append `CleanupVerified` until the pre-effect fence is
+A terminal no-effect outcome MAY report `CleanupPending` with an artifact inventory
+copied from already journaled creation admissions. Cleanup SHALL NOT scan or remove
+control-root artifacts or append `CleanupVerified` until the pre-effect fence is
 closed and drained, every guard is released, and the old worker cannot perform another
 control-plane write. Unreachable activity state SHALL fail closed as pending. The exact
 plan, artifact inventory, journal, quota reservation, and cleanup capability SHALL stay
@@ -1000,7 +1001,7 @@ evidence in `RecoveryRequired`.
 #### Scenario: cancellation cleanup races an admitted staging write
 
 - **WHEN** a staging worker is paused after pre-effect activity admission and cancellation wins before its control-root write completes
-- **THEN** the cancellation result reports `CleanupPending` and cleanup does not inventory, remove, or verify the control root while that admission remains in flight
+- **THEN** the cancellation result reports `CleanupPending` with the durable admission inventory, and cleanup does not scan, remove, or verify the control root while that admission remains in flight
 - **AND THEN** after the admitted activity drains, the stale control generation prevents the worker from creating or journalling any later artifact
 - **AND THEN** cleanup appends `CleanupVerified` only after an exclusive rescan proves the protected operation root empty and all guards released
 
