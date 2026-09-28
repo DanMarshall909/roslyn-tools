@@ -5,151 +5,12 @@ using RoslynTools.Services.Results;
 namespace RoslynTools.Services;
 
 /// <summary>
-///     Structured result produced by the daemon before a host adapter renders it.
-///     The value and follow-on tools deliberately travel together so CLI and MCP cannot
-///     invent different next actions for the same command execution.
+///     Structured application result before a host adapter renders it. The
+///     value and follow-on tools travel together across CLI, MCP, and daemon.
 /// </summary>
 internal sealed record CommandExecutionResult(
     object? Data,
     IReadOnlyList<CommandFollowOn> SuggestedTools);
-
-/// <summary>
-///     Application-owned command facts used by the daemon and projected by adapters. This contains
-///     no command-line parser, MCP schema, or renderer concept.
-/// </summary>
-internal sealed record DaemonCommandDefinition(
-    string Name,
-    RtCommandInfo Info,
-    CommandSafety Safety,
-    Type RequestType,
-    Type ResponseType,
-    IReadOnlyList<CommandFollowOn> SuggestedTools);
-
-/// <summary>
-///     The initial daemon-owned command catalogue. Add a command here only when its CLI
-///     and MCP adapters both bind its typed request and call the daemon operation.
-/// </summary>
-internal static class DaemonOwnedCommands
-{
-    internal static IReadOnlyList<DaemonCommandDefinition> All { get; } =
-    [
-        new DaemonCommandDefinition(
-            OutlineCommandDefinition.Name,
-            OutlineCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(OutlineRequest),
-            typeof(RtResultEnvelope<OutlineResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after outline when a returned type or member needs a focused signature view."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after outline when you need to trace references to a symbol it identified.")
-            ]),
-        new DaemonCommandDefinition(
-            AddDependencyCommandDefinition.Name,
-            AddDependencyCommandDefinition.Info,
-            CommandSafety.ReviewByDefault,
-            typeof(AddDependencyRequest),
-            typeof(MutationExecutionResult<AddDependencyResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after the preview or change to review the target constructor and injected field."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after the change to find call sites that can now use the injected dependency.")
-            ]),
-        new DaemonCommandDefinition(
-            MakeSealedCommandDefinition.Name,
-            MakeSealedCommandDefinition.Info,
-            CommandSafety.ReviewByDefault,
-            typeof(MakeSealedRequest),
-            typeof(MutationExecutionResult<MakeSealedResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after the preview or change to inspect the class declaration and its modifiers."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after sealing to review references to the class before committing the change.")
-            ]),
-        new DaemonCommandDefinition(
-            CircularDepsCommandDefinition.Name,
-            CircularDepsCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(CircularDepsRequest),
-            typeof(CircularDepsAnalysisResult),
-            []),
-        new DaemonCommandDefinition(
-            FindMagicStringsCommandDefinition.Name,
-            FindMagicStringsCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(FindMagicStringsRequest),
-            typeof(FindMagicStringsResult),
-            []),
-        new DaemonCommandDefinition(
-            FindPatternCommandDefinition.Name,
-            FindPatternCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(FindPatternRequest),
-            typeof(FindPatternResult),
-            [
-                new CommandFollowOn(
-                    "source",
-                    "Use after a match to inspect the complete declaration containing that location."),
-                new CommandFollowOn(
-                    "find_duplicates",
-                    "Use when structural matches suggest a wider solution-level duplication problem.")
-            ]),
-        new DaemonCommandDefinition(
-            LanguageFeaturesCommandDefinition.Name,
-            LanguageFeaturesCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(LanguageFeaturesRequest),
-            typeof(LanguageFeaturesResult),
-            [
-                new CommandFollowOn(
-                    "source",
-                    "Use after a location drill-down to inspect the declaration around a refactoring candidate."),
-                new CommandFollowOn(
-                    "suggest_command",
-                    "Use when a reported convention exception needs a matching rt refactoring command.")
-            ]),
-        new DaemonCommandDefinition(
-            ListImportsCommandDefinition.Name,
-            ListImportsCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(ListImportsRequest),
-            typeof(ListImportsResult),
-            []),
-        new DaemonCommandDefinition(
-            FindCallersCommandDefinition.Name,
-            FindCallersCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(FindCallersRequest),
-            typeof(FindCallersOperationResult),
-            []),
-        new DaemonCommandDefinition(
-            FindImplementationsCommandDefinition.Name,
-            FindImplementationsCommandDefinition.Info,
-            CommandSafety.ReadOnly,
-            typeof(FindImplementationsRequest),
-            typeof(FindImplementationsResult),
-            [])
-    ];
-
-    internal static bool Contains(string commandName) =>
-        All.Any(command => string.Equals(command.Name, commandName, StringComparison.Ordinal));
-
-    internal static IReadOnlyList<CommandFollowOn> SuggestedToolsFor(string commandName)
-    {
-        return All.FirstOrDefault(command =>
-            string.Equals(command.Name, commandName, StringComparison.Ordinal))
-            ?.SuggestedTools ?? [];
-    }
-}
 
 /// <summary>Canonical, transport-neutral definition for the first migrated command.</summary>
 internal static class OutlineCommandDefinition
@@ -197,7 +58,7 @@ internal static class OutlineCommandDefinition
     internal static RtCommandInfo Info => Definition.Info;
 }
 
-/// <summary>Canonical daemon metadata for constructor dependency injection.</summary>
+/// <summary>Canonical application metadata for constructor dependency injection.</summary>
 internal static class AddDependencyCommandDefinition
 {
     private static RtCommandInfo Metadata { get; } = new(
@@ -235,7 +96,7 @@ internal static class AddDependencyCommandDefinition
     internal static RtCommandInfo Info => Definition.Info;
 }
 
-/// <summary>Canonical daemon metadata for sealing a class with no derived types.</summary>
+/// <summary>Canonical application metadata for sealing a class with no derived types.</summary>
 internal static class MakeSealedCommandDefinition
 {
     internal const string Name = "make_sealed";
@@ -272,7 +133,7 @@ internal static class MakeSealedCommandDefinition
         ]);
 }
 
-/// <summary>Canonical daemon metadata for circular dependency analysis.</summary>
+/// <summary>Canonical application metadata for circular dependency analysis.</summary>
 internal static class CircularDepsCommandDefinition
 {
     internal const string Name = "circular_deps";
@@ -294,7 +155,7 @@ internal static class CircularDepsCommandDefinition
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 }
 
-/// <summary>Canonical daemon metadata for repeated string literal analysis.</summary>
+/// <summary>Canonical application metadata for repeated string literal analysis.</summary>
 internal static class FindMagicStringsCommandDefinition
 {
     internal const string Name = "find_magic_strings";
@@ -316,7 +177,7 @@ internal static class FindMagicStringsCommandDefinition
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 }
 
-/// <summary>Canonical daemon metadata for structural source-pattern analysis.</summary>
+/// <summary>Canonical application metadata for structural source-pattern analysis.</summary>
 internal static class FindPatternCommandDefinition
 {
     internal const string Name = "find_pattern";
@@ -354,7 +215,7 @@ internal static class FindPatternCommandDefinition
         ]);
 }
 
-/// <summary>Canonical daemon metadata for language-feature density analysis.</summary>
+/// <summary>Canonical application metadata for language-feature density analysis.</summary>
 internal static class LanguageFeaturesCommandDefinition
 {
     internal const string Name = "language_features";
@@ -378,7 +239,7 @@ internal static class LanguageFeaturesCommandDefinition
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Yaml, OutputFormat.Llm]);
 }
 
-/// <summary>Canonical daemon metadata for import-directive analysis.</summary>
+/// <summary>Canonical application metadata for import-directive analysis.</summary>
 internal static class ListImportsCommandDefinition
 {
     internal const string Name = "list_imports";
@@ -400,7 +261,7 @@ internal static class ListImportsCommandDefinition
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 }
 
-/// <summary>Canonical daemon metadata for call-site analysis.</summary>
+/// <summary>Canonical application metadata for call-site analysis.</summary>
 internal static class FindCallersCommandDefinition
 {
     internal const string Name = "find_callers";
@@ -436,7 +297,7 @@ internal static class FindCallersCommandDefinition
             audience: CommandAudience.Removed));
 }
 
-/// <summary>Canonical daemon metadata for implementation discovery.</summary>
+/// <summary>Canonical application metadata for implementation discovery.</summary>
 internal static class FindImplementationsCommandDefinition
 {
     internal const string Name = "find_impl";

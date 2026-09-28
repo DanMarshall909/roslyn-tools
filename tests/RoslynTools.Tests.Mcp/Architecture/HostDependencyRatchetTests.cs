@@ -1,9 +1,12 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
@@ -99,6 +102,34 @@ public sealed class HostDependencyRatchetTests
         expected.ShouldNotBeEmpty();
         Contracts(cliProvider).ShouldBe(expected);
         Contracts(daemonProvider).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void daemon_rpc_transport_and_dispatch_live_in_shared_hosting()
+    {
+        var hosting = typeof(HostServiceRegistration).Assembly;
+        typeof(DaemonRpcClient).Assembly.ShouldBe(hosting);
+        typeof(DaemonRpcRecoveryCoordinator).Assembly.ShouldBe(hosting);
+        typeof(DaemonCommandDispatcher).Assembly.ShouldBe(hosting);
+        typeof(DaemonLauncher).Assembly.ShouldBe(hosting);
+        typeof(DaemonRpcRequest).Assembly.ShouldBe(hosting);
+        typeof(DaemonRuntime).Assembly.ShouldBe(hosting);
+        typeof(DaemonOwnedCommands).Assembly.ShouldBe(hosting);
+        typeof(DaemonCommandDefinition).Assembly.ShouldBe(hosting);
+
+        var sourceRoot = Path.Combine(FindRepositoryRoot(), "src", "RoslynTools");
+        var namedPipeSources = Directory.EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !Path.GetRelativePath(sourceRoot, path)
+                .Split(Path.DirectorySeparatorChar)
+                .Any(part => part is "bin" or "obj"))
+            .Where(path => Regex.IsMatch(
+                File.ReadAllText(path),
+                @"\b(?:System\.IO\.Pipes|NamedPipe(?:Client|Server)Stream)\b",
+                RegexOptions.CultureInvariant))
+            .Select(path => Path.GetRelativePath(sourceRoot, path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        namedPipeSources.ShouldBeEmpty();
     }
 
     private static (string Name, string Request, string Response, CommandSafetyPolicy Safety, bool McpVisible)[]

@@ -146,9 +146,11 @@ keep CLI parser and terminal-renderer dependencies in the CLI project. A
 cross-host test compares the name, request/response types, safety, and visibility
 of every typed application descriptor across CLI, MCP, and daemon composition.
 New host adapters must extend this ratchet. See
-[ADR-0057](adr/0057-host-dependency-and-contract-ratchets.md). These tests
-guard project and assembly dependencies; the remaining daemon transport
-implementation inside Core still needs its own placement tracer.
+[ADR-0057](adr/0057-host-dependency-and-contract-ratchets.md). The daemon
+pipe client, process launcher, RPC dispatcher, protocol, and legacy routing
+catalogue now live in shared Hosting. A placement test keeps those types and
+named-pipe source out of Core; see
+[ADR-0058](adr/0058-daemon-transport-hosting-ownership.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
@@ -913,10 +915,6 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 ## Current migration tensions
 
-- **Daemon transport helpers still live in Core.** The pipe client, process
-  launcher, RPC dispatcher, and related protocol helpers remain in the reusable
-  assembly. Move these host transport implementations to Hosting or DaemonHost,
-  then extend the architecture ratchet to reject their return to Core under #53.
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Daemon application routing is typed.** The legacy envelope accepts only
   exact lifecycle controls; application operations use structured typed RPC.
