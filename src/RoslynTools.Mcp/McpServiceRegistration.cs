@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
@@ -19,6 +21,7 @@ internal static class McpServiceRegistration
         HostServiceRegistration.RegisterSuggestionCatalog(services);
         HostServiceRegistration.RegisterApplicationCatalog(services);
         HostServiceRegistration.RegisterCoreApplicationServices(services);
+        services.Replace(ServiceDescriptor.Singleton<ISolutionWriteOutput>(NullSolutionWriteOutput.Instance));
         return services.AddMcpServices(input, output, hostOptions);
     }
 

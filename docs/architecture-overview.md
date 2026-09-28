@@ -201,6 +201,10 @@ The ambient console and logging bridges and their console-specific types now
 compile in shared Hosting. Core retains only the pure diagnostic template
 formatter. A placement test and the direct-console source gate lock this
 boundary; see [ADR-0073](adr/0073-host-owned-ambient-console.md).
+MCP replaces the shared console report sink with a no-op sink so solution
+write reports cannot enter its JSON-RPC stream; typed mutation results remain
+structured tool responses. See
+[ADR-0074](adr/0074-mcp-solution-report-boundary.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

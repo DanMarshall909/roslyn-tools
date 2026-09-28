@@ -107,6 +107,25 @@ public sealed class HostDependencyRatchetTests
     }
 
     [Fact]
+    public void mcp_solution_write_reports_do_not_escape_to_the_process_console()
+    {
+        using var provider = new ServiceCollection()
+            .AddMcpHostServices(TextReader.Null, TextWriter.Null)
+            .BuildServiceProvider();
+        var console = new CapturingConsole();
+
+        using (RtConsole.UseConsole(console))
+        {
+            var output = provider.GetRequiredService<ISolutionWriteOutput>();
+            output.Result("result");
+            output.Diff("diff");
+            output.Warning("warning");
+        }
+
+        console.Messages.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void daemon_rpc_transport_and_dispatch_live_in_shared_hosting()
     {
         var hosting = typeof(HostServiceRegistration).Assembly;
@@ -191,6 +210,22 @@ public sealed class HostDependencyRatchetTests
                 descriptor.McpVisible))
             .OrderBy(contract => contract.ToolName, StringComparer.Ordinal)
             .ToArray();
+
+    private sealed class CapturingConsole : IRtConsole
+    {
+        internal List<string> Messages { get; } = [];
+
+        public bool IsOutputRedirected => true;
+
+        public void Log(RtLogLevel level, string template, params object?[] args) =>
+            Messages.Add($"{level}:{RtConsole.RenderTemplate(template, args)}");
+
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null) =>
+            Messages.Add($"{context}:{message}");
+
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null) =>
+            Messages.Add($"{context}:{message}");
+    }
 
     private static void AssertNoReferences(System.Reflection.Assembly assembly, params string[] forbidden)
     {
