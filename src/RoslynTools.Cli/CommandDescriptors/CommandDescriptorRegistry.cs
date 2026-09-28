@@ -127,17 +127,10 @@ internal sealed class CommandDescriptorRegistry
             | CommandEffects.LocalStateWrite
             | CommandEffects.ExternalRead
             | CommandEffects.ExternalWrite);
-        AddMetaCommand(
-            "suggest_command",
+        AddTypedMetaCommand(
             () => SuggestCommand.Build(suggest, git),
             ["suggest"],
-            "Find the right rt command by describing what you want to do in natural language.",
-            "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language and get ranked candidates back before falling back to a manual edit. Returns ranked candidates with name, score, when-to-use, and example invocation.",
-            CommandSafetyPolicy.ReadOnly,
-            true,
-            suggest,
-            CommandEffects.RepositoryRead,
-            CommandAudience.Public);
+            suggest);
         AddTypedMetaCommand(
             () => PrimeCommand.Build(prime),
             ["prime"],

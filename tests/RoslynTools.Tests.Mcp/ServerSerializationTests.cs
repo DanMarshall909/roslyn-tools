@@ -276,6 +276,26 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task suggest_requires_its_typed_query_through_the_protocol()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"suggest_command","arguments":{"top":1}}}
+            """);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        text.ShouldNotBeNull();
+        using var error = JsonDocument.Parse(text);
+        error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.InvalidInput));
+        var message = error.RootElement.GetProperty("message").GetString();
+        message.ShouldNotBeNull();
+        message.ShouldContain("Query");
+    }
+
+    [Fact]
     public async Task doctor_returns_the_versioned_envelope_as_structured_content_without_evaluating_untrusted_code()
     {
         var arguments = JsonSerializer.Serialize(new

@@ -11,9 +11,9 @@ namespace RoslynTools.Cli.Suggest;
 
 /// <summary>
 ///     Meta command that ranks the rt catalog against a natural-language query.
-///     Thin adapter: parses CLI args into a <see cref="SuggestRequest" />, calls
-///     <see cref="SuggestService.Suggest" />, formats the response. All logic
-///     lives in the Core service so the MCP handler can reuse it.
+///     Thin adapter: parses CLI args into a <see cref="SuggestOperationRequest" />,
+///     calls the shared application port, and formats the response. MCP invokes
+///     the same port through its generic adapter.
 /// </summary>
 /// <remarks>
 ///     Not an <see cref="IRtCommand" /> — registered at root next to
@@ -51,8 +51,8 @@ internal static class SuggestCommand
                 return;
             }
 
-            var response = await operation.ExecuteAsync(
-                new SuggestOperationRequest(query, top));
+            var response = (await operation.ExecuteAsync(
+                new SuggestOperationRequest(query, top))).Unwrap();
             Render(response);
         });
 

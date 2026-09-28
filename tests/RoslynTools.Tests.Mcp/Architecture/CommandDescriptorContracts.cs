@@ -25,6 +25,10 @@ public sealed class CommandDescriptorContracts
 
         descriptors.Where(descriptor => descriptor.McpVisible)
             .ShouldAllBe(descriptor => descriptor.Port != null);
+        descriptors.Where(descriptor => descriptor.McpVisible
+                                        && descriptor.Port is ILegacyCommandApplicationPort)
+            .Select(descriptor => descriptor.ToolName)
+            .ShouldBeEmpty();
         McpToolAvailability.IsAvailable(outline, hostOptions).ShouldBeTrue();
         McpToolAvailability.IsAvailable(outline with { Port = null }, hostOptions)
             .ShouldBeFalse();
