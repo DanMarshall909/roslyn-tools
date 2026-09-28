@@ -177,6 +177,9 @@ Workspace cache telemetry reports cache events and trace failures through
 callbacks wired to the host's logger; Core no longer calls the ambient CLI
 logger from that component. See
 [ADR-0066](adr/0066-workspace-cache-diagnostics-through-host.md).
+Reusable logger extensions and the CLI console bridge now share a pure
+diagnostic template formatter in Core; the logger extensions do not call the
+console bridge. See [ADR-0067](adr/0067-pure-diagnostic-template-formatting.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

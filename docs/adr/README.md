@@ -131,3 +131,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0064](0064-service-exit-status-is-host-owned.md) | Service outcomes do not set process exit status | Accepted | 2026-09-29 |
 | [0065](0065-cli-owned-format-renderers.md) | Format renderers belong to the CLI adapter | Accepted | 2026-09-29 |
 | [0066](0066-workspace-cache-diagnostics-through-host.md) | Workspace cache diagnostics flow through host composition | Accepted | 2026-09-29 |
+| [0067](0067-pure-diagnostic-template-formatting.md) | Diagnostic template formatting is independent of the console bridge | Accepted | 2026-09-29 |

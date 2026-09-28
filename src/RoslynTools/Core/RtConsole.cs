@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace RoslynTools.Core;
 
@@ -92,18 +90,7 @@ internal static class RtConsole
     /// Renders a template with the provided data.
     /// </summary>
     internal static string RenderTemplate(string template, object?[] args)
-    {
-        if (args.Length == 0)
-            return template;
-
-        var index = 0;
-        var positioned = Regex.Replace(
-            template,
-            @"\{([a-zA-Z_][a-zA-Z0-9_]*)(:[^{}]*)?\}",
-            match => $"{{{index++}{match.Groups[2].Value}}}");
-
-        return string.Format(CultureInfo.InvariantCulture, positioned, args);
-    }
+        => RtMessageTemplateFormatter.Render(template, args);
 
     private sealed class Scope(IRtConsole? previous) : IDisposable
     {

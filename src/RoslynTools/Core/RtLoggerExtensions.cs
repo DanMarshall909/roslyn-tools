@@ -34,7 +34,7 @@ internal static class RtLoggerExtensions
             DiagnosticEvent,
             new RtLogState(template, args),
             null,
-            static (state, _) => RtConsole.RenderTemplate(state.Template, state.Args));
+            static (state, _) => RtMessageTemplateFormatter.Render(state.Template, state.Args));
     }
 
     private readonly record struct RtLogState(string Template, object?[] Args);

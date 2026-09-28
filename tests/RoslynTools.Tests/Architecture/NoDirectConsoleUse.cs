@@ -84,6 +84,19 @@ public sealed class NoDirectConsoleUse
     }
 
     [Fact]
+    public void reusable_logger_extensions_do_not_depend_on_the_console_bridge()
+    {
+        var path = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core", "RtLoggerExtensions.cs");
+        var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        var violations = root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+            .Where(node => node.Expression is IdentifierNameSyntax { Identifier.Text: "RtConsole" })
+            .Select(node => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1)
+            .ToArray();
+
+        violations.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void production_code_does_not_reference_system_console_directly()
     {
         var srcDir = LocateSrcDirectory();
