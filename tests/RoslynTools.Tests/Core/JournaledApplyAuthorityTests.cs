@@ -2000,6 +2000,180 @@ public sealed class JournaledApplyAuthorityTests
         fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task visible_pin_release_marker_requires_a_successful_directory_flush_on_restart()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        var (request, plan, artifact) = await PrepareRejectedStagingAsync(fixture);
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var persistentFault = new FailVisibleCleanupLedgerFlush(recordPath, "PinReleaseMarker");
+        using (var first = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            new JournaledNoEffectCleanup(
+                    fixture.CreateLedger(persistentFault), fixture.Store,
+                    new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+                .Cleanup(request.RepositoryId, request.OperationId, first)
+                .Match(_ => throw new InvalidOperationException(
+                        "An unflushed release marker was accepted."),
+                    failure => failure.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        }
+
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        fixture.Now = plan.RetainUntilUtc.AddMinutes(1);
+        fixture.Store.CollectGarbage().DeletedPlans.ShouldBe(1);
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreateLedger(persistentFault), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException(
+                    "A visible but unflushed release marker replayed."),
+                failure => failure.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+    }
+
+    [Theory]
+    [InlineData("ArtifactRemoved")]
+    [InlineData("CleanupVerified")]
+    public async Task visible_cleanup_journal_record_requires_a_successful_flush_before_pin_release(
+        string failedKindName)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        var (request, plan, artifact) = await PrepareRejectedStagingAsync(fixture);
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var failedKind = Enum.Parse<OperationCleanupJournalKind>(failedKindName);
+        var persistentFault = new FailVisibleCleanupLedgerFlush(recordPath, failedKindName);
+        using (var first = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            new JournaledNoEffectCleanup(
+                    fixture.CreateLedger(persistentFault), fixture.Store,
+                    new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+                .Cleanup(request.RepositoryId, request.OperationId, first)
+                .Match(_ => throw new InvalidOperationException(
+                        "An unflushed cleanup record was accepted."),
+                    failure => failure.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        }
+
+        var visible = fixture.LoadOperation(request);
+        visible.CleanupJournal[^1].Kind.ShouldBe(failedKind);
+        visible.CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreateLedger(persistentFault), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException(
+                    "An unflushed cleanup record replayed."),
+                failure => failure.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+    }
+
+    [Fact]
+    public async Task visible_plan_pin_release_without_a_flush_keeps_cleanup_unconfirmed()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        var (request, plan, artifact) = await PrepareRejectedStagingAsync(fixture);
+        var planPath = Directory.GetFiles(fixture.PlanStoreRoot, "*.plan",
+            SearchOption.AllDirectories).ShouldHaveSingleItem();
+        using (var first = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            new JournaledNoEffectCleanup(
+                    fixture.CreatePlainLedger(),
+                    fixture.CreateStore(new FailVisiblePlanPinReleaseFlush(planPath)),
+                    new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+                .Cleanup(request.RepositoryId, request.OperationId, first)
+                .Match(_ => throw new InvalidOperationException(
+                        "An unflushed plan pin release was accepted."),
+                    failure => failure.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.PinReleaseUnavailable);
+        }
+
+        var visible = fixture.LoadOperation(request);
+        visible.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        visible.CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        fixture.Now = plan.RetainUntilUtc.AddMinutes(1);
+        fixture.Store.CollectGarbage().DeletedPlans.ShouldBe(1);
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException(
+                    "A collected plan was accepted without a release marker."),
+                failure => failure.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.PlanUnavailable);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+    }
+
     [Theory]
     [InlineData("ArtifactUnlink")]
     [InlineData("ArtifactRemovalRecord")]
@@ -2241,8 +2415,8 @@ public sealed class JournaledApplyAuthorityTests
         Directory.GetFiles(repositoryRoot, "*", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(repositoryRoot, path)).ToArray()
             .ShouldBe([Path.Combine("src", "Untouched.cs")]);
-        File.ReadAllText(Path.Combine(repositoryRoot, "src", "Untouched.cs"))
-            .ShouldBe("class Untouched;\n");
+        File.ReadAllBytes(Path.Combine(repositoryRoot, "src", "Untouched.cs"))
+            .ShouldBe(Encoding.UTF8.GetBytes("class Untouched;\n"));
         File.Exists(Path.Combine(repositoryRoot, "src", "Added.cs")).ShouldBeFalse();
     }
 
@@ -7225,6 +7399,61 @@ public sealed class JournaledApplyAuthorityTests
             }
             Process.GetCurrentProcess().Kill();
             Thread.Sleep(Timeout.Infinite);
+        }
+    }
+
+    private sealed class FailVisibleCleanupLedgerFlush(string recordPath, string failedKindName)
+        : IOperationLedgerDurability
+    {
+        private static readonly IOperationLedgerDurability Platform =
+            DurableOperationLedger.PlatformOperationLedgerDurability.Instance;
+
+        public void FlushFileMetadata(string path) => Platform.FlushFileMetadata(path);
+
+        public void ReplaceFile(string temporaryPath, string destinationPath) =>
+            Platform.ReplaceFile(temporaryPath, destinationPath);
+
+        public void FlushDirectoryMetadata(string directory)
+        {
+            if (File.Exists(recordPath))
+            {
+                var record = JsonNode.Parse(File.ReadAllText(recordPath));
+                var journal = record?["cleanupJournal"]?.AsArray();
+                var shouldFail = failedKindName == "PinReleaseMarker"
+                    ? record?["cleanupPinReleased"]?.GetValue<bool>() == true
+                    : journal is { Count: > 0 }
+                      && journal[^1]?["kind"]?.GetValue<int>()
+                      == (int)Enum.Parse<OperationCleanupJournalKind>(failedKindName);
+                if (shouldFail)
+                    throw new IOException("Injected persistent cleanup ledger directory flush failure.");
+            }
+            Platform.FlushDirectoryMetadata(directory);
+        }
+    }
+
+    private sealed class FailVisiblePlanPinReleaseFlush(string planPath)
+        : IChangePlanStoreDurability
+    {
+        public void FlushFileMetadata(string path)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite,
+                FileShare.None);
+            stream.Flush(flushToDisk: true);
+        }
+
+        public void ReplaceFile(string temporaryPath, string recordPath) =>
+            File.Move(temporaryPath, recordPath, overwrite: true);
+
+        public void FlushDirectoryMetadata(string directory)
+        {
+            var pins = JsonNode.Parse(File.ReadAllText(planPath))?["pins"]?.AsArray();
+            if (pins is not null && pins.All(pin =>
+                    pin?["kind"]?.GetValue<int>() != (int)ChangePlanPinKind.OperationLedger))
+            {
+                throw new IOException("Injected visible plan pin release directory flush failure.");
+            }
+            using var handle = LinuxStagingHandles.OpenAbsoluteDirectory(directory);
+            LinuxStagingHandles.FlushDirectory(handle);
         }
     }
 
