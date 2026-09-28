@@ -62,7 +62,8 @@ internal sealed class ToolSchemaBuilder(
                 ["rt/defaultTimeoutMilliseconds"] =
                     product?.Limits.DefaultTimeoutMilliseconds ?? 30_000,
                 ["rt/maximumItems"] = product?.Limits.MaximumItems ?? 100,
-                ["rt/maximumOutputBytes"] = product?.Limits.MaximumOutputBytes ?? 1_048_576
+                ["rt/maximumOutputBytes"] = product?.Limits.MaximumOutputBytes ?? 1_048_576,
+                ["rt/cliExamples"] = descriptor.Definition?.Info.Examples ?? []
             });
     }
 
@@ -231,7 +232,10 @@ internal sealed class ToolSchemaBuilder(
             return new Dictionary<string, object>
             {
                 ["type"] = "string",
-                ["enum"] = Enum.GetNames(valueType)
+                ["enum"] = valueType.GetFields(BindingFlags.Public | BindingFlags.Static)
+                    .Select(field => field.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name
+                                     ?? field.Name)
+                    .ToArray()
             };
         }
 

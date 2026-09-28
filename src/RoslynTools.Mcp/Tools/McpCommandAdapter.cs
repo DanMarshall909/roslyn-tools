@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -41,7 +42,15 @@ internal sealed class McpCommandAdapter(
             || !McpToolAvailability.IsAvailable(descriptor, _hostOptions))
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
+        if (arguments.ValueKind != JsonValueKind.Object)
+            return new ToolResult(true, SerializeError(new RtError(
+                RtErrorKind.InvalidInput, "Tool arguments must be a JSON object.")));
+
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
+        if (descriptor.Definition is { RequestVariants.Count: > 0 } definition
+            && ValidateRequestVariant(definition, safeArguments) is { } variantError)
+            return new ToolResult(true, SerializeError(variantError));
+
         using var trustScope = _hostOptions.EnterTrustScope();
 
         if (_hostOptions.TrustedRepositoryRoot is null
@@ -131,6 +140,79 @@ internal sealed class McpCommandAdapter(
         {
             return new ToolResult(true, ex.Message);
         }
+    }
+
+    private static RtError? ValidateRequestVariant(
+        ApplicationCommandDefinition definition,
+        JsonElement arguments)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in arguments.EnumerateObject())
+            if (!names.Add(property.Name))
+                return new RtError(RtErrorKind.InvalidInput,
+                    $"Duplicate tool argument '{property.Name}'.");
+
+        foreach (var variant in definition.RequestVariants)
+        {
+            var discriminatorName = WirePropertyName(definition.RequestType, variant.DiscriminatorProperty);
+            var hasDiscriminator = TryGetRequestProperty(arguments, discriminatorName, out var discriminator);
+            if (hasDiscriminator
+                ? discriminator.ValueKind != JsonValueKind.String
+                  || !string.Equals(discriminator.GetString(), variant.DiscriminatorValue,
+                      StringComparison.OrdinalIgnoreCase)
+                : variant.DiscriminatorRequired)
+                continue;
+
+            foreach (var property in variant.RequiredProperties)
+            {
+                var name = WirePropertyName(definition.RequestType, property);
+                if (!TryGetRequestProperty(arguments, name, out _))
+                    return new RtError(RtErrorKind.InvalidInput,
+                        $"Operation '{variant.DiscriminatorValue}' requires '{name}'.");
+            }
+
+            foreach (var property in variant.ForbiddenProperties)
+            {
+                var name = WirePropertyName(definition.RequestType, property);
+                if (TryGetRequestProperty(arguments, name, out _))
+                    return new RtError(RtErrorKind.InvalidInput,
+                        $"Operation '{variant.DiscriminatorValue}' does not allow '{name}'.");
+            }
+
+            return null;
+        }
+
+        var expected = string.Join(", ", definition.RequestVariants
+            .Select(variant => variant.DiscriminatorValue));
+        return new RtError(RtErrorKind.InvalidInput,
+            $"Invalid operation. Expected one of: {expected}.");
+    }
+
+    private static bool TryGetRequestProperty(
+        JsonElement arguments,
+        string name,
+        out JsonElement value)
+    {
+        foreach (var property in arguments.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string WirePropertyName(Type requestType, string propertyName)
+    {
+        var property = requestType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+            ?? throw new InvalidOperationException(
+                $"Request variant property '{propertyName}' does not exist on '{requestType.Name}'.");
+        return property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+               ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
     }
 
     private ToolResult? AdmitWorkspaceRequest(

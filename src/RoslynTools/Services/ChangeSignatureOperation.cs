@@ -1,19 +1,34 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[JsonConverter(typeof(JsonStringEnumConverter<ChangeSignatureMode>))]
+[JsonConverter(typeof(ChangeSignatureOperationConverter))]
 internal enum ChangeSignatureMode
 {
+    [JsonStringEnumMemberName("rename-param")]
     RenameParam,
+    [JsonStringEnumMemberName("reorder")]
     Reorder,
+    [JsonStringEnumMemberName("add-param")]
     AddParam,
+    [JsonStringEnumMemberName("remove-param")]
     RemoveParam
 }
 
+internal sealed class ChangeSignatureOperationConverter
+    : JsonStringEnumConverter<ChangeSignatureMode>
+{
+    public ChangeSignatureOperationConverter() : base(allowIntegerValues: false)
+    {
+    }
+}
+
 internal sealed record ChangeSignatureRequest(
-    [property: JsonRequired] ChangeSignatureMode Mode,
+    [property: JsonRequired]
+    [property: CommandPropertyDescription("Select rename-param, reorder, add-param, or remove-param.")]
+    ChangeSignatureMode Operation,
     [property: JsonRequired] string MethodSpec,
     string? OldName = null,
     string? NewName = null,
@@ -26,9 +41,29 @@ internal sealed record ChangeSignatureRequest(
     [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ChangeSignatureResult(
-    ChangeSignatureMode Mode,
+    [property: JsonConverter(typeof(ChangeSignatureResultModeConverter))] ChangeSignatureMode Mode,
     string MethodSpec,
     bool Changed);
+
+internal sealed class ChangeSignatureResultModeConverter : JsonConverter<ChangeSignatureMode>
+{
+    public override ChangeSignatureMode Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (Enum.TryParse<ChangeSignatureMode>(reader.GetString(), out var mode)
+            && Enum.IsDefined(mode))
+            return mode;
+
+        throw new JsonException("Invalid change-signature result mode.");
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        ChangeSignatureMode value,
+        JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+}
 
 internal sealed class ChangeSignatureOperation
     : CommandApplicationPort<ChangeSignatureRequest,
@@ -63,7 +98,7 @@ internal sealed class ChangeSignatureOperation
         {
             try
             {
-                var changed = request.Mode switch
+                var changed = request.Operation switch
                 {
                     ChangeSignatureMode.RenameParam => await _service.RenameParamAsync(
                         solution,
@@ -85,11 +120,11 @@ internal sealed class ChangeSignatureOperation
                         request.ParamName!,
                         request.Force),
                     _ => throw new InvalidOperationException(
-                        $"Unsupported change-signature mode '{request.Mode}'.")
+                        $"Unsupported change-signature operation '{request.Operation}'.")
                 };
                 cancellationToken.ThrowIfCancellationRequested();
                 var value = new ChangeSignatureResult(
-                    request.Mode,
+                    request.Operation,
                     request.MethodSpec,
                     changed.GetChanges(solution).GetProjectChanges().Any());
                 if (!value.Changed)
@@ -117,7 +152,7 @@ internal sealed class ChangeSignatureOperation
 
     private static RtError? Validate(ChangeSignatureRequest request)
     {
-        return request.Mode switch
+        return request.Operation switch
         {
             ChangeSignatureMode.RenameParam when string.IsNullOrWhiteSpace(request.OldName)
                                                  || string.IsNullOrWhiteSpace(request.NewName) =>
@@ -128,6 +163,8 @@ internal sealed class ChangeSignatureOperation
                 Invalid("add-param requires param-spec."),
             ChangeSignatureMode.RemoveParam when string.IsNullOrWhiteSpace(request.ParamName) =>
                 Invalid("remove-param requires param-name."),
+            _ when !Enum.IsDefined(request.Operation) =>
+                Invalid($"Unsupported change-signature operation '{request.Operation}'."),
             _ => null
         };
     }
@@ -142,7 +179,11 @@ internal static class ChangeSignatureCommandDefinition
         true,
         false,
         "refactor",
-        "Use this instead of manual Edit when changing a method signature and updating affected call sites semantically.",
+        "Use this instead of manual Edit when changing a method signature and updating affected call sites semantically. " +
+        "MCP examples: {\"operation\":\"rename-param\",\"methodSpec\":\"MyApp.Service.Run\",\"oldName\":\"old\",\"newName\":\"renamed\"}; " +
+        "{\"operation\":\"reorder\",\"methodSpec\":\"MyApp.Service.Run\",\"order\":[\"1\",\"0\"]}; " +
+        "{\"operation\":\"add-param\",\"methodSpec\":\"MyApp.Service.Run\",\"paramSpec\":\"int added = 0\"}; " +
+        "{\"operation\":\"remove-param\",\"methodSpec\":\"MyApp.Service.Run\",\"paramName\":\"old\"}.",
         [
             "rt refactor change-signature rename-param \"MyApp.Services.OrderService.PlaceOrder\" oldName newName --solution MyApp.sln",
             "rt refactor change-signature reorder \"MyApp.Services.OrderService.PlaceOrder\" \"2,0,1\" --solution MyApp.sln",
@@ -157,5 +198,46 @@ internal static class ChangeSignatureCommandDefinition
         true,
         CommandSafety.ReviewByDefault,
         CommandExecutionPlacement.InProcess,
-        []);
+        [],
+        [
+            new CommandRequestVariant(
+                nameof(ChangeSignatureRequest.Operation),
+                "rename-param",
+                DiscriminatorRequired: true,
+                [nameof(ChangeSignatureRequest.OldName), nameof(ChangeSignatureRequest.NewName)],
+                [
+                    nameof(ChangeSignatureRequest.Order), nameof(ChangeSignatureRequest.ParamSpec),
+                    nameof(ChangeSignatureRequest.After), nameof(ChangeSignatureRequest.ParamName),
+                    nameof(ChangeSignatureRequest.Force)
+                ]),
+            new CommandRequestVariant(
+                nameof(ChangeSignatureRequest.Operation),
+                "reorder",
+                DiscriminatorRequired: true,
+                [nameof(ChangeSignatureRequest.Order)],
+                [
+                    nameof(ChangeSignatureRequest.OldName), nameof(ChangeSignatureRequest.NewName),
+                    nameof(ChangeSignatureRequest.ParamSpec), nameof(ChangeSignatureRequest.After),
+                    nameof(ChangeSignatureRequest.ParamName), nameof(ChangeSignatureRequest.Force)
+                ]),
+            new CommandRequestVariant(
+                nameof(ChangeSignatureRequest.Operation),
+                "add-param",
+                DiscriminatorRequired: true,
+                [nameof(ChangeSignatureRequest.ParamSpec)],
+                [
+                    nameof(ChangeSignatureRequest.OldName), nameof(ChangeSignatureRequest.NewName),
+                    nameof(ChangeSignatureRequest.Order), nameof(ChangeSignatureRequest.ParamName),
+                    nameof(ChangeSignatureRequest.Force)
+                ]),
+            new CommandRequestVariant(
+                nameof(ChangeSignatureRequest.Operation),
+                "remove-param",
+                DiscriminatorRequired: true,
+                [nameof(ChangeSignatureRequest.ParamName)],
+                [
+                    nameof(ChangeSignatureRequest.OldName), nameof(ChangeSignatureRequest.NewName),
+                    nameof(ChangeSignatureRequest.Order), nameof(ChangeSignatureRequest.ParamSpec),
+                    nameof(ChangeSignatureRequest.After)
+                ])]);
 }

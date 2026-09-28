@@ -103,6 +103,12 @@ Every ordinary stable command has one host-neutral application definition and ex
 
 It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. Every discoverable MCP descriptor must have an application port. The MCP adapter invokes that port directly and has no CLI argument or console-capture fallback. Descriptors without ports remain outside the MCP surface until migrated.
 
+`change-signature` uses one typed request for its four CLI leaves and the MCP
+`change_signature` tool. Its required `operation` discriminator selects
+`rename-param`, `reorder`, `add-param`, or `remove-param`; alternative request
+variants generate the MCP `oneOf` schema. Enum literals in that schema follow
+their JSON wire names. See [ADR-0078](adr/0078-change-signature-operation-discriminator.md).
+
 The `rt` CLI assembly owns `IRtCommand` and its category/output markers, the
 CLI option helper, and the `dump-help` command-surface projection. The reusable
 `RoslynTools` project has no `System.CommandLine` package or compiled assembly

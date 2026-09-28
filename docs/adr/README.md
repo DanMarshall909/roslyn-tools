@@ -142,3 +142,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0075](0075-cli-owned-github-issue-process-adapter.md) | The GitHub issue process adapter belongs to CLI | Accepted | 2026-09-29 |
 | [0076](0076-host-owned-semantic-diff-git-client.md) | Semantic diff obtains git clients from shared hosting | Accepted | 2026-09-29 |
 | [0077](0077-reusable-host-source-ratchet.md) | Reusable source rejects host adapters and service process clients | Accepted | 2026-09-29 |
+| [0078](0078-change-signature-operation-discriminator.md) | One typed change-signature operation across CLI and MCP | Accepted | 2026-09-29 |
