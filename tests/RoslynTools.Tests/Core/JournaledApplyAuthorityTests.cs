@@ -2330,7 +2330,12 @@ public sealed class JournaledApplyAuthorityTests
     [InlineData("PlanCollectedBeforeMarker")]
     [InlineData("GuardRelease")]
     [InlineData("TerminalInventory")]
-    public async Task process_termination_during_no_effect_cleanup_replays_under_a_later_reservation(
+    [InlineData("StagingAdmission")]
+    [InlineData("StagingCreated")]
+    [InlineData("BackupAdmission")]
+    [InlineData("BackupCreated")]
+    [InlineData("GuardAcquisition")]
+    public async Task process_termination_before_effect_replays_or_remains_unresolved_under_a_later_reservation(
         string cutName)
     {
         if (!OperatingSystem.IsLinux()
@@ -2377,8 +2382,9 @@ public sealed class JournaledApplyAuthorityTests
                 || !File.Exists(Path.Combine(probeRoot, "reached-cut")))
             {
                 throw new InvalidOperationException(
-                    $"The child did not terminate at cleanup cut {cutName}. {diagnostic}");
+                    $"The child did not terminate at process cut {cutName}. {diagnostic}");
             }
+            File.ReadAllText(Path.Combine(probeRoot, "reached-cut")).ShouldBe(cutName);
 
             var manifest = File.ReadAllLines(Path.Combine(probeRoot, "operation"));
             var fixtureRoot = manifest[0];
@@ -2397,6 +2403,98 @@ public sealed class JournaledApplyAuthorityTests
                 .Match(value => value, failure => throw new IOException(failure.Message));
             var interrupted = ledger.Load(repositoryId, operationId)
                 .Match(value => value, failure => throw new IOException(failure.Message));
+            if (cutName is "StagingAdmission" or "StagingCreated"
+                or "BackupAdmission" or "BackupCreated" or "GuardAcquisition")
+            {
+                var backupCut = cutName is "BackupAdmission" or "BackupCreated";
+                interrupted.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+                interrupted.EffectJournal.ShouldBeEmpty();
+                interrupted.CleanupJournal.ShouldBeEmpty();
+                interrupted.CleanupPinReleased.ShouldBeFalse();
+                interrupted.PreEffectActivity.IsClosed.ShouldBeFalse();
+                interrupted.PreEffectActivity.ActiveAdmissions.Length.ShouldBe(1);
+                interrupted.GuardJournal[^1].Kind.ShouldBe(
+                    cutName == "GuardAcquisition"
+                        ? OperationGuardJournalKind.AcquisitionIntent
+                        : OperationGuardJournalKind.ActivityAdmitted);
+                interrupted.StagingJournal[^1].Kind.ShouldBe(
+                    cutName is "StagingAdmission" or "StagingCreated"
+                        ? OperationStagingJournalKind.CreationAdmitted
+                        : OperationStagingJournalKind.Verified);
+                interrupted.BackupJournal.Length.ShouldBe(backupCut ? 2 : 0);
+                if (backupCut)
+                    interrupted.BackupJournal[^1].Kind.ShouldBe(
+                        OperationBackupJournalKind.CreationAdmitted);
+                var stagingArtifact = interrupted.StagingJournal[^1].ArtifactPath;
+                var backupArtifact = backupCut ? interrupted.BackupJournal[^1].ArtifactPath : null;
+                File.Exists(stagingArtifact).ShouldBe(cutName != "StagingAdmission");
+                if (cutName != "StagingAdmission")
+                    File.ReadAllBytes(stagingArtifact)
+                        .ShouldBe(plan.Envelope.Payload.Effects[0].ReplacementContent.ToArray());
+                if (backupArtifact is not null)
+                {
+                    File.Exists(backupArtifact).ShouldBe(cutName == "BackupCreated");
+                    if (cutName == "BackupCreated")
+                        File.ReadAllBytes(backupArtifact)
+                            .ShouldBe(plan.Envelope.Payload.Effects[0].OriginalContent.ToArray());
+                }
+                plan.Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+                    .ShouldBeTrue();
+                var originalContent = backupCut
+                    ? plan.Envelope.Payload.Effects[0].OriginalContent.ToArray()
+                    : null;
+                AssertCrashProbeRepositoryUnchanged(repositoryRoot, originalContent);
+
+                var preEffectReservations = new RepositoryMutationReservationProvider(
+                    authority.MutationReservationRoot, authority);
+                using var preEffectSuccessor = await preEffectReservations.AcquireAsync(
+                    plan.Envelope.Payload.Repository, CancellationToken.None);
+                var preEffectCleanup = new JournaledNoEffectCleanup(ledger, store,
+                    new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                    new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+                if (cutName == "GuardAcquisition")
+                {
+                    preEffectCleanup.Cleanup(repositoryId, operationId, preEffectSuccessor)
+                        .Match(_ => throw new InvalidOperationException(
+                                "An interrupted guard acquisition was accepted as inactive."),
+                            failure => failure.Kind)
+                        .ShouldBe(NoEffectCleanupErrorKind.UnresolvedGuard);
+                    var unresolved = ledger.Load(repositoryId, operationId)
+                        .Match(value => value, failure => throw new IOException(failure.Message));
+                    unresolved.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+                    unresolved.PreEffectActivity.ActiveAdmissions.Length.ShouldBe(1);
+                    unresolved.GuardJournal[^1].Kind.ShouldBe(
+                        OperationGuardJournalKind.AcquisitionIntent);
+                    unresolved.CleanupJournal.ShouldBeEmpty();
+                    unresolved.CleanupPinReleased.ShouldBeFalse();
+                    File.Exists(stagingArtifact).ShouldBeTrue();
+                }
+                else
+                {
+                    preEffectCleanup.Cleanup(repositoryId, operationId, preEffectSuccessor)
+                        .IsOk.ShouldBeTrue();
+                    preEffectCleanup.Cleanup(repositoryId, operationId, preEffectSuccessor)
+                        .IsOk.ShouldBeTrue();
+                    var terminal = ledger.Load(repositoryId, operationId)
+                        .Match(value => value, failure => throw new IOException(failure.Message));
+                    terminal.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+                    terminal.PreEffectActivity.IsClosed.ShouldBeTrue();
+                    terminal.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+                    terminal.CleanupJournal[^1].Kind.ShouldBe(
+                        OperationCleanupJournalKind.CleanupVerified);
+                    terminal.CleanupPinReleased.ShouldBeTrue();
+                    terminal.CleanupJournal[0].Artifacts.Length.ShouldBe(backupCut ? 2 : 1);
+                    File.Exists(stagingArtifact).ShouldBeFalse();
+                    if (backupArtifact is not null)
+                        File.Exists(backupArtifact).ShouldBeFalse();
+                }
+                store.LoadRetained(key)
+                    .Match(value => value, failure => throw new IOException(failure.Message))
+                    .Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+                    .ShouldBe(cutName == "GuardAcquisition");
+                AssertCrashProbeRepositoryUnchanged(repositoryRoot, originalContent);
+                return;
+            }
             interrupted.CurrentState.ShouldBe(cutName == "GuardRelease"
                 ? OperationLifecycleState.CancelledNoEffect
                 : OperationLifecycleState.RejectedUnsafeCoordination);
@@ -2505,9 +2603,13 @@ public sealed class JournaledApplyAuthorityTests
         CanonicalApplyRequest request;
         StoredChangePlan plan;
         OperationCleanupArtifact? artifact = null;
-        if (cut is CleanupCrashCut.GuardRelease or CleanupCrashCut.TerminalInventory)
+        if (cut is CleanupCrashCut.GuardRelease or CleanupCrashCut.TerminalInventory
+            or CleanupCrashCut.StagingAdmission or CleanupCrashCut.StagingCreated
+            or CleanupCrashCut.BackupAdmission or CleanupCrashCut.BackupCreated
+            or CleanupCrashCut.GuardAcquisition)
         {
-            request = fixture.Prepare();
+            request = fixture.Prepare(replacement: cut is CleanupCrashCut.BackupAdmission
+                or CleanupCrashCut.BackupCreated);
             plan = fixture.StoredPlan!;
         }
         else
@@ -2525,7 +2627,37 @@ public sealed class JournaledApplyAuthorityTests
             plan.Key.PlanHash
         ]);
 
-        var crash = new CleanupCrashProbe(cut, probeRoot, artifact?.ArtifactPath);
+        var crashArtifactPath = cut switch
+        {
+            CleanupCrashCut.StagingCreated or CleanupCrashCut.GuardAcquisition =>
+                Path.Combine(plan.Envelope.Payload.Coordination.StagingRoot,
+                    request.OperationId.Epoch.ToString(CultureInfo.InvariantCulture),
+                    request.OperationId.Nonce.ToString("N"), "00000001.stage"),
+            CleanupCrashCut.BackupCreated =>
+                Path.Combine(plan.Envelope.Payload.Coordination.BackupRoot,
+                    request.OperationId.Epoch.ToString(CultureInfo.InvariantCulture),
+                    request.OperationId.Nonce.ToString("N"), "00000001.backup"),
+            _ => artifact?.ArtifactPath
+        };
+        var crash = new CleanupCrashProbe(cut, probeRoot, crashArtifactPath);
+        if (cut is CleanupCrashCut.StagingAdmission or CleanupCrashCut.StagingCreated
+            or CleanupCrashCut.BackupAdmission or CleanupCrashCut.BackupCreated
+            or CleanupCrashCut.GuardAcquisition)
+        {
+            await fixture.CreateAuthority(
+                    new SimulatedBroker(fixture) { DeclineAfterInspect = true },
+                    ledgerDurability: cut is CleanupCrashCut.StagingAdmission
+                        or CleanupCrashCut.BackupAdmission or CleanupCrashCut.GuardAcquisition
+                        ? crash : null,
+                    stagingBoundary: cut == CleanupCrashCut.StagingCreated
+                        ? new LinuxStagingArtifactBoundary(
+                            plan.Envelope.Payload.Coordination.StagingRoot, crash) : null,
+                    backupBoundary: cut == CleanupCrashCut.BackupCreated
+                        ? new LinuxBackupArtifactBoundary(
+                            plan.Envelope.Payload.Coordination.BackupRoot, crash) : null)
+                .ApplyAsync(request);
+            throw new InvalidOperationException("The pre-effect cut was not reached.");
+        }
         if (cut == CleanupCrashCut.GuardRelease)
         {
             var broker = new SimulatedBroker(fixture)
@@ -2556,14 +2688,23 @@ public sealed class JournaledApplyAuthorityTests
                 failure => throw new IOException(failure.Message));
     }
 
-    private static void AssertCrashProbeRepositoryUnchanged(string repositoryRoot)
+    private static void AssertCrashProbeRepositoryUnchanged(
+        string repositoryRoot,
+        byte[]? originalContent = null)
     {
         Directory.GetFiles(repositoryRoot, "*", SearchOption.AllDirectories)
-            .Select(path => Path.GetRelativePath(repositoryRoot, path)).ToArray()
-            .ShouldBe([Path.Combine("src", "Untouched.cs")]);
+            .Select(path => Path.GetRelativePath(repositoryRoot, path))
+            .OrderBy(path => path, StringComparer.Ordinal).ToArray()
+            .ShouldBe(originalContent is null
+                ? [Path.Combine("src", "Untouched.cs")]
+                : [Path.Combine("src", "Added.cs"), Path.Combine("src", "Untouched.cs")]);
         File.ReadAllBytes(Path.Combine(repositoryRoot, "src", "Untouched.cs"))
             .ShouldBe(Encoding.UTF8.GetBytes("class Untouched;\n"));
-        File.Exists(Path.Combine(repositoryRoot, "src", "Added.cs")).ShouldBeFalse();
+        if (originalContent is null)
+            File.Exists(Path.Combine(repositoryRoot, "src", "Added.cs")).ShouldBeFalse();
+        else
+            File.ReadAllBytes(Path.Combine(repositoryRoot, "src", "Added.cs"))
+                .ShouldBe(originalContent);
     }
 
     [Theory]
@@ -7460,7 +7601,12 @@ public sealed class JournaledApplyAuthorityTests
         PinReleaseMarker,
         PlanCollectedBeforeMarker,
         GuardRelease,
-        TerminalInventory
+        TerminalInventory,
+        StagingAdmission,
+        StagingCreated,
+        BackupAdmission,
+        BackupCreated,
+        GuardAcquisition
     }
 
     private sealed class CleanupCrashProbe(
@@ -7488,8 +7634,23 @@ public sealed class JournaledApplyAuthorityTests
             var latestCleanupKind = cleanupJournal is { Count: > 0 }
                 ? cleanupJournal[^1]?["kind"]?.GetValue<int>()
                 : null;
+            var stagingJournal = next?["stagingJournal"]?.AsArray();
+            var backupJournal = next?["backupJournal"]?.AsArray();
+            var guardJournal = next?["guardJournal"]?.AsArray();
             var crashAfterThisRecord = cut switch
             {
+                CleanupCrashCut.StagingAdmission =>
+                    stagingJournal is { Count: > 0 }
+                    && stagingJournal[^1]?["kind"]?.GetValue<int>()
+                    == (int)OperationStagingJournalKind.CreationAdmitted,
+                CleanupCrashCut.BackupAdmission =>
+                    backupJournal is { Count: > 0 }
+                    && backupJournal[^1]?["kind"]?.GetValue<int>()
+                    == (int)OperationBackupJournalKind.CreationAdmitted,
+                CleanupCrashCut.GuardAcquisition =>
+                    guardJournal is { Count: > 0 }
+                    && guardJournal[^1]?["kind"]?.GetValue<int>()
+                    == (int)OperationGuardJournalKind.AcquisitionIntent,
                 CleanupCrashCut.ArtifactRemovalRecord =>
                     latestCleanupKind == (int)OperationCleanupJournalKind.ArtifactRemoved,
                 CleanupCrashCut.CleanupVerifiedRecord =>
@@ -7524,6 +7685,10 @@ public sealed class JournaledApplyAuthorityTests
         public void FlushDirectory(SafeFileHandle handle)
         {
             LinuxStagingHandles.FlushDirectory(handle);
+            if (cut is CleanupCrashCut.StagingCreated or CleanupCrashCut.BackupCreated
+                && artifactPath is not null
+                && File.Exists(artifactPath))
+                TerminateAtCut();
             if (cut == CleanupCrashCut.ArtifactUnlink
                 && artifactPath is not null
                 && !File.Exists(artifactPath)
