@@ -52,7 +52,8 @@ internal sealed class DescribeCommand(
                     req.Symbol,
                     req.SolutionPath,
                     req.Kind,
-                    req.WithLocations),
+                    req.WithLocations,
+                    RtContext.NoSuggest),
                 ctx.GetCancellationToken());
 
             inspection.Match(

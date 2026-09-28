@@ -2,7 +2,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core.Decisions;
-using RoslynTools.Core.Output;
 using RoslynTools.Models;
 
 namespace RoslynTools.Core;
@@ -275,7 +274,8 @@ internal static class SymbolLocator
     /// </summary>
     internal static async Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(
         Solution solution,
-        string input)
+        string input,
+        bool includeSuggestions = true)
     {
         var (typeFqn, memberName, paramSpec) = ParseMemberSignatureInput(input);
         if (string.IsNullOrEmpty(typeFqn) || string.IsNullOrEmpty(memberName))
@@ -296,7 +296,7 @@ internal static class SymbolLocator
 
         if (byName.Count == 0)
             return Result<ISymbol, RtError>.Err(
-                RtError.NotFound(BuildMemberNotFoundMessage(type, memberName, typeFqn)));
+                RtError.NotFound(BuildMemberNotFoundMessage(type, memberName, typeFqn, includeSuggestions)));
 
         List<ISymbol> matches;
         if (paramSpec is null)
@@ -613,13 +613,17 @@ internal static class SymbolLocator
     ///     US-135 Batch 2: build the not-found message for a drill-in member miss, appending a
     ///     "Did you mean: ..." tail when <see cref="NameSuggest" /> finds one or more candidate
     ///     member names within the length-relative edit-distance threshold. The tail is
-    ///     suppressed when <see cref="RtContext.NoSuggest" /> is set (the global
-    ///     <c>--no-suggest</c> flag), so strict-output pipelines can pin error text.
+    ///     suppressed when the caller opts out of suggestions, so strict-output
+    ///     pipelines can pin error text.
     /// </summary>
-    private static string BuildMemberNotFoundMessage(INamedTypeSymbol type, string memberName, string typeFqn)
+    private static string BuildMemberNotFoundMessage(
+        INamedTypeSymbol type,
+        string memberName,
+        string typeFqn,
+        bool includeSuggestions)
     {
         var baseMessage = $"Member '{memberName}' not found on type '{typeFqn}'.";
-        if (RtContext.NoSuggest)
+        if (!includeSuggestions)
             return baseMessage;
 
         var candidateNames = type.GetMembers()

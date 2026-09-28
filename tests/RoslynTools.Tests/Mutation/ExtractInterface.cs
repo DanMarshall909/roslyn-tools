@@ -529,7 +529,8 @@ internal sealed class StubSymbolResolutionService : ISymbolResolutionService
     public Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind) =>
         throw new NotImplementedException();
 
-    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature) =>
+    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(
+        Solution solution, string signature, bool includeSuggestions = true) =>
         throw new NotImplementedException();
 
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind) =>

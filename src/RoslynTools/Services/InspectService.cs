@@ -39,11 +39,13 @@ internal class InspectService : IRtService
         Solution solution,
         string symbol,
         string? kind,
-        bool withLocations = false)
+        bool withLocations = false,
+        bool includeSuggestions = true)
     {
         if (symbol.Contains('('))
         {
-            var member = await _symbols.TryFindMemberBySignatureAsync(solution, symbol);
+            var member = await _symbols.TryFindMemberBySignatureAsync(
+                solution, symbol, includeSuggestions);
             return member.Map(sym => (object)BuildInspection(sym, solution));
         }
 

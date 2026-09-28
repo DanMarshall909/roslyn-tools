@@ -9,7 +9,8 @@ internal sealed record DescribeRequest(
     [property: JsonRequired] string Symbol,
     string? Solution = null,
     string? Kind = null,
-    bool WithLocations = false);
+    bool WithLocations = false,
+    bool NoSuggest = false);
 
 internal enum DescribeResultKind
 {
@@ -49,7 +50,8 @@ internal sealed class DescribeOperation(
                 solution,
                 request.Symbol,
                 request.Kind,
-                request.WithLocations);
+                request.WithLocations,
+                includeSuggestions: !request.NoSuggest);
 
             return inspection.Map(result => (result is CompactDescription compact
                 ? new DescribeResult(

@@ -13,7 +13,8 @@ internal interface ISymbolResolutionService
 
     Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind);
 
-    Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature);
+    Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(
+        Solution solution, string signature, bool includeSuggestions = true);
 
     Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind);
 
@@ -43,9 +44,11 @@ internal sealed class SymbolResolutionService : ISymbolResolutionService, IRtSer
         return SymbolLocator.TryFindSymbolByFqnAsync(solution, fullyQualifiedName, kind);
     }
 
-    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature)
+    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(
+        Solution solution, string signature, bool includeSuggestions = true)
     {
-        return SymbolLocator.TryFindMemberBySignatureAsync(solution, signature);
+        return SymbolLocator.TryFindMemberBySignatureAsync(
+            solution, signature, includeSuggestions);
     }
 
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind)

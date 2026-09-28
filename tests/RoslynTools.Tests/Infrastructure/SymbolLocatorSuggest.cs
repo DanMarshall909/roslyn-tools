@@ -1,6 +1,10 @@
+using System.Text.Json;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
@@ -71,7 +75,7 @@ public sealed class SymbolLocatorSuggest
     }
 
     [Fact]
-    public async Task drill_in_member_not_found_with_no_suggest_flag_omits_did_you_mean_tail()
+    public async Task drill_in_member_not_found_with_suggestions_disabled_omits_did_you_mean_tail()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -86,22 +90,52 @@ public sealed class SymbolLocatorSuggest
 
         using (workspace)
         {
-            var previous = RtContext.NoSuggest;
-            RtContext.NoSuggest = true;
-            try
-            {
-                var result = await Core.SymbolLocator.TryFindMemberBySignatureAsync(
-                    solution, "TestApp.Service.MisspelledNamee(int)");
+            var result = await Core.SymbolLocator.TryFindMemberBySignatureAsync(
+                solution, "TestApp.Service.MisspelledNamee(int)", includeSuggestions: false);
 
-                result.IsErr.ShouldBeTrue();
-                var message = result.Match(_ => string.Empty, e => e.Message);
-                message.ShouldNotContain("Did you mean",
-                    customMessage: "RtContext.NoSuggest must suppress the suggestion tail.");
-            }
-            finally
-            {
-                RtContext.NoSuggest = previous;
-            }
+            result.IsErr.ShouldBeTrue();
+            var message = result.Match(_ => string.Empty, e => e.Message);
+            message.ShouldNotContain("Did you mean",
+                customMessage: "The explicit lookup option must suppress the suggestion tail.");
+        }
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task daemon_describe_respects_the_per_request_suggestion_choice(
+        bool noSuggest, bool expectSuggestion)
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+                                        namespace TestApp;
+
+                                        public sealed class Service
+                                        {
+                                            public void Calculate(int x) { }
+                                        }
+                                        """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var dispatcher = new DaemonCommandDispatcher(
+                [new DescribeOperation(new FixedSessions(solution), new InspectService())]);
+            var arguments = JsonSerializer.SerializeToElement(
+                new DescribeRequest("TestApp.Service.Calclate(int)", NoSuggest: noSuggest),
+                DaemonRpcJson.RequestOptions);
+            var request = new DaemonRpcRequest(
+                DaemonRpcProtocol.CurrentVersion,
+                "suggestion-request",
+                DaemonRpcProtocol.ExecuteCommandMethod,
+                "describe",
+                arguments);
+
+            var response = await dispatcher.ExecuteAsync(request);
+
+            response.Error.ShouldNotBeNull();
+            response.Error.Message.Contains("Did you mean", StringComparison.Ordinal)
+                .ShouldBe(expectSuggestion);
         }
     }
 
@@ -197,6 +231,17 @@ public sealed class SymbolLocatorSuggest
             exitCode.ShouldBe(1);
             stderr.ToString().ShouldNotContain("Did you mean",
                 customMessage: "--no-suggest must suppress the suggestion tail end-to-end.");
+        }
+    }
+
+    private sealed class FixedSessions(Solution solution) : IReadOnlyWorkspaceSessions
+    {
+        public Task<ReadOnlyWorkspaceLease> AcquireAsync(
+            string? solutionPath,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ReadOnlyWorkspaceLease(solution, "test-revision"));
         }
     }
 }
