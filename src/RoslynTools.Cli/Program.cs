@@ -2,9 +2,9 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
@@ -50,7 +50,7 @@ internal static class Program
 
         var validatedConfiguration = McpConfigurationValidator.Validate(
             configuration,
-            host.Services.GetRequiredService<CommandDescriptorRegistry>());
+            host.Services.GetRequiredService<ApplicationCommandCatalog>());
         if (!validatedConfiguration.IsValid && !isConfigInvocation)
         {
             foreach (var diagnostic in validatedConfiguration.Diagnostics)

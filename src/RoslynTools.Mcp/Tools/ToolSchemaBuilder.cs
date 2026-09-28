@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 
@@ -10,10 +9,10 @@ namespace RoslynTools.Mcp.Tools;
 /// ToolSchemaBuilder
 /// </summary>
 internal sealed class ToolSchemaBuilder(
-    CommandDescriptorRegistry descriptors,
+    ApplicationCommandCatalog descriptors,
     McpHostOptions hostOptions)
 {
-    private readonly CommandDescriptorRegistry _descriptors = descriptors;
+    private readonly ApplicationCommandCatalog _descriptors = descriptors;
     private readonly McpHostOptions _hostOptions = hostOptions;
 
     public IReadOnlyList<ToolDefinition> Build()

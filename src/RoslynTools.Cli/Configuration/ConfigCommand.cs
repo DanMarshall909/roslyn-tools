@@ -1,9 +1,9 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Cli;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
@@ -36,7 +36,7 @@ internal sealed class ConfigCommand(
         {
             var resolution = McpConfigurationValidator.Validate(
                 _resolution,
-                _services.GetRequiredService<CommandDescriptorRegistry>());
+                _services.GetRequiredService<ApplicationCommandCatalog>());
             if (RtContext.Format == OutputFormat.Json)
             {
                 RtResultRenderer.Write(new RtResult<HostConfigurationResolution>(

@@ -1,8 +1,9 @@
-using System.Text.Json;
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using Shouldly;
@@ -46,7 +47,7 @@ public sealed class McpConfigurationPolicyTests
             """);
         var options = new McpHostOptions(configuration: fixture.Resolution);
         using var provider = McpTestHost.CreateProvider(options);
-        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>();
+        var descriptors = provider.GetRequiredService<ApplicationCommandCatalog>();
 
         var validated = McpConfigurationValidator.Validate(fixture.Resolution, descriptors);
 

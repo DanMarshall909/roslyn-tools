@@ -103,7 +103,7 @@ public sealed class DaemonRecoveryAdapterTests
         IServiceProvider provider,
         IDaemonRpcClient rpc,
         IDaemonLauncher? launcher = null) => new(
-        provider.GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>(),
+        provider.GetRequiredService<RoslynTools.Core.CommandDescriptors.ApplicationCommandCatalog>(),
         new DaemonRpcRecoveryCoordinator(rpc, launcher ?? new CountingLauncher()));
 
     private sealed class CompletedRpcClient(object? data) : IDaemonRpcClient

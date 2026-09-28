@@ -2,8 +2,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
@@ -505,7 +505,7 @@ public sealed class McpCommandAdapterMsBuildTests
         IServiceProvider provider,
         McpHostOptions options,
         IMcpMsBuildBinding binding) => new(
-        provider.GetRequiredService<CommandDescriptorRegistry>(),
+        provider.GetRequiredService<ApplicationCommandCatalog>(),
         new DaemonRpcRecoveryCoordinator(new UnavailableRpcClient(), new UnavailableLauncher()),
         options,
         binding);

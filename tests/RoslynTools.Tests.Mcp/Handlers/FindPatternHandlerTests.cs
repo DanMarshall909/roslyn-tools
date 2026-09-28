@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
@@ -78,7 +79,7 @@ public sealed class FindPatternHandlerTests
                    """))
         {
             var adapter = new McpCommandAdapter(
-                provider.GetRequiredService<CommandDescriptorRegistry>(),
+                provider.GetRequiredService<ApplicationCommandCatalog>(),
                 new DaemonRpcRecoveryCoordinator(new UnavailableRpcClient(), new UnavailableLauncher()));
 
             var result = await adapter.InvokeAsync(

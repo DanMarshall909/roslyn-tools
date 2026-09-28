@@ -5,6 +5,7 @@ using RoslynTools.Cli.Suggest;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
@@ -109,6 +110,8 @@ internal static class Bootstrap
             sp => sp.GetRequiredService<FeedbackProcessOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackReportOperation>());
+        services.AddSingleton(provider => new ApplicationCommandCatalog(
+            () => provider.GetServices<ICommandApplicationPort>()));
         services.AddSingleton<CommandDescriptorRegistry>();
         services.AddSingleton<IProductCapabilityCatalog, ProductCapabilityCatalog>();
 

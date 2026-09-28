@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
 
@@ -39,7 +39,7 @@ services.AddMcpServices(RtConsole.In, RtConsole.Out, hostOptions);
 using var provider = services.BuildServiceProvider();
 var validatedConfiguration = McpConfigurationValidator.Validate(
     configuration,
-    provider.GetRequiredService<CommandDescriptorRegistry>());
+    provider.GetRequiredService<ApplicationCommandCatalog>());
 if (!validatedConfiguration.IsValid)
 {
     foreach (var diagnostic in validatedConfiguration.Diagnostics)

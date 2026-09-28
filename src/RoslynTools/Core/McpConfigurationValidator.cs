@@ -1,5 +1,5 @@
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 
 namespace RoslynTools.Configuration;
 
@@ -8,10 +8,11 @@ internal static class McpConfigurationValidator
 {
     internal static HostConfigurationResolution Validate(
         HostConfigurationResolution configuration,
-        CommandDescriptorRegistry descriptors)
+        ApplicationCommandCatalog descriptors)
     {
         var publicTools = descriptors.All
             .Where(descriptor => descriptor.McpVisible
+                                 && descriptor.Port is not null
                                  && descriptor.Audience == CommandAudience.Public)
             .Select(descriptor => descriptor.ToolName)
             .ToHashSet(StringComparer.Ordinal);

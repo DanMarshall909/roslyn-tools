@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
@@ -16,7 +15,7 @@ namespace RoslynTools.Mcp.Tools;
 ///     to their application port's typed request.
 /// </summary>
 internal sealed class McpCommandAdapter(
-    CommandDescriptorRegistry descriptors,
+    ApplicationCommandCatalog descriptors,
     DaemonRpcRecoveryCoordinator daemonRpc,
     McpHostOptions? hostOptions = null,
     IMcpMsBuildBinding? msBuildBinding = null)
@@ -28,7 +27,7 @@ internal sealed class McpCommandAdapter(
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private readonly CommandDescriptorRegistry _descriptors = descriptors;
+    private readonly ApplicationCommandCatalog _descriptors = descriptors;
     private readonly DaemonRpcRecoveryCoordinator _daemonRpc = daemonRpc;
     private readonly McpHostOptions _hostOptions = hostOptions ?? new McpHostOptions();
     private readonly IMcpMsBuildBinding _msBuildBinding = msBuildBinding ?? new McpMsBuildBinding();

@@ -57,6 +57,47 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void mcp_discovery_and_dispatch_depend_on_a_reusable_application_catalogue()
+    {
+        var catalogueType = typeof(ApplicationCommandDescriptor).Assembly
+            .GetType("RoslynTools.Core.CommandDescriptors.ApplicationCommandCatalog");
+        catalogueType.ShouldNotBeNull();
+
+        foreach (var adapterType in new[] { typeof(ToolSchemaBuilder), typeof(McpCommandAdapter) })
+        {
+            var dependencies = adapterType
+                .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .SelectMany(constructor => constructor.GetParameters())
+                .Select(parameter => parameter.ParameterType)
+                .ToArray();
+            dependencies.ShouldContain(catalogueType);
+            dependencies.ShouldNotContain(typeof(CommandDescriptorRegistry));
+        }
+    }
+
+    [Fact]
+    public void reusable_catalogue_describes_every_registered_typed_port()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var ports = provider.GetServices<ICommandApplicationPort>()
+            .Where(port => port is not ILegacyCommandApplicationPort)
+            .ToArray();
+        var descriptors = provider.GetRequiredService<ApplicationCommandCatalog>().All;
+
+        descriptors.Count.ShouldBe(ports.Length);
+        descriptors.Select(descriptor => descriptor.ToolName).ShouldBeUnique();
+        foreach (var port in ports)
+        {
+            var descriptor = descriptors.Single(candidate => candidate.ToolName == port.Definition.Name);
+            descriptor.Port.ShouldNotBeNull();
+            descriptor.Port.GetType().ShouldBe(port.GetType());
+            descriptor.Definition.ShouldNotBeNull();
+            descriptor.Definition.RequestType.ShouldBe(port.Definition.RequestType);
+            descriptor.Definition.ResponseType.ShouldBe(port.Definition.ResponseType);
+        }
+    }
+
+    [Fact]
     public void local_trust_control_plane_is_not_an_mcp_descriptor_or_tool()
     {
         using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());

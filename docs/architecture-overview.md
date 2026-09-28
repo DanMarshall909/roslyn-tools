@@ -108,8 +108,15 @@ CLI option helper, and the `dump-help` command-surface projection. The reusable
 reference; its application definitions and ports remain host-neutral. The moved
 internal CLI types retain their historical `RoslynTools.Core` namespace for
 source compatibility. [ADR-0042](adr/0042-cli-command-surface-ownership.md)
-records this assembly boundary. The descriptor catalogue extraction in #54 and
-MCP assembly decoupling in #56 remain separate steps of #53.
+records this assembly boundary.
+
+The reusable `ApplicationCommandCatalog` projects registered typed ports from
+their application definitions. MCP discovery, dispatch, and exact-name
+configuration validation use this catalogue directly, without constructing CLI
+commands. The CLI descriptor registry still projects CLI metadata and legacy
+maintainer commands. Shared registration and CLI projection remain within #54;
+removing MCP's CLI project reference remains #56. See
+[ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
@@ -965,7 +972,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project because descriptor registration and discovery live there. The CLI invocation bridge has been removed; extracting the host-neutral catalogue and shared registration remains necessary before the MCP project reference can be removed.
+- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project for DI registration and host adapters. MCP discovery and dispatch use the reusable typed application catalogue, and the CLI invocation bridge has been removed. Shared registration and CLI projection must move before the MCP project reference can be removed.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.
