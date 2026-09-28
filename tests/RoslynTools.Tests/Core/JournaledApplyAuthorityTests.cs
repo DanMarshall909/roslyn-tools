@@ -2247,6 +2247,80 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Theory]
+    [InlineData("GuardInactive")]
+    [InlineData("TerminalInventory")]
+    public async Task visible_pre_effect_guard_or_terminal_record_without_flush_remains_pending(
+        string failedRecord)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var persistentFault = new FailVisibleGuardOrTerminalFlush(recordPath, failedRecord);
+        (await fixture.CreateAuthority(
+                new SimulatedBroker(fixture) { DeclineAfterInspect = true },
+                ledgerDurability: persistentFault)
+            .ApplyAsync(request))
+            .Match(_ => throw new InvalidOperationException(
+                    "An unflushed pre-effect record was accepted."),
+                failure => failure.Kind)
+            .ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        persistentFault.FailedTargetFlushes.ShouldBe(1);
+
+        var visible = fixture.LoadOperation(request);
+        visible.GuardJournal[^1].Kind.ShouldBe(OperationGuardJournalKind.ConfirmedInactive);
+        visible.CurrentState.ShouldBe(failedRecord == "GuardInactive"
+            ? OperationLifecycleState.Prepared
+            : OperationLifecycleState.RejectedUnsafeCoordination);
+        visible.PreEffectActivity.ActiveAdmissions.Length.ShouldBe(
+            failedRecord == "GuardInactive" ? 1 : 0);
+        visible.EffectJournal.ShouldBeEmpty();
+        visible.CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        var artifact = visible.StagingJournal[^1].ArtifactPath;
+        File.Exists(artifact).ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreateLedger(persistentFault), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException(
+                    "A visible but unflushed pre-effect record was accepted on retry."),
+                failure => failure.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        persistentFault.FailedTargetFlushes.ShouldBe(2);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(artifact).ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CurrentState
+            .ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(artifact).ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+    }
+
+    [Theory]
     [InlineData("ArtifactUnlink")]
     [InlineData("ArtifactRemovalRecord")]
     [InlineData("EmptyRootRemoval")]
@@ -7575,6 +7649,48 @@ public sealed class JournaledApplyAuthorityTests
                 throw new IOException("Injected visible physical cleanup directory flush failure.");
             }
             LinuxStagingHandles.FlushDirectory(handle);
+        }
+    }
+
+    private sealed class FailVisibleGuardOrTerminalFlush(string recordPath, string failedRecord)
+        : IOperationLedgerDurability
+    {
+        private static readonly IOperationLedgerDurability Platform =
+            DurableOperationLedger.PlatformOperationLedgerDurability.Instance;
+
+        internal int FailedTargetFlushes { get; private set; }
+
+        public void FlushFileMetadata(string path) => Platform.FlushFileMetadata(path);
+
+        public void ReplaceFile(string temporaryPath, string destinationPath) =>
+            Platform.ReplaceFile(temporaryPath, destinationPath);
+
+        public void FlushDirectoryMetadata(string directory)
+        {
+            if (string.Equals(directory, Path.GetDirectoryName(recordPath),
+                    StringComparison.Ordinal)
+                && File.Exists(recordPath))
+            {
+                var record = JsonNode.Parse(File.ReadAllText(recordPath));
+                var guard = record?["guardJournal"]?.AsArray();
+                var cleanup = record?["cleanupJournal"]?.AsArray();
+                var shouldFail = failedRecord switch
+                {
+                    "GuardInactive" => guard is { Count: > 0 }
+                        && guard[^1]?["kind"]?.GetValue<int>()
+                        == (int)OperationGuardJournalKind.ConfirmedInactive,
+                    "TerminalInventory" => cleanup is { Count: > 0 }
+                        && cleanup[0]?["kind"]?.GetValue<int>()
+                        == (int)OperationCleanupJournalKind.InventoryPending,
+                    _ => throw new InvalidOperationException("Unknown pre-effect record cut.")
+                };
+                if (shouldFail)
+                {
+                    FailedTargetFlushes++;
+                    throw new IOException("Injected visible pre-effect ledger flush failure.");
+                }
+            }
+            Platform.FlushDirectoryMetadata(directory);
         }
     }
 
