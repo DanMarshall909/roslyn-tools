@@ -122,8 +122,13 @@ service scanning live in `RoslynTools.Hosting`. Its suggestion catalogue
 combines typed public definitions with shared host metadata for `config`,
 `trust`, feedback, and the richer CLI `semantic-diff` projection. CLI-specific
 composition remains in the CLI assembly. Removing MCP's CLI project reference
-remains #56. See
-[ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md).
+is complete: MCP composes these shared services through its own entry point,
+then adds protocol services. Its project references Core and Hosting, while the
+test project retains CLI for cross-host comparisons. Its general MCP test
+fixture still uses CLI bootstrap and remains a #56 follow-up; protocol tests
+now exercise MCP-owned composition. See
+[ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md) and
+[ADR-0053](adr/0053-mcp-owned-host-composition.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
@@ -999,7 +1004,10 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project for DI registration and host adapters. MCP discovery and dispatch, CLI typed descriptors, and product capability reporting use the reusable application catalogue; the CLI invocation bridge has been removed. Shared registration and host adapters must move before the MCP project reference can be removed.
+- **Daemon transport is still being separated.** CLI and MCP now compose shared
+  application services independently, and MCP has no CLI project reference. The
+  daemon request protocol and its host boundary still require the remaining
+  typed-request migration under #53.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.

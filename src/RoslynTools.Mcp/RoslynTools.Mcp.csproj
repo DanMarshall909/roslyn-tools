@@ -24,7 +24,6 @@
     <ItemGroup>
         <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>
         <ProjectReference Include="../RoslynTools.Hosting/RoslynTools.Hosting.csproj"/>
-        <ProjectReference Include="../RoslynTools.Cli/RoslynTools.Cli.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

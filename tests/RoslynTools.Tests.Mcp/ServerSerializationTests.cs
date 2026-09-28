@@ -22,8 +22,7 @@ public class ServerSerializationTests
         McpHostOptions? hostOptions = null)
     {
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(
+        services.AddMcpHostServices(
             new StringReader(requestLine + Environment.NewLine),
             new StringWriter(),
             hostOptions);
@@ -73,8 +72,7 @@ public class ServerSerializationTests
         // SendResponseAsync must catch and emit a -32603 envelope. Use the
         // internal IVT seam.
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), output);
+        services.AddMcpHostServices(new StringReader(string.Empty), output);
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<Server>();
 

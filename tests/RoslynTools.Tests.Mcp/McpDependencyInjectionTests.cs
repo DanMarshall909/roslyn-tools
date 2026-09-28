@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -12,18 +14,42 @@ namespace RoslynTools.Tests.Mcp;
 public sealed class McpDependencyInjectionTests
 {
     [Fact]
-    public void Mcp_registers_cli_services_and_mcp_runtime_services()
+    public void Mcp_project_does_not_reference_the_cli_project()
+    {
+        var project = XDocument.Load(Path.Combine(
+            FindRepoRoot(), "src", "RoslynTools.Mcp", "RoslynTools.Mcp.csproj"));
+        var references = project.Descendants("ProjectReference")
+            .Select(element => element.Attribute("Include")?.Value)
+            .ToArray();
+
+        references.ShouldNotContain(reference =>
+            reference != null
+            && Path.GetFileName(reference) == "RoslynTools.Cli.csproj");
+    }
+
+    [Fact]
+    public void Mcp_registers_shared_application_and_mcp_runtime_services_without_cli_types()
     {
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
 
         using var provider = services.BuildServiceProvider();
 
+        provider.GetRequiredService<ApplicationCommandCatalog>().All.ShouldNotBeEmpty();
         provider.GetRequiredService<ToolSchemaBuilder>().ShouldNotBeNull();
         provider.GetRequiredService<McpCommandAdapter>().ShouldNotBeNull();
         provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
         provider.GetRequiredService<Server>().ShouldNotBeNull();
+        services.Count(descriptor => descriptor.ServiceType == typeof(IDaemonRpcClient))
+            .ShouldBe(1);
+        services.Count(descriptor => descriptor.ServiceType == typeof(IDaemonLauncher))
+            .ShouldBe(1);
+        services.Count(descriptor => descriptor.ServiceType == typeof(DaemonRpcRecoveryCoordinator))
+            .ShouldBe(1);
+        services.ShouldNotContain(descriptor =>
+            descriptor.ServiceType.Assembly.GetName().Name == "rt"
+            || (descriptor.ImplementationType != null
+                && descriptor.ImplementationType.Assembly.GetName().Name == "rt"));
     }
 
     [Fact]
