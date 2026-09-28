@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
@@ -31,7 +32,8 @@ public class WriteFixesAsync_dry_run
                 Files: new[] { new FixFile(doc.Id, doc.FilePath!, newText) });
 
             var output = await StdoutCapture.CaptureAsync(() =>
-                ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, [fix], dryRun: true));
+                new SolutionChangeWriter(new ConsoleSolutionWriteOutput())
+                    .WriteFixesAsync(sln, [fix], dryRun: true));
 
             output.ShouldContain("[fix abcdef01]");
             output.IndexOf("[fix abcdef01]", StringComparison.Ordinal)
@@ -62,7 +64,8 @@ public class WriteFixesAsync_dry_run
                 Files: new[] { new FixFile(doc.Id, doc.FilePath!, newText) });
 
             await StdoutCapture.CaptureAsync(() =>
-                ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, [fix], dryRun: true));
+                new SolutionChangeWriter(new ConsoleSolutionWriteOutput())
+                    .WriteFixesAsync(sln, [fix], dryRun: true));
 
             (await File.ReadAllTextAsync(doc.FilePath!)).ShouldBe(originalDisk);
         }
@@ -93,8 +96,7 @@ public class WriteFixesAsync_apply
                 MutationKind: "demo",
                 Files: new[] { new FixFile(doc.Id, doc.FilePath!, newText) });
 
-            await StdoutCapture.CaptureAsync(() =>
-                ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, [fix], dryRun: false));
+            await new SolutionChangeWriter().WriteFixesAsync(sln, [fix], dryRun: false);
 
             (await File.ReadAllTextAsync(doc.FilePath!)).ShouldContain("=> 42");
         }
@@ -118,8 +120,10 @@ public class WriteFixesAsync_empty
             var doc = sln.Projects.First().Documents.First();
             var originalDisk = await File.ReadAllTextAsync(doc.FilePath!);
 
+            using var services = new RtServicesFixture();
+            var writer = services.Resolve<ISolutionChangeWriter>();
             var output = await StdoutCapture.CaptureAsync(() =>
-                ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, Array.Empty<Fix>(), dryRun: false));
+                writer.WriteFixesAsync(sln, Array.Empty<Fix>(), dryRun: false));
 
             output.ShouldContain("No changes.");
             (await File.ReadAllTextAsync(doc.FilePath!)).ShouldBe(originalDisk);
@@ -142,7 +146,8 @@ public class WriteFixesAsync_empty
         using (workspace)
         {
             var output = await StdoutCapture.CaptureAsync(() =>
-                ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, Array.Empty<Fix>(), dryRun: false));
+                new SolutionChangeWriter(new ConsoleSolutionWriteOutput())
+                    .WriteFixesAsync(sln, Array.Empty<Fix>(), dryRun: false));
 
             var occurrences = output.Split("No changes.", StringSplitOptions.None).Length - 1;
             occurrences.ShouldBe(1);
@@ -174,8 +179,7 @@ public class WriteFixesAsync_invalid_input
                 Files: new[] { new FixFile(bogusDocId, "/fake/path.cs", "new text") });
 
             await Should.ThrowAsync<InvalidOperationException>(() =>
-                StdoutCapture.CaptureAsync(() =>
-                    ISolutionChangeWriter.CreateDefault().WriteFixesAsync(sln, [fix], dryRun: true)));
+                new SolutionChangeWriter().WriteFixesAsync(sln, [fix], dryRun: true));
         }
     }
 }

@@ -11,6 +11,8 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class NoDirectConsoleUse
 {
+    private static readonly string[] SolutionWriterFiles = ["SolutionWriter.cs", "SolutionChangeWriter.cs"];
+
     [Fact]
     public void services_do_not_call_ambient_output_adapters()
     {
@@ -132,6 +134,26 @@ public sealed class NoDirectConsoleUse
             .Where(node => node.Expression is IdentifierNameSyntax identifier
                 && identifier.Identifier.Text is "RtLog" or "RtConsole")
             .Select(node => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1)
+            .ToArray();
+
+        violations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void solution_writers_do_not_use_ambient_output()
+    {
+        var core = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core");
+        var violations = SolutionWriterFiles
+            .SelectMany(file =>
+            {
+                var root = CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(core, file)))
+                    .GetCompilationUnitRoot();
+                return root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+                    .Where(node => node.Expression is IdentifierNameSyntax identifier
+                        && identifier.Identifier.Text is "RtConsole" or "RtLog")
+                    .Select(node => $"{file}:{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}")
+                    .ToArray();
+            })
             .ToArray();
 
         violations.ShouldBeEmpty();

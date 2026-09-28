@@ -12,13 +12,15 @@ namespace RoslynTools.Core;
 internal static class SolutionWriter
 {
     /// <summary>
-    /// Applies changes to a solution asynchronously.
+    /// Applies changes to a solution asynchronously and reports progress to the optional sink.
     /// </summary>
     internal static async Task ApplyChangesAsync(
         Solution originalSolution,
         Solution newSolution,
-        bool dryRun)
+        bool dryRun,
+        ISolutionWriteOutput? output = null)
     {
+        output ??= NullSolutionWriteOutput.Instance;
         var changes = newSolution.GetChanges(originalSolution);
         var fileCount = 0;
 
@@ -35,13 +37,13 @@ internal static class SolutionWriter
 
                 if (dryRun)
                 {
-                    PrintDiff(oldText.ToString(), newText.ToString(), filePath);
+                    PrintDiff(oldText.ToString(), newText.ToString(), filePath, output);
                 }
                 else
                 {
                     var encoding = newText.Encoding ?? Encoding.UTF8;
                     File.WriteAllText(filePath, newText.ToString(), encoding);
-                    RtConsole.WriteLine(RtOutputContext.Result, $"Updated: {filePath}");
+                    output.Result($"Updated: {filePath}");
                 }
 
                 fileCount++;
@@ -55,15 +57,15 @@ internal static class SolutionWriter
 
                 if (string.IsNullOrEmpty(filePath))
                 {
-                    RtLog.Warning("Added document '{Name}' has no file path — skipped.", newDoc.Name);
+                    output.Warning($"Added document '{newDoc.Name}' has no file path — skipped.");
                     continue;
                 }
 
                 if (dryRun)
                 {
-                    RtConsole.WriteLine(RtOutputContext.Diff, $"\n+++ {filePath} (new file)");
+                    output.Diff($"\n+++ {filePath} (new file)");
                     foreach (var line in newText.Lines)
-                        RtConsole.WriteLine(RtOutputContext.Diff, $"+{line}");
+                        output.Diff($"+{line}");
                 }
                 else
                 {
@@ -73,7 +75,7 @@ internal static class SolutionWriter
 
                     var encoding = newText.Encoding ?? Encoding.UTF8;
                     File.WriteAllText(filePath, newText.ToString(), encoding);
-                    RtConsole.WriteLine(RtOutputContext.Result, $"Created: {filePath}");
+                    output.Result($"Created: {filePath}");
                 }
 
                 fileCount++;
@@ -81,20 +83,22 @@ internal static class SolutionWriter
         }
 
         if (fileCount == 0)
-            RtConsole.WriteLine(RtOutputContext.Result, "No changes.");
+            output.Result("No changes.");
         else if (dryRun)
-            RtConsole.WriteLine(RtOutputContext.Diff, $"\n[dry-run] {fileCount} file(s) would be modified.");
+            output.Diff($"\n[dry-run] {fileCount} file(s) would be modified.");
         else
-            RtConsole.WriteLine(RtOutputContext.Result, $"\nDone. {fileCount} file(s) updated.");
+            output.Result($"\nDone. {fileCount} file(s) updated.");
     }
 
     /// <summary>
-    /// Prints the difference between two strings.
+    /// Reports the difference between two strings to the optional sink.
     /// </summary>
-    internal static void PrintDiff(string oldText, string newText, string filePath)
+    internal static void PrintDiff(
+        string oldText, string newText, string filePath, ISolutionWriteOutput? output = null)
     {
-        RtConsole.WriteLine(RtOutputContext.Diff, $"\n--- {filePath}");
-        RtConsole.WriteLine(RtOutputContext.Diff, $"+++ {filePath}");
+        output ??= NullSolutionWriteOutput.Instance;
+        output.Diff($"\n--- {filePath}");
+        output.Diff($"+++ {filePath}");
 
         var diffBuilder = new InlineDiffBuilder(new Differ());
         var diff = diffBuilder.BuildDiffModel(oldText, newText);
@@ -114,7 +118,7 @@ internal static class SolutionWriter
             var hunkStart = Math.Max(0, i - contextSize);
             var hunkEnd = ExtendHunkEnd(entries, i, contextSize);
 
-            EmitHunk(entries, hunkStart, hunkEnd);
+            EmitHunk(entries, hunkStart, hunkEnd, output);
 
             i = hunkEnd;
         }
@@ -188,7 +192,8 @@ internal static class SolutionWriter
     private static void EmitHunk(
         List<(ChangeType Type, string Text, int OldLine, int NewLine)> entries,
         int hunkStart,
-        int hunkEnd)
+        int hunkEnd,
+        ISolutionWriteOutput output)
     {
         int oldCount = 0, newCount = 0;
         for (var k = hunkStart; k < hunkEnd; k++)
@@ -206,7 +211,7 @@ internal static class SolutionWriter
                     break;
             }
 
-        RtConsole.WriteLine(RtOutputContext.Diff,
+        output.Diff(
             $"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
 
         for (var k = hunkStart; k < hunkEnd; k++)
@@ -217,7 +222,7 @@ internal static class SolutionWriter
                 ChangeType.Deleted => "-",
                 _ => " "
             };
-            RtConsole.WriteLine(RtOutputContext.Diff, $"{prefix}{entries[k].Text}");
+            output.Diff($"{prefix}{entries[k].Text}");
         }
     }
 }

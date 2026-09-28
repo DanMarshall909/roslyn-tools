@@ -6,20 +6,27 @@ namespace RoslynTools.Core;
 
 /// <summary>
 /// The default <see cref="ISolutionChangeWriter" />. Legacy dry runs retain their diff
-/// rendering while non-preview writes use the prepared mutation boundary.
+/// report when a sink is supplied; non-preview writes use the prepared mutation boundary.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
 internal sealed class SolutionChangeWriter : ISolutionChangeWriter
 {
+    private readonly ISolutionWriteOutput _output;
+
+    internal SolutionChangeWriter(ISolutionWriteOutput? output = null)
+    {
+        _output = output ?? NullSolutionWriteOutput.Instance;
+    }
+
     /// <summary>
-    ///     Preserves legacy dry-run rendering and applies non-preview solution deltas through
+    ///     Preserves legacy dry-run reports and applies non-preview solution deltas through
     ///     the staged prepared writer.
     /// </summary>
     public Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun)
     {
         if (dryRun)
-            return SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun: true);
+            return SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun: true, _output);
 
         var changeSet = new PreparedChangeSet(originalSolution, newSolution);
         if (!changeSet.HasChanges)
@@ -36,7 +43,7 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
     {
         if (fixes.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "No changes.");
+            _output.Result("No changes.");
             return;
         }
 
@@ -44,13 +51,13 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
         {
             foreach (var fix in fixes)
             {
-                RtConsole.WriteLine(RtOutputContext.Result, $"[fix {fix.Id}]");
+                _output.Result($"[fix {fix.Id}]");
                 foreach (var file in fix.Files)
                 {
                     var doc = originalSolution.GetDocument(file.DocumentId)
                         ?? throw new InvalidOperationException($"Fix '{fix.Id}' references unknown document {file.DocumentId}.");
                     var oldText = (await doc.GetTextAsync()).ToString();
-                    SolutionWriter.PrintDiff(oldText, file.NewText, file.Path);
+                    SolutionWriter.PrintDiff(oldText, file.NewText, file.Path, _output);
                 }
             }
             return;

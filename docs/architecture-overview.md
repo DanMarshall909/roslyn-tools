@@ -194,6 +194,9 @@ Core; its internal namespace and host behavior are preserved. See
 Duplicate extraction warnings and the match summary now pass through an
 injected logger; Core no longer renders those diagnostics directly. See
 [ADR-0071](adr/0071-extraction-diagnostics-through-logger.md).
+Solution writers now report diff, result, and warning lines through a Core
+sink whose console implementation lives in Hosting. See
+[ADR-0072](adr/0072-solution-writer-report-sink.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

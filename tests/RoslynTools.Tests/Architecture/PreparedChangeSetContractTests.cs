@@ -415,13 +415,30 @@ public sealed class PreparedChangeSetContractTests
             documentId,
             SourceText.From("class After;"));
         var console = new CollectingConsole();
+        var output = new RecordingSolutionWriteOutput();
 
         using (RtConsole.UseConsole(console))
-            await new SolutionChangeWriter().ApplyChangesAsync(original, changed, dryRun: true);
+            await new SolutionChangeWriter(output).ApplyChangesAsync(original, changed, dryRun: true);
 
-        console.Diff.ShouldContain(line => line.Contains("--- Changed.cs", StringComparison.Ordinal));
-        console.Diff.ShouldContain(line => line.Contains("class After;", StringComparison.Ordinal));
-        console.Diff.ShouldContain(line => line.Contains("[dry-run]", StringComparison.Ordinal));
+        output.DiffLines.ShouldContain(line => line.Contains("--- Changed.cs", StringComparison.Ordinal));
+        output.DiffLines.ShouldContain(line => line.Contains("class After;", StringComparison.Ordinal));
+        output.DiffLines.ShouldContain(line => line.Contains("[dry-run]", StringComparison.Ordinal));
+        console.Diff.ShouldBeEmpty();
+    }
+
+    private sealed class RecordingSolutionWriteOutput : ISolutionWriteOutput
+    {
+        internal List<string> DiffLines { get; } = [];
+
+        public void Result(string message)
+        {
+        }
+
+        public void Diff(string message) => DiffLines.Add(message);
+
+        public void Warning(string message)
+        {
+        }
     }
 
     private sealed class RecordingPreparedChangeSetWriter : IPreparedChangeSetWriter
