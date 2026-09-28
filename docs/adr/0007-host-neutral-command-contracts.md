@@ -138,4 +138,4 @@ new shared hosting project.
 - [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - [Architecture overview](../architecture-overview.md)
 - [Command application-port migration playbook](../command-application-port-migration.md)
-- [rt-007](../issues/open/architecture/rt-007-shared-command-descriptors.md)
+- [rt-007](../issues/resolved/architecture/rt-007-shared-command-descriptors.md)

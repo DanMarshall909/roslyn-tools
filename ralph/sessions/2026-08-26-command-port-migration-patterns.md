@@ -31,7 +31,7 @@ ADR-0003 is authoritative for this migration:
 
 The older native-handler wording in EP-012, ADR-0001, and the target-command ticket
 alignment is superseded by ADR-0003. The remaining implementation work is already
-tracked by [rt-007](../../docs/issues/open/architecture/rt-007-shared-command-descriptors.md),
+tracked by [rt-007](../../docs/issues/resolved/architecture/rt-007-shared-command-descriptors.md),
 whose final unchecked criterion is full port coverage and bridge deletion.
 
 ---

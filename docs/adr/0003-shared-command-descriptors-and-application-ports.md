@@ -61,4 +61,4 @@ unless they explicitly opt into a non-host-specific use case.
 - Related ADRs: [ADR-0001](0001-core-service-thin-host-adapters.md)
 - Related docs: [architecture overview](../architecture-overview.md),
   [target command surface](../target-command-surface-architecture.md)
-- Issue: [rt-007](../issues/open/architecture/rt-007-shared-command-descriptors.md)
+- Issue: [rt-007](../issues/resolved/architecture/rt-007-shared-command-descriptors.md)

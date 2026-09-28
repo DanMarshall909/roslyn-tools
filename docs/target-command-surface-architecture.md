@@ -54,7 +54,7 @@ MCP JSON -> generic MCP adapter --┘             |
 - Read MCP tool schema/input binding from the host-neutral application definition.
 - Bind JSON to the definition's typed application request.
 - Invoke the same `ICommandApplicationPort` as the CLI adapter.
-- Return structured content plus text fallback once the MCP protocol upgrade lands.
+- Return structured content plus a text view of the same result.
 - Keep command-specific MCP handlers out of the dispatch path.
 
 #### MCP Adapter Flag Reuse
@@ -65,8 +65,10 @@ or consume CLI capability interfaces. The central flag catalog remains the CLI s
 for option spelling and parsing; architecture tests prove its projection agrees with
 the shared request definition where the surfaces overlap.
 
-Port-backed commands generate schemas from request contracts. Compatibility-bridge
-commands are the remaining migration debt tracked by rt-007.
+All MCP-discoverable commands use typed application ports, and their schemas
+come from request contracts. The compatibility bridge tracked by
+[rt-007](issues/resolved/architecture/rt-007-shared-command-descriptors.md)
+has been removed.
 
 Composes with the [per-command checklist](per-command-checklist.md): once a flag capability lands in the catalog, both CLI and MCP surfaces inherit the same name/description/validation automatically.
 
