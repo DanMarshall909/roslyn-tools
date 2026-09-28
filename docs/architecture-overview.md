@@ -169,6 +169,10 @@ Services leave process exit status to the host. The add-dependency service
 returns failure outcomes without setting `Environment.ExitCode`, and a source
 test prevents this behavior from returning to Services. See
 [ADR-0064](adr/0064-service-exit-status-is-host-owned.md).
+The five text, JSON, YAML, Markdown, and LLM format renderers also compile in
+CLI with `RtSerializer`; an assembly placement test covers them. Core retains
+shared output contracts and JSON encoder selection. See
+[ADR-0065](adr/0065-cli-owned-format-renderers.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

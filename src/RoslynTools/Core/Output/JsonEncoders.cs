@@ -9,7 +9,7 @@ namespace RoslynTools.Core.Output;
 ///     output paths:
 ///     <list type="bullet">
 ///         <item><c>StructuredOutput.Write</c> (CLI anonymous-object writes)</item>
-///         <item><see cref="Renderers.JsonRenderer.Write" /> (IRtOutput → JSON)</item>
+///         <item><c>JsonRenderer.Write</c> (IRtOutput → JSON)</item>
 ///         <item>Native MCP handlers (DescribeHandler, OutlineHandler)</item>
 ///     </list>
 ///     <para>
