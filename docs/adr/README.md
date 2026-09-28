@@ -121,3 +121,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0054](0054-cli-typed-daemon-dispatch-only.md) | CLI application commands enter daemon through typed ports | Accepted | 2026-09-28 |
 | [0055](0055-daemon-legacy-control-only.md) | Daemon legacy envelope is control only | Accepted | 2026-09-28 |
 | [0056](0056-daemon-owned-host-composition.md) | Daemon-owned host composition | Accepted | 2026-09-28 |
+| [0057](0057-host-dependency-and-contract-ratchets.md) | Host dependency and typed-contract ratchets | Accepted | 2026-09-28 |

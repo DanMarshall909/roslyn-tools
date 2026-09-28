@@ -138,6 +138,18 @@ comparisons. See
 CLI-only feedback operations remain registered only in the CLI process; direct
 daemon RPC for their legacy names returns `command_not_found`.
 
+Architecture tests lock the production project graph: Core has no project
+reference; Hosting depends only on Core; MCP and DaemonHost depend only on Core
+and Hosting; CLI depends on Core, Hosting, and DaemonHost. Compiled-reference
+checks reject host assemblies in Core and shared Hosting, while package checks
+keep CLI parser and terminal-renderer dependencies in the CLI project. A
+cross-host test compares the name, request/response types, safety, and visibility
+of every typed application descriptor across CLI, MCP, and daemon composition.
+New host adapters must extend this ratchet. See
+[ADR-0057](adr/0057-host-dependency-and-contract-ratchets.md). These tests
+guard project and assembly dependencies; the remaining daemon transport
+implementation inside Core still needs its own placement tracer.
+
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
 SDK selection, and process-global registration stay in host adapter assemblies. For
@@ -901,6 +913,10 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 ## Current migration tensions
 
+- **Daemon transport helpers still live in Core.** The pipe client, process
+  launcher, RPC dispatcher, and related protocol helpers remain in the reusable
+  assembly. Move these host transport implementations to Hosting or DaemonHost,
+  then extend the architecture ratchet to reject their return to Core under #53.
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Daemon application routing is typed.** The legacy envelope accepts only
   exact lifecycle controls; application operations use structured typed RPC.
@@ -1023,10 +1039,6 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Final host architecture ratchets remain open.** CLI, MCP, and DaemonHost
-  compose the same typed application contracts independently. The daemon server
-  remains launched from the CLI binary for packaging and lifecycle control.
-  Add comprehensive dependency and contract tests before closing #53.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.
