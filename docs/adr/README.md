@@ -139,3 +139,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0072](0072-solution-writer-report-sink.md) | Solution writers report through a host-owned sink | Accepted | 2026-09-29 |
 | [0073](0073-host-owned-ambient-console.md) | Ambient console and logging bridges belong to shared hosting | Accepted | 2026-09-29 |
 | [0074](0074-mcp-solution-report-boundary.md) | MCP solution write reports stay out of the protocol stream | Accepted | 2026-09-29 |
+| [0075](0075-cli-owned-github-issue-process-adapter.md) | The GitHub issue process adapter belongs to CLI | Accepted | 2026-09-29 |

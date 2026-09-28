@@ -205,6 +205,9 @@ MCP replaces the shared console report sink with a no-op sink so solution
 write reports cannot enter its JSON-RPC stream; typed mutation results remain
 structured tool responses. See
 [ADR-0074](adr/0074-mcp-solution-report-boundary.md).
+The authenticated `gh` process adapter for feedback commands now compiles in
+CLI while the injectable issue-client contract stays in reusable Services.
+See [ADR-0075](adr/0075-cli-owned-github-issue-process-adapter.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
