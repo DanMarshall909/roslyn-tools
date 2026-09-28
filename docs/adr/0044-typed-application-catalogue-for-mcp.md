@@ -20,10 +20,11 @@ configured exact MCP names against its public, port-backed entries. The
 catalogue is lazy because some application ports depend on the capability
 catalogue during service registration. Legacy maintainer ports are excluded.
 
-The CLI descriptor registry remains a separate projection for CLI metadata and
-legacy maintainer commands until shared registration and the remaining CLI
-projection are migrated. The MCP host still uses CLI `Bootstrap` for DI and
-host-specific adapters.
+The CLI descriptor registry consumes the shared catalogue for typed command
+identity, port, definition, safety, effects, and audience. It projects CLI
+paths, option metadata, and descriptions by constructing CLI command objects.
+Legacy maintainer descriptors remain local to the CLI projection. The MCP host
+still uses CLI `Bootstrap` for DI and host-specific adapters.
 
 ## Consequences
 
@@ -31,7 +32,8 @@ host-specific adapters.
   the typed definitions. Tool listing order now follows typed port registration;
   callers must use tool names rather than list positions.
 - MCP no longer needs to construct CLI command objects for tool discovery or
-  dispatch. The CLI project reference remains until registration and host
+  dispatch. CLI typed descriptors reuse the same port and definition instances
+  as MCP. The CLI project reference remains until registration and host
   adapters move in a later slice.
 - Exact-name configuration validation uses the same typed, public tool set as
   MCP availability, avoiding acceptance of a CLI-only name.
@@ -42,4 +44,5 @@ host-specific adapters.
   adapter would continue to own application metadata and force CLI command
   construction in MCP.
 - Move the entire DI registration and CLI descriptor projection at once:
-  deferred so this tracer can verify MCP parity before changing the CLI host.
+  deferred so the first tracer could verify MCP parity before changing the CLI
+  projection. The CLI projection followed as a separately verified slice.

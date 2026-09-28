@@ -98,6 +98,21 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void cli_descriptor_projection_reuses_the_shared_typed_catalogue()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var shared = provider.GetRequiredService<ApplicationCommandCatalog>();
+        var cli = provider.GetRequiredService<CommandDescriptorRegistry>();
+
+        foreach (var descriptor in cli.All.Where(candidate => candidate.Definition is not null))
+        {
+            shared.TryGetByToolName(descriptor.ToolName, out var application).ShouldBeTrue();
+            descriptor.Port.ShouldBeSameAs(application.Port);
+            descriptor.Definition.ShouldBeSameAs(application.Definition);
+        }
+    }
+
+    [Fact]
     public void local_trust_control_plane_is_not_an_mcp_descriptor_or_tool()
     {
         using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());

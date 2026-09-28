@@ -22,7 +22,7 @@ internal sealed class CommandDescriptorRegistry
     private readonly Dictionary<string, ApplicationCommandDescriptor> _byToolName;
 
     public CommandDescriptorRegistry(
-        IEnumerable<ICommandApplicationPort> ports,
+        ApplicationCommandCatalog catalogue,
         FeedbackAddOperation feedbackAdd,
         FeedbackListOperation feedbackList,
         FeedbackProcessOperation feedbackProcess,
@@ -32,54 +32,57 @@ internal sealed class CommandDescriptorRegistry
         DurablePrepareOperation durablePrepare,
         IGitClient git)
     {
-        var portsByName = ports.ToDictionary(
-            port => port.Definition.Name,
-            StringComparer.Ordinal);
         var descriptors = App.AllCommands
             .Where(entry => !App.LocalOnlyCommandNames.Contains(entry.Info.Name))
-            .Select(entry =>
+        .Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
-            portsByName.TryGetValue(toolName, out var port);
-            var applicationDefinition = port is null or ILegacyCommandApplicationPort
-                ? null
-                : port.Definition;
+            var command = entry.Build();
+            var input = DescribeInput(command);
+            if (catalogue.TryGetByToolName(toolName, out var application))
+            {
+                var typedInfo = application.Definition?.Info ?? entry.Info;
+                return application with
+                {
+                    Path = application.Audience == CommandAudience.TrustedExperimental
+                        ? ["trusted", typedInfo.Name]
+                        : [typedInfo.Category, typedInfo.Name],
+                    Description = typedInfo.WhenToUse,
+                    Input = input,
+                    McpVisible = application.McpVisible
+                                 && application.Audience == CommandAudience.Public
+                };
+            }
+
+            var info = entry.Info;
             var daemonDefinition = DaemonOwnedCommands.All.SingleOrDefault(
                 definition => string.Equals(definition.Name, toolName, StringComparison.Ordinal));
-            var info = applicationDefinition?.Info ?? entry.Info;
-            var command = entry.Build();
-            var audience = applicationDefinition?.Product.Audience
-                ?? (App.RemovedPublicCommandNames.Contains(info.Name)
+            var audience = App.RemovedPublicCommandNames.Contains(info.Name)
                 ? CommandAudience.Removed
                 : App.TrustedExperimentalCommandNames.Contains(info.Name)
                     ? CommandAudience.TrustedExperimental
-                    : CommandAudience.Public);
-            var effects = applicationDefinition?.Product.Effects
-                ?? (string.Equals(info.Name, "probe-di", StringComparison.Ordinal)
-                    ? CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution
-                    : info.Mutates
-                    ? CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite
-                    : CommandEffects.RepositoryRead);
+                    : CommandAudience.Public;
+            var effects = string.Equals(info.Name, "probe-di", StringComparison.Ordinal)
+                ? CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution
+                : info.Mutates
+                ? CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite
+                : CommandEffects.RepositoryRead;
             return new ApplicationCommandDescriptor(
                 audience == CommandAudience.TrustedExperimental
                     ? ["trusted", info.Name]
                     : [info.Category, info.Name],
-                applicationDefinition?.Name ?? toolName,
-                applicationDefinition?.Info.WhenToUse
-                ?? command.Description
-                ?? entry.Info.WhenToUse,
+                toolName,
+                command.Description ?? entry.Info.WhenToUse,
                 info.WhenToUse,
-                DescribeInput(command),
-                (applicationDefinition?.McpVisible ?? !entry.Info.Mutates)
-                && audience == CommandAudience.Public,
+                input,
+                !entry.Info.Mutates && audience == CommandAudience.Public,
                 ToDescriptorSafety(
-                    applicationDefinition?.Safety ?? daemonDefinition?.Safety,
+                    daemonDefinition?.Safety,
                     info.Mutates),
                 info.JsonOutput
-                || info.SupportedFormats?.Contains(OutputFormat.Json) == true
-                || port is not null,
-                port,
-                applicationDefinition,
+                || info.SupportedFormats?.Contains(OutputFormat.Json) == true,
+                null,
+                null,
                 effects,
                 audience);
         }).ToList();
@@ -130,15 +133,15 @@ internal sealed class CommandDescriptorRegistry
         AddTypedMetaCommand(
             () => SuggestCommand.Build(suggest, git),
             ["suggest"],
-            suggest);
+            suggest.Definition.Name);
         AddTypedMetaCommand(
             () => PrimeCommand.Build(prime),
             ["prime"],
-            prime);
+            prime.Definition.Name);
         AddTypedMetaCommand(
             () => DurablePrepareCommand.Build(durablePrepare),
             ["prepare-operation"],
-            durablePrepare);
+            durablePrepare.Definition.Name);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -177,26 +180,20 @@ internal sealed class CommandDescriptorRegistry
         void AddTypedMetaCommand(
             Func<Command> build,
             IReadOnlyList<string> path,
-            ICommandApplicationPort port)
+            string toolName)
         {
-            if (port is ILegacyCommandApplicationPort)
-                throw new ArgumentException("A typed meta command requires a host-neutral definition.", nameof(port));
+            if (!catalogue.TryGetByToolName(toolName, out var application))
+                throw new ArgumentException(
+                    "A typed meta command requires a host-neutral definition.",
+                    nameof(toolName));
 
-            var definition = port.Definition;
             var command = build();
-            descriptors.Add(new ApplicationCommandDescriptor(
-                path,
-                definition.Name,
-                command.Description ?? definition.Info.WhenToUse,
-                definition.Info.WhenToUse,
-                DescribeInput(command),
-                definition.McpVisible,
-                ToDescriptorSafety(definition.Safety, definition.Info.Mutates),
-                Structured: true,
-                port,
-                definition,
-                definition.Product.Effects,
-                definition.Product.Audience));
+            descriptors.Add(application with
+            {
+                Path = path,
+                Description = command.Description ?? application.WhenToUse,
+                Input = DescribeInput(command)
+            });
         }
     }
 
