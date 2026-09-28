@@ -2175,6 +2175,78 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Theory]
+    [InlineData("ArtifactUnlink", "InventoryPending")]
+    [InlineData("EmptyRootRemoval", "ArtifactRemoved")]
+    public async Task visible_physical_cleanup_without_a_flush_remains_pending_on_later_reservation(
+        string failedBoundary,
+        string expectedLastRecordName)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        var (request, plan, artifact) = await PrepareRejectedStagingAsync(fixture);
+        var operationRoot = Path.GetDirectoryName(artifact.ArtifactPath)!;
+        var expectedLastRecord = Enum.Parse<OperationCleanupJournalKind>(expectedLastRecordName);
+        var persistentFault = new FailVisiblePhysicalCleanupFlush(
+            artifact.ArtifactPath, failedBoundary);
+        using (var first = await fixture.Reservations.AcquireAsync(
+                   plan.Envelope.Payload.Repository, CancellationToken.None))
+        {
+            new JournaledNoEffectCleanup(
+                    fixture.CreatePlainLedger(), fixture.Store,
+                    new LinuxStagingCleanupBoundary(
+                        plan.Envelope.Payload.Coordination.StagingRoot, persistentFault))
+                .Cleanup(request.RepositoryId, request.OperationId, first)
+                .Match(_ => throw new InvalidOperationException(
+                        "An unflushed physical cleanup was accepted."),
+                    failure => failure.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.ArtifactUnavailable);
+        }
+
+        persistentFault.FailedTargetFlushes.ShouldBe(1);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        Directory.Exists(operationRoot).ShouldBe(failedBoundary == "ArtifactUnlink");
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind.ShouldBe(expectedLastRecord);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(
+                    plan.Envelope.Payload.Coordination.StagingRoot, persistentFault))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException(
+                    "A visible but unflushed physical cleanup replayed."),
+                failure => failure.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.ArtifactUnavailable);
+        persistentFault.FailedTargetFlushes.ShouldBe(2);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind.ShouldBe(expectedLastRecord);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        Directory.Exists(operationRoot).ShouldBeFalse();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        AssertCrashProbeRepositoryUnchanged(fixture.RepositoryRoot);
+    }
+
+    [Theory]
     [InlineData("ArtifactUnlink")]
     [InlineData("ArtifactRemovalRecord")]
     [InlineData("EmptyRootRemoval")]
@@ -7453,6 +7525,55 @@ public sealed class JournaledApplyAuthorityTests
                 throw new IOException("Injected visible plan pin release directory flush failure.");
             }
             using var handle = LinuxStagingHandles.OpenAbsoluteDirectory(directory);
+            LinuxStagingHandles.FlushDirectory(handle);
+        }
+    }
+
+    private sealed class FailVisiblePhysicalCleanupFlush : IStagingArtifactDurability
+    {
+        private readonly string _artifactPath;
+        private readonly string _operationRoot;
+        private readonly string _failedBoundary;
+        private readonly LinuxStagingHandles.StatxIdentity _targetIdentity;
+
+        internal FailVisiblePhysicalCleanupFlush(string artifactPath, string failedBoundary)
+        {
+            _artifactPath = artifactPath;
+            _operationRoot = Path.GetDirectoryName(artifactPath)!;
+            _failedBoundary = failedBoundary;
+            var targetDirectory = failedBoundary switch
+            {
+                "ArtifactUnlink" => _operationRoot,
+                "EmptyRootRemoval" => Path.GetDirectoryName(_operationRoot)!,
+                _ => throw new InvalidOperationException("Unknown physical cleanup cut.")
+            };
+            using var target = LinuxStagingHandles.OpenAbsoluteDirectory(targetDirectory);
+            _targetIdentity = LinuxStagingHandles.Identity(target);
+        }
+
+        internal int FailedTargetFlushes { get; private set; }
+
+        public void FlushFile(FileStream stream) => stream.Flush(flushToDisk: true);
+
+        public void FlushDirectory(SafeFileHandle handle)
+        {
+            var actual = LinuxStagingHandles.Identity(handle);
+            var isTarget = actual.MountId == _targetIdentity.MountId
+                && actual.DeviceMajor == _targetIdentity.DeviceMajor
+                && actual.DeviceMinor == _targetIdentity.DeviceMinor
+                && actual.Inode == _targetIdentity.Inode;
+            var shouldFail = isTarget && (_failedBoundary switch
+            {
+                "ArtifactUnlink" => !File.Exists(_artifactPath)
+                    && Directory.Exists(_operationRoot),
+                "EmptyRootRemoval" => !Directory.Exists(_operationRoot),
+                _ => throw new InvalidOperationException("Unknown physical cleanup cut.")
+            });
+            if (shouldFail)
+            {
+                FailedTargetFlushes++;
+                throw new IOException("Injected visible physical cleanup directory flush failure.");
+            }
             LinuxStagingHandles.FlushDirectory(handle);
         }
     }
