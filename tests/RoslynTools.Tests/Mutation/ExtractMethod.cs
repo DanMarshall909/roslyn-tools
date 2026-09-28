@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 using Xunit.Sdk;
 using Shouldly;
@@ -1170,17 +1171,13 @@ public class ExtractMethod
     //  --replace-duplicates: AC5 — overlapping match in the same file is skipped
     //  with a warning; non-overlapping same-file matches are both replaced.
     //
-    //  The overlap path is exercised via MethodExtractorDuplicates.ApplyMatchesAsync,
-    //  a test-seam overload that accepts a pre-built match list. Without that seam
-    //  the overlap guard cannot be triggered because PatternMatcher only returns
-    //  structurally-exact same-count matches (no subset matches). The test below
-    //  verifies the non-overlapping path emits zero warnings (baseline), and a
-    //  companion test verifies the warning IS emitted via the public test seam
-    //  on MethodExtractorDuplicates.
+    //  The overlap path uses a pre-built match list because PatternMatcher
+    //  returns structurally exact matches that do not overlap. The tests cover
+    //  both ordinary replacement and a skipped overlapping match.
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task rejects_non_overlapping_same_file_duplicates_produce_no_warnings()
+    public async Task non_overlapping_same_file_duplicates_report_replacements_without_warnings()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -1203,9 +1200,9 @@ public class ExtractMethod
                                   """);
 
         var warnings = new List<string>();
+        var summaries = new List<string>();
         var (workspace, sln) = project.Build();
         using (workspace)
-        using (RtLog.UseLogger(new CollectingLogger(warnings)))
         {
             var newSln = await MethodExtractor.ExtractAsync(
                 sln,
@@ -1213,7 +1210,8 @@ public class ExtractMethod
                 "PrintMessages",
                 7,
                 8,
-                replaceDuplicates: true);
+                replaceDuplicates: true,
+                logger: new RecordingDiagnosticsLogger(warnings, summaries));
             await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
@@ -1222,15 +1220,16 @@ public class ExtractMethod
         GetMethodBody(content, "Dupe1").ShouldContain("PrintMessages();", Case.Sensitive);
         // No overlapping ranges — no warning expected.
         warnings.ShouldBeEmpty();
+        summaries.ShouldContain("matches found: 1, replaced: 1, skipped: 0");
     }
 
     [Fact]
     public async Task overlapping_match_emits_warning_and_is_skipped()
     {
-        // Verify the overlap guard emits RtLog.Warning rather than silently discarding
+        // Verify the overlap guard emits a warning rather than silently discarding
         // the match. We inject two PatternMatch objects with overlapping line ranges via
         // MethodExtractorDuplicates.ApplyMatchesAsync (the test-seam overload). This
-        // test will be RED until that overload exists AND the guard emits a warning.
+        // This checks the skipped-match diagnostic and summary together.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
                                   namespace TestApp;
@@ -1266,22 +1265,22 @@ public class ExtractMethod
                 new Dictionary<string, string>(), "");
 
             var warnings = new List<string>();
-            using (RtLog.UseLogger(new CollectingLogger(warnings)))
-            {
-                await MethodExtractorDuplicates.ApplyMatchesAsync(
-                    newSln,
-                    absPath,
-                    7,
-                    8,
-                    [matchA, matchB],
-                    "PrintMessages",
-                    [],
-                    []);
-            }
+            var summaries = new List<string>();
+            await MethodExtractorDuplicates.ApplyMatchesAsync(
+                newSln,
+                absPath,
+                7,
+                8,
+                [matchA, matchB],
+                "PrintMessages",
+                [],
+                [],
+                new RecordingDiagnosticsLogger(warnings, summaries));
 
             // One match replaced, one skipped with a warning.
             Assert.Single(warnings);
             Assert.Contains("overlap", warnings[0], StringComparison.OrdinalIgnoreCase);
+            summaries.ShouldContain("matches found: 2, replaced: 1, skipped: 1");
         }
     }
 
@@ -1887,12 +1886,25 @@ public class ExtractMethod
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private sealed class CollectingLogger(List<string> sink) : IRtLogger
+    private sealed class RecordingDiagnosticsLogger(
+        List<string> warnings,
+        List<string> summaries) : ILogger
     {
-        public void Log(RtLogLevel level, string message)
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
         {
-            if (level == RtLogLevel.Warning)
-                sink.Add(message);
+            if (logLevel == LogLevel.Warning)
+                warnings.Add(formatter(state, exception));
+            if (logLevel == LogLevel.Information)
+                summaries.Add(formatter(state, exception));
         }
     }
 }

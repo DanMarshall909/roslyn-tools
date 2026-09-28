@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -36,10 +38,13 @@ internal sealed record ExtractMethodResult(
 /// <summary>Shared extract-method operation used by CLI, daemon RPC, and MCP adapters.</summary>
 internal sealed class ExtractMethodOperation(
     IWorkspaceSessionFactory sessionFactory,
-    ISolutionChangeWriter solutionChangeWriter)
+    ISolutionChangeWriter solutionChangeWriter,
+    ILogger<ExtractMethodOperation>? logger = null)
     : CommandApplicationPort<ExtractMethodRequest, MutationExecutionResult<ExtractMethodResult>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ILogger<ExtractMethodOperation> _logger =
+        logger ?? NullLogger<ExtractMethodOperation>.Instance;
     private readonly PreparedChangeSetExecutor _changeSetExecutor = new(
         new SolutionPreparedChangeSetWriter(solutionChangeWriter));
 
@@ -68,7 +73,8 @@ internal sealed class ExtractMethodOperation(
                     request.EndLine,
                     request.After,
                     request.Before,
-                    request.ReplaceDuplicates);
+                    request.ReplaceDuplicates,
+                    _logger);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var result = new ExtractMethodResult(

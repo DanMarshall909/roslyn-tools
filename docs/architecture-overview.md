@@ -191,6 +191,9 @@ Core no longer reads that CLI flag. See
 The process-global output context now lives in shared Hosting rather than
 Core; its internal namespace and host behavior are preserved. See
 [ADR-0070](adr/0070-host-owned-output-context.md).
+Duplicate extraction warnings and the match summary now pass through an
+injected logger; Core no longer renders those diagnostics directly. See
+[ADR-0071](adr/0071-extraction-diagnostics-through-logger.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

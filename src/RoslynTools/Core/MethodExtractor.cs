@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
 
 namespace RoslynTools.Core;
 
@@ -25,7 +26,8 @@ internal static class MethodExtractor
         int endLine,
         string? insertAfter = null,
         string? insertBefore = null,
-        bool replaceDuplicates = true)
+        bool replaceDuplicates = true,
+        ILogger? logger = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(startLine, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(endLine, 1);
@@ -41,7 +43,7 @@ internal static class MethodExtractor
         if (cfClass.Strategy == ControlFlowStrategy.ExtractAsBoolGuard)
             return await ExtractGuardAsync(
                 solution, doc, root, model, selected, newMethodName,
-                insertAfter, insertBefore, replaceDuplicates, filePath);
+                insertAfter, insertBefore, replaceDuplicates, filePath, logger);
 
         // ── Standard extraction path (no control-flow escape) ─────────────────
         var flow = ValidateDataFlow(model, selected);
@@ -90,7 +92,8 @@ internal static class MethodExtractor
             orderedParams,
             refParams,
             outParams,
-            returnVars);
+            returnVars,
+            logger);
     }
 
     // ────────────────────────────────────────────────────────────────────────────
@@ -107,7 +110,8 @@ internal static class MethodExtractor
         string? insertAfter,
         string? insertBefore,
         bool replaceDuplicates,
-        string filePath)
+        string filePath,
+        ILogger? logger)
     {
         // The guard must be a single if-statement (could be 1 stmt or multi-stmt with void guards)
         // For a single if-statement guard:
@@ -200,7 +204,8 @@ internal static class MethodExtractor
             bodyEndLine,
             newMethodName,
             orderedParams,
-            emptyReturnVars);
+            emptyReturnVars,
+            logger);
     }
 
     /// <summary>

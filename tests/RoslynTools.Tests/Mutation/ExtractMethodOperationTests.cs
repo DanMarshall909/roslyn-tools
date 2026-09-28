@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -6,6 +8,33 @@ namespace RoslynTools.Tests.Mutation;
 
 public sealed class ExtractMethodOperationTests
 {
+    [Fact]
+    public async Task ExecuteAsync_reports_duplicate_scan_diagnostics_through_its_logger()
+    {
+        using var project = CreateProject();
+        var (workspace, solution) = project.Build();
+        var logger = new RecordingLogger();
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        services.AddSingleton<IWorkspaceSessionFactory>(new FixedWorkspaceSessionFactory(workspace, solution));
+        services.AddSingleton<ISolutionChangeWriter>(new CapturingSolutionChangeWriter());
+        services.AddSingleton<ILogger<ExtractMethodOperation>>(logger);
+
+        using (workspace)
+        using (var provider = services.BuildServiceProvider())
+        {
+            var operation = provider.GetRequiredService<ExtractMethodOperation>();
+            var request = CreateRequest(project, dryRun: true) with
+            {
+                ReplaceDuplicates = true
+            };
+            var result = await operation.ExecuteAsync(request);
+
+            result.IsOk.ShouldBeTrue();
+            logger.Messages.ShouldContain("matches found: 0, replaced: 0, skipped: 0");
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_applies_the_prepared_extraction_when_requested()
     {
@@ -151,5 +180,25 @@ public sealed class ExtractMethodOperationTests
         public Task<(Microsoft.CodeAnalysis.Workspace Workspace, Microsoft.CodeAnalysis.Solution Solution)>
             LoadWorkspaceAsync(string? solutionPath) =>
             throw new InvalidOperationException("Workspace loading must not start after request validation.");
+    }
+
+    private sealed class RecordingLogger : ILogger<ExtractMethodOperation>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Information)
+                Messages.Add(formatter(state, exception));
+        }
     }
 }

@@ -2,6 +2,8 @@ using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace RoslynTools.Core;
 
@@ -22,10 +24,11 @@ internal static class MethodExtractorDuplicates
         int newMethodEndLine,
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
-        IReadOnlyList<ISymbol> returnVars)
+        IReadOnlyList<ISymbol> returnVars,
+        ILogger? logger = null)
     {
         return ReplaceDuplicatesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine,
-            newMethodName, orderedParameters, [], [], returnVars);
+            newMethodName, orderedParameters, [], [], returnVars, logger);
     }
 
     /// <summary>
@@ -41,7 +44,8 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> refParams,
         IReadOnlyList<ISymbol> outParams,
-        IReadOnlyList<ISymbol> returnVars)
+        IReadOnlyList<ISymbol> returnVars,
+        ILogger? logger = null)
     {
         // Find all structural matches using the extracted body as the pattern
         var matches = await PatternMatcher.FindMatchesAsync(
@@ -63,7 +67,7 @@ internal static class MethodExtractorDuplicates
             currentSln = await UpgradeMethodVisibilityAsync(extractedSln, filePath, newMethodName);
 
         return await ApplyMatchesAsync(currentSln, filePath, newMethodStartLine, newMethodEndLine, matches,
-            newMethodName, orderedParameters, refParams, outParams, returnVars);
+            newMethodName, orderedParameters, refParams, outParams, returnVars, logger);
     }
 
     /// <summary>
@@ -284,10 +288,11 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<PatternMatch> matches,
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
-        IReadOnlyList<ISymbol> returnVars)
+        IReadOnlyList<ISymbol> returnVars,
+        ILogger? logger = null)
     {
         return await ApplyMatchesAsync(solution, filePath, sourceStartLine, sourceEndLine, matches,
-            newMethodName, orderedParameters, [], [], returnVars);
+            newMethodName, orderedParameters, [], [], returnVars, logger);
     }
 
     internal static async Task<Solution> ApplyMatchesAsync(
@@ -300,8 +305,10 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> refParams,
         IReadOnlyList<ISymbol> outParams,
-        IReadOnlyList<ISymbol> returnVars)
+        IReadOnlyList<ISymbol> returnVars,
+        ILogger? logger = null)
     {
+        logger ??= NullLogger.Instance;
         // Phase 1: Analyze literal variations
         var (literalsByMatch, varyingLiteralPositions) =
             await AnalyzeLiteralVariationsAsync(solution, filePath, newMethodName, matches);
@@ -394,7 +401,7 @@ internal static class MethodExtractorDuplicates
                     typeParamMap.Count > 0 || patternStringLiterals.SetEquals(matchStringLiterals))
                     filteredMatches.Add(match);
                 else
-                    RtLog.Warning("{File}:{Line}: string literal semantic mismatch -- skipped", match.File, match.Line);
+                    logger.RtWarning("{File}:{Line}: string literal semantic mismatch -- skipped", match.File, match.Line);
             }
 
             matches = filteredMatches;
@@ -439,7 +446,7 @@ internal static class MethodExtractorDuplicates
             {
                 // Overlaps a range already replaced in this file  --  warn and skip.
                 skipped++;
-                RtLog.Warning("{File}:{Line}: line range {Start}-{End} overlaps an already-replaced range  --  skipped",
+                logger.RtWarning("{File}:{Line}: line range {Start}-{End} overlaps an already-replaced range  --  skipped",
                     match.File, match.Line, match.Line, match.EndLine);
                 continue;
             }
@@ -475,12 +482,12 @@ internal static class MethodExtractorDuplicates
             else
             {
                 skipped++;
-                RtLog.Warning("{File}:{Line}: {SkipReason}  --  skipped", match.File, match.Line, skipReason);
+                logger.RtWarning("{File}:{Line}: {SkipReason}  --  skipped", match.File, match.Line, skipReason);
             }
         }
 
-        RtConsole.WriteLine(RtOutputContext.Diagnostic,
-            $"matches found: {matches.Count}, replaced: {replaced}, skipped: {skipped}");
+        logger.RtInfo("matches found: {Matches}, replaced: {Replaced}, skipped: {Skipped}",
+            matches.Count, replaced, skipped);
 
         return currentSln;
     }
