@@ -25,4 +25,10 @@ public sealed class CliOutputPlacementTests
         typeof(TextRenderer).Assembly.ShouldBe(cli);
         typeof(YamlRenderer).Assembly.ShouldBe(cli);
     }
+
+    [Fact]
+    public void ambient_output_context_belongs_to_shared_host_composition()
+    {
+        typeof(RtContext).Assembly.GetName().Name.ShouldBe("RoslynTools.Hosting");
+    }
 }

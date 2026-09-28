@@ -188,6 +188,9 @@ Symbol lookup takes an explicit suggestion option. The typed `DescribeRequest`
 carries the CLI's `--no-suggest` choice through local and daemon execution;
 Core no longer reads that CLI flag. See
 [ADR-0069](adr/0069-explicit-symbol-suggestion-policy.md).
+The process-global output context now lives in shared Hosting rather than
+Core; its internal namespace and host behavior are preserved. See
+[ADR-0070](adr/0070-host-owned-output-context.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
