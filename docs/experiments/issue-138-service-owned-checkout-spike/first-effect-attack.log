@@ -1,0 +1,15 @@
+ACTOR first-effect uid=2002(editor) gid=2002(editor) groups=2002(editor)
+DENIED first-effect target-append
+DENIED first-effect target-preopen
+DENIED first-effect second-append
+DENIED first-effect dependency-append
+DENIED first-effect target-unlink
+DENIED first-effect create
+DENIED first-effect target-chmod
+DENIED first-effect target-mtime
+DENIED first-effect checkout-replace
+DENIED first-effect common-dir-write
+DENIED first-effect control-forge
+DENIED first-effect hardlink
+DENIED first-effect symlink-write
+DENIED first-effect symlink-swap

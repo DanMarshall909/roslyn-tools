@@ -1,0 +1,15 @@
+ACTOR rollback uid=2002(editor) gid=2002(editor) groups=2002(editor)
+DENIED rollback target-append
+DENIED rollback target-preopen
+DENIED rollback second-append
+DENIED rollback dependency-append
+DENIED rollback target-unlink
+DENIED rollback create
+DENIED rollback target-chmod
+DENIED rollback target-mtime
+DENIED rollback checkout-replace
+DENIED rollback common-dir-write
+DENIED rollback control-forge
+DENIED rollback hardlink
+DENIED rollback symlink-write
+DENIED rollback symlink-swap

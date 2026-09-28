@@ -1,0 +1,15 @@
+ACTOR preflight uid=2002(editor) gid=2002(editor) groups=2002(editor)
+DENIED preflight target-append
+DENIED preflight target-preopen
+DENIED preflight second-append
+DENIED preflight dependency-append
+DENIED preflight target-unlink
+DENIED preflight create
+DENIED preflight target-chmod
+DENIED preflight target-mtime
+DENIED preflight checkout-replace
+DENIED preflight common-dir-write
+DENIED preflight control-forge
+DENIED preflight hardlink
+DENIED preflight symlink-write
+DENIED preflight symlink-swap

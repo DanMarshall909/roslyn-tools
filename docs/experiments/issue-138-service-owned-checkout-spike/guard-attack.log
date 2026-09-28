@@ -1,0 +1,15 @@
+ACTOR guard uid=2002(editor) gid=2002(editor) groups=2002(editor)
+DENIED guard target-append
+DENIED guard target-preopen
+DENIED guard second-append
+DENIED guard dependency-append
+DENIED guard target-unlink
+DENIED guard create
+DENIED guard target-chmod
+DENIED guard target-mtime
+DENIED guard checkout-replace
+DENIED guard common-dir-write
+DENIED guard control-forge
+DENIED guard hardlink
+DENIED guard symlink-write
+DENIED guard symlink-swap

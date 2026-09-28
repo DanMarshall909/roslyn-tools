@@ -1,0 +1,15 @@
+ACTOR outcome uid=2002(editor) gid=2002(editor) groups=2002(editor)
+DENIED outcome target-append
+DENIED outcome target-preopen
+DENIED outcome second-append
+DENIED outcome dependency-append
+DENIED outcome target-unlink
+DENIED outcome create
+DENIED outcome target-chmod
+DENIED outcome target-mtime
+DENIED outcome checkout-replace
+DENIED outcome common-dir-write
+DENIED outcome control-forge
+DENIED outcome hardlink
+DENIED outcome symlink-write
+DENIED outcome symlink-swap
