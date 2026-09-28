@@ -1,12 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.Cli.Suggest;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
 using RoslynTools.Services.GitHub;
-using RoslynTools.Services.Suggest;
 
 namespace RoslynTools;
 
@@ -21,7 +19,7 @@ internal static class Bootstrap
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         HostServiceRegistration.RegisterApplicationInfrastructure(services);
-        services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
+        HostServiceRegistration.RegisterSuggestionCatalog(services);
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();
         services.AddSingleton<FeedbackProcessOperation>();

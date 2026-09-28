@@ -118,10 +118,11 @@ adds CLI path and option metadata; it constructs legacy maintainer descriptors
 locally. The Core-owned product capability catalogue uses the same typed
 inventory for doctor and other capability reporting. Shared host foundation
 registration, application infrastructure, catalogue construction, and Core
-service scanning live in `RoslynTools.Hosting`; CLI-specific composition and
-the suggestion catalogue still live in the CLI assembly. Metadata for the
-CLI-only `config`, `trust`, and feedback suggestion entries now has one shared
-source in Hosting. Removing MCP's CLI project reference remains #56. See
+service scanning live in `RoslynTools.Hosting`. Its suggestion catalogue
+combines typed public definitions with shared host metadata for `config`,
+`trust`, feedback, and the richer CLI `semantic-diff` projection. CLI-specific
+composition remains in the CLI assembly. Removing MCP's CLI project reference
+remains #56. See
 [ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
@@ -153,8 +154,9 @@ prepared-change writers; see [ADR-0049](adr/0049-shared-application-infrastructu
 It also constructs the application catalogue and scans Core operations at the
 same positions in the CLI registration sequence; see
 [ADR-0050](adr/0050-shared-application-composition.md).
-The CLI-only suggestion metadata is shared without duplicating its text; see
-[ADR-0051](adr/0051-shared-host-command-metadata.md).
+Host suggestion metadata and the typed-source suggestion catalogue are described
+in [ADR-0051](adr/0051-shared-host-command-metadata.md) and
+[ADR-0052](adr/0052-typed-source-suggestion-catalogue.md).
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

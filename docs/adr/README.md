@@ -116,3 +116,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0049](0049-shared-application-infrastructure-registration.md) | Shared application infrastructure registration | Accepted | 2026-09-28 |
 | [0050](0050-shared-application-composition.md) | Shared application catalogue and Core operation registration | Accepted | 2026-09-28 |
 | [0051](0051-shared-host-command-metadata.md) | Shared metadata for host-only suggestions | Accepted | 2026-09-28 |
+| [0052](0052-typed-source-suggestion-catalogue.md) | Typed-source suggestion catalogue | Accepted | 2026-09-28 |

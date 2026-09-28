@@ -3,10 +3,10 @@ using RoslynTools.Core;
 namespace RoslynTools.Services.Suggest;
 
 /// <summary>
-///     Host-supplied source of the rt command catalog. CLI wraps
-///     <c>App.Commands</c>; MCP does the same. Other hosts (future tools,
-///     tests) can supply a synthetic list. Keeps <see cref="SuggestService" />
-///     independent of any one host's discovery mechanism.
+///     Host-supplied source of rt command metadata. CLI and MCP can share
+///     typed application definitions plus host-specific guidance, while tests
+///     can supply a synthetic list. Keeps <see cref="SuggestService" />
+///     independent of host discovery mechanisms.
 /// </summary>
 internal interface ICommandCatalog
 {

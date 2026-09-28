@@ -8,6 +8,7 @@ using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools;
 
@@ -92,6 +93,11 @@ internal static class HostServiceRegistration
         services.AddSingleton<IPreparedChangeSetWriter>(provider =>
             new PreparedChangeSetWriter(provider.GetRequiredService<IPreparedFileSystem>()));
         services.AddSingleton<PreparedChangeSetExecutor>();
+    }
+
+    internal static void RegisterSuggestionCatalog(IServiceCollection services)
+    {
+        services.AddSingleton<ICommandCatalog, SharedSuggestionCatalog>();
     }
 
     internal static void RegisterApplicationCatalog(IServiceCollection services)

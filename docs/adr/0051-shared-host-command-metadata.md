@@ -24,9 +24,9 @@ links unchanged. An architecture test pins the source identity.
 - Future peer-host suggestion catalogues can include CLI-only guidance from
   the same source without duplicating metadata.
 - CLI public help and suggestion ranking retain their current values.
-- The CLI `AppCommandCatalog` still assembles the full suggestion list; a
-  later #56 tracer will construct it from the typed application catalogue and
-  shared host-only entries.
+- The next #56 tracer constructed the full suggestion list from typed
+  application definitions and these shared host entries. It also moved the
+  richer CLI `semantic-diff` metadata here without changing its typed port.
 
 ## Alternatives considered
 

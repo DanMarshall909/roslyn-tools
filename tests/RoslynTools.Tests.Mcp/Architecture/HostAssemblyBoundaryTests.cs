@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Commands;
@@ -14,11 +15,51 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 public sealed class HostAssemblyBoundaryTests
 {
     [Fact]
+    public void shared_suggestion_catalogue_matches_cli_command_metadata()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        var shared = new SharedSuggestionCatalog(
+            provider.GetRequiredService<ApplicationCommandCatalog>());
+        var cli = new AppCommandCatalog();
+
+        typeof(SharedSuggestionCatalog).Assembly.ShouldBe(typeof(MsBuildBootstrap).Assembly);
+        provider.GetRequiredService<ICommandCatalog>().ShouldBeOfType<SharedSuggestionCatalog>();
+        shared.All.Count.ShouldBe(cli.All.Count);
+        var cliByName = cli.All.ToDictionary(info => info.Name, StringComparer.Ordinal);
+        shared.All.Select(info => info.Name).Order(StringComparer.Ordinal)
+            .ShouldBe(cliByName.Keys.Order(StringComparer.Ordinal));
+        var metadataMismatches = shared.All
+            .Where(info => JsonSerializer.Serialize(info)
+                           != JsonSerializer.Serialize(cliByName[info.Name]))
+            .Select(info => info.Name)
+            .ToArray();
+        metadataMismatches.ShouldBeEmpty();
+
+        foreach (var query in new[]
+                 {
+                     "rename a symbol",
+                     "trust a repository",
+                     "show effective configuration",
+                     "record command feedback",
+                     "extract method"
+                 })
+        {
+            var request = new SuggestRequest(query, Top: 5);
+            JsonSerializer.Serialize(new SuggestService(shared).Suggest(request))
+                .ShouldBe(JsonSerializer.Serialize(new SuggestService(cli).Suggest(request)));
+        }
+    }
+
+    [Fact]
     public void local_host_command_metadata_has_one_shared_source()
     {
         typeof(HostCommandMetadata).Assembly.ShouldBe(typeof(MsBuildBootstrap).Assembly);
         ConfigCommand.Info.ShouldBeSameAs(HostCommandMetadata.Config);
         TrustCommand.Info.ShouldBeSameAs(HostCommandMetadata.Trust);
+        SemanticDiffCommand.Info.ShouldBeSameAs(HostCommandMetadata.SemanticDiff);
         new AppCommandCatalog().All.Single(info => info.Name == "feedback")
             .ShouldBeSameAs(HostCommandMetadata.Feedback);
     }
