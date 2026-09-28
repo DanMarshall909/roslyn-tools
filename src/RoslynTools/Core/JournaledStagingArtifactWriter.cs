@@ -53,7 +53,7 @@ internal sealed class JournaledStagingArtifactWriter
         ArgumentNullException.ThrowIfNull(operationId);
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(reservation);
-        reservation.AssertHeld(plan.Key.RepositoryId);
+        using var controlActivity = reservation.HoldControlActivity(plan.Key.RepositoryId);
 
         IStagingArtifactSession session;
         try

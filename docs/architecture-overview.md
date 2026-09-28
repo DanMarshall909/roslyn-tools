@@ -936,8 +936,24 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   [ADR-0040](adr/0040-durable-pre-effect-guard-history.md) records guard intent
   before acquisition and confirmed inactivity before no-effect drain. It keeps
   an uncertain or unjournaled activity active and pinned, and rejects extra
-  unresolved guard attempts during restart loading. Cross-owner reconciliation
-  and a physical effect broker remain open.
+  unresolved guard attempts during restart loading. Shared-authority
+  reconciliation and a physical effect broker remain open.
+  [ADR-0041](adr/0041-local-interrupted-pre-effect-reconciliation.md) lets a
+  later reservation from the same protected local authority close and drain an
+  interrupted pre-effect owner when its guard history proves no acquisition or
+  confirmed inactivity. It records a terminal no-effect outcome and cleanup
+  inventory, confirms that record durably before physical cleanup, and verifies
+  empty operation roots before pin release. Before `CleanupVerified`, every
+  cleanup, including partial and empty artifact journals, binds and scans both
+  control roots from the exact retained, pinned plan. A replay with a retained
+  plan repeats the root check until pin release is durably marked in the ledger;
+  after that marker, replay returns the verified result without physical work,
+  including after plan collection. A missing plan before the marker remains
+  unresolved. Uncertain guards and mixed
+  provenance remain pinned. Control writers and cleanup retain the local
+  reservation until physical activity ends, including concurrent disposal.
+  The wider process interruption matrix, shared authority, and physical effect
+  broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

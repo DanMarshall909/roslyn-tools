@@ -11,6 +11,727 @@ namespace RoslynTools.Tests.Infrastructure;
 public sealed class JournaledApplyAuthorityTests
 {
     [Fact]
+    public async Task disposed_reservation_releases_local_lock_after_all_control_activities_leave()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var one = first.HoldControlActivity(request.RepositoryId);
+        var two = first.HoldControlActivity(request.RepositoryId);
+        first.Dispose();
+        Should.Throw<ObjectDisposedException>(() => first.HoldControlActivity(request.RepositoryId));
+
+        var successorTask = fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        try
+        {
+            await Task.Delay(100);
+            successorTask.IsCompleted.ShouldBeFalse();
+            one.Dispose();
+            await Task.Delay(100);
+            successorTask.IsCompleted.ShouldBeFalse();
+        }
+        finally
+        {
+            one.Dispose();
+            two.Dispose();
+        }
+        using var successor = await successorTask;
+        successor.FenceEpoch.ShouldBeGreaterThan(first.FenceEpoch);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_waits_for_in_flight_staging_after_owner_releases_reservation()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var pausedBoundary = new PausingStagingBoundary(
+            new LinuxStagingArtifactBoundary(stagingRoot));
+        var staging = new JournaledStagingArtifactWriter(fixture.Ledger, pausedBoundary)
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first);
+        await pausedBoundary.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+        first.Dispose();
+
+        var successorTask = fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        try
+        {
+            await Task.Delay(100);
+            successorTask.IsCompleted.ShouldBeFalse();
+        }
+        finally
+        {
+            pausedBoundary.Resume();
+        }
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await staging);
+        using var successor = await successorTask;
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions
+            .ShouldContain(activity);
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, successor)
+            .IsErr.ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_reconciles_interrupted_activity_without_artifacts_and_releases_pin()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var reconciled = result.Match(value => value, error => throw new IOException(error.Message));
+        reconciled.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        reconciled.PreEffectActivity.IsClosed.ShouldBeTrue();
+        reconciled.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        reconciled.CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.CleanupVerified
+        ]);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        restarted.Ledger.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+        restarted.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, successor)
+            .IsErr.ShouldBeTrue();
+        restarted.Ledger.AppendStagingIntent(
+                plan, request.OperationId, 1, activity, successor)
+            .IsErr.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task successor_reconciles_interrupted_staging_and_cleans_admitted_artifact()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var backupRoot = plan.Envelope.Payload.Coordination.BackupRoot;
+        var backupOperationRoot = Path.Combine(backupRoot,
+            request.OperationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.OperationId.Nonce.ToString("N"));
+        Directory.CreateDirectory(backupOperationRoot);
+        foreach (var path in new[] { backupRoot, Path.GetDirectoryName(backupOperationRoot)!, backupOperationRoot })
+            File.SetUnixFileMode(path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var unexpectedBackup = Path.Combine(backupOperationRoot, "unexpected.backup");
+        File.WriteAllText(unexpectedBackup, "unexpected");
+        var cleanup = new JournaledNoEffectCleanup(
+            restarted.Ledger, restarted.Store, new LinuxStagingCleanupBoundary(stagingRoot));
+
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException("The unjournaled backup was ignored."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.ArtifactUnavailable);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(unexpectedBackup).ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        File.Delete(unexpectedBackup);
+
+        var result = cleanup.Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var reconciled = result.Match(value => value, error => throw new IOException(error.Message));
+        reconciled.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        reconciled.CleanupJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationCleanupJournalKind.InventoryPending,
+            OperationCleanupJournalKind.ArtifactRemoved,
+            OperationCleanupJournalKind.CleanupVerified
+        ]);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        restarted.Ledger.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task successor_cleans_staging_and_backup_without_changing_repository_original()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        var backupRoot = plan.Envelope.Payload.Coordination.BackupRoot;
+        foreach (var root in new[] { stagingRoot, backupRoot })
+        {
+            Directory.CreateDirectory(root);
+            File.SetUnixFileMode(root,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var stage = (await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first))
+            .Match(value => value, error => throw new IOException(error.Message));
+        var backup = (await new JournaledBackupArtifactWriter(
+                fixture.Ledger, new LinuxBackupArtifactBoundary(backupRoot))
+            .BackupOriginalAsync(plan, request.OperationId, 1, activity, first))
+            .Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot),
+                new LinuxBackupCleanupBoundary(backupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var cleaned = result.Match(value => value, error => throw new IOException(error.Message));
+        cleaned.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        cleaned.CleanupJournal[0].Artifacts.Select(artifact => artifact.Kind).ShouldBe([
+            OperationCleanupArtifactKind.Staging,
+            OperationCleanupArtifactKind.Backup
+        ]);
+        cleaned.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        File.Exists(stage.ArtifactPath).ShouldBeFalse();
+        File.Exists(backup.ArtifactPath).ShouldBeFalse();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_preserves_pin_when_guard_acquisition_was_attempted()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var artifact = (await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first))
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, first);
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Expected unresolved guard."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.UnresolvedGuard);
+        fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_drains_cancelled_activity_after_confirmed_guard_inactivity()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var artifact = (await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first))
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, first);
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.AppendGuardConfirmedInactive(request.RepositoryId, request.OperationId,
+                activity, first)
+            .IsOk.ShouldBeTrue();
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var reconciled = result.Match(value => value, error => throw new IOException(error.Message));
+        reconciled.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        reconciled.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        reconciled.CleanupJournal[0].Artifacts.ShouldHaveSingleItem().ArtifactPath
+            .ShouldBe(artifact.ArtifactPath);
+        reconciled.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_cleans_creation_admission_when_artifact_was_never_created()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, activity, first)
+            .IsOk.ShouldBeTrue();
+        var creation = fixture.Ledger.AppendStagingCreationAdmission(
+                plan, request.OperationId, 1, activity, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store, new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var reconciled = result.Match(value => value, error => throw new IOException(error.Message));
+        reconciled.CleanupJournal[0].Artifacts.ShouldHaveSingleItem();
+        reconciled.CleanupJournal[0].Artifacts[0].CreationToken
+            .ShouldBe(creation.CreationToken!.Value);
+        reconciled.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        restarted.Ledger.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json.Remove("guardJournal");
+        File.WriteAllText(recordPath, json.ToJsonString());
+        restarted.Ledger.Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new InvalidOperationException("Missing guard history was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
+    public async Task failed_reconciliation_flush_keeps_artifact_and_pin_until_retry()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var staged = await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first);
+        var artifact = staged.Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var failing = new JournaledNoEffectCleanup(
+            fixture.CreateLedger(new FailNthDirectoryFlush(1)), fixture.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot));
+
+        var interrupted = failing.Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        interrupted.IsErr.ShouldBeTrue();
+        interrupted.Match(_ => throw new InvalidOperationException("Expected storage failure."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+
+        new JournaledNoEffectCleanup(fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_terminal_confirmation_keeps_artifact_and_pin_until_retry()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        Directory.CreateDirectory(stagingRoot);
+        File.SetUnixFileMode(stagingRoot,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var artifact = (await new JournaledStagingArtifactWriter(
+                fixture.Ledger, new LinuxStagingArtifactBoundary(stagingRoot))
+            .StageReplacementAsync(plan, request.OperationId, 1, activity, first))
+            .Match(value => value, error => throw new IOException(error.Message));
+        first.Dispose();
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var failing = new JournaledNoEffectCleanup(
+            fixture.CreateLedger(new FailNthDirectoryFlush(2)), fixture.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot));
+
+        var interrupted = failing.Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        interrupted.Match(_ => throw new InvalidOperationException("Confirmation unexpectedly succeeded."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        fixture.LoadOperation(request).CurrentState
+            .ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.InventoryPending);
+        File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        new JournaledNoEffectCleanup(fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        File.Exists(artifact.ArtifactPath).ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task original_holder_cannot_reconcile_its_own_active_activity()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+
+        var result = new JournaledNoEffectCleanup(
+                fixture.Ledger, fixture.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Expected active activity."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.NotReady);
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task successor_reconciles_owner_claim_interrupted_before_activity_admission()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.ClaimApplyOwner(request.RepositoryId, request.OperationId, first,
+                plan.Key.PlanHash)
+            .IsOk.ShouldBeTrue();
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        var reconciled = result.Match(value => value, error => throw new IOException(error.Message));
+        reconciled.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        reconciled.PreEffectActivity.IsClosed.ShouldBeTrue();
+        reconciled.CleanupJournal[^1].Kind.ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+        restarted.Ledger.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task successor_keeps_missing_guard_history_unresolved_and_pinned()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json.Remove("guardJournal");
+        File.WriteAllText(recordPath, json.ToJsonString());
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => throw new InvalidOperationException("Expected missing guard proof."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.UnresolvedGuard);
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task no_artifact_reconciliation_requires_both_plan_bound_control_roots()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .IsOk.ShouldBeTrue();
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var stagingRoot = plan.Envelope.Payload.Coordination.StagingRoot;
+        var backupRoot = plan.Envelope.Payload.Coordination.BackupRoot;
+        var unbound = new JournaledNoEffectCleanup(
+            restarted.Ledger, restarted.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot),
+            new LinuxBackupCleanupBoundary(Path.Combine(backupRoot, "other")));
+
+        var missing = unbound.Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        missing.IsErr.ShouldBeTrue();
+        missing.Match(_ => throw new InvalidOperationException("Expected mismatched backup root."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.UnsafeRoot);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        var operationRoot = Path.Combine(backupRoot,
+            request.OperationId.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.OperationId.Nonce.ToString("N"));
+        Directory.CreateDirectory(operationRoot);
+        foreach (var path in new[] { backupRoot, Path.GetDirectoryName(operationRoot)!, operationRoot })
+            File.SetUnixFileMode(path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var unknown = Path.Combine(operationRoot, "unknown.backup");
+        File.WriteAllText(unknown, "unknown");
+        var bound = new JournaledNoEffectCleanup(
+            restarted.Ledger, restarted.Store,
+            new LinuxStagingCleanupBoundary(stagingRoot),
+            new LinuxBackupCleanupBoundary(backupRoot));
+
+        bound.Cleanup(request.RepositoryId, request.OperationId, successor)
+            .Match(_ => throw new InvalidOperationException("Unknown backup was ignored."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.ArtifactUnavailable);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Delete(unknown);
+        bound.Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task missing_exact_plan_blocks_no_artifact_cleanup_until_plan_returns()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .IsOk.ShouldBeTrue();
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var cleanup = new JournaledNoEffectCleanup(
+            restarted.Ledger, restarted.Store,
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+        var planPath = Directory.GetFiles(fixture.PlanStoreRoot, "*.plan", SearchOption.AllDirectories)
+            .ShouldHaveSingleItem();
+        var withheldPath = planPath + ".withheld";
+
+        File.Move(planPath, withheldPath);
+        try
+        {
+            var result = cleanup.Cleanup(request.RepositoryId, request.OperationId, successor);
+            result.Match(_ => throw new InvalidOperationException("Missing plan was accepted."),
+                    error => error.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.PlanUnavailable);
+            fixture.LoadOperation(request).CleanupJournal[^1].Kind
+                .ShouldBe(OperationCleanupJournalKind.InventoryPending);
+            File.Exists(fixture.TargetPath).ShouldBeFalse();
+        }
+        finally
+        {
+            File.Move(withheldPath, planPath);
+        }
+
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, successor)
+            .IsOk.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task unpinned_retained_plan_cannot_authorize_interrupted_cleanup()
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(pin: false);
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.BeginPreEffectActivity(request.RepositoryId, request.OperationId, first)
+            .IsOk.ShouldBeTrue();
+        first.Dispose();
+        var restarted = fixture.RestartedComponents();
+        using var successor = await restarted.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+
+        var result = new JournaledNoEffectCleanup(
+                restarted.Ledger, restarted.Store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, successor);
+
+        result.Match(_ => throw new InvalidOperationException("Unpinned plan authorized cleanup."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.PlanUnavailable);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.InventoryPending);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task admitted_replacement_is_physically_staged_and_verified_outside_the_repository()
     {
         if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
@@ -956,7 +1677,7 @@ public sealed class JournaledApplyAuthorityTests
 
         result.IsErr.ShouldBeTrue();
         result.Match(_ => throw new InvalidOperationException("Active cleanup unexpectedly succeeded."),
-            error => error.Kind).ShouldBe(NoEffectCleanupErrorKind.NotReady);
+            error => error.Kind).ShouldBe(NoEffectCleanupErrorKind.UnresolvedGuard);
         fixture.LoadOperation(request).CleanupJournal.ShouldHaveSingleItem();
         File.Exists(artifact.ArtifactPath).ShouldBeTrue();
         fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
@@ -1079,6 +1800,7 @@ public sealed class JournaledApplyAuthorityTests
 
         fixture.LoadOperation(request).CleanupJournal[^1].Kind
             .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
         fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
             .ShouldBeTrue();
 
@@ -1115,6 +1837,7 @@ public sealed class JournaledApplyAuthorityTests
             .IsOk.ShouldBeTrue();
         fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
             .ShouldBeFalse();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
@@ -1171,6 +1894,103 @@ public sealed class JournaledApplyAuthorityTests
         Directory.Exists(operationRoot).ShouldBeFalse();
         fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
             .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task missing_plan_after_cleanup_verification_does_not_imply_pin_release()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var (request, plan, _) = await PrepareRejectedStagingAsync(fixture);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.CreatePlainLedger(), fixture.CreateStore(new FailPlanReplace()),
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot));
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .Match(_ => throw new InvalidOperationException("Pin release unexpectedly succeeded."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.PinReleaseUnavailable);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        var planPath = Directory.GetFiles(fixture.PlanStoreRoot, "*.plan", SearchOption.AllDirectories)
+            .ShouldHaveSingleItem();
+        var withheldPath = planPath + ".withheld";
+
+        File.Move(planPath, withheldPath);
+        try
+        {
+            new JournaledNoEffectCleanup(
+                    fixture.CreatePlainLedger(), fixture.CreateStore(),
+                    new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+                .Cleanup(request.RepositoryId, request.OperationId, reservation)
+                .Match(_ => throw new InvalidOperationException("Missing pinned plan was accepted."),
+                    error => error.Kind)
+                .ShouldBe(NoEffectCleanupErrorKind.PlanUnavailable);
+            File.Exists(fixture.TargetPath).ShouldBeFalse();
+        }
+        finally
+        {
+            File.Move(withheldPath, planPath);
+        }
+
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.CreateStore(),
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_durable_pin_release_marker_replays_while_plan_is_retained()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var (request, plan, _) = await PrepareRejectedStagingAsync(fixture);
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.CreateStore(new FailPlanReplace()),
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+
+        var interrupted = new JournaledNoEffectCleanup(
+                fixture.CreateLedger(new FailNthReplace(1)), fixture.CreateStore(),
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation);
+
+        interrupted.Match(_ => throw new InvalidOperationException("Marker failure was ignored."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.LedgerUnavailable);
+        fixture.LoadOperation(request).CleanupJournal[^1].Kind
+            .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeFalse();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeFalse();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.CreateStore(),
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
     }
 
     [Theory]
@@ -1643,7 +2463,7 @@ public sealed class JournaledApplyAuthorityTests
         fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
             .IsOk.ShouldBeTrue();
         var failing = new JournaledNoEffectCleanup(
-            fixture.CreateLedger(new FailDirectoryFlushFrom(2)),
+            fixture.CreateLedger(new FailDirectoryFlushFrom(3)),
             fixture.Store,
             new LinuxStagingCleanupBoundary(stagingRoot));
 
@@ -1653,6 +2473,15 @@ public sealed class JournaledApplyAuthorityTests
             .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
         failing.Cleanup(request.RepositoryId, request.OperationId, reservation)
             .IsErr.ShouldBeTrue();
+        new JournaledNoEffectCleanup(
+                fixture.CreatePlainLedger(), fixture.Store,
+                new LinuxStagingCleanupBoundary(stagingRoot),
+                new LinuxBackupCleanupBoundary(Path.Combine(
+                    plan.Envelope.Payload.Coordination.BackupRoot, "other")))
+            .Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .Match(_ => throw new InvalidOperationException("Replay accepted the wrong backup root."),
+                error => error.Kind)
+            .ShouldBe(NoEffectCleanupErrorKind.UnsafeRoot);
         fixture.ReloadPlan().Pins.Any(pin =>
             pin.Kind == ChangePlanPinKind.OperationLedger
             && pin.ReferenceId == DurableDispatchIntakeCoordinator.FormatOperationReference(
@@ -2103,16 +2932,35 @@ public sealed class JournaledApplyAuthorityTests
             .IsOk.ShouldBeTrue();
         var cleanup = new JournaledNoEffectCleanup(
             fixture.Ledger, fixture.Store, new LinuxStagingCleanupBoundary(stagingRoot));
+        fixture.Now = fixture.Now.AddDays(2);
         cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
             .IsOk.ShouldBeTrue();
-        fixture.Now = fixture.Now.AddDays(2);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
         fixture.Store.CollectGarbage().DeletedPlans.ShouldBe(1);
 
         cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
             .IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).CleanupJournal[^1].Kind
             .ShouldBe(OperationCleanupJournalKind.CleanupVerified);
+        fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
         File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void restart_rejects_pin_release_marker_without_verified_cleanup()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json["cleanupPinReleased"] = true;
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new InvalidOperationException("Unverified release marker was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
     }
 
     [Theory]
@@ -5496,6 +6344,46 @@ public sealed class JournaledApplyAuthorityTests
         }
     }
 
+    private sealed class PausingStagingBoundary(IStagingArtifactBoundary inner)
+        : IStagingArtifactBoundary
+    {
+        private readonly TaskCompletionSource _entered = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _resume = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal Task Entered => _entered.Task;
+
+        internal void Resume() => _resume.TrySetResult();
+
+        public IStagingArtifactSession Acquire(StoredChangePlan plan) =>
+            new Session(inner.Acquire(plan), _entered, _resume);
+
+        private sealed class Session(
+            IStagingArtifactSession inner,
+            TaskCompletionSource entered,
+            TaskCompletionSource resume) : IStagingArtifactSession
+        {
+            public async Task<string> CreateAndHashAsync(
+                OperationStagingJournalEvent creation,
+                ReadOnlyMemory<byte> replacementBytes,
+                bool allowExistingAdmittedArtifact)
+            {
+                entered.TrySetResult();
+                await resume.Task;
+                return await inner.CreateAndHashAsync(
+                    creation, replacementBytes, allowExistingAdmittedArtifact);
+            }
+
+            public Task<string> VerifyExistingAsync(
+                OperationStagingJournalEvent verification,
+                ReadOnlyMemory<byte> replacementBytes) =>
+                inner.VerifyExistingAsync(verification, replacementBytes);
+
+            public void Dispose() => inner.Dispose();
+        }
+    }
+
     private sealed class ThrowAfterArtifactBoundary(
         IStagingArtifactBoundary inner,
         ApplyFixture fixture,
@@ -5683,6 +6571,7 @@ public sealed class JournaledApplyAuthorityTests
                     authority));
         }
         internal string LedgerRoot => _authority.LedgerRoot;
+        internal string PlanStoreRoot => _authority.PlanStoreRoot;
         internal string ReservationRoot => _authority.MutationReservationRoot;
         internal DurableOperationLedger CreatePlainLedger() =>
             new(_authority.LedgerRoot, () => Now, _authority);

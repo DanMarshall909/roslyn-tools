@@ -44,7 +44,8 @@ internal enum OperationLedgerErrorKind
     Unreadable,
     UnsafeProtection,
     InvalidTransition,
-    Conflict
+    Conflict,
+    UnresolvedGuard
 }
 
 internal sealed record OperationLedgerError(
@@ -206,6 +207,7 @@ internal sealed record DurableOperationRecord(
     internal ImmutableArray<OperationStagingJournalEvent> StagingJournal { get; init; } = [];
     internal ImmutableArray<OperationBackupJournalEvent> BackupJournal { get; init; } = [];
     internal ImmutableArray<OperationCleanupJournalEvent> CleanupJournal { get; init; } = [];
+    internal bool CleanupPinReleased { get; init; }
     internal ImmutableArray<OperationGuardJournalEvent> GuardJournal { get; init; } = [];
     internal OperationOwnerLease? OwnerLease { get; init; }
     internal PreEffectActivityState PreEffectActivity { get; init; } = PreEffectActivityState.Open;
@@ -1869,6 +1871,148 @@ internal sealed class DurableOperationLedger
         });
     }
 
+    /// <summary>
+    ///     A later holder of the same protected local reservation may close an
+    ///     interrupted pre-effect owner only when every admitted guard is known
+    ///     inactive or was never requested. The ledger replacement drains the
+    ///     activity and records a no-effect outcome before physical cleanup.
+    /// </summary>
+    internal Result<DurableOperationRecord, OperationLedgerError> ReconcileInterruptedPreEffectNoEffect(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation successor)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(successor);
+        successor.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var active = operation.PreEffectActivity.ActiveAdmissions;
+            var ownerOnly = active.IsEmpty
+                            && operation.OwnerLease is not null
+                            && !operation.PreEffectActivity.HasAdmissionHistory
+                            && operation.GuardJournal.IsEmpty
+                            && operation.StagingJournal.IsEmpty
+                            && operation.BackupJournal.IsEmpty;
+            if ((!ownerOnly && active.IsEmpty)
+                || operation.CurrentState is not (OperationLifecycleState.Prepared
+                    or OperationLifecycleState.Applying
+                    or OperationLifecycleState.CancelledNoEffect
+                    or OperationLifecycleState.RejectedUnsafeCoordination)
+                || !operation.EffectJournal.IsEmpty
+                || (operation.PreEffectActivity.IsClosed
+                    && !IsNoEffectTerminal(operation.CurrentState))
+                || _protectionAuthority is not INoEffectCleanupReservationAuthority authority
+                || !authority.OwnsReservationRoot(successor))
+            {
+                return InvalidCleanupTransition(
+                    "Interrupted pre-effect reconciliation requires a held local successor and no effect intent.");
+            }
+
+            var sourceEpoch = ownerOnly
+                ? operation.OwnerLease!.FenceEpoch
+                : active[0].FenceEpoch;
+            var sourceToken = ownerOnly
+                ? operation.OwnerLease!.ReservationToken
+                : active[0].ReservationToken;
+            if (successor.FenceEpoch <= sourceEpoch
+                || successor.FenceToken == sourceToken
+                || active.Any(admission =>
+                    admission.FenceEpoch != sourceEpoch
+                    || admission.ReservationToken != sourceToken)
+                || (operation.OwnerLease is not null
+                    && (operation.OwnerLease.FenceEpoch != sourceEpoch
+                        || operation.OwnerLease.ReservationToken != sourceToken))
+                || operation.GuardJournal.Any(entry =>
+                    entry.FenceEpoch != sourceEpoch
+                    || entry.ReservationToken != sourceToken)
+                || operation.StagingJournal.Any(entry =>
+                    entry.FenceEpoch != sourceEpoch
+                    || entry.ReservationToken != sourceToken)
+                || operation.BackupJournal.Any(entry =>
+                    entry.FenceEpoch != sourceEpoch
+                    || entry.ReservationToken != sourceToken)
+                || operation.CleanupJournal.Any(entry => entry.Artifacts.Any(artifact =>
+                    artifact.FenceEpoch != sourceEpoch
+                    || artifact.ReservationToken != sourceToken)))
+            {
+                return InvalidCleanupTransition(
+                    "The interrupted activity and artifacts do not belong to one earlier local reservation.");
+            }
+
+            if (!ownerOnly
+                && (!operation.PreEffectActivity.HasAdmissionHistory
+                    || operation.GuardJournal.IsEmpty
+                    || active.Any(admission =>
+                {
+                    var last = operation.GuardJournal.LastOrDefault(entry =>
+                        entry.AdmissionToken == admission.Token);
+                    return last is null
+                           || last.ControlGeneration != admission.ControlGeneration
+                           || last.FenceEpoch != admission.FenceEpoch
+                           || last.ReservationToken != admission.ReservationToken
+                           || last.Kind == OperationGuardJournalKind.AcquisitionIntent;
+                })))
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.UnresolvedGuard,
+                    "The interrupted guard has no durable proof of inactivity."));
+            }
+
+            var now = _utcNow().ToUniversalTime();
+            now = MaxCommit(now, operation.Transitions[^1].CommittedAtUtc);
+            if (!operation.GuardJournal.IsEmpty)
+                now = MaxCommit(now, operation.GuardJournal[^1].CommittedAtUtc);
+            if (!operation.StagingJournal.IsEmpty)
+                now = MaxCommit(now, operation.StagingJournal[^1].CommittedAtUtc);
+            if (!operation.BackupJournal.IsEmpty)
+                now = MaxCommit(now, operation.BackupJournal[^1].CommittedAtUtc);
+            if (!operation.CleanupJournal.IsEmpty)
+                now = MaxCommit(now, operation.CleanupJournal[^1].CommittedAtUtc);
+
+            var isAlreadyTerminal = IsNoEffectTerminal(operation.CurrentState);
+            var nextState = isAlreadyTerminal
+                ? operation.CurrentState
+                : OperationLifecycleState.RejectedUnsafeCoordination;
+            var transitions = isAlreadyTerminal
+                ? operation.Transitions
+                : operation.Transitions.Add(new OperationTransition(
+                    operation.Transitions[^1].Sequence + 1,
+                    nextState,
+                    now,
+                    "A later local reservation reconciled an interrupted pre-effect owner without repository intent."));
+            var inventory = operation.CleanupJournal.IsEmpty
+                ? BeginCleanupInventory(operation, now)
+                : operation.CleanupJournal;
+            if (inventory.IsEmpty)
+            {
+                inventory = [new OperationCleanupJournalEvent(
+                    1, OperationCleanupJournalKind.InventoryPending, [], now)];
+            }
+            var next = operation with
+            {
+                CurrentState = nextState,
+                Transitions = transitions,
+                CleanupJournal = inventory,
+                PreEffectActivity = operation.PreEffectActivity with
+                {
+                    IsClosed = true,
+                    ActiveAdmissions = [],
+                    ControlGeneration = operation.PreEffectActivity.IsClosed
+                        ? operation.PreEffectActivity.ControlGeneration
+                        : checked(operation.PreEffectActivity.ControlGeneration + 1)
+                }
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    private static DateTimeOffset MaxCommit(DateTimeOffset current, DateTimeOffset other) =>
+        current < other ? other : current;
+
     internal static bool CanCleanupNoEffect(DurableOperationRecord operation) =>
         IsNoEffectTerminal(operation.CurrentState)
         && operation.EffectJournal.IsEmpty
@@ -1905,14 +2049,37 @@ internal sealed class DurableOperationLedger
         // A later exclusive holder can finish a terminal, drained no-effect
         // cleanup only when the entire immutable inventory came from one
         // earlier reservation in this protected local authority.
+        if (operation.StagingJournal.IsEmpty
+            && operation.BackupJournal.IsEmpty
+            && operation.GuardJournal.IsEmpty
+            && operation.OwnerLease is null)
+            return false;
+        if (operation.StagingJournal.IsEmpty
+            && operation.BackupJournal.IsEmpty
+            && operation.GuardJournal.IsEmpty
+            && operation.PreEffectActivity.HasAdmissionHistory)
+            return false;
         var sourceEpoch = !operation.StagingJournal.IsEmpty
             ? operation.StagingJournal[0].FenceEpoch
-            : operation.BackupJournal[0].FenceEpoch;
+            : !operation.BackupJournal.IsEmpty
+                ? operation.BackupJournal[0].FenceEpoch
+                : !operation.GuardJournal.IsEmpty
+                    ? operation.GuardJournal[0].FenceEpoch
+                    : operation.OwnerLease!.FenceEpoch;
         var sourceToken = !operation.StagingJournal.IsEmpty
             ? operation.StagingJournal[0].ReservationToken
-            : operation.BackupJournal[0].ReservationToken;
+            : !operation.BackupJournal.IsEmpty
+                ? operation.BackupJournal[0].ReservationToken
+                : !operation.GuardJournal.IsEmpty
+                    ? operation.GuardJournal[0].ReservationToken
+                    : operation.OwnerLease!.ReservationToken;
         return reservation.FenceEpoch > sourceEpoch
                && reservation.FenceToken != sourceToken
+               && (operation.OwnerLease is null
+                   || (operation.OwnerLease.FenceEpoch == sourceEpoch
+                       && operation.OwnerLease.ReservationToken == sourceToken))
+               && operation.GuardJournal.All(entry =>
+                   entry.FenceEpoch == sourceEpoch && entry.ReservationToken == sourceToken)
                && operation.StagingJournal.All(entry =>
                    entry.FenceEpoch == sourceEpoch && entry.ReservationToken == sourceToken)
                && operation.BackupJournal.All(entry =>
@@ -2004,6 +2171,29 @@ internal sealed class DurableOperationLedger
                     [],
                     now))
             };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+    }
+
+    internal Result<DurableOperationRecord, OperationLedgerError> MarkCleanupPinReleased(
+        string repositoryId,
+        OperationId operationId,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            if (!CanCleanupUnderReservation(operation, reservation)
+                || operation.CleanupJournal[^1].Kind != OperationCleanupJournalKind.CleanupVerified)
+                return InvalidCleanupTransition("The cleanup pin cannot be released before verification.");
+            if (operation.CleanupPinReleased)
+                return Result<DurableOperationRecord, OperationLedgerError>.Ok(operation);
+            var next = operation with { CleanupPinReleased = true };
             WriteRecord(recordPath, next);
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
         });
@@ -2688,6 +2878,38 @@ internal sealed class DurableOperationLedger
         }
     }
 
+    internal Result<DurableOperationRecord, OperationLedgerError> ConfirmDurableNoEffectCleanupReady(
+        string repositoryId,
+        OperationId operationId)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+
+        try
+        {
+            var protectionError = AcquireExistingProtection(out var protectionLease);
+            if (protectionError is not null)
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(protectionError);
+            using var heldProtectionLease = protectionLease!;
+            using var ledgerLock = AcquireMutationLock();
+            var recordPath = GetRecordPath(_rootPath, repositoryId, operationId);
+            if (!File.Exists(recordPath))
+                return Missing<DurableOperationRecord>();
+            var loaded = ReadRecord(recordPath, repositoryId, operationId);
+            if (loaded.IsErr)
+                return loaded;
+            var record = loaded.Match(value => value, _ => null!);
+            if (!CanCleanupNoEffect(record))
+                return InvalidCleanupTransition("The no-effect activity is not durably closed and drained.");
+            _durability.FlushDirectoryMetadata(Path.GetDirectoryName(recordPath)!);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(record);
+        }
+        catch (Exception exception) when (IsStorageException(exception))
+        {
+            return Result<DurableOperationRecord, OperationLedgerError>.Err(StorageError(exception));
+        }
+    }
+
     internal Result<DurableOperationRecord, OperationLedgerError> ConfirmDurableCleanupVerified(
         string repositoryId,
         OperationId operationId)
@@ -3037,7 +3259,8 @@ internal sealed class DurableOperationLedger
             var stagingJournal = stored.StagingJournal is null
                 ? ImmutableArray<OperationStagingJournalEvent>.Empty
                 : stored.StagingJournal.ToImmutableArray()!;
-            if (!ValidStagingJournal(stagingJournal, operationId, transitions, preEffectActivity))
+            if (!ValidStagingJournal(stagingJournal, operationId, transitions, preEffectActivity,
+                    stored.CurrentState, effectJournal, guardJournal))
                 return Corrupt<DurableOperationRecord>("The staging journal is inconsistent.");
             if (stored.BackupJournal is not null
                 && stored.BackupJournal.Any(static entry => entry is null))
@@ -3047,7 +3270,8 @@ internal sealed class DurableOperationLedger
             var backupJournal = stored.BackupJournal is null
                 ? ImmutableArray<OperationBackupJournalEvent>.Empty
                 : stored.BackupJournal.ToImmutableArray()!;
-            if (!ValidBackupJournal(backupJournal, operationId, transitions, preEffectActivity))
+            if (!ValidBackupJournal(backupJournal, operationId, transitions, preEffectActivity,
+                    stored.CurrentState, effectJournal, guardJournal))
                 return Corrupt<DurableOperationRecord>("The backup journal is inconsistent.");
             if (stored.CleanupJournal is not null
                 && stored.CleanupJournal.Any(static entry => entry is null))
@@ -3057,11 +3281,15 @@ internal sealed class DurableOperationLedger
             var cleanupJournal = stored.CleanupJournal is null
                 ? ImmutableArray<OperationCleanupJournalEvent>.Empty
                 : stored.CleanupJournal.ToImmutableArray()!;
-            if (!ValidCleanupJournal(cleanupJournal, stagingJournal, backupJournal, transitions,
-                    stored.CurrentState, effectJournal, preEffectActivity))
+            if (!ValidCleanupJournal(cleanupJournal, stagingJournal, backupJournal, guardJournal,
+                    ownerLease, transitions, stored.CurrentState, effectJournal, preEffectActivity))
             {
                 return Corrupt<DurableOperationRecord>("The cleanup journal is inconsistent.");
             }
+            if (stored.CleanupPinReleased
+                && (cleanupJournal.IsEmpty
+                    || cleanupJournal[^1].Kind != OperationCleanupJournalKind.CleanupVerified))
+                return Corrupt<DurableOperationRecord>("Pin release lacks verified cleanup.");
 
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(new DurableOperationRecord(
                 stored.RepositoryId,
@@ -3076,6 +3304,7 @@ internal sealed class DurableOperationLedger
                 StagingJournal = stagingJournal,
                 BackupJournal = backupJournal,
                 CleanupJournal = cleanupJournal,
+                CleanupPinReleased = stored.CleanupPinReleased,
                 GuardJournal = guardJournal,
                 OwnerLease = ownerLease,
                 PreEffectActivity = preEffectActivity
@@ -3261,7 +3490,8 @@ internal sealed class DurableOperationLedger
             record.StagingJournal.ToArray(),
             record.CleanupJournal.ToArray(),
             record.BackupJournal.ToArray(),
-            record.GuardJournal.ToArray());
+            record.GuardJournal.ToArray(),
+            record.CleanupPinReleased);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -3515,7 +3745,10 @@ internal sealed class DurableOperationLedger
         ImmutableArray<OperationStagingJournalEvent> journal,
         OperationId operationId,
         ImmutableArray<OperationTransition> transitions,
-        PreEffectActivityState activity)
+        PreEffectActivityState activity,
+        OperationLifecycleState currentState,
+        ImmutableArray<OperationEffectJournalEvent> effectJournal,
+        ImmutableArray<OperationGuardJournalEvent> guardJournal)
     {
         if (journal.IsEmpty)
             return true;
@@ -3590,6 +3823,9 @@ internal sealed class DurableOperationLedger
             creation = null;
         }
         return creation is null
+               || (activity.IsClosed && IsNoEffectTerminal(currentState) && effectJournal.IsEmpty
+                   && HasInactiveGuardHistory(guardJournal, creation.AdmissionToken,
+                       creation.ControlGeneration, creation.FenceEpoch, creation.ReservationToken))
                || activity.ActiveAdmissions.Any(admission =>
                    admission.Token == creation.AdmissionToken
                    && admission.ControlGeneration == creation.ControlGeneration
@@ -3601,7 +3837,10 @@ internal sealed class DurableOperationLedger
         ImmutableArray<OperationBackupJournalEvent> journal,
         OperationId operationId,
         ImmutableArray<OperationTransition> transitions,
-        PreEffectActivityState activity)
+        PreEffectActivityState activity,
+        OperationLifecycleState currentState,
+        ImmutableArray<OperationEffectJournalEvent> effectJournal,
+        ImmutableArray<OperationGuardJournalEvent> guardJournal)
     {
         if (journal.IsEmpty)
             return true;
@@ -3676,6 +3915,9 @@ internal sealed class DurableOperationLedger
             creation = null;
         }
         return creation is null
+               || (activity.IsClosed && IsNoEffectTerminal(currentState) && effectJournal.IsEmpty
+                   && HasInactiveGuardHistory(guardJournal, creation.AdmissionToken,
+                       creation.ControlGeneration, creation.FenceEpoch, creation.ReservationToken))
                || activity.ActiveAdmissions.Any(admission =>
                    admission.Token == creation.AdmissionToken
                    && admission.ControlGeneration == creation.ControlGeneration
@@ -3683,10 +3925,28 @@ internal sealed class DurableOperationLedger
                    && admission.ReservationToken == creation.ReservationToken);
     }
 
+    private static bool HasInactiveGuardHistory(
+        ImmutableArray<OperationGuardJournalEvent> guardJournal,
+        Guid admissionToken,
+        long controlGeneration,
+        long fenceEpoch,
+        Guid reservationToken)
+    {
+        var latest = guardJournal.LastOrDefault(entry => entry.AdmissionToken == admissionToken);
+        return latest is not null
+               && (latest.Kind is OperationGuardJournalKind.ActivityAdmitted
+                   or OperationGuardJournalKind.ConfirmedInactive)
+               && latest.ControlGeneration == controlGeneration
+               && latest.FenceEpoch == fenceEpoch
+               && latest.ReservationToken == reservationToken;
+    }
+
     private static bool ValidCleanupJournal(
         ImmutableArray<OperationCleanupJournalEvent> journal,
         ImmutableArray<OperationStagingJournalEvent> stagingJournal,
         ImmutableArray<OperationBackupJournalEvent> backupJournal,
+        ImmutableArray<OperationGuardJournalEvent> guardJournal,
+        OperationOwnerLease? ownerLease,
         ImmutableArray<OperationTransition> transitions,
         OperationLifecycleState currentState,
         ImmutableArray<OperationEffectJournalEvent> effectJournal,
@@ -3699,7 +3959,10 @@ internal sealed class DurableOperationLedger
         }
         if (!IsNoEffectTerminal(currentState)
             || !effectJournal.IsEmpty
-            || (stagingJournal.IsEmpty && backupJournal.IsEmpty)
+            || (stagingJournal.IsEmpty && backupJournal.IsEmpty
+                && guardJournal.IsEmpty && ownerLease is null)
+            || (stagingJournal.IsEmpty && backupJournal.IsEmpty
+                && guardJournal.IsEmpty && activity.HasAdmissionHistory)
             || journal.Length > stagingJournal.Length + backupJournal.Length + 2
             || !activity.IsClosed)
             return false;
@@ -3709,7 +3972,13 @@ internal sealed class DurableOperationLedger
             || pending.Sequence != 1
             || pending.Kind != OperationCleanupJournalKind.InventoryPending
             || pending.Artifacts.IsDefault
-            || pending.CommittedAtUtc != transitions[^1].CommittedAtUtc)
+            || (stagingJournal.IsEmpty && backupJournal.IsEmpty
+                ? pending.CommittedAtUtc < transitions[^1].CommittedAtUtc
+                : pending.CommittedAtUtc != transitions[^1].CommittedAtUtc)
+            || (stagingJournal.IsEmpty && backupJournal.IsEmpty
+                && guardJournal.Any(entry =>
+                    entry.FenceEpoch != guardJournal[0].FenceEpoch
+                    || entry.ReservationToken != guardJournal[0].ReservationToken)))
             return false;
         var stagingArtifacts = stagingJournal
             .Where(entry => entry.Kind == OperationStagingJournalKind.CreationAdmitted)
@@ -3977,7 +4246,8 @@ internal sealed class DurableOperationLedger
         IReadOnlyList<OperationStagingJournalEvent>? StagingJournal = null,
         IReadOnlyList<OperationCleanupJournalEvent>? CleanupJournal = null,
         IReadOnlyList<OperationBackupJournalEvent>? BackupJournal = null,
-        IReadOnlyList<OperationGuardJournalEvent>? GuardJournal = null);
+        IReadOnlyList<OperationGuardJournalEvent>? GuardJournal = null,
+        bool CleanupPinReleased = false);
 
     private sealed record EffectJournalRecord(
         long Sequence,

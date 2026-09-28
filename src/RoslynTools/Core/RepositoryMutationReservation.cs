@@ -22,7 +22,10 @@ internal sealed class RepositoryMutationReservation : IDisposable
 {
     private readonly FileStream _stream;
     private readonly IDisposable _protectionLease;
+    private readonly object _activityGate = new();
+    private int _activeActivities;
     private bool _disposed;
+    private bool _released;
 
     internal RepositoryMutationReservation(
         FileStream stream,
@@ -49,6 +52,29 @@ internal sealed class RepositoryMutationReservation : IDisposable
 
     internal void AssertHeld(string repositoryId)
     {
+        lock (_activityGate)
+        {
+            AssertHeldInsideGate(repositoryId);
+        }
+    }
+
+    /// <summary>
+    ///     Keeps the OS reservation held through an admitted asynchronous
+    ///     control-root write. Disposal revokes new work immediately but cannot
+    ///     expose a successor until every in-flight activity leaves this scope.
+    /// </summary>
+    internal IDisposable HoldControlActivity(string repositoryId)
+    {
+        lock (_activityGate)
+        {
+            AssertHeldInsideGate(repositoryId);
+            _activeActivities = checked(_activeActivities + 1);
+            return new ControlActivity(this);
+        }
+    }
+
+    private void AssertHeldInsideGate(string repositoryId)
+    {
         ObjectDisposedException.ThrowIf(
             _disposed || _stream.SafeFileHandle.IsClosed,
             nameof(RepositoryMutationReservation));
@@ -57,16 +83,58 @@ internal sealed class RepositoryMutationReservation : IDisposable
     }
 
     /// <summary>
-    ///     Releases the exclusive repository lock and its protected-root lease.
+    ///     Revokes new work immediately. The exclusive lock and protected-root
+    ///     lease are released after the last admitted control activity finishes.
     ///     Repeated disposal has no further effect.
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        _stream.Dispose();
-        _protectionLease.Dispose();
+        bool release;
+        lock (_activityGate)
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            release = _activeActivities == 0;
+            if (release)
+                _released = true;
+        }
+        if (release)
+            ReleaseResources();
+    }
+
+    private void LeaveControlActivity()
+    {
+        bool release;
+        lock (_activityGate)
+        {
+            _activeActivities--;
+            release = _disposed && _activeActivities == 0 && !_released;
+            if (release)
+                _released = true;
+        }
+        if (release)
+            ReleaseResources();
+    }
+
+    private void ReleaseResources()
+    {
+        try
+        {
+            _stream.Dispose();
+        }
+        finally
+        {
+            _protectionLease.Dispose();
+        }
+    }
+
+    private sealed class ControlActivity(RepositoryMutationReservation owner) : IDisposable
+    {
+        private RepositoryMutationReservation? _owner = owner;
+
+        void IDisposable.Dispose() =>
+            Interlocked.Exchange(ref _owner, null)?.LeaveControlActivity();
     }
 }
 

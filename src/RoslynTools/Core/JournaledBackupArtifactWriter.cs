@@ -53,7 +53,7 @@ internal sealed class JournaledBackupArtifactWriter
         ArgumentNullException.ThrowIfNull(operationId);
         ArgumentNullException.ThrowIfNull(admission);
         ArgumentNullException.ThrowIfNull(reservation);
-        reservation.AssertHeld(plan.Key.RepositoryId);
+        using var controlActivity = reservation.HoldControlActivity(plan.Key.RepositoryId);
 
         IBackupArtifactSession session;
         try
