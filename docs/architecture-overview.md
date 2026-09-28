@@ -102,6 +102,15 @@ Every ordinary stable command has one host-neutral application definition and ex
 
 It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. During migration only, descriptors without complete ports enter an isolated compatibility bridge. Apply-capable bridge commands are not part of the stable MCP or daemon surface.
 
+The `rt` CLI assembly owns `IRtCommand` and its category/output markers, the
+CLI option helper, and the `dump-help` command-surface projection. The reusable
+`RoslynTools` project has no `System.CommandLine` package or compiled assembly
+reference; its application definitions and ports remain host-neutral. The moved
+internal CLI types retain their historical `RoslynTools.Core` namespace for
+source compatibility. [ADR-0042](adr/0042-cli-command-surface-ownership.md)
+records this assembly boundary. The descriptor catalogue extraction in #54 and
+MCP assembly decoupling in #56 remain separate steps of #53.
+
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
 SDK selection, and process-global registration stay in the owning host adapter. For

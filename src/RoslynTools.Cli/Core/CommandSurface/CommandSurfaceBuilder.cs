@@ -7,9 +7,10 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace RoslynTools.Core.CommandSurface;
 
 /// <summary>
-///     Projects the discovered command registry into a serializable <see cref="CommandSurfaceModel" />.
-///     Pure and host-agnostic: callers pass the <c>(Command, RtCommandInfo)</c> pairs plus the group
-///     descriptions and global options, so this can be unit-tested with a synthetic registry.
+///     Projects the discovered CLI command registry into a serializable
+///     <see cref="CommandSurfaceModel" />. Callers pass the
+///     <c>(Command, RtCommandInfo)</c> pairs plus group descriptions and global options,
+///     so this CLI projection can be tested with a synthetic registry.
 /// </summary>
 internal static class CommandSurfaceBuilder
 {

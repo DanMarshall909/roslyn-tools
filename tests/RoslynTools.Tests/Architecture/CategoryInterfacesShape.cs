@@ -13,7 +13,7 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class CategoryInterfacesShape
 {
-    private static readonly Assembly CoreAssembly = typeof(IRtCommand).Assembly;
+    private static readonly Assembly CliAssembly = typeof(IRtCommand).Assembly;
 
     [Fact]
     public void with_each_new_marker_the_interface_exists_at_expected_fqn()
@@ -96,7 +96,7 @@ public sealed class CategoryInterfacesShape
         // Regression guard: this batch must not modify IStructuredOutputCommand, and the empty-marker
         // assertion is also tested here against a known-good empty interface (proves the BindingFlags
         // combination actually returns zero members on an interface that has none).
-        var t = CoreAssembly.GetType("RoslynTools.Core.IStructuredOutputCommand", throwOnError: false);
+        var t = CliAssembly.GetType("RoslynTools.Core.IStructuredOutputCommand", throwOnError: false);
         Assert.NotNull(t);
         Assert.True(t!.IsInterface, "RoslynTools.Core.IStructuredOutputCommand must be an interface.");
         Assert.False(t.IsVisible, "RoslynTools.Core.IStructuredOutputCommand must remain internal.");
@@ -111,14 +111,14 @@ public sealed class CategoryInterfacesShape
 
     private static void AssertInterfaceExists(string fqn)
     {
-        var t = CoreAssembly.GetType(fqn, throwOnError: false);
-        Assert.True(t is not null, $"Expected interface {fqn} to exist in {CoreAssembly.GetName().Name}.");
+        var t = CliAssembly.GetType(fqn, throwOnError: false);
+        Assert.True(t is not null, $"Expected interface {fqn} to exist in {CliAssembly.GetName().Name}.");
         Assert.True(t!.IsInterface, $"{fqn} must be declared as an interface.");
     }
 
     private static void AssertInterfaceIsInternal(string fqn)
     {
-        var t = CoreAssembly.GetType(fqn, throwOnError: false);
+        var t = CliAssembly.GetType(fqn, throwOnError: false);
         Assert.NotNull(t);
         // An internal type is non-public but visible to this test via InternalsVisibleTo.
         Assert.False(
@@ -128,7 +128,7 @@ public sealed class CategoryInterfacesShape
 
     private static void AssertInterfaceIsEmpty(string fqn)
     {
-        var t = CoreAssembly.GetType(fqn, throwOnError: false);
+        var t = CliAssembly.GetType(fqn, throwOnError: false);
         Assert.NotNull(t);
         var members = t!.GetMembers(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
@@ -140,7 +140,7 @@ public sealed class CategoryInterfacesShape
 
     private static void AssertDirectParents(string fqn, params string[] expectedParentFqns)
     {
-        var t = CoreAssembly.GetType(fqn, throwOnError: false);
+        var t = CliAssembly.GetType(fqn, throwOnError: false);
         Assert.NotNull(t);
 
         var allInterfaces = t!.GetInterfaces();

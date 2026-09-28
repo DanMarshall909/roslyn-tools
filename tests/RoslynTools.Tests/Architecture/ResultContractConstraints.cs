@@ -18,7 +18,7 @@ public sealed class ResultContractConstraints
     [Fact]
     public void core_defines_a_typed_rt_result_contract()
     {
-        var coreAssembly = typeof(IRtCommand).Assembly;
+        var coreAssembly = typeof(RtCommandInfo).Assembly;
         var violations = new List<string>();
 
         var resultType = coreAssembly.GetType("RoslynTools.Core.RtResult`1");
