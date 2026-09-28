@@ -109,3 +109,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0042](0042-cli-command-surface-ownership.md) | CLI command surface belongs to the CLI assembly | Accepted | 2026-09-28 |
 | [0043](0043-mcp-port-only-dispatch.md) | MCP dispatch requires an application port | Accepted | 2026-09-28 |
 | [0044](0044-typed-application-catalogue-for-mcp.md) | Typed application catalogue powers MCP | Accepted | 2026-09-28 |
+| [0045](0045-shared-msbuild-instance-identity.md) | Shared MSBuild instance identity for host adapters | Accepted | 2026-09-28 |

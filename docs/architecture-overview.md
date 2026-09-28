@@ -134,6 +134,12 @@ or registering MSBuild globally. The MCP adapter likewise invokes installation-o
 doctor requests without registering MSBuild, so a self-contained installation can
 diagnose an absent SDK rather than failing before the doctor operation runs.
 
+MSBuild instance identity, exact-selection values, and compatibility errors are
+shared in the reusable assembly for CLI daemon and MCP hosts. The daemon SDK
+guard remains CLI-owned, and process-global registration still lives in
+`MsBuildBootstrap` in the CLI assembly pending #56. See
+[ADR-0045](adr/0045-shared-msbuild-instance-identity.md).
+
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
 ### 2. Explicit request context
