@@ -208,6 +208,9 @@ schema-version-1 JSON from `~/.rt/config.json` and from `.rt/config.json` at the
 Git worktree root. It does not search arbitrary parent `.rt` directories. Both files are
 strict: malformed JSON, unknown members, unsupported versions, invalid values, and
 invalid exact MCP tool names fail normal host startup with the responsible path.
+The loader, effective host configuration, and MCP descriptor policy live in shared
+Hosting; Core has no host configuration implementation. An architecture placement
+test guards this boundary; see [ADR-0059](adr/0059-host-configuration-hosting-ownership.md).
 `rt config` is a local host inspection command that reports selected paths, effective
 values, and their sources without MSBuild registration or daemon routing.
 

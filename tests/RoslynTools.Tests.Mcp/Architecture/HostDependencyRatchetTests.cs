@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
@@ -130,6 +131,21 @@ public sealed class HostDependencyRatchetTests
             .Order(StringComparer.Ordinal)
             .ToArray();
         namedPipeSources.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void process_host_configuration_and_mcp_policy_live_in_shared_hosting()
+    {
+        var hosting = typeof(HostServiceRegistration).Assembly;
+        typeof(HostConfigurationLoader).Assembly.ShouldBe(hosting);
+        typeof(HostConfigurationResolution).Assembly.ShouldBe(hosting);
+        typeof(EffectiveDaemonConfiguration).Assembly.ShouldBe(hosting);
+        typeof(EffectiveMcpConfiguration).Assembly.ShouldBe(hosting);
+        typeof(McpConfigurationValidator).Assembly.ShouldBe(hosting);
+
+        var core = Path.Combine(FindRepositoryRoot(), "src", "RoslynTools", "Core");
+        File.Exists(Path.Combine(core, "HostConfiguration.cs")).ShouldBeFalse();
+        File.Exists(Path.Combine(core, "McpConfigurationValidator.cs")).ShouldBeFalse();
     }
 
     private static (string Name, string Request, string Response, CommandSafetyPolicy Safety, bool McpVisible)[]

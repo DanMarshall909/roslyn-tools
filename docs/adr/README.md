@@ -123,3 +123,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0056](0056-daemon-owned-host-composition.md) | Daemon-owned host composition | Accepted | 2026-09-28 |
 | [0057](0057-host-dependency-and-contract-ratchets.md) | Host dependency and typed-contract ratchets | Accepted; transport placement completed by [0058](0058-daemon-transport-hosting-ownership.md) | 2026-09-28 |
 | [0058](0058-daemon-transport-hosting-ownership.md) | Daemon transport belongs to shared Hosting | Accepted | 2026-09-28 |
+| [0059](0059-host-configuration-hosting-ownership.md) | Host configuration belongs to shared Hosting | Accepted | 2026-09-28 |
