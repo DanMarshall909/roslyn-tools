@@ -117,13 +117,13 @@ commands. The CLI descriptor registry consumes the same typed descriptors and
 adds CLI path and option metadata; it constructs legacy maintainer descriptors
 locally. The Core-owned product capability catalogue uses the same typed
 inventory for doctor and other capability reporting. Shared DI registration
-and host adapters still live in the CLI assembly;
+and doctor/suggestion host adapters still live in the CLI assembly;
 removing MCP's CLI project reference remains #56. See
 [ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
-SDK selection, and process-global registration stay in the owning host adapter. For
+SDK selection, and process-global registration stay in host adapter assemblies. For
 example, `DoctorOperation` consumes `IDoctorEnvironmentProbe` and
 `IDoctorWorkspaceBootstrap`; the CLI implementations perform the installed MCP
 handshake and defer MSBuild registration until repository trust authorizes solution
@@ -136,9 +136,10 @@ diagnose an absent SDK rather than failing before the doctor operation runs.
 
 MSBuild instance identity, exact-selection values, and compatibility errors are
 shared in the reusable assembly for CLI daemon and MCP hosts. The daemon SDK
-guard remains CLI-owned, and process-global registration still lives in
-`MsBuildBootstrap` in the CLI assembly pending #56. See
-[ADR-0045](adr/0045-shared-msbuild-instance-identity.md).
+guard remains CLI-owned. Process-global `MsBuildBootstrap` lives in the shared
+`RoslynTools.Hosting` assembly, referenced by CLI and MCP; Core does not depend
+on this host assembly. See [ADR-0045](adr/0045-shared-msbuild-instance-identity.md)
+and [ADR-0046](adr/0046-shared-msbuild-host-bootstrap.md).
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

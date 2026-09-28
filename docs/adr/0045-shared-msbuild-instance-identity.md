@@ -24,8 +24,8 @@ in the CLI assembly as the daemon's host-specific guard.
 
 - MCP can use shared SDK identity and compatibility policy without loading the
   CLI assembly for those types.
-- `MsBuildBootstrap` still lives in the CLI assembly and owns process-global
-  registration. Moving it and shared DI registration are later #56 slices.
+- `MsBuildBootstrap` was moved to the shared host assembly in the next #56
+  slice; shared DI registration remains a later slice.
 - An architecture test locks the three shared types to the reusable assembly;
   existing daemon and MCP tests cover their behavior.
 

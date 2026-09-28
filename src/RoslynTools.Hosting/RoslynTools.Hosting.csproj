@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>RoslynTools</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="rt"/>
+        <InternalsVisibleTo Include="RoslynTools.Mcp"/>
+        <InternalsVisibleTo Include="RoslynTools.Tests"/>
+        <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Locator"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>
+    </ItemGroup>
+</Project>

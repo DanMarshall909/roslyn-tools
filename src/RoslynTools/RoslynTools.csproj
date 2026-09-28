@@ -10,6 +10,7 @@
         <InternalsVisibleTo Include="RoslynTools.Mcp"/>
         <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
         <InternalsVisibleTo Include="rt"/>
+        <InternalsVisibleTo Include="RoslynTools.Hosting"/>
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Build.Locator"/>

@@ -1,6 +1,7 @@
 <Solution>
     <Folder Name="/src/">
         <Project Path="src/RoslynTools/RoslynTools.csproj"/>
+        <Project Path="src/RoslynTools.Hosting/RoslynTools.Hosting.csproj"/>
         <Project Path="src/RoslynTools.Cli/RoslynTools.Cli.csproj"/>
         <Project Path="src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"/>
     </Folder>
