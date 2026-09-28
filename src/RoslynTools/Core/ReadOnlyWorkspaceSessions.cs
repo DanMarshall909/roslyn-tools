@@ -143,35 +143,34 @@ internal sealed class WorkspaceCacheTelemetry : IWorkspaceCacheTelemetry
     private readonly Func<string?> _getTracePath;
     private readonly Action<string, string> _appendLine;
     private readonly Action<Exception> _reportFailure;
+    private readonly Action<WorkspaceCacheEvent> _reportEvent;
 
-    internal WorkspaceCacheTelemetry()
+    internal WorkspaceCacheTelemetry(
+        Action<WorkspaceCacheEvent> reportEvent,
+        Action<Exception> reportFailure)
         : this(
             () => Environment.GetEnvironmentVariable(TracePathEnvironmentVariable),
             static (path, line) => File.AppendAllText(path, line, new UTF8Encoding(false)),
-            static exception => RtLog.Warning(
-                "[workspace-cache] Could not write instrumentation trace: {Message}",
-                exception.Message))
+            reportFailure,
+            reportEvent)
     {
     }
 
     internal WorkspaceCacheTelemetry(
         Func<string?> getTracePath,
         Action<string, string> appendLine,
-        Action<Exception>? reportFailure = null)
+        Action<Exception>? reportFailure = null,
+        Action<WorkspaceCacheEvent>? reportEvent = null)
     {
         _getTracePath = getTracePath;
         _appendLine = appendLine;
         _reportFailure = reportFailure ?? (static _ => { });
+        _reportEvent = reportEvent ?? (static _ => { });
     }
 
     void IWorkspaceCacheTelemetry.Record(WorkspaceCacheEvent cacheEvent)
     {
-        RtLog.Info(
-            "[workspace-cache] {Kind} identity={IdentityHash} revision={SourceRevision} loadCount={LoadCount}",
-            cacheEvent.Kind,
-            cacheEvent.IdentityHash,
-            cacheEvent.SourceRevision,
-            cacheEvent.LoadCount);
+        _reportEvent(cacheEvent);
 
         var tracePath = _getTracePath();
         if (string.IsNullOrWhiteSpace(tracePath))

@@ -1241,13 +1241,15 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
     {
         string? recordedPath = null;
         string? recordedLine = null;
+        WorkspaceCacheEvent? reportedEvent = null;
         var telemetry = (IWorkspaceCacheTelemetry)new WorkspaceCacheTelemetry(
             () => "trace.jsonl",
             (path, line) =>
             {
                 recordedPath = path;
                 recordedLine = line;
-            });
+            },
+            reportEvent: cacheEvent => reportedEvent = cacheEvent);
         var cacheEvent = new WorkspaceCacheEvent(
             WorkspaceCacheEventKind.Hit,
             "identity",
@@ -1256,6 +1258,7 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
 
         telemetry.Record(cacheEvent);
 
+        reportedEvent.ShouldBeSameAs(cacheEvent);
         recordedPath.ShouldBe("trace.jsonl");
         var line = recordedLine.ShouldNotBeNull();
         line.ShouldContain("\"Kind\":\"Hit\"");

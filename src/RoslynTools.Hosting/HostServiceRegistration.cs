@@ -38,7 +38,20 @@ internal static class HostServiceRegistration
             sp.GetRequiredService<IWorkspaceEnvironmentIdentity>(),
             sp.GetRequiredService<IWorkspaceLoadConfiguration>(),
             () => MsBuildBootstrap.GetRegisteredSdkIdentity()?.MSBuildPath));
-        services.AddSingleton<IWorkspaceCacheTelemetry>(_ => new WorkspaceCacheTelemetry());
+        services.AddSingleton<IWorkspaceCacheTelemetry>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<WorkspaceCacheTelemetry>>();
+            return new WorkspaceCacheTelemetry(
+                cacheEvent => logger.RtInfo(
+                    "[workspace-cache] {Kind} identity={IdentityHash} revision={SourceRevision} loadCount={LoadCount}",
+                    cacheEvent.Kind,
+                    cacheEvent.IdentityHash,
+                    cacheEvent.SourceRevision,
+                    cacheEvent.LoadCount),
+                exception => logger.RtWarning(
+                    "[workspace-cache] Could not write instrumentation trace: {Message}",
+                    exception.Message));
+        });
         services.AddSingleton(sp => new ReadOnlyWorkspaceSessionCache(
             sp.GetRequiredService<IWorkspaceSnapshotLoader>(),
             sp.GetRequiredService<IWorkspaceInputFingerprint>(),

@@ -173,6 +173,10 @@ The five text, JSON, YAML, Markdown, and LLM format renderers also compile in
 CLI with `RtSerializer`; an assembly placement test covers them. Core retains
 shared output contracts and JSON encoder selection. See
 [ADR-0065](adr/0065-cli-owned-format-renderers.md).
+Workspace cache telemetry reports cache events and trace failures through
+callbacks wired to the host's logger; Core no longer calls the ambient CLI
+logger from that component. See
+[ADR-0066](adr/0066-workspace-cache-diagnostics-through-host.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

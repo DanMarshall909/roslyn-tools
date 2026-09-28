@@ -130,3 +130,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0063](0063-cli-owned-process-output.md) | CLI process output implementations belong to CLI | Accepted | 2026-09-29 |
 | [0064](0064-service-exit-status-is-host-owned.md) | Service outcomes do not set process exit status | Accepted | 2026-09-29 |
 | [0065](0065-cli-owned-format-renderers.md) | Format renderers belong to the CLI adapter | Accepted | 2026-09-29 |
+| [0066](0066-workspace-cache-diagnostics-through-host.md) | Workspace cache diagnostics flow through host composition | Accepted | 2026-09-29 |
