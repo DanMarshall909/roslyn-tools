@@ -30,6 +30,8 @@ Hosting project declares its direct Scrutor dependency.
   descriptors, and command builders remain CLI-owned. MCP still depends on CLI
   until it supplies or shares the required suggestion catalogue and has its
   own registration entry point.
+- The CLI-only config, trust, and feedback metadata moved to a shared host
+  source in the next #56 slice.
 
 ## Alternatives considered
 

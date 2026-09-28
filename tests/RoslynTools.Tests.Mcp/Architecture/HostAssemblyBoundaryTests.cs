@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Suggest;
+using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
@@ -11,6 +13,16 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class HostAssemblyBoundaryTests
 {
+    [Fact]
+    public void local_host_command_metadata_has_one_shared_source()
+    {
+        typeof(HostCommandMetadata).Assembly.ShouldBe(typeof(MsBuildBootstrap).Assembly);
+        ConfigCommand.Info.ShouldBeSameAs(HostCommandMetadata.Config);
+        TrustCommand.Info.ShouldBeSameAs(HostCommandMetadata.Trust);
+        new AppCommandCatalog().All.Single(info => info.Name == "feedback")
+            .ShouldBeSameAs(HostCommandMetadata.Feedback);
+    }
+
     [Fact]
     public void shared_application_composition_registers_catalogue_and_core_operations()
     {

@@ -13,16 +13,6 @@ internal sealed class AppCommandCatalog : ICommandCatalog
 {
     public IReadOnlyList<RtCommandInfo> All { get; } =
         App.CatalogCommands.Select(e => e.Info)
-            .Append(new RtCommandInfo(
-                "feedback",
-                true,
-                true,
-                "meta",
-                "Recording rt dogfood feedback, bugs, missing features, and unexpected command behavior. "
-                + "Use feedback add to create an item or feedback list to review existing items.",
-                [
-                    "rt feedback add --description \"rename should also preview related symbols\"",
-                    "rt feedback list --status pending"
-                ]))
+            .Append(HostCommandMetadata.Feedback)
             .ToArray();
 }

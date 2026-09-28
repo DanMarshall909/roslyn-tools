@@ -17,15 +17,7 @@ internal sealed class ConfigCommand(
     private readonly HostConfigurationResolution _resolution = resolution;
     private readonly IServiceProvider _services = services;
 
-    public static RtCommandInfo Info => new(
-        "config",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "inspect",
-        "Inspecting effective global and worktree host configuration or diagnosing an invalid file.",
-        ["rt config", "rt config --json"],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
-        SeeAlso: ["doctor", "trust"]);
+    public static RtCommandInfo Info => HostCommandMetadata.Config;
 
     public Command Build()
     {

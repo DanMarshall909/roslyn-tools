@@ -19,21 +19,7 @@ internal sealed class TrustCommand(
     private readonly TrustStatusOperation _status = status;
     private readonly TrustRemoveOperation _remove = remove;
 
-    public static RtCommandInfo Info => new(
-        "trust",
-        Mutates: true,
-        JsonOutput: true,
-        Category: "refactor",
-        "Managing preview user-scoped trust for a reviewed Git repository. "
-        + "Use trust add/remove only as an explicit local user decision; use list/status to inspect it.",
-        [
-            "rt trust add .",
-            "rt trust list",
-            "rt trust status .",
-            "rt trust remove ."
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
-        SeeAlso: ["doctor"]);
+    public static RtCommandInfo Info => HostCommandMetadata.Trust;
 
     public Command Build()
     {
