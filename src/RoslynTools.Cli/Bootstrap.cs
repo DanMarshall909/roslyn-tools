@@ -1,11 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.CommandDescriptors;
-using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
-using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
 using RoslynTools.Services.GitHub;
@@ -25,23 +23,7 @@ internal static class Bootstrap
         HostServiceRegistration.RegisterFoundationServices(services);
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
-        services.AddSingleton<DaemonRpcClient>();
-        services.AddSingleton<IDaemonRpcClient>(provider => provider.GetRequiredService<DaemonRpcClient>());
-        services.AddSingleton<IDaemonLauncher>(provider => new DaemonLauncher(
-            DaemonLaunchOptions.FromConfiguration(
-                provider.GetRequiredService<HostConfigurationResolution>().Effective.Daemon)));
-        services.AddSingleton<DaemonRpcRecoveryCoordinator>();
-        services.AddSingleton(provider => new DaemonCommandDispatcher(
-            provider.GetServices<ICommandApplicationPort>(),
-            provider.GetRequiredService<RepositoryTrustRegistry>(),
-            provider.GetService<IDaemonSdkContextGuard>()));
-        services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
-        services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
-        services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
-        services.AddSingleton<IPreparedFileSystem, PhysicalPreparedFileSystem>();
-        services.AddSingleton<IPreparedChangeSetWriter>(provider =>
-            new PreparedChangeSetWriter(provider.GetRequiredService<IPreparedFileSystem>()));
-        services.AddSingleton<PreparedChangeSetExecutor>();
+        HostServiceRegistration.RegisterApplicationInfrastructure(services);
         services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();

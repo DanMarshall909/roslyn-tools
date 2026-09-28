@@ -25,10 +25,9 @@ descriptors in an architecture test.
   without referencing CLI code.
 - CLI service graph construction remains equivalent because the moved block
   occupies the same point in its registration sequence.
-- Remaining daemon/application registrations, Core service scanning, CLI
-  feedback and command descriptors, and the suggestion catalogue still live
-  in CLI `Bootstrap`. Subsequent #56 tracers must separate these before MCP
-  can remove its CLI project reference.
+- Daemon/application infrastructure registration moved into Hosting in the
+  next #56 slice. Core service scanning, CLI feedback and command descriptors,
+  and the suggestion catalogue still live in CLI `Bootstrap`.
 
 ## Alternatives considered
 

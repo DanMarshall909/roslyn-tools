@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -9,6 +10,21 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class HostAssemblyBoundaryTests
 {
+    [Fact]
+    public void shared_application_infrastructure_registers_daemon_and_change_services()
+    {
+        var services = new ServiceCollection();
+
+        HostServiceRegistration.RegisterApplicationInfrastructure(services);
+
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDaemonRpcClient));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDaemonLauncher));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(DaemonCommandDispatcher));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(ISymbolResolutionService));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDocumentLocatorService));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IPreparedChangeSetWriter));
+    }
+
     [Fact]
     public void shared_host_foundation_registers_workspace_durable_trust_and_doctor_ports()
     {

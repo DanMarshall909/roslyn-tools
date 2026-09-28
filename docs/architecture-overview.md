@@ -117,8 +117,9 @@ commands. The CLI descriptor registry consumes the same typed descriptors and
 adds CLI path and option metadata; it constructs legacy maintainer descriptors
 locally. The Core-owned product capability catalogue uses the same typed
 inventory for doctor and other capability reporting. Shared host foundation
-registration lives in `RoslynTools.Hosting`; the remaining application/CLI
-composition and suggestion catalogue still live in the CLI assembly;
+registration and daemon/application infrastructure registration live in
+`RoslynTools.Hosting`; Core service scanning, CLI composition, and the
+suggestion catalogue still live in the CLI assembly;
 removing MCP's CLI project reference remains #56. See
 [ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md).
 
@@ -146,6 +147,8 @@ doctor probe and workspace bootstrap also live in this assembly; see
 The shared host foundation registers workspace loading and caching, durable
 state, trust, and doctor ports; the CLI invokes it before its own registrations.
 See [ADR-0048](adr/0048-shared-host-foundation-registration.md).
+The same host assembly registers daemon RPC, symbol/document resolution, and
+prepared-change writers; see [ADR-0049](adr/0049-shared-application-infrastructure-registration.md).
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

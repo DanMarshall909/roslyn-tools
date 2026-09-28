@@ -3,12 +3,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools;
 
 /// <summary>
-/// Registers host-shared workspace, durability, trust, and doctor foundations.
+/// Registers infrastructure shared by CLI and MCP host adapters.
 /// </summary>
 internal static class HostServiceRegistration
 {
@@ -67,5 +68,25 @@ internal static class HostServiceRegistration
         services.AddSingleton<TrustListOperation>();
         services.AddSingleton<TrustStatusOperation>();
         services.AddSingleton<TrustRemoveOperation>();
+    }
+    internal static void RegisterApplicationInfrastructure(IServiceCollection services)
+    {
+        services.AddSingleton<DaemonRpcClient>();
+        services.AddSingleton<IDaemonRpcClient>(provider => provider.GetRequiredService<DaemonRpcClient>());
+        services.AddSingleton<IDaemonLauncher>(provider => new DaemonLauncher(
+            DaemonLaunchOptions.FromConfiguration(
+                provider.GetRequiredService<HostConfigurationResolution>().Effective.Daemon)));
+        services.AddSingleton<DaemonRpcRecoveryCoordinator>();
+        services.AddSingleton(provider => new DaemonCommandDispatcher(
+            provider.GetServices<ICommandApplicationPort>(),
+            provider.GetRequiredService<RepositoryTrustRegistry>(),
+            provider.GetService<IDaemonSdkContextGuard>()));
+        services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
+        services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
+        services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
+        services.AddSingleton<IPreparedFileSystem, PhysicalPreparedFileSystem>();
+        services.AddSingleton<IPreparedChangeSetWriter>(provider =>
+            new PreparedChangeSetWriter(provider.GetRequiredService<IPreparedFileSystem>()));
+        services.AddSingleton<PreparedChangeSetExecutor>();
     }
 }
