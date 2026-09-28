@@ -197,6 +197,10 @@ injected logger; Core no longer renders those diagnostics directly. See
 Solution writers now report diff, result, and warning lines through a Core
 sink whose console implementation lives in Hosting. See
 [ADR-0072](adr/0072-solution-writer-report-sink.md).
+The ambient console and logging bridges and their console-specific types now
+compile in shared Hosting. Core retains only the pure diagnostic template
+formatter. A placement test and the direct-console source gate lock this
+boundary; see [ADR-0073](adr/0073-host-owned-ambient-console.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

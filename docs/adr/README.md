@@ -137,3 +137,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0070](0070-host-owned-output-context.md) | Ambient output context belongs to shared hosting | Accepted | 2026-09-29 |
 | [0071](0071-extraction-diagnostics-through-logger.md) | Duplicate extraction diagnostics use an explicit logger | Accepted | 2026-09-29 |
 | [0072](0072-solution-writer-report-sink.md) | Solution writers report through a host-owned sink | Accepted | 2026-09-29 |
+| [0073](0073-host-owned-ambient-console.md) | Ambient console and logging bridges belong to shared hosting | Accepted | 2026-09-29 |

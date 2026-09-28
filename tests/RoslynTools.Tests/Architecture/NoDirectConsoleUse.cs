@@ -164,14 +164,14 @@ public sealed class NoDirectConsoleUse
     {
         var srcDir = LocateSrcDirectory();
 
-        // RtConsole.cs IS the bridge — direct System.Console use there is the entire point.
+        // RtConsole.cs is the host bridge to System.Console.
         // Every other production file must go through an output abstraction.
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            Path.Combine(srcDir, "RoslynTools", "Core", "RtConsole.cs"),
+            Path.Combine(srcDir, "RoslynTools.Hosting", "Output", "RtConsole.cs"),
             // IRtConsole.cs defines the default Out implementation for backward-compatible
             // addition of the Out member without requiring all implementors to change.
-            Path.Combine(srcDir, "RoslynTools", "Core", "IRtConsole.cs")
+            Path.Combine(srcDir, "RoslynTools.Hosting", "Output", "IRtConsole.cs")
         };
 
         // Console members that are NOT I/O channels — using these is fine because they don't
