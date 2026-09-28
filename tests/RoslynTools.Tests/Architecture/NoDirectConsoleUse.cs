@@ -97,6 +97,20 @@ public sealed class NoDirectConsoleUse
     }
 
     [Fact]
+    public void workspace_loader_diagnostics_do_not_use_ambient_host_state()
+    {
+        var path = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core", "WorkspaceLoader.cs");
+        var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+        var violations = root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+            .Where(node => node.Expression is IdentifierNameSyntax identifier
+                && identifier.Identifier.Text is "RtLog" or "RtContext")
+            .Select(node => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1)
+            .ToArray();
+
+        violations.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void production_code_does_not_reference_system_console_directly()
     {
         var srcDir = LocateSrcDirectory();

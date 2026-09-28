@@ -180,6 +180,10 @@ logger from that component. See
 Reusable logger extensions and the CLI console bridge now share a pure
 diagnostic template formatter in Core; the logger extensions do not call the
 console bridge. See [ADR-0067](adr/0067-pure-diagnostic-template-formatting.md).
+Host composition gives `WorkspaceLoader` its logger and warning preference.
+Core groups workspace diagnostics but no longer reads CLI warning state or
+uses ambient logging for them. See
+[ADR-0068](adr/0068-workspace-load-diagnostics-via-host-logging.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

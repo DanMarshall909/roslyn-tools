@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
+using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 using RoslynTools.Services.SemanticDiff;
@@ -25,7 +26,9 @@ internal static class HostServiceRegistration
         // return the same disposable singleton. The forwarder, not a second
         // AddSingleton<WorkspaceLoader>, is what keeps disposal correct.
         services.AddSingleton(typeof(ILogger<>), typeof(RtConsoleLogger<>));
-        services.AddSingleton<WorkspaceLoader>();
+        services.AddSingleton(sp => new WorkspaceLoader(
+            sp.GetRequiredService<ILogger<WorkspaceLoader>>(),
+            () => RtContext.ShowWorkspaceWarnings));
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<IWorkspaceSnapshotLoader>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<IWorkspaceLoadConfiguration>(sp => sp.GetRequiredService<WorkspaceLoader>());

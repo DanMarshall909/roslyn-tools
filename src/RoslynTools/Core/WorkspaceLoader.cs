@@ -2,8 +2,8 @@ using System.Globalization;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
-
-using RoslynTools.Core.Output;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace RoslynTools.Core;
 
@@ -23,6 +23,19 @@ internal sealed class WorkspaceLoader
     internal const string IsolatedObjEnvVar = "RT_ISOLATED_OBJ";
 
     private MSBuildWorkspace? _workspace;
+    private readonly ILogger<WorkspaceLoader> _logger;
+    private readonly Func<bool> _showWorkspaceWarnings;
+
+    internal WorkspaceLoader()
+        : this(NullLogger<WorkspaceLoader>.Instance, static () => false)
+    {
+    }
+
+    internal WorkspaceLoader(ILogger<WorkspaceLoader> logger, Func<bool> showWorkspaceWarnings)
+    {
+        _logger = logger;
+        _showWorkspaceWarnings = showWorkspaceWarnings;
+    }
 
     // ── Test hooks ──────────────────────────────────────────────────────────
 
@@ -63,7 +76,8 @@ internal sealed class WorkspaceLoader
     ///     Load and return the solution. The instance retains the workspace — do not dispose it
     ///     from the call site. The workspace is disposed when this <see cref="WorkspaceLoader" />
     ///     is disposed (i.e. when the DI container tears down). Repository evaluation must have
-    ///     been explicitly authorized by the trusted host invocation.
+    ///     been explicitly authorized by the trusted host invocation. Load failures propagate;
+    ///     the host-supplied logger receives workspace failures and selected warnings.
     /// </summary>
     /// <exception cref="RepositoryTrustRequiredException">
     ///     The current invocation has not explicitly authorized repository evaluation.
@@ -73,7 +87,9 @@ internal sealed class WorkspaceLoader
         if (Override.Value is { } o)
             return o.Solution;
 
-        var (workspace, solution) = await LoadCoreAsync(solutionPath, requireTrust: true);
+        var (workspace, solution) = await LoadCoreAsync(
+            solutionPath, requireTrust: true, logger: _logger,
+            showWorkspaceWarnings: _showWorkspaceWarnings());
         _workspace?.Dispose();
         _workspace = workspace;
         return solution;
@@ -84,6 +100,7 @@ internal sealed class WorkspaceLoader
     ///     they migrate to solution-only operations. Repository evaluation must have been
     ///     explicitly authorized by the trusted host invocation. The loader retains ownership
     ///     of the workspace and disposes it when replaced or when this loader is disposed.
+    ///     Load failures propagate; the host-supplied logger receives failures and selected warnings.
     /// </summary>
     /// <exception cref="RepositoryTrustRequiredException">
     ///     The current invocation has not explicitly authorized repository evaluation.
@@ -93,7 +110,9 @@ internal sealed class WorkspaceLoader
         if (Override.Value is { } o)
             return (o.Workspace, o.Solution);
 
-        var (workspace, solution) = await LoadCoreAsync(solutionPath, requireTrust: true);
+        var (workspace, solution) = await LoadCoreAsync(
+            solutionPath, requireTrust: true, logger: _logger,
+            showWorkspaceWarnings: _showWorkspaceWarnings());
         _workspace?.Dispose();
         _workspace = workspace;
         return (workspace, solution);
@@ -103,6 +122,8 @@ internal sealed class WorkspaceLoader
     ///     Loads a trusted, caller-owned workspace and establishes its authoritative initial
     ///     completeness assessment. A solution-open failure is represented as typed failed
     ///     evidence when a workspace exists to carry it; missing files and trust failures throw.
+    ///     The host-supplied logger receives workspace warnings when the host enables them;
+    ///     structured completeness evidence is returned regardless of that choice.
     /// </summary>
     /// <returns>The acquired workspace, its solution snapshot, and typed completeness evidence.</returns>
     /// <exception cref="FileNotFoundException">The selected solution file does not exist.</exception>
@@ -124,7 +145,9 @@ internal sealed class WorkspaceLoader
             solutionPath,
             requireTrust: true,
             returnTypedFailure: true,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken,
+            logger: _logger,
+            showWorkspaceWarnings: _showWorkspaceWarnings());
         try
         {
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
@@ -150,7 +173,9 @@ internal sealed class WorkspaceLoader
             solutionPath,
             requireTrust: true,
             returnTypedFailure: true,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken,
+            logger: _logger,
+            showWorkspaceWarnings: _showWorkspaceWarnings());
         return new OwnedWorkspaceSnapshot(workspace, solution);
     }
 
@@ -160,7 +185,9 @@ internal sealed class WorkspaceLoader
     ///     Test-only convenience for smoke tests and architecture checks that need a
     ///     one-liner load without the DI ceremony. Caller owns the returned workspace
     ///     and must dispose it. Production code must use <see cref="IWorkspaceSessionFactory" />
-    ///     — the <c>NoStaticWorkspaceLoaderUse</c> architecture gate enforces this.
+    ///     — the <c>NoStaticWorkspaceLoaderUse</c> architecture gate enforces this. The
+    ///     static path has no host logger; tests may capture diagnostics with
+    ///     <see cref="DiagnosticSinkOverride" />.
     /// </summary>
     internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
     {
@@ -202,6 +229,8 @@ internal sealed class WorkspaceLoader
         string? solutionPath,
         bool requireTrust,
         bool returnTypedFailure = false,
+        ILogger<WorkspaceLoader>? logger = null,
+        bool showWorkspaceWarnings = false,
         CancellationToken cancellationToken = default)
     {
         solutionPath = SolutionPathResolver.Resolve(solutionPath);
@@ -356,7 +385,7 @@ internal sealed class WorkspaceLoader
         }
         catch (OperationCanceledException)
         {
-            EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true);
+            EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true, logger, showWorkspaceWarnings);
             workspace.Dispose();
             throw;
         }
@@ -364,7 +393,7 @@ internal sealed class WorkspaceLoader
         {
             if (!returnTypedFailure)
             {
-                EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true);
+                EmitDiagnostics(WorkspaceDiagnosticRegistry.Get(workspace), true, logger, showWorkspaceWarnings);
                 workspace.Dispose();
                 throw;
             }
@@ -403,17 +432,21 @@ internal sealed class WorkspaceLoader
                 completed.Outcomes,
                 completed.Provenance));
         }
-        EmitDiagnostics(diagnostics, false);
+        EmitDiagnostics(diagnostics, false, logger, showWorkspaceWarnings);
         return (workspace, solution);
     }
 
-    private static void EmitDiagnostics(IReadOnlyList<WorkspaceDiagnostic> diagnostics, bool fatal)
+    private static void EmitDiagnostics(
+        IReadOnlyList<WorkspaceDiagnostic> diagnostics,
+        bool fatal,
+        ILogger<WorkspaceLoader>? logger,
+        bool showWorkspaceWarnings)
     {
         if (diagnostics.Count == 0)
             return;
 
         // Suppress warnings by default; failures are always shown. --show-workspace-warnings opts back in.
-        if (!fatal && !RtContext.ShowWorkspaceWarnings)
+        if (!fatal && !showWorkspaceWarnings)
             return;
 
         var legacySink = DiagnosticSinkOverride.Value;
@@ -426,19 +459,20 @@ internal sealed class WorkspaceLoader
             return;
         }
 
+        logger ??= NullLogger<WorkspaceLoader>.Instance;
         if (fatal)
         {
-            RtLog.Error("---");
-            RtLog.Error("[workspace-failures]");
+            logger.RtError("---");
+            logger.RtError("[workspace-failures]");
             foreach (var d in diagnostics)
-                RtLog.Error("  {Kind}: {Message}", d.Kind, d.Message);
+                logger.RtError("  {Kind}: {Message}", d.Kind, d.Message);
         }
         else
         {
-            RtLog.Warning("---");
-            RtLog.Warning("[workspace-warnings]");
+            logger.RtWarning("---");
+            logger.RtWarning("[workspace-warnings]");
             foreach (var d in diagnostics)
-                RtLog.Warning("  {Kind}: {Message}", d.Kind, d.Message);
+                logger.RtWarning("  {Kind}: {Message}", d.Kind, d.Message);
         }
     }
 

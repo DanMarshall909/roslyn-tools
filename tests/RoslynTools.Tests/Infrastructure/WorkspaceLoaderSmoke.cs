@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 using Shouldly;
 
@@ -446,6 +448,104 @@ public class WorkspaceLoaderSmoke
         }
     }
 
+    [Fact]
+    public async Task injected_warning_policy_controls_workspace_warning_logging()
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution("", "WarningPolicy", "WarningProject");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.RootDir);
+        var logger = new CapturingWorkspaceLogger();
+        var showWarnings = false;
+        using var loader = new WorkspaceLoader(logger, () => showWarnings);
+        WorkspaceLoader.OpenSolutionOverride.Value = async (workspace, path) =>
+        {
+            WorkspaceDiagnosticRegistry.Record(workspace,
+                new WorkspaceDiagnostic(WorkspaceDiagnosticKind.Warning, "injected-warning"));
+            return await workspace.OpenSolutionAsync(path);
+        };
+
+        try
+        {
+            await loader.GetSolutionAsync(sln.SolutionPath);
+            logger.Entries.ShouldNotContain(entry => entry.Message.Contains("injected-warning", StringComparison.Ordinal));
+
+            showWarnings = true;
+            await loader.GetSolutionAsync(sln.SolutionPath);
+            logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning
+                && entry.Message == "[workspace-warnings]");
+            logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning
+                && entry.Message.Contains("injected-warning", StringComparison.Ordinal));
+        }
+        finally
+        {
+            WorkspaceLoader.OpenSolutionOverride.Value = null;
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task injected_logger_reports_workspace_failure_even_when_open_is_cancelled(bool cancelled)
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution("", "FailureReporting", "FailureProject");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.RootDir);
+        var logger = new CapturingWorkspaceLogger();
+        using var loader = new WorkspaceLoader(logger, static () => false);
+        WorkspaceLoader.OpenSolutionOverride.Value = (workspace, _) =>
+        {
+            WorkspaceDiagnosticRegistry.Record(workspace,
+                new WorkspaceDiagnostic(WorkspaceDiagnosticKind.Failure, "injected-failure"));
+            return cancelled
+                ? Task.FromCanceled<Solution>(new CancellationToken(true))
+                : Task.FromException<Solution>(new InvalidOperationException("injected-open-failure"));
+        };
+
+        try
+        {
+            if (cancelled)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => loader.GetSolutionAsync(sln.SolutionPath));
+            else
+                await Assert.ThrowsAsync<InvalidOperationException>(() => loader.GetSolutionAsync(sln.SolutionPath));
+
+            logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Error
+                && entry.Message == "[workspace-failures]");
+            logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Error
+                && entry.Message.Contains("injected-failure", StringComparison.Ordinal));
+        }
+        finally
+        {
+            WorkspaceLoader.OpenSolutionOverride.Value = null;
+        }
+    }
+
+    [Fact]
+    public async Task static_test_loader_reports_failures_to_its_test_sink()
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution("", "StaticFailure", "StaticProject");
+        using var sink = new StringWriter();
+        WorkspaceLoader.DiagnosticSinkOverride.Value = sink;
+        WorkspaceLoader.OpenSolutionOverride.Value = (workspace, _) =>
+        {
+            WorkspaceDiagnosticRegistry.Record(workspace,
+                new WorkspaceDiagnostic(WorkspaceDiagnosticKind.Failure, "static-injected-failure"));
+            return Task.FromException<Solution>(new InvalidOperationException("static-open-failure"));
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => WorkspaceLoader.LoadAsync(sln.SolutionPath));
+            sink.ToString().ShouldContain("[workspace-failures]");
+            sink.ToString().ShouldContain("static-injected-failure");
+        }
+        finally
+        {
+            WorkspaceLoader.DiagnosticSinkOverride.Value = null;
+            WorkspaceLoader.OpenSolutionOverride.Value = null;
+        }
+    }
+
     private static async Task<string> PinSdkAsync(WorkspaceLoaderTestProject fixture, string projectName)
     {
         var projectPath = Path.Combine(fixture.RootDir, projectName, $"{projectName}.csproj");
@@ -456,5 +556,24 @@ public class WorkspaceLoaderSmoke
             Path.Combine(fixture.RootDir, "global.json"),
             "{\"sdk\":{\"version\":\"10.0.301\",\"rollForward\":\"latestPatch\"}}");
         return projectPath;
+    }
+
+    private sealed class CapturingWorkspaceLogger : ILogger<WorkspaceLoader>
+    {
+        internal List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 }

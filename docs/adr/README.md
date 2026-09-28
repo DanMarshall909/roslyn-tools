@@ -132,3 +132,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0065](0065-cli-owned-format-renderers.md) | Format renderers belong to the CLI adapter | Accepted | 2026-09-29 |
 | [0066](0066-workspace-cache-diagnostics-through-host.md) | Workspace cache diagnostics flow through host composition | Accepted | 2026-09-29 |
 | [0067](0067-pure-diagnostic-template-formatting.md) | Diagnostic template formatting is independent of the console bridge | Accepted | 2026-09-29 |
+| [0068](0068-workspace-load-diagnostics-via-host-logging.md) | Workspace load diagnostics use host logging and warning policy | Accepted | 2026-09-29 |
