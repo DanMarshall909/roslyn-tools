@@ -25,6 +25,7 @@ source test rejecting direct `RtConsole` and `RtLog` calls in Services.
 
 - Services no longer make direct ambient console or log calls for diagnostics.
 - Hosts choose a logger; tests may inject a silent or capturing logger.
-- Legacy `RtResultRenderer` calls in move execution and default constructors
-  that create `RtConsoleLogger<T>` remain. Their result/preview contracts need
-  a separate tracer before #53 can close.
+- Legacy `RtResultRenderer` calls in move execution remain. The default
+  console-logger constructor follow-up is completed by
+  [ADR-0061](0061-host-owned-console-logger.md); result/preview contracts
+  still need a separate tracer before #53 can close.

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
 
@@ -19,7 +20,7 @@ internal class FindCallersService : IRtService
     private readonly ISymbolCandidateService _symbols;
 
     public FindCallersService()
-        : this(new RtConsoleLogger<FindCallersService>(), new SymbolCandidateService())
+        : this(NullLogger<FindCallersService>.Instance, new SymbolCandidateService())
     {
     }
 

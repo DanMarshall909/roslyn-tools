@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
@@ -146,6 +147,37 @@ public sealed class HostDependencyRatchetTests
         var core = Path.Combine(FindRepositoryRoot(), "src", "RoslynTools", "Core");
         File.Exists(Path.Combine(core, "HostConfiguration.cs")).ShouldBeFalse();
         File.Exists(Path.Combine(core, "McpConfigurationValidator.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void console_logger_is_composed_by_hosts()
+    {
+        typeof(RtConsoleLogger<>).Assembly.ShouldBe(typeof(HostServiceRegistration).Assembly);
+    }
+
+    [Fact]
+    public void cli_composition_injects_host_logging_into_legacy_services()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        Type[] loggedServices =
+        [
+            typeof(AddDependencyService), typeof(FindCallersService),
+            typeof(FindDuplicatesService), typeof(ImportDirectiveService),
+            typeof(InlineMethodService), typeof(MakeStaticService),
+            typeof(MoveService), typeof(RemoveParamService),
+            typeof(ReplaceTypeService), typeof(TransformParametersService)
+        ];
+        foreach (var serviceType in loggedServices)
+        {
+            var service = provider.GetRequiredService(serviceType);
+            var logger = serviceType.GetField("_logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.GetValue(service);
+            logger.ShouldNotBeNull($"{serviceType.Name} must receive a host logger");
+            logger.GetType().Assembly.ShouldBe(typeof(HostServiceRegistration).Assembly);
+        }
     }
 
     private static (string Name, string Request, string Response, CommandSafetyPolicy Safety, bool McpVisible)[]

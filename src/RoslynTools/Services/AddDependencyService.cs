@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -24,7 +25,7 @@ internal class AddDependencyService : IRtService
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     public AddDependencyService()
-        : this(new RtConsoleLogger<AddDependencyService>(), new SolutionChangeWriter())
+        : this(NullLogger<AddDependencyService>.Instance, new SolutionChangeWriter())
     {
     }
 

@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -56,7 +57,7 @@ internal class FindDuplicatesService : IRtService
     private readonly ILogger<FindDuplicatesService> _logger;
 
     public FindDuplicatesService()
-        : this(new RtConsoleLogger<FindDuplicatesService>())
+        : this(NullLogger<FindDuplicatesService>.Instance)
     {
     }
 

@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 
@@ -22,7 +23,7 @@ internal class MoveService : IRtService
     private readonly ISymbolResolutionService _symbols;
 
     public MoveService()
-        : this(new RtConsoleLogger<MoveService>(), new SolutionChangeWriter())
+        : this(NullLogger<MoveService>.Instance, new SolutionChangeWriter())
     {
     }
 

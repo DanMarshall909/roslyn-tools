@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -27,7 +28,7 @@ internal class TransformParametersService : IRtService
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public TransformParametersService()
-        : this(new RtConsoleLogger<TransformParametersService>(), new SolutionChangeWriter())
+        : this(NullLogger<TransformParametersService>.Instance, new SolutionChangeWriter())
     {
     }
 

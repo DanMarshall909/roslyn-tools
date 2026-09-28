@@ -22,12 +22,19 @@ public sealed class NoDirectConsoleUse
             .SelectMany(path =>
             {
                 var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
-                return root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+                var ambientCalls = root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
                     .Where(node => node.Expression is IdentifierNameSyntax identifier
                         && identifier.Identifier.Text is "RtConsole" or "RtLog")
                     .Select(node => $"{Path.GetRelativePath(services, path)}:"
                         + $"{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}"
-                        + $" {node.Expression}.{node.Name}")
+                        + $" {node.Expression}.{node.Name}");
+                var consoleLoggerConstruction = root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+                    .Where(node => node.Type is GenericNameSyntax type
+                        && type.Identifier.Text == "RtConsoleLogger")
+                    .Select(node => $"{Path.GetRelativePath(services, path)}:"
+                        + $"{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}"
+                        + " new RtConsoleLogger<T>");
+                return ambientCalls.Concat(consoleLoggerConstruction)
                     .ToArray();
             })
             .Order(StringComparer.Ordinal)

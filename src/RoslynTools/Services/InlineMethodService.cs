@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -23,7 +24,7 @@ internal class InlineMethodService : IRtService
     private readonly ISymbolResolutionService _symbols;
 
     public InlineMethodService()
-        : this(new RtConsoleLogger<InlineMethodService>(), new SolutionChangeWriter())
+        : this(NullLogger<InlineMethodService>.Instance, new SolutionChangeWriter())
     {
     }
 

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -20,7 +21,7 @@ internal class RemoveParamService : IRtService
     private readonly ISymbolResolutionService _symbols;
 
     public RemoveParamService()
-        : this(new RtConsoleLogger<RemoveParamService>(), new ParameterChangeHelper())
+        : this(NullLogger<RemoveParamService>.Instance, new ParameterChangeHelper())
     {
     }
 

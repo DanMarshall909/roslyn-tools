@@ -126,7 +126,6 @@ public sealed class ResultContractConstraints
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             Path.Combine(srcDir, "RoslynTools", "Core", "RtConsole.cs"),
-            Path.Combine(srcDir, "RoslynTools", "Core", "RtConsoleLogger.cs"),
             Path.Combine(srcDir, "RoslynTools", "Core", "RtLoggerExtensions.cs"),
             Path.Combine(srcDir, "RoslynTools", "Core", "SolutionWriter.cs"),
             // SolutionChangeWriter is the DI-injected wrapper over SolutionWriter; same output-infrastructure role.

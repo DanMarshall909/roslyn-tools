@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -19,7 +20,7 @@ internal class ReplaceTypeService : IRtService
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ReplaceTypeService()
-        : this(new RtConsoleLogger<ReplaceTypeService>(), new SolutionChangeWriter())
+        : this(NullLogger<ReplaceTypeService>.Instance, new SolutionChangeWriter())
     {
     }
 

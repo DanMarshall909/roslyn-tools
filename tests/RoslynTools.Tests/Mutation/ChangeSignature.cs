@@ -1673,7 +1673,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
             try
             {
-                var updated = await new ChangeSignatureService().RemoveParamAsync(
+                var updated = await _services.Resolve<ChangeSignatureService>().RemoveParamAsync(
                     solution, "TestApp.Service.Foo", "a", false);
 
                 var stderr = stderrCapture.ToString();

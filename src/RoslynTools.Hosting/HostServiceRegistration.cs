@@ -88,6 +88,7 @@ internal static class HostServiceRegistration
             provider.GetService<IDaemonSdkContextGuard>()));
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
+        services.AddSingleton<ParameterChangeHelper>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
         services.AddSingleton<IPreparedFileSystem, PhysicalPreparedFileSystem>();
         services.AddSingleton<IPreparedChangeSetWriter>(provider =>

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -31,7 +32,7 @@ internal class ImportDirectiveService : IRtService
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ImportDirectiveService()
-        : this(new RtConsoleLogger<ImportDirectiveService>(), new SolutionChangeWriter())
+        : this(NullLogger<ImportDirectiveService>.Instance, new SolutionChangeWriter())
     {
     }
 
