@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,6 +12,11 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public sealed class JournaledApplyAuthorityTests
 {
+    private const string CleanupCrashProbeRootEnvironment =
+        "RT_TEST_NO_EFFECT_CLEANUP_PROBE_ROOT";
+    private const string CleanupCrashCutEnvironment =
+        "RT_TEST_NO_EFFECT_CLEANUP_CUT";
+
     [Fact]
     public async Task disposed_reservation_releases_local_lock_after_all_control_activities_leave()
     {
@@ -1991,6 +1998,252 @@ public sealed class JournaledApplyAuthorityTests
             .Cleanup(request.RepositoryId, request.OperationId, reservation)
             .IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).CleanupPinReleased.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("ArtifactUnlink")]
+    [InlineData("ArtifactRemovalRecord")]
+    [InlineData("EmptyRootRemoval")]
+    [InlineData("CleanupVerifiedRecord")]
+    [InlineData("PlanPinRelease")]
+    [InlineData("PinReleaseMarker")]
+    [InlineData("PlanCollectedBeforeMarker")]
+    [InlineData("GuardRelease")]
+    [InlineData("TerminalInventory")]
+    public async Task process_termination_during_no_effect_cleanup_replays_under_a_later_reservation(
+        string cutName)
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        var probeRoot = Path.Combine(Path.GetTempPath(),
+            "rt-no-effect-crash-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(probeRoot);
+        try
+        {
+            var testAssembly = typeof(JournaledApplyAuthorityTests).Assembly.Location;
+            var start = new ProcessStartInfo("dotnet")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            start.ArgumentList.Add("vstest");
+            start.ArgumentList.Add(testAssembly);
+            start.ArgumentList.Add("--TestCaseFilter:FullyQualifiedName="
+                                   + typeof(JournaledApplyAuthorityTests).FullName
+                                   + ".child_process_cleanup_crash_probe");
+            start.ArgumentList.Add("--logger:console;verbosity=quiet");
+            start.Environment[CleanupCrashProbeRootEnvironment] = probeRoot;
+            start.Environment[CleanupCrashCutEnvironment] = cutName;
+            using var child = Process.Start(start)
+                              ?? throw new InvalidOperationException("The cleanup crash probe did not start.");
+            var output = child.StandardOutput.ReadToEndAsync();
+            var error = child.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+            try
+            {
+                await child.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                child.Kill(entireProcessTree: true);
+                await child.WaitForExitAsync();
+                throw;
+            }
+            var diagnostic = await output + await error;
+            if (child.ExitCode == 0
+                || !File.Exists(Path.Combine(probeRoot, "reached-cut")))
+            {
+                throw new InvalidOperationException(
+                    $"The child did not terminate at cleanup cut {cutName}. {diagnostic}");
+            }
+
+            var manifest = File.ReadAllLines(Path.Combine(probeRoot, "operation"));
+            var fixtureRoot = manifest[0];
+            var repositoryId = manifest[1];
+            var now = DateTimeOffset.Parse(manifest[5], CultureInfo.InvariantCulture);
+            var repositoryRoot = Path.Combine(fixtureRoot, "repository");
+            var authority = new LocalDurableOperationAuthority(
+                Path.Combine(fixtureRoot, "control"), () => now);
+            var ledger = new DurableOperationLedger(authority.LedgerRoot, () => now, authority);
+            var store = new DurableChangePlanStore(authority.PlanStoreRoot,
+                ChangePlanStoreOptions.Default, () => now, authority);
+            var operationId = new OperationId(
+                long.Parse(manifest[2], CultureInfo.InvariantCulture), Guid.Parse(manifest[3]));
+            var key = new ChangePlanStoreKey(repositoryId, Guid.Parse(manifest[4]), manifest[6]);
+            var plan = store.LoadRetained(key)
+                .Match(value => value, failure => throw new IOException(failure.Message));
+            var interrupted = ledger.Load(repositoryId, operationId)
+                .Match(value => value, failure => throw new IOException(failure.Message));
+            interrupted.CurrentState.ShouldBe(cutName == "GuardRelease"
+                ? OperationLifecycleState.CancelledNoEffect
+                : OperationLifecycleState.RejectedUnsafeCoordination);
+            interrupted.EffectJournal.ShouldBeEmpty();
+            interrupted.PreEffectActivity.IsClosed.ShouldBeTrue();
+            interrupted.PreEffectActivity.ActiveAdmissions.Length.ShouldBe(
+                cutName == "GuardRelease" ? 1 : 0);
+            interrupted.CleanupJournal[^1].Kind.ShouldBe(cutName switch
+            {
+                "ArtifactRemovalRecord" or "EmptyRootRemoval" =>
+                    OperationCleanupJournalKind.ArtifactRemoved,
+                "CleanupVerifiedRecord" or "PlanPinRelease" or "PinReleaseMarker"
+                    or "PlanCollectedBeforeMarker" =>
+                    OperationCleanupJournalKind.CleanupVerified,
+                _ => OperationCleanupJournalKind.InventoryPending
+            });
+            interrupted.CleanupPinReleased.ShouldBe(cutName == "PinReleaseMarker");
+            plan.Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+                .ShouldBe(cutName is not ("PlanPinRelease" or "PinReleaseMarker"
+                    or "PlanCollectedBeforeMarker"));
+            var artifact = interrupted.CleanupJournal[0].Artifacts.ShouldHaveSingleItem();
+            File.Exists(artifact.ArtifactPath).ShouldBe(
+                cutName is "GuardRelease" or "TerminalInventory");
+            AssertCrashProbeRepositoryUnchanged(repositoryRoot);
+
+            var reservations = new RepositoryMutationReservationProvider(
+                authority.MutationReservationRoot, authority);
+            using var successor = await reservations.AcquireAsync(
+                plan.Envelope.Payload.Repository, CancellationToken.None);
+            var cleanup = new JournaledNoEffectCleanup(ledger, store,
+                new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot),
+                new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+            if (cutName == "PlanCollectedBeforeMarker")
+            {
+                var expiredStore = new DurableChangePlanStore(authority.PlanStoreRoot,
+                    ChangePlanStoreOptions.Default,
+                    () => plan.RetainUntilUtc.AddMinutes(1), authority);
+                expiredStore.CollectGarbage().DeletedPlans.ShouldBe(1);
+                cleanup.Cleanup(repositoryId, operationId, successor)
+                    .Match(_ => throw new InvalidOperationException(
+                            "Missing plan bytes were accepted before pin-release confirmation."),
+                        failure => failure.Kind)
+                    .ShouldBe(NoEffectCleanupErrorKind.PlanUnavailable);
+                ledger.Load(repositoryId, operationId)
+                    .Match(value => value, failure => throw new IOException(failure.Message))
+                    .CleanupPinReleased.ShouldBeFalse();
+                AssertCrashProbeRepositoryUnchanged(repositoryRoot);
+                return;
+            }
+            if (cutName == "GuardRelease")
+            {
+                cleanup.Cleanup(repositoryId, operationId, successor)
+                    .Match(_ => throw new InvalidOperationException(
+                            "An interrupted guard release was accepted as inactive."),
+                        failure => failure.Kind)
+                    .ShouldBe(NoEffectCleanupErrorKind.UnresolvedGuard);
+                ledger.Load(repositoryId, operationId)
+                    .Match(value => value, failure => throw new IOException(failure.Message))
+                    .CleanupPinReleased.ShouldBeFalse();
+                store.LoadRetained(key)
+                    .Match(value => value, failure => throw new IOException(failure.Message))
+                    .Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger).ShouldBeTrue();
+                File.Exists(artifact.ArtifactPath).ShouldBeTrue();
+                AssertCrashProbeRepositoryUnchanged(repositoryRoot);
+                return;
+            }
+            cleanup.Cleanup(repositoryId, operationId, successor)
+                .Match(_ => true, failure => throw new IOException(failure.Message))
+                .ShouldBeTrue();
+            cleanup.Cleanup(repositoryId, operationId, successor).IsOk.ShouldBeTrue();
+            ledger.Load(repositoryId, operationId)
+                .Match(value => value, failure => throw new IOException(failure.Message))
+                .CleanupPinReleased.ShouldBeTrue();
+            store.LoadRetained(key)
+                .Match(value => value, failure => throw new IOException(failure.Message))
+                .Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger).ShouldBeFalse();
+            var operationRoot = Path.GetDirectoryName(artifact.ArtifactPath)!;
+            Directory.Exists(operationRoot).ShouldBeFalse();
+            AssertCrashProbeRepositoryUnchanged(repositoryRoot);
+        }
+        finally
+        {
+            var manifestPath = Path.Combine(probeRoot, "operation");
+            if (File.Exists(manifestPath))
+            {
+                var fixtureRoot = File.ReadLines(manifestPath).First();
+                if (Directory.Exists(fixtureRoot))
+                    Directory.Delete(fixtureRoot, recursive: true);
+            }
+            Directory.Delete(probeRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task child_process_cleanup_crash_probe()
+    {
+        var probeRoot = Environment.GetEnvironmentVariable(CleanupCrashProbeRootEnvironment);
+        if (probeRoot is null)
+            return;
+        var cutName = Environment.GetEnvironmentVariable(CleanupCrashCutEnvironment)
+                      ?? throw new InvalidOperationException("The cleanup cut was not supplied.");
+        var cut = Enum.Parse<CleanupCrashCut>(cutName);
+        using var fixture = new ApplyFixture();
+        File.WriteAllText(Path.Combine(fixture.RepositoryRoot, "src", "Untouched.cs"),
+            "class Untouched;\n");
+        CanonicalApplyRequest request;
+        StoredChangePlan plan;
+        OperationCleanupArtifact? artifact = null;
+        if (cut is CleanupCrashCut.GuardRelease or CleanupCrashCut.TerminalInventory)
+        {
+            request = fixture.Prepare();
+            plan = fixture.StoredPlan!;
+        }
+        else
+        {
+            (request, plan, artifact) = await PrepareRejectedStagingAsync(fixture);
+        }
+        File.WriteAllLines(Path.Combine(probeRoot, "operation"),
+        [
+            fixture.Root,
+            request.RepositoryId,
+            request.OperationId.Epoch.ToString(CultureInfo.InvariantCulture),
+            request.OperationId.Nonce.ToString("N"),
+            plan.Key.PlanId.ToString("N"),
+            fixture.Now.ToString("O", CultureInfo.InvariantCulture),
+            plan.Key.PlanHash
+        ]);
+
+        var crash = new CleanupCrashProbe(cut, probeRoot, artifact?.ArtifactPath);
+        if (cut == CleanupCrashCut.GuardRelease)
+        {
+            var broker = new SimulatedBroker(fixture)
+            {
+                CancelDuringPreflight = true,
+                RequireActiveAtDisposeAfterCancellation = true,
+                BeforeGuardDispose = crash.TerminateAtCut
+            };
+            await fixture.CreateAuthority(broker).ApplyAsync(request);
+            throw new InvalidOperationException("The guard-release cut was not reached.");
+        }
+        if (cut == CleanupCrashCut.TerminalInventory)
+        {
+            await fixture.CreateAuthority(
+                    new SimulatedBroker(fixture) { DeclineAfterInspect = true },
+                    ledgerDurability: crash)
+                .ApplyAsync(request);
+            throw new InvalidOperationException("The terminal-inventory cut was not reached.");
+        }
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var cleanup = new JournaledNoEffectCleanup(
+            fixture.CreateLedger(crash), fixture.CreateStore(crash),
+            new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot, crash),
+            new LinuxBackupCleanupBoundary(plan.Envelope.Payload.Coordination.BackupRoot));
+        cleanup.Cleanup(request.RepositoryId, request.OperationId, reservation)
+            .Match(_ => throw new InvalidOperationException("The cleanup cut was not reached."),
+                failure => throw new IOException(failure.Message));
+    }
+
+    private static void AssertCrashProbeRepositoryUnchanged(string repositoryRoot)
+    {
+        Directory.GetFiles(repositoryRoot, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(repositoryRoot, path)).ToArray()
+            .ShouldBe([Path.Combine("src", "Untouched.cs")]);
+        File.ReadAllText(Path.Combine(repositoryRoot, "src", "Untouched.cs"))
+            .ShouldBe("class Untouched;\n");
+        File.Exists(Path.Combine(repositoryRoot, "src", "Added.cs")).ShouldBeFalse();
     }
 
     [Theory]
@@ -6094,6 +6347,7 @@ public sealed class JournaledApplyAuthorityTests
         internal bool CancelDuringPreflight { get; init; }
         internal bool RequireActiveAtDisposeAfterCancellation { get; init; }
         internal bool FailDisposeAfterCancellation { get; init; }
+        internal Action? BeforeGuardDispose { get; init; }
         internal bool FailDisposeAfterPreflightFailure { get; init; }
         internal bool FailPreflight { get; init; }
         internal bool ThrowDuringAcquire { get; init; }
@@ -6262,6 +6516,7 @@ public sealed class JournaledApplyAuthorityTests
                             fixture.Request.OperationId)
                         .IsErr.ShouldBeTrue();
                     broker.SawActiveAtDispose = true;
+                    broker.BeforeGuardDispose?.Invoke();
                     if (broker.FailDisposeAfterCancellation)
                         throw new IOException("Injected guard-release failure.");
                 }
@@ -6545,6 +6800,7 @@ public sealed class JournaledApplyAuthorityTests
             _ledger = new DurableOperationLedger(_authority.LedgerRoot, () => Now, _authority);
         }
 
+        internal string Root => _root;
         internal string RepositoryRoot { get; }
         internal DateTimeOffset Now { get; set; } = InitialNow;
         internal string TargetPath => Path.Combine(RepositoryRoot, "src", "Added.cs");
@@ -6871,6 +7127,104 @@ public sealed class JournaledApplyAuthorityTests
         {
             if (Interlocked.Increment(ref _directoryFlushCount) >= failureNumber)
                 throw new IOException("Injected persistent directory flush failure.");
+        }
+    }
+
+    private enum CleanupCrashCut
+    {
+        ArtifactUnlink,
+        ArtifactRemovalRecord,
+        EmptyRootRemoval,
+        CleanupVerifiedRecord,
+        PlanPinRelease,
+        PinReleaseMarker,
+        PlanCollectedBeforeMarker,
+        GuardRelease,
+        TerminalInventory
+    }
+
+    private sealed class CleanupCrashProbe(
+        CleanupCrashCut cut,
+        string probeRoot,
+        string? artifactPath)
+        : IOperationLedgerDurability, IChangePlanStoreDurability, IStagingArtifactDurability
+    {
+        private readonly string? _operationRoot = artifactPath is null
+            ? null
+            : Path.GetDirectoryName(artifactPath);
+        private bool _crashAfterDirectoryFlush;
+
+        public void FlushFileMetadata(string path)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite,
+                FileShare.None);
+            stream.Flush(flushToDisk: true);
+        }
+
+        public void ReplaceFile(string temporaryPath, string recordPath)
+        {
+            var next = JsonNode.Parse(File.ReadAllText(temporaryPath));
+            var cleanupJournal = next?["cleanupJournal"]?.AsArray();
+            var latestCleanupKind = cleanupJournal is { Count: > 0 }
+                ? cleanupJournal[^1]?["kind"]?.GetValue<int>()
+                : null;
+            var crashAfterThisRecord = cut switch
+            {
+                CleanupCrashCut.ArtifactRemovalRecord =>
+                    latestCleanupKind == (int)OperationCleanupJournalKind.ArtifactRemoved,
+                CleanupCrashCut.CleanupVerifiedRecord =>
+                    latestCleanupKind == (int)OperationCleanupJournalKind.CleanupVerified,
+                CleanupCrashCut.PlanPinRelease or CleanupCrashCut.PlanCollectedBeforeMarker =>
+                    next?["pins"] is JsonArray pins
+                    && pins.All(pin => pin?["kind"]?.GetValue<int>()
+                                       != (int)ChangePlanPinKind.OperationLedger),
+                CleanupCrashCut.PinReleaseMarker =>
+                    next?["cleanupPinReleased"]?.GetValue<bool>() == true,
+                CleanupCrashCut.TerminalInventory =>
+                    next?["currentState"]?.GetValue<int>()
+                    == (int)OperationLifecycleState.RejectedUnsafeCoordination
+                    && latestCleanupKind == (int)OperationCleanupJournalKind.InventoryPending
+                    && next?["preEffectActivity"]?["isClosed"]?.GetValue<bool>() == true,
+                _ => false
+            };
+            File.Move(temporaryPath, recordPath, overwrite: true);
+            _crashAfterDirectoryFlush = crashAfterThisRecord;
+        }
+
+        public void FlushDirectoryMetadata(string directory)
+        {
+            using var handle = LinuxStagingHandles.OpenAbsoluteDirectory(directory);
+            LinuxStagingHandles.FlushDirectory(handle);
+            if (_crashAfterDirectoryFlush)
+                TerminateAtCut();
+        }
+
+        public void FlushFile(FileStream stream) => stream.Flush(flushToDisk: true);
+
+        public void FlushDirectory(SafeFileHandle handle)
+        {
+            LinuxStagingHandles.FlushDirectory(handle);
+            if (cut == CleanupCrashCut.ArtifactUnlink
+                && artifactPath is not null
+                && !File.Exists(artifactPath)
+                && Directory.Exists(_operationRoot))
+                TerminateAtCut();
+            if (cut == CleanupCrashCut.EmptyRootRemoval
+                && _operationRoot is not null
+                && !Directory.Exists(_operationRoot))
+                TerminateAtCut();
+        }
+
+        internal void TerminateAtCut()
+        {
+            using (var marker = new FileStream(Path.Combine(probeRoot, "reached-cut"),
+                       FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                marker.Write(Encoding.UTF8.GetBytes(cut.ToString()));
+                marker.Flush(flushToDisk: true);
+            }
+            Process.GetCurrentProcess().Kill();
+            Thread.Sleep(Timeout.Infinite);
         }
     }
 
