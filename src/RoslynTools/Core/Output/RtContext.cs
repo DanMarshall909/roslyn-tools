@@ -9,7 +9,7 @@ internal static class RtContext
     public static OutputLevel Level { get; set; } = OutputLevel.Default;
 
     /// <summary>
-    ///     When <c>true</c>, the converged JSON output paths (<see cref="StructuredOutput.Write" />,
+    ///     When <c>true</c>, the converged JSON output paths (<c>StructuredOutput.Write</c>,
     ///     <see cref="Renderers.JsonRenderer.Write" />, MCP DescribeHandler / OutlineHandler) emit raw
     ///     non-ASCII and HTML-sensitive characters via
     ///     <see cref="System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping" />.

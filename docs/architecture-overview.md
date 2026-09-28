@@ -161,6 +161,10 @@ rejects `RtResultRenderer` calls in Services. See
 [ADR-0060](adr/0060-service-diagnostics-without-ambient-console.md),
 [ADR-0061](adr/0061-host-owned-console-logger.md), and
 [ADR-0062](adr/0062-legacy-move-preview-result.md).
+CLI process output implementations (`RtResultRenderer`, `RtSerializer`, and
+`StructuredOutput`) now compile into the CLI adapter, with an assembly
+placement test; shared result and format contracts remain in Core. See
+[ADR-0063](adr/0063-cli-owned-process-output.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

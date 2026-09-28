@@ -127,3 +127,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0060](0060-service-diagnostics-without-ambient-console.md) | Service diagnostics use injected logging and typed validation | Accepted | 2026-09-28 |
 | [0061](0061-host-owned-console-logger.md) | Console logger belongs to host composition | Accepted | 2026-09-28 |
 | [0062](0062-legacy-move-preview-result.md) | Legacy move preview returns data to its caller | Accepted | 2026-09-29 |
+| [0063](0063-cli-owned-process-output.md) | CLI process output implementations belong to CLI | Accepted | 2026-09-29 |

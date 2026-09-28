@@ -8,7 +8,7 @@ namespace RoslynTools.Core.Output;
 ///     Single source of truth for JSON encoder selection across rt's three converged
 ///     output paths:
 ///     <list type="bullet">
-///         <item><see cref="StructuredOutput.Write" /> (CLI anonymous-object writes)</item>
+///         <item><c>StructuredOutput.Write</c> (CLI anonymous-object writes)</item>
 ///         <item><see cref="Renderers.JsonRenderer.Write" /> (IRtOutput → JSON)</item>
 ///         <item>Native MCP handlers (DescribeHandler, OutlineHandler)</item>
 ///     </list>

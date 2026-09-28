@@ -44,6 +44,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Scrutor"/>
         <PackageReference Include="Spectre.Console"/>
+        <PackageReference Include="YamlDotNet"/>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\RoslynTools\RoslynTools.csproj"/>
