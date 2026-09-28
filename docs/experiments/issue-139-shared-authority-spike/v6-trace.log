@@ -1,0 +1,16 @@
+dbde08c579a52f1f955171d624cae805e6d8d64e98ead150862fe4025b57fe8f  /proof/authority-v6.py
+provisioned separately
+interrupted-enroll rc=2 {"error":"RejectedUnsafeCoordination"}
+server-exit rc=73
+registry-seq 1 anchor-seq 0
+src/A.cs: OK
+restart-client1 rc=2 {"error":"RejectedUnsafeCoordination"}
+restart-client2 rc=2 {"error":"RejectedUnsafeCoordination"}
+offline-reprovision rc=1 Traceback (most recent call last):
+  File "/proof/authority-v6.py", line 232, in <module>
+    provision()
+    ~~~~~~~~~^^
+  File "/proof/authority-v6.py", line 59, in provision
+    raise RuntimeError('authority already provisioned or partially provisioned')
+RuntimeError: authority already provisioned or partially provisioned
+done

@@ -1,0 +1,63 @@
+kernel Linux 6.18.52-0-virt x86_64 Linux
+mounts
+/dev/vda /proof ext4 rw,relatime 0 0
+/dev/vdb /anchor ext4 rw,relatime 0 0
+service uid=2001(service) gid=2001(service) groups=2001(service)
+client1 uid=2002(client1) gid=2002(client1) groups=2002(client1)
+client2 uid=2003(client2) gid=2003(client2) groups=2003(client2)
+64768 2 755 0:0 /proof
+64768 13 755 2001:2001 /proof/service
+64768 14 755 2001:2001 /proof/service/checkout
+64768 17 755 2001:2001 /proof/service/checkout/.git
+64768 15 700 2001:2001 /proof/service/control
+64784 2 755 0:0 /anchor
+64784 32769 700 2001:2001 /anchor/authority
+22e4fcce2c7b004a472861ef604183f98037550b3a19ed19fea78ae30bb02c70  /proof/authority.py
+provisioned separately
+before-enrollment rc=2 {"error":"RepositoryNotEnrolled"}
+unprovisioned-checkout rc=2 {"error":"RejectedUnsafeCoordination"}
+enroll-client1 {"generation":1,"recoveryRequired":false,"repositoryId":"6a458aee61bd43bb97262eb62e9a150e","sequence":1,"state":"Enrolled"}
+enroll-client2 {"generation":1,"recoveryRequired":false,"repositoryId":"6a458aee61bd43bb97262eb62e9a150e","sequence":1,"state":"Enrolled"}
+conflicting-alias rc=2 {"error":"ConflictingBinding"}
+duplicate-server rc=1 Traceback (most recent call last):
+  File "/proof/authority.py", line 234, in <module>
+    serve()
+    ~~~~~^^
+  File "/proof/authority.py", line 193, in serve
+    with exclusive_authority():
+         ~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/contextlib.py", line 141, in __enter__
+    return next(self.gen)
+  File "/proof/authority.py", line 31, in exclusive_authority
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+BlockingIOError: [Errno 11] Resource temporarily unavailable
+incumbent-still-active rc=0 {"generation":1,"recoveryRequired":false,"repositoryId":"6a458aee61bd43bb97262eb62e9a150e","sequence":1,"state":"Enrolled"}
+checkout-write rc=1 touch: /proof/service/checkout/src/injected.cs: Permission denied
+control-write rc=1 touch: /proof/service/control/forged: Permission denied
+anchor-write rc=1 touch: /anchor/authority/forged: Permission denied
+barrier rc=0 {"sequence":2,"state":"RecoveryRequired"}
+barrier-visible rc=0 {"generation":1,"recoveryRequired":true,"repositoryId":"6a458aee61bd43bb97262eb62e9a150e","sequence":2,"state":"Enrolled"}
+admit-blocked rc=2 {"error":"RecoveryRequired"}
+stale-client1 rc=2 {"error":"RejectedUnsafeCoordination"}
+stale-client2 rc=2 {"error":"RejectedUnsafeCoordination"}
+registry-seq 1 anchor-seq 2
+restart-client1 rc=2 {"error":"RejectedUnsafeCoordination"}
+restart-client2 rc=2 {"error":"RejectedUnsafeCoordination"}
+missing-registry rc=2 {"error":"RejectedUnsafeCoordination"}
+reprovision-refused rc=1 Traceback (most recent call last):
+  File "/proof/authority.py", line 232, in <module>
+    provision()
+    ~~~~~~~~~^^
+  File "/proof/authority.py", line 57, in provision
+    with exclusive_authority():
+         ~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/contextlib.py", line 141, in __enter__
+    return next(self.gen)
+  File "/proof/authority.py", line 31, in exclusive_authority
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+BlockingIOError: [Errno 11] Resource temporarily unavailable
+unreachable-client1 rc=2 {"error":"RejectedUnsafeCoordination"}
+unreachable-client2 rc=2 {"error":"RejectedUnsafeCoordination"}
+done
