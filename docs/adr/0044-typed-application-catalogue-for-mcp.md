@@ -24,7 +24,9 @@ The CLI descriptor registry consumes the shared catalogue for typed command
 identity, port, definition, safety, effects, and audience. It projects CLI
 paths, option metadata, and descriptions by constructing CLI command objects.
 Legacy maintainer descriptors remain local to the CLI projection. The MCP host
-still uses CLI `Bootstrap` for DI and host-specific adapters.
+still uses CLI `Bootstrap` for DI and host-specific adapters. The reusable
+`ProductCapabilityCatalog` also reads the typed definitions from this catalogue
+for doctor and other capability reporting, rather than resolving ports again.
 
 ## Consequences
 

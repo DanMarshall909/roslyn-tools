@@ -103,12 +103,46 @@ public sealed class CommandDescriptorContracts
         using var provider = McpTestHost.CreateProvider();
         var shared = provider.GetRequiredService<ApplicationCommandCatalog>();
         var cli = provider.GetRequiredService<CommandDescriptorRegistry>();
+        var typedNames = provider.GetServices<ICommandApplicationPort>()
+            .Where(port => port is not ILegacyCommandApplicationPort)
+            .Select(port => port.Definition.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        var expectedNames = global::RoslynTools.App.AllCommands
+            .Select(entry => entry.Info.Name.Replace('-', '_'))
+            .Concat(["suggest_command", "prime", "prepare_operation"])
+            .Where(typedNames.Contains)
+            .Distinct(StringComparer.Ordinal);
 
-        foreach (var descriptor in cli.All.Where(candidate => candidate.Definition is not null))
+        foreach (var name in expectedNames)
         {
-            shared.TryGetByToolName(descriptor.ToolName, out var application).ShouldBeTrue();
+            cli.TryGetByToolName(name, out var descriptor).ShouldBeTrue();
+            shared.TryGetByToolName(name, out var application).ShouldBeTrue();
             descriptor.Port.ShouldBeSameAs(application.Port);
             descriptor.Definition.ShouldBeSameAs(application.Definition);
+        }
+    }
+
+    [Fact]
+    public void product_capabilities_are_projected_from_the_reusable_catalogue()
+    {
+        var capabilityType = typeof(ApplicationCommandCatalog).Assembly
+            .GetType("RoslynTools.Core.CommandDescriptors.ProductCapabilityCatalog");
+        capabilityType.ShouldNotBeNull();
+        capabilityType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType)
+            .ShouldContain(typeof(ApplicationCommandCatalog));
+
+        using var provider = McpTestHost.CreateProvider();
+        var expected = provider.GetRequiredService<ApplicationCommandCatalog>().All;
+        var actual = provider.GetRequiredService<IProductCapabilityCatalog>().GetDefinitions();
+
+        actual.Select(definition => definition.Name).ShouldBe(
+            expected.Select(descriptor => descriptor.ToolName));
+        foreach (var descriptor in expected)
+        {
+            actual.Single(definition => definition.Name == descriptor.ToolName)
+                .ShouldBeSameAs(descriptor.Definition);
         }
     }
 
