@@ -13,6 +13,7 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Build.Locator"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild"/>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>

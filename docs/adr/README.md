@@ -111,3 +111,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0044](0044-typed-application-catalogue-for-mcp.md) | Typed application catalogue powers MCP | Accepted | 2026-09-28 |
 | [0045](0045-shared-msbuild-instance-identity.md) | Shared MSBuild instance identity for host adapters | Accepted | 2026-09-28 |
 | [0046](0046-shared-msbuild-host-bootstrap.md) | Shared MSBuild host bootstrap | Accepted | 2026-09-28 |
+| [0047](0047-shared-doctor-host-services.md) | Shared doctor host services | Accepted | 2026-09-28 |

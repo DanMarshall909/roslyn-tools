@@ -25,8 +25,8 @@ Keep the types internal and grant access only to the two hosts and their tests.
 - Core remains independent of host registration and process-global effects.
 - The shared hosting assembly must remain independent of both concrete hosts;
   an architecture test enforces its reference direction.
-- MCP still references CLI for DI registration and doctor/suggestion adapters.
-  Those dependencies remain separate #56 tracers.
+- Doctor host services moved into Hosting in the next #56 slice. MCP still
+  references CLI for DI registration and the suggestion catalogue.
 
 ## Alternatives considered
 

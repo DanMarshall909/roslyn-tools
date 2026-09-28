@@ -7,6 +7,16 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 public sealed class HostAssemblyBoundaryTests
 {
     [Fact]
+    public void doctor_host_probe_and_workspace_bootstrap_live_in_shared_host_assembly()
+    {
+        var hostingAssembly = typeof(MsBuildBootstrap).Assembly;
+
+        typeof(DoctorEnvironmentProbe).Assembly.ShouldBe(hostingAssembly);
+        typeof(DoctorWorkspaceBootstrap).Assembly.ShouldBe(hostingAssembly);
+        typeof(DoctorSdkSelection).Assembly.ShouldBe(hostingAssembly);
+    }
+
+    [Fact]
     public void process_global_msbuild_bootstrap_lives_in_shared_host_assembly()
     {
         var hostingAssembly = typeof(MsBuildBootstrap).Assembly;
