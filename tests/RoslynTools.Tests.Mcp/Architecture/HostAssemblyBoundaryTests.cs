@@ -4,12 +4,28 @@ using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
+using RoslynTools.Services.Suggest;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class HostAssemblyBoundaryTests
 {
+    [Fact]
+    public void shared_application_composition_registers_catalogue_and_core_operations()
+    {
+        var services = new ServiceCollection();
+
+        HostServiceRegistration.RegisterApplicationCatalog(services);
+        HostServiceRegistration.RegisterCoreApplicationServices(services);
+
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(ApplicationCommandCatalog));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IProductCapabilityCatalog));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(SuggestOperation));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(ICommandApplicationPort));
+        services.ShouldNotContain(descriptor => descriptor.ServiceType.Assembly.GetName().Name == "rt");
+    }
+
     [Fact]
     public void shared_application_infrastructure_registers_daemon_and_change_services()
     {

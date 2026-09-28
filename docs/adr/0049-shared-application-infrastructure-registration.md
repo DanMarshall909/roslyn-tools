@@ -23,9 +23,9 @@ checks the key shared service descriptors.
 - MCP can register this application infrastructure without CLI code.
 - The optional daemon SDK guard remains a host binding resolved from DI at
   runtime. The shared registration does not depend on the CLI guard type.
-- Application catalogue construction, Core service scanning, suggestion
-  catalogue, and CLI feedback/command wiring remain in CLI `Bootstrap` for
-  later #56 tracers.
+- Application catalogue construction and Core service scanning moved into
+  Hosting in the next #56 slice. Suggestion catalogue and CLI feedback/command
+  wiring remain in CLI `Bootstrap`.
 
 ## Alternatives considered
 

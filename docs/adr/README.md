@@ -114,3 +114,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0047](0047-shared-doctor-host-services.md) | Shared doctor host services | Accepted | 2026-09-28 |
 | [0048](0048-shared-host-foundation-registration.md) | Shared host foundation registration | Accepted | 2026-09-28 |
 | [0049](0049-shared-application-infrastructure-registration.md) | Shared application infrastructure registration | Accepted | 2026-09-28 |
+| [0050](0050-shared-application-composition.md) | Shared application catalogue and Core operation registration | Accepted | 2026-09-28 |

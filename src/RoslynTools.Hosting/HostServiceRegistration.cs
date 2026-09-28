@@ -3,8 +3,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticDiff;
+using RoslynTools.Services.SemanticDiff.Git;
 
 namespace RoslynTools;
 
@@ -69,6 +72,7 @@ internal static class HostServiceRegistration
         services.AddSingleton<TrustStatusOperation>();
         services.AddSingleton<TrustRemoveOperation>();
     }
+
     internal static void RegisterApplicationInfrastructure(IServiceCollection services)
     {
         services.AddSingleton<DaemonRpcClient>();
@@ -88,5 +92,32 @@ internal static class HostServiceRegistration
         services.AddSingleton<IPreparedChangeSetWriter>(provider =>
             new PreparedChangeSetWriter(provider.GetRequiredService<IPreparedFileSystem>()));
         services.AddSingleton<PreparedChangeSetExecutor>();
+    }
+
+    internal static void RegisterApplicationCatalog(IServiceCollection services)
+    {
+        services.AddSingleton(provider => new ApplicationCommandCatalog(
+            () => provider.GetServices<ICommandApplicationPort>()));
+    }
+
+    internal static void RegisterCoreApplicationServices(IServiceCollection services)
+    {
+        services.AddSingleton<IProductCapabilityCatalog, ProductCapabilityCatalog>();
+
+        // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on
+        // IGitClient. The git working directory is the process's current directory; the
+        // batch-5 command can override per-invocation if it ever needs a different root.
+        services.AddSingleton<IGitClient>(_ => new GitClient(Directory.GetCurrentDirectory()));
+
+        // FileSemanticDiffSourceProvider (an IRtService, auto-scanned below) depends on
+        // IFileTextReader for the two-files-on-disc diff mode (US-123). The real reader hits
+        // System.IO.File; tests replace it with a fake.
+        services.AddSingleton<IFileTextReader, FileTextReader>();
+
+        services.Scan(scan => scan
+            .FromAssemblyOf<IRtService>()
+            .AddClasses(classes => classes.AssignableTo<IRtService>(), false)
+            .AsSelfWithInterfaces()
+            .WithTransientLifetime());
     }
 }

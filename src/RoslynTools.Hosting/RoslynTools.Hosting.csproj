@@ -16,6 +16,7 @@
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <PackageReference Include="Scrutor"/>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>
