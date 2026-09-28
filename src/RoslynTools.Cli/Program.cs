@@ -75,28 +75,6 @@ internal static class Program
         using var daemonConfiguration = DaemonRuntime.UseExperimentOverride(
             configuration.Effective.Daemon.Enabled);
 
-        var typedDefinitions = host.Services
-            .GetServices<ICommandApplicationPort>()
-            .Where(port => port is not ILegacyCommandApplicationPort)
-            .Select(port => port.Definition)
-            .ToArray();
-
-        // Route through the daemon if one is running and this isn't a daemon lifecycle command.
-        if (!IsDaemonCommand(args)
-            && !DaemonOwnedCommands.IsInvocation(args)
-            && !TypedCommandInvocation.IsMatch(args, typedDefinitions)
-            && !TypedCommandInvocation.IsLegacyMutationMatch(
-                args,
-                App.Commands.Select(command => command.Info))
-            && !CliInvocationClassifier.MustRunInProcess(args)
-            && !DaemonRuntime.IsDisabled)
-        {
-            var client = host.Services.GetRequiredService<DaemonClient>();
-            var exitCode = await client.TrySendAsync(args);
-            if (exitCode is not null)
-                return exitCode.Value;
-        }
-
         var trusted = new Command(
             "trusted",
             "Explicit trusted-local experimental commands that may execute repository code");
@@ -121,11 +99,6 @@ internal static class Program
                 trusted,
                 maintainer
             ]);
-    }
-
-    private static bool IsDaemonCommand(string[] args)
-    {
-        return args.Length > 1 && args[0] == "maintainer" && args[1] == "daemon";
     }
 
 }

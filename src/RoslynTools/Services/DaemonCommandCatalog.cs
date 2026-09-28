@@ -143,18 +143,6 @@ internal static class DaemonOwnedCommands
     internal static bool Contains(string commandName) =>
         All.Any(command => string.Equals(command.Name, commandName, StringComparison.Ordinal));
 
-    internal static bool IsInvocation(string[] args)
-    {
-        if (args.Length == 0)
-            return false;
-
-        return All.Any(command =>
-            string.Equals(args[0], command.Info.Name, StringComparison.Ordinal)
-            || args.Length > 1
-            && string.Equals(args[0], command.Info.Category, StringComparison.Ordinal)
-            && string.Equals(args[1], command.Info.Name, StringComparison.Ordinal));
-    }
-
     internal static IReadOnlyList<CommandFollowOn> SuggestedToolsFor(string commandName)
     {
         return All.FirstOrDefault(command =>

@@ -28,9 +28,6 @@ internal static class CliInvocationClassifier
     internal static bool RequiresEagerMsBuildRegistration(string[] arguments) =>
         !IsLocalOnly(arguments);
 
-    internal static bool MustRunInProcess(string[] arguments) =>
-        IsLocalOnly(arguments) || HasTrustedRoot(arguments);
-
     internal static bool IsConfigurationInspection(string[] arguments)
     {
         var commandTokens = ExtractCommandTokens(arguments);
@@ -58,12 +55,6 @@ internal static class CliInvocationClassifier
 
     private static bool IsHelpOrVersion(string argument) =>
         argument is "-h" or "--help" or "--version";
-
-    private static bool HasTrustedRoot(string[] arguments)
-    {
-        var commands = ExtractCommandTokens(arguments);
-        return commands.Count > 0 && commands[0] == "trusted";
-    }
 
     private static List<string> ExtractCommandTokens(string[] arguments)
     {

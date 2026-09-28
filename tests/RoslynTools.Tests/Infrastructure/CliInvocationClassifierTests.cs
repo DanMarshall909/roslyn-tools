@@ -69,29 +69,6 @@ public sealed class CliInvocationClassifierTests
     }
 
     [Theory]
-    [InlineData("config")]
-    [InlineData("--json", "config")]
-    [InlineData("inspect", "config")]
-    [InlineData("doctor")]
-    [InlineData("trust", "list")]
-    [InlineData("refactor", "trust", "list")]
-    [InlineData("--json", "refactor", "trust", "list")]
-    [InlineData("trusted", "probe-di")]
-    public void local_and_trusted_invocations_run_in_process(params string[] arguments)
-    {
-        CliInvocationClassifier.MustRunInProcess(arguments).ShouldBeTrue();
-    }
-
-    [Theory]
-    [InlineData("inspect", "outline")]
-    [InlineData("analyze", "find-unused")]
-    [InlineData("--unknown", "trusted")]
-    public void ordinary_and_unrecognized_invocations_can_use_the_daemon(params string[] arguments)
-    {
-        CliInvocationClassifier.MustRunInProcess(arguments).ShouldBeFalse();
-    }
-
-    [Theory]
     [InlineData(true, "config")]
     [InlineData(true, "--json", "config")]
     [InlineData(true, "inspect", "config")]

@@ -118,3 +118,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0051](0051-shared-host-command-metadata.md) | Shared metadata for host-only suggestions | Accepted | 2026-09-28 |
 | [0052](0052-typed-source-suggestion-catalogue.md) | Typed-source suggestion catalogue | Accepted | 2026-09-28 |
 | [0053](0053-mcp-owned-host-composition.md) | MCP-owned host composition | Accepted | 2026-09-28 |
+| [0054](0054-cli-typed-daemon-dispatch-only.md) | CLI application commands enter daemon through typed ports | Accepted | 2026-09-28 |

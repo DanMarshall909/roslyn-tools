@@ -770,6 +770,13 @@ status indeterminate. No new apply or operation ID is created automatically.
 
 For the current hardening phase, the daemon is an optional typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). [ADR-0017](adr/0017-bounded-read-only-workspace-reuse.md) permits one narrow stateful exception: a bounded, content-fingerprint-validated lease cache for doctor, outline, describe, search_symbols, source, and relationships. It has no mutation workspace, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
 
+The CLI no longer forwards application argv from root startup. It binds the CLI
+invocation locally; typed application adapters can then invoke ports through
+structured daemon RPC. Public read-only commands are typed or explicitly local.
+The daemon receiver still accepts the old argv envelope until the next #53
+tracer removes that compatibility path. See
+[ADR-0054](adr/0054-cli-typed-daemon-dispatch-only.md).
+
 MSBuild registration is process-global, so the daemon captures the exact SDK instance
 it registers: normalized MSBuild path plus version. Each typed request resolves the SDK
 instance for its effective solution directory before invocation. A different path or
