@@ -124,3 +124,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0057](0057-host-dependency-and-contract-ratchets.md) | Host dependency and typed-contract ratchets | Accepted; transport placement completed by [0058](0058-daemon-transport-hosting-ownership.md) | 2026-09-28 |
 | [0058](0058-daemon-transport-hosting-ownership.md) | Daemon transport belongs to shared Hosting | Accepted | 2026-09-28 |
 | [0059](0059-host-configuration-hosting-ownership.md) | Host configuration belongs to shared Hosting | Accepted | 2026-09-28 |
+| [0060](0060-service-diagnostics-without-ambient-console.md) | Service diagnostics use injected logging and typed validation | Accepted | 2026-09-28 |

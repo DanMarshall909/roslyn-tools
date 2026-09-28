@@ -862,7 +862,7 @@ internal class MoveService : IRtService
 
         if (changedFiles == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"No types found in namespace '{sourceNamespace}'.");
+            _logger.RtInfo("No types found in namespace '{SourceNamespace}'.", sourceNamespace);
             return;
         }
 
@@ -906,7 +906,7 @@ internal class MoveService : IRtService
         if (sourceProject != null &&
             string.Equals(sourceProject.Name, targetProjectName, StringComparison.OrdinalIgnoreCase))
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "nothing to move");
+            _logger.RtInfo("nothing to move");
             return;
         }
 
@@ -1002,7 +1002,7 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);
         else if (!moveFile)
-            RtConsole.WriteLine(RtOutputContext.Diagnostic,
+            _logger.RtInfo(
                 "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
     }
 
@@ -1082,7 +1082,7 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, dryRun);
         else if (!moveFile && declarationFiles.Count > 0)
-            RtConsole.WriteLine(RtOutputContext.Diagnostic,
+            _logger.RtInfo(
                 "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
     }
 
@@ -1379,8 +1379,9 @@ internal class MoveService : IRtService
 
             if (!fileRelPath.StartsWith(oldRelDir, StringComparison.OrdinalIgnoreCase))
             {
-                RtConsole.WriteLine(RtOutputContext.Diagnostic,
-                    $"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
+                _logger.RtInfo(
+                    "WARNING: '{FileRelativePath}' does not start with '{OldRelativeDirectory}' -- file not moved.",
+                    fileRelPath, oldRelDir);
                 continue;
             }
 
@@ -1390,14 +1391,13 @@ internal class MoveService : IRtService
 
             if (dryRun)
             {
-                RtConsole.WriteLine(RtOutputContext.Diagnostic, $"[dry-run] Would move: {filePath} -> {newFilePath}");
+                _logger.RtInfo("[dry-run] Would move: {SourcePath} -> {TargetPath}", filePath, newFilePath);
                 continue;
             }
 
             if (File.Exists(newFilePath))
             {
-                RtConsole.WriteLine(RtOutputContext.Diagnostic,
-                    $"WARNING: Target already exists: {newFilePath} -- file not moved.");
+                _logger.RtInfo("WARNING: Target already exists: {TargetPath} -- file not moved.", newFilePath);
                 continue;
             }
 
@@ -1406,7 +1406,7 @@ internal class MoveService : IRtService
                 Directory.CreateDirectory(newDir);
 
             File.Move(filePath, newFilePath);
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Moved: {filePath} -> {newFilePath}");
+            _logger.RtInfo("Moved: {SourcePath} -> {TargetPath}", filePath, newFilePath);
         }
     }
 

@@ -1,24 +1,48 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Shouldly;
 
 namespace RoslynTools.Tests.Architecture;
 
 /// <summary>
-///     Architectural lock: production code must not reference <c>System.Console</c> directly —
-///     every write goes through <c>RtConsole</c> / <c>RtLog</c> / <c>IRtConsole</c>.
-///     A direct <c>Console.WriteLine</c> in daemon mode is silently dropped: the daemon
-///     process is spawned with <c>CreateNoWindow=true</c> and its
-///     <c>Console.Out</c>/<c>Error</c> handles are detached.
+///     Architectural lock: production code must not reference <c>System.Console</c>
+///     directly outside the transitional console bridge, and services must not
+///     call ambient console or log adapters. Hosts own rendering and logging.
 /// </summary>
 public sealed class NoDirectConsoleUse
 {
+    [Fact]
+    public void services_do_not_call_ambient_console_or_log_adapters()
+    {
+        var services = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Services");
+        var violations = Directory.EnumerateFiles(services, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !Path.GetRelativePath(services, path)
+                .Split(Path.DirectorySeparatorChar)
+                .Any(part => part is "bin" or "obj"))
+            .SelectMany(path =>
+            {
+                var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+                return root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+                    .Where(node => node.Expression is IdentifierNameSyntax identifier
+                        && identifier.Identifier.Text is "RtConsole" or "RtLog")
+                    .Select(node => $"{Path.GetRelativePath(services, path)}:"
+                        + $"{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}"
+                        + $" {node.Expression}.{node.Name}")
+                    .ToArray();
+            })
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        violations.ShouldBeEmpty();
+    }
+
     [Fact]
     public void production_code_does_not_reference_system_console_directly()
     {
         var srcDir = LocateSrcDirectory();
 
         // RtConsole.cs IS the bridge — direct System.Console use there is the entire point.
-        // Every other production file must go through the abstraction.
+        // Every other production file must go through an output abstraction.
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             Path.Combine(srcDir, "RoslynTools", "Core", "RtConsole.cs"),
@@ -66,9 +90,7 @@ public sealed class NoDirectConsoleUse
 
         Assert.True(
             violations.Count == 0,
-            "Production code must use RtConsole / RtLog / IRtConsole instead of System.Console directly.\n" +
-            "Daemon mode redirects RtConsole through a named pipe; direct Console.* calls are\n" +
-            "silently dropped because the daemon process has no attached console.\n\n" +
+            "Production code must use a host output abstraction instead of System.Console directly.\n\n" +
             "Offending sites:\n  " + string.Join("\n  ", violations));
     }
 

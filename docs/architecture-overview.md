@@ -151,6 +151,10 @@ pipe client, process launcher, RPC dispatcher, protocol, and legacy routing
 catalogue now live in shared Hosting. A placement test keeps those types and
 named-pipe source out of Core; see
 [ADR-0058](adr/0058-daemon-transport-hosting-ownership.md).
+Services use injected logging for diagnostics and typed errors for invalid
+input; a source test rejects direct `RtConsole` and `RtLog` calls in service
+code. Legacy result rendering and default console logger construction remain
+separate migration work; see [ADR-0060](adr/0060-service-diagnostics-without-ambient-console.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

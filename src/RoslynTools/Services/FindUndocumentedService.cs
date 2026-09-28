@@ -125,10 +125,9 @@ internal sealed class FindUndocumentedService : IRtService
                 case "private": kinds.Add(SyntaxKind.PrivateKeyword); break;
                 case "protected": kinds.Add(SyntaxKind.ProtectedKeyword); break;
                 default:
-                    RtLog.Error(
-                        "Unknown accessibility level: '{Level}'. Use: public, internal, protected, private, all",
-                        level);
-                    return null;
+                    throw new ArgumentException(
+                        $"Unknown accessibility level: '{level}'. Use: public, internal, protected, private, all",
+                        nameof(levels));
             }
         }
 

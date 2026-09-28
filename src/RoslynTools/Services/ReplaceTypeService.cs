@@ -36,7 +36,11 @@ internal class ReplaceTypeService : IRtService
     {
         var originalSolution = solution;
         var prepared = await PrepareAsync(solution);
-        if (prepared.ChangedFiles == 0) { RtConsole.WriteLine(RtOutputContext.Diagnostic, "No DateTime.UtcNow or DateTime.Now usage found."); return; }
+        if (prepared.ChangedFiles == 0)
+        {
+            _logger.RtInfo("No DateTime.UtcNow or DateTime.Now usage found.");
+            return;
+        }
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, prepared.Solution, dryRun);
     }
 
