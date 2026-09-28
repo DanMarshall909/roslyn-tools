@@ -1,11 +1,30 @@
+using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class HostAssemblyBoundaryTests
 {
+    [Fact]
+    public void shared_host_foundation_registers_workspace_durable_trust_and_doctor_ports()
+    {
+        var services = new ServiceCollection();
+
+        HostServiceRegistration.RegisterFoundationServices(services);
+
+        typeof(HostServiceRegistration).Assembly.ShouldBe(typeof(MsBuildBootstrap).Assembly);
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IWorkspaceSessionFactory));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(DurableChangePlanStore));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(DurableOperationLedger));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(RepositoryTrustRegistry));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDoctorEnvironmentProbe));
+        services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDoctorWorkspaceBootstrap));
+    }
+
     [Fact]
     public void doctor_host_probe_and_workspace_bootstrap_live_in_shared_host_assembly()
     {

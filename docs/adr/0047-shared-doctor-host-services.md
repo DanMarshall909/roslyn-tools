@@ -26,8 +26,8 @@ the host boundary test.
 - Core still receives only the typed ports and has no dependency on host effects.
 - The probe's current default launcher resolution is unchanged; host-specific
   path selection can be addressed when each host owns its DI composition.
-- MCP still references CLI for DI registration and suggestion catalogue. These
-  are later #56 tracers.
+- Foundation DI registration moved into Hosting in the next #56 slice. MCP
+  still references CLI for remaining DI composition and suggestion catalogue.
 
 ## Alternatives considered
 

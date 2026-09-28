@@ -5,7 +5,7 @@ namespace RoslynTools.Tests.Architecture;
 
 /// <summary>
 ///     Architectural lock (EP-008 / US-053): production code outside
-///     <c>WorkspaceLoader.cs</c> must depend on <c>IWorkspaceSessionFactory</c>,
+///     the composition roots and <c>WorkspaceLoader.cs</c> must depend on <c>IWorkspaceSessionFactory</c>,
 ///     not the concrete <c>WorkspaceLoader</c> type. Concrete references defeat
 ///     the injection seam and block daemon workspace caching.
 /// </summary>
@@ -27,11 +27,11 @@ public sealed class NoConcreteWorkspaceLoaderInProduction
             // Sanctioned references to the concrete type:
             //  - WorkspaceLoader.cs declares the class
             //  - IWorkspaceSessionFactory.cs hosts the CreateDefault factory
-            //  - Bootstrap.cs is the composition root that wires the interface to the impl
+            //  - HostServiceRegistration.cs is the shared composition root that wires the interface
             var fileName = Path.GetFileName(file);
             if (fileName.Equals("WorkspaceLoader.cs", StringComparison.OrdinalIgnoreCase)) continue;
             if (fileName.Equals("IWorkspaceSessionFactory.cs", StringComparison.OrdinalIgnoreCase)) continue;
-            if (fileName.Equals("Bootstrap.cs", StringComparison.OrdinalIgnoreCase)) continue;
+            if (rel == Path.Combine("RoslynTools.Hosting", "HostServiceRegistration.cs")) continue;
 
             var source = File.ReadAllText(file);
             var tree = CSharpSyntaxTree.ParseText(source);
