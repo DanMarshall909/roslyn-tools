@@ -120,3 +120,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0053](0053-mcp-owned-host-composition.md) | MCP-owned host composition | Accepted | 2026-09-28 |
 | [0054](0054-cli-typed-daemon-dispatch-only.md) | CLI application commands enter daemon through typed ports | Accepted | 2026-09-28 |
 | [0055](0055-daemon-legacy-control-only.md) | Daemon legacy envelope is control only | Accepted | 2026-09-28 |
+| [0056](0056-daemon-owned-host-composition.md) | Daemon-owned host composition | Accepted | 2026-09-28 |

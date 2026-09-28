@@ -110,9 +110,7 @@ internal static class DaemonServer
             host = Host.CreateDefaultBuilder()
                 .ConfigureServices(services =>
                 {
-                    Bootstrap.RegisterServices(services);
-                    services.AddSingleton<IDaemonSdkContextGuard>(
-                        new DaemonMsBuildCompatibility(registeredIdentity));
+                    DaemonHostServiceRegistration.RegisterServices(services, registeredIdentity);
                 })
                 .Build();
         }

@@ -48,6 +48,7 @@
     <ItemGroup>
         <ProjectReference Include="..\RoslynTools\RoslynTools.csproj"/>
         <ProjectReference Include="..\RoslynTools.Hosting\RoslynTools.Hosting.csproj"/>
+        <ProjectReference Include="..\RoslynTools.DaemonHost\RoslynTools.DaemonHost.csproj"/>
     </ItemGroup>
 
     <Target Name="FormatChanged" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(FormatChanged)' != 'false' AND '$(RuntimeIdentifier)' == ''">

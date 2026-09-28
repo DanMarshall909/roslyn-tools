@@ -1,33 +1,8 @@
 using System.IO.Pipes;
-using System.Text;
 using System.Text.Json;
 using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
-
-/// <summary>
-/// An encoding type used by the daemon.
-/// </summary>
-internal static class DaemonEncoding
-{
-    // UTF-8 without BOM — both client and server use this. Encoding.UTF8 emits a 3-byte BOM
-    // on first flush, which the JSON deserializer on the other end rejects with
-    // "'0xEF' is an invalid start of a value".
-    internal static readonly UTF8Encoding NoBom = new(false, true);
-
-    // Display string for the pipe — purely cosmetic, used by `rt maintainer daemon status` and the
-    // daemon's startup log line. .NET's NamedPipeServerStream on Linux/macOS is implemented
-    // over a Unix domain socket at /tmp/CoreFxPipe_<name>; on Windows it's \\.\pipe\<name>.
-    /// <summary>
-    /// A method to display the pipe path for the daemon encoding.
-    /// </summary>
-    internal static string DisplayPipePath(string pipeName)
-    {
-        return OperatingSystem.IsWindows()
-            ? $@"\\.\pipe\{pipeName}"
-            : $"/tmp/CoreFxPipe_{pipeName}";
-    }
-}
 
 /// <summary>
 /// A client for interacting with the daemon.

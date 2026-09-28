@@ -6,6 +6,7 @@ using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
+using RoslynTools.Mcp;
 using RoslynTools.Services;
 using RoslynTools.Services.Suggest;
 using Shouldly;
@@ -133,6 +134,79 @@ public sealed class HostAssemblyBoundaryTests
         references.ShouldContain("RoslynTools");
         references.ShouldNotContain("rt");
         references.ShouldNotContain("RoslynTools.Mcp");
+    }
+
+    [Fact]
+    public void daemon_host_owns_its_application_composition_without_a_cli_dependency()
+    {
+        var daemonAssembly = typeof(DaemonServer).Assembly;
+        daemonAssembly.GetName().Name.ShouldBe("RoslynTools.DaemonHost");
+        var references = daemonAssembly.GetReferencedAssemblies()
+            .Select(assembly => assembly.Name)
+            .ToArray();
+        references.ShouldContain("RoslynTools");
+        references.ShouldContain("RoslynTools.Hosting");
+        references.ShouldNotContain("rt");
+        references.ShouldNotContain("RoslynTools.Mcp");
+        references.ShouldNotContain("System.CommandLine");
+
+        var identity = MsBuildInstanceIdentity.Create(
+            Path.Combine(Path.GetTempPath(), "daemon-host-sdk"),
+            new Version(10, 0, 100));
+        var daemonServices = new ServiceCollection();
+        DaemonHostServiceRegistration.RegisterServices(daemonServices, identity);
+        daemonServices.ShouldContain(descriptor => descriptor.ServiceType == typeof(IDaemonSdkContextGuard));
+        daemonServices.ShouldContain(descriptor => descriptor.ServiceType == typeof(DaemonCommandDispatcher));
+
+        using var daemonProvider = daemonServices.BuildServiceProvider();
+        using var mcpProvider = new ServiceCollection()
+            .AddMcpHostServices(TextReader.Null, TextWriter.Null)
+            .BuildServiceProvider();
+        daemonProvider.GetRequiredService<ApplicationCommandCatalog>().All
+            .Select(descriptor => descriptor.ToolName)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(mcpProvider.GetRequiredService<ApplicationCommandCatalog>().All
+                .Select(descriptor => descriptor.ToolName)
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task daemon_rpc_resolves_shared_ports_but_not_cli_only_feedback()
+    {
+        var cliServices = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(cliServices);
+        using var cliProvider = cliServices.BuildServiceProvider();
+        cliProvider.GetServices<ICommandApplicationPort>()
+            .ShouldContain(port => port.Definition.Name == "feedback_list");
+
+        var identity = MsBuildInstanceIdentity.Create(
+            Path.Combine(Path.GetTempPath(), "daemon-host-sdk"),
+            new Version(10, 0, 100));
+        var daemonServices = new ServiceCollection();
+        DaemonHostServiceRegistration.RegisterServices(daemonServices, identity);
+        using var daemonProvider = daemonServices.BuildServiceProvider();
+        var dispatcher = daemonProvider.GetRequiredService<DaemonCommandDispatcher>();
+
+        using var invalidFindPattern = JsonDocument.Parse(
+            """{"file":123,"startLine":0,"endLine":1}""");
+        var typed = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "typed-port",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            FindPatternCommandDefinition.Name,
+            invalidFindPattern.RootElement.Clone()));
+        typed.Error.ShouldNotBeNull();
+        typed.Error.Code.ShouldBe(DaemonRpcErrorCodes.InvalidArguments);
+
+        using var empty = JsonDocument.Parse("{}");
+        var feedback = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "cli-only-feedback",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "feedback_list",
+            empty.RootElement.Clone()));
+        feedback.Error.ShouldNotBeNull();
+        feedback.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandNotFound);
     }
 
     [Fact]

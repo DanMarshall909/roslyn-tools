@@ -24,6 +24,7 @@ The target shape is:
 ┌─ Host adapters ─────────────────────────────────────────────────────┐
 │ CLI: bind arguments + render terminal output                        │
 │ MCP: protocol lifecycle + bind JSON + project typed result          │
+│ Daemon: trust-gated typed RPC + lifecycle control                    │
 │ IDE: editor context + native UX (future)                             │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │ typed request + explicit request context
@@ -123,12 +124,19 @@ combines typed public definitions with shared host metadata for `config`,
 `trust`, feedback, and the richer CLI `semantic-diff` projection. CLI-specific
 composition remains in the CLI assembly. Removing MCP's CLI project reference
 is complete: MCP composes these shared services through its own entry point,
-then adds protocol services. Its project references Core and Hosting. The
+then adds protocol services. The daemon composes the same shared application
+ports through `RoslynTools.DaemonHost`, with its own SDK guard and pipe server;
+the CLI binary still launches that server and owns the lifecycle commands.
+Neither MCP nor DaemonHost references the CLI assembly. The MCP project
+references Core and Hosting. The
 general MCP test fixture and protocol tests use this production composition;
 the test project retains CLI only for explicit descriptor and metadata
 comparisons. See
 [ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md) and
-[ADR-0053](adr/0053-mcp-owned-host-composition.md).
+[ADR-0053](adr/0053-mcp-owned-host-composition.md) and
+[ADR-0056](adr/0056-daemon-owned-host-composition.md).
+CLI-only feedback operations remain registered only in the CLI process; direct
+daemon RPC for their legacy names returns `command_not_found`.
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,
@@ -144,9 +152,9 @@ doctor requests without registering MSBuild, so a self-contained installation ca
 diagnose an absent SDK rather than failing before the doctor operation runs.
 
 MSBuild instance identity, exact-selection values, and compatibility errors are
-shared in the reusable assembly for CLI daemon and MCP hosts. The daemon SDK
-guard remains CLI-owned. Process-global `MsBuildBootstrap` lives in the shared
-`RoslynTools.Hosting` assembly, referenced by CLI and MCP; Core does not depend
+shared in the reusable assembly for CLI, daemon, and MCP hosts. The daemon SDK
+guard lives in DaemonHost. Process-global `MsBuildBootstrap` lives in the shared
+`RoslynTools.Hosting` assembly, referenced by all three hosts; Core does not depend
 on this host assembly. See [ADR-0045](adr/0045-shared-msbuild-instance-identity.md)
 and [ADR-0046](adr/0046-shared-msbuild-host-bootstrap.md). The installed
 doctor probe and workspace bootstrap also live in this assembly; see
@@ -894,7 +902,9 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 ## Current migration tensions
 
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
-- **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
+- **Daemon application routing is typed.** The legacy envelope accepts only
+  exact lifecycle controls; application operations use structured typed RPC.
+  Mutation RPC remains disabled during the separate mutation safety work.
 - **Durable Prepare is public but deliberately no-effect and experimental.** Core has a
   canonical plan, exact-byte reader, fail-closed durable plan and lifecycle stores, and
   the restart-reconcilable handoff in
@@ -1013,11 +1023,10 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Daemon host ownership still needs separation.** CLI and MCP compose shared
-  application services independently, and MCP has no CLI project reference.
-  Typed RPC is the daemon's only application path, but the server process and
-  control command still live in the CLI assembly. Complete the daemon peer-host
-  boundary and architecture ratchets under #53.
+- **Final host architecture ratchets remain open.** CLI, MCP, and DaemonHost
+  compose the same typed application contracts independently. The daemon server
+  remains launched from the CLI binary for packaging and lifecycle control.
+  Add comprehensive dependency and contract tests before closing #53.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.

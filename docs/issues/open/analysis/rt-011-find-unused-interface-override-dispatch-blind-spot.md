@@ -53,6 +53,10 @@ suggested:
   — overrides `Microsoft.CodeAnalysis.TextLoader.LoadTextAndVersionAsync`,
   dispatched by Roslyn's workspace internals.
 
+**Update (2026-09-28):** `DaemonPipeConsole` and its nested writer were removed
+by [ADR-0055](../../../adr/0055-daemon-legacy-control-only.md). That historical
+finding remains useful evidence, but it is no longer an acceptance fixture.
+
 The lesson for whoever implements the fix: a finding's reported `name` can
 belong to a nested class, not the file's outer type — the override can't be
 seen without opening the actual declaration at the reported line.
@@ -88,8 +92,7 @@ the `IRtCommand.Build` exclusion.
       `IdentifierVariationDetector`'s `VisitVariableDeclarator` no longer report
       as unused.
 - [ ] `RtConsoleLogger<T>.BeginScope` no longer reports as unused.
-- [ ] `PipeTextWriter.Write(char)` (nested in `DaemonPipeConsole`),
-      `ThrowingTextReader.Read` (nested in `PipedSymbolReaderTests`), and
+- [ ] `ThrowingTextReader.Read` (nested in `PipedSymbolReaderTests`) and
       `NewClassTextLoader.LoadTextAndVersionAsync` (nested in
       `SolutionWriterIntegration`) no longer report as unused.
 - [ ] `[ModuleInitializer]`-attributed methods (e.g. `MsBuildFixture.Initialize`)
