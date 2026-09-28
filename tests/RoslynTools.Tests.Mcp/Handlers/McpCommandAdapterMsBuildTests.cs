@@ -506,7 +506,6 @@ public sealed class McpCommandAdapterMsBuildTests
         McpHostOptions options,
         IMcpMsBuildBinding binding) => new(
         provider.GetRequiredService<CommandDescriptorRegistry>(),
-        provider.GetRequiredService<CliCommandBridge>(),
         new DaemonRpcRecoveryCoordinator(new UnavailableRpcClient(), new UnavailableLauncher()),
         options,
         binding);

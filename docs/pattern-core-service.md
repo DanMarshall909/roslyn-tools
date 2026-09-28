@@ -110,8 +110,8 @@ public Task<ToolResult> InvokeAsync(string toolName, JsonElement args, Cancellat
 ```
 
 Definitions and ports register through DI; the registry resolves them by normalized
-tool name. `CliCommandBridge` exists only while the migration is partial and is deleted
-at full coverage. Never add a bespoke MCP handler for an ordinary command.
+tool name. MCP discovery admits only descriptors with an application port. Never add
+a CLI invocation fallback or a bespoke MCP handler for an ordinary command.
 
 ## Tests, by layer
 

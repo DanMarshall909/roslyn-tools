@@ -107,3 +107,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0040](0040-durable-pre-effect-guard-history.md) | Durable pre-effect guard history | Accepted | 2026-09-28 |
 | [0041](0041-local-interrupted-pre-effect-reconciliation.md) | Local interrupted pre-effect reconciliation | Accepted | 2026-09-28 |
 | [0042](0042-cli-command-surface-ownership.md) | CLI command surface belongs to the CLI assembly | Accepted | 2026-09-28 |
+| [0043](0043-mcp-port-only-dispatch.md) | MCP dispatch requires an application port | Accepted | 2026-09-28 |

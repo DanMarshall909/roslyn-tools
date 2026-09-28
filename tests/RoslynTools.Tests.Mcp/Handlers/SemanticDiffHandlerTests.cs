@@ -241,8 +241,7 @@ public sealed class SemanticDiffHandlerTests
     {
         // End-to-end through the real ToolRegistry against the live repo: HEAD..HEAD is a
         // deterministic no-op diff (independent of the working tree), so the native handler
-        // returns an empty JSON array — proving the registry routes semantic_diff to it
-        // rather than the text-capture CliCommandBridge fallback.
+        // returns an empty JSON array — proving the registry invokes the typed application port.
         using var provider = McpTestHost.CreateProvider();
         var registry = provider.GetRequiredService<ToolRegistry>();
         using var args = JsonDocument.Parse("""{"from":"HEAD","to":"HEAD"}""");

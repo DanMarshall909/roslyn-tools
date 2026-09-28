@@ -20,7 +20,6 @@ internal static class McpServiceRegistration
         services.AddSingleton(output);
         services.AddSingleton(hostOptions ?? new McpHostOptions());
         services.AddSingleton<ToolSchemaBuilder>();
-        services.AddSingleton<CliCommandBridge>();
         services.AddSingleton<IDaemonRpcClient>(
             provider => provider.GetRequiredService<DaemonRpcClient>());
         services.AddSingleton<IDaemonLauncher>(provider => new DaemonLauncher(

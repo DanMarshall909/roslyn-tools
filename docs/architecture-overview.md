@@ -100,7 +100,7 @@ Every ordinary stable command has one host-neutral application definition and ex
 - provenance and confidence policy; and
 - suggested follow-on tools.
 
-It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. During migration only, descriptors without complete ports enter an isolated compatibility bridge. Apply-capable bridge commands are not part of the stable MCP or daemon surface.
+It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. Every discoverable MCP descriptor must have an application port. The MCP adapter invokes that port directly and has no CLI argument or console-capture fallback. Descriptors without ports remain outside the MCP surface until migrated.
 
 The `rt` CLI assembly owns `IRtCommand` and its category/output markers, the
 CLI option helper, and the `dump-help` command-surface projection. The reusable
@@ -965,7 +965,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.
+- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project because descriptor registration and discovery live there. The CLI invocation bridge has been removed; extracting the host-neutral catalogue and shared registration remains necessary before the MCP project reference can be removed.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.

@@ -14,7 +14,6 @@ public class ConsoleGate
             "RtConsole.cs",
             "IRtConsole.cs", // default Out implementation uses Console.Out as the base case
             "SpectreRtConsole.cs", // CLI-side IRtConsole adapter delegating to Spectre.Console
-            "CapturingConsole.cs", // MCP IRtConsole adapter (Spectre NoColors profile)
             "DaemonPipeConsole.cs" // Daemon IRtConsole adapter (Spectre NoColors profile)
         };
 
@@ -22,7 +21,6 @@ public class ConsoleGate
         new(StringComparer.OrdinalIgnoreCase)
         {
             "SpectreRtConsole.cs",
-            "CapturingConsole.cs",
             "DaemonPipeConsole.cs"
         };
 

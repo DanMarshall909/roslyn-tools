@@ -7,8 +7,8 @@ namespace RoslynTools.Mcp.Tools;
 ///     Routes MCP tool invocations exclusively through command descriptors.
 /// </summary>
 /// <remarks>
-///     Commands gain an <see cref="Core.ICommandApplicationPort" /> as they migrate away
-///     from the compatibility bridge; no command-specific MCP dispatch path exists.
+///     Every available command has an <see cref="Core.ICommandApplicationPort" />;
+///     no command-specific MCP dispatch path exists.
 /// </remarks>
 internal sealed class ToolRegistry
 {

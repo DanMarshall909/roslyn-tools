@@ -27,8 +27,7 @@ internal static class Program
         // Install the CLI-side Spectre.Console adapter so every RtConsole call from
         // here on renders with colour + syntax highlighting. The override propagates
         // through the async tree via AsyncLocal for the lifetime of this process.
-        // MCP-side callers (CliCommandBridge) install their own CapturingConsole *after*
-        // entering App.RunAsync directly, bypassing this entry point.
+        // The MCP host has its own entry point and invokes application ports directly.
         using var consoleScope = RtConsole.UseConsole(new SpectreRtConsole());
 
         var invocationDirectory = Directory.GetCurrentDirectory();

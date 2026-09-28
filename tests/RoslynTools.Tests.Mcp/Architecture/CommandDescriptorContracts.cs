@@ -16,6 +16,43 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 public sealed class CommandDescriptorContracts
 {
     [Fact]
+    public void discoverable_mcp_commands_require_application_ports()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
+        var hostOptions = provider.GetRequiredService<McpHostOptions>();
+        var outline = descriptors.Single(descriptor => descriptor.ToolName == "outline");
+
+        descriptors.Where(descriptor => descriptor.McpVisible)
+            .ShouldAllBe(descriptor => descriptor.Port != null);
+        McpToolAvailability.IsAvailable(outline, hostOptions).ShouldBeTrue();
+        McpToolAvailability.IsAvailable(outline with { Port = null }, hostOptions)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void mcp_host_has_no_cli_command_bridge_or_console_capture()
+    {
+        typeof(McpCommandAdapter).Assembly
+            .GetType("RoslynTools.Mcp.Tools.CliCommandBridge")
+            .ShouldBeNull();
+        typeof(McpCommandAdapter).Assembly
+            .GetType("RoslynTools.Mcp.Tools.CapturingConsole")
+            .ShouldBeNull();
+    }
+
+    [Fact]
+    public void mcp_registry_has_only_the_generic_dispatch_adapter()
+    {
+        typeof(ToolRegistry).GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Select(field => field.FieldType)
+            .ShouldBe([typeof(ToolSchemaBuilder), typeof(McpCommandAdapter)], ignoreOrder: true);
+        typeof(ToolRegistry).Assembly.GetTypes()
+            .Where(type => type.Namespace == typeof(ToolRegistry).Namespace)
+            .ShouldNotContain(type => type.Name.EndsWith("Handler", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void local_trust_control_plane_is_not_an_mcp_descriptor_or_tool()
     {
         using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());

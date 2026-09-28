@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-30
 - Stories: FB-002, rt-007
+- Later decision: [ADR-0043](0043-mcp-port-only-dispatch.md) removes the temporary bridge.
 
 ## Context
 

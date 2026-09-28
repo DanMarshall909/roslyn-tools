@@ -21,7 +21,6 @@ public sealed class McpDependencyInjectionTests
         using var provider = services.BuildServiceProvider();
 
         provider.GetRequiredService<ToolSchemaBuilder>().ShouldNotBeNull();
-        provider.GetRequiredService<CliCommandBridge>().ShouldNotBeNull();
         provider.GetRequiredService<McpCommandAdapter>().ShouldNotBeNull();
         provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
         provider.GetRequiredService<Server>().ShouldNotBeNull();

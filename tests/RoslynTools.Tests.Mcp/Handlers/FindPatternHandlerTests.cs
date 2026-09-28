@@ -79,7 +79,6 @@ public sealed class FindPatternHandlerTests
         {
             var adapter = new McpCommandAdapter(
                 provider.GetRequiredService<CommandDescriptorRegistry>(),
-                provider.GetRequiredService<CliCommandBridge>(),
                 new DaemonRpcRecoveryCoordinator(new UnavailableRpcClient(), new UnavailableLauncher()));
 
             var result = await adapter.InvokeAsync(

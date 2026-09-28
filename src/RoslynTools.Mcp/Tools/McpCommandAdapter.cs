@@ -12,13 +12,11 @@ using RoslynTools.Services.SemanticDiff;
 namespace RoslynTools.Mcp.Tools;
 
 /// <summary>
-///     Generic MCP adapter for descriptor-backed commands. Port-backed descriptors bind JSON
-///     directly to the typed application request; unmigrated commands use the isolated legacy
-///     CLI adapter until they receive an application port.
+///     Generic MCP adapter for descriptor-backed commands. Descriptors bind JSON directly
+///     to their application port's typed request.
 /// </summary>
 internal sealed class McpCommandAdapter(
     CommandDescriptorRegistry descriptors,
-    CliCommandBridge legacyBridge,
     DaemonRpcRecoveryCoordinator daemonRpc,
     McpHostOptions? hostOptions = null,
     IMcpMsBuildBinding? msBuildBinding = null)
@@ -31,7 +29,6 @@ internal sealed class McpCommandAdapter(
     };
 
     private readonly CommandDescriptorRegistry _descriptors = descriptors;
-    private readonly CliCommandBridge _legacyBridge = legacyBridge;
     private readonly DaemonRpcRecoveryCoordinator _daemonRpc = daemonRpc;
     private readonly McpHostOptions _hostOptions = hostOptions ?? new McpHostOptions();
     private readonly IMcpMsBuildBinding _msBuildBinding = msBuildBinding ?? new McpMsBuildBinding();
@@ -76,20 +73,14 @@ internal sealed class McpCommandAdapter(
             // in-process recovery path described by ADR-0005.
         }
 
-        if (descriptor.Port is null)
-        {
-            var admission = AdmitWorkspaceRequest(descriptor, safeArguments, request: null);
-            if (admission is not null)
-                return admission;
-
-            return await _legacyBridge.InvokeAsync(descriptor, safeArguments, cancellationToken);
-        }
-
         try
         {
+            var port = descriptor.Port
+                ?? throw new InvalidOperationException(
+                    $"MCP tool '{toolName}' has no application port.");
             var request = JsonSerializer.Deserialize(
                 safeArguments.GetRawText(),
-                descriptor.Port.RequestType,
+                port.RequestType,
                 RequestOptions);
             if (request is null)
             {
@@ -107,7 +98,7 @@ internal sealed class McpCommandAdapter(
                     return admission;
             }
 
-            var result = await descriptor.Port.InvokeAsync(request, cancellationToken);
+            var result = await port.InvokeAsync(request, cancellationToken);
             if (result.IsError)
                 return new ToolResult(
                     true,

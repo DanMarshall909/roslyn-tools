@@ -11,6 +11,7 @@ internal static class McpToolAvailability
         McpHostOptions hostOptions)
     {
         return descriptor.McpVisible
+               && descriptor.Port is not null
                && descriptor.Audience == CommandAudience.Public
                && hostOptions.Configuration.Effective.Mcp.Allows(descriptor.ToolName)
                && (hostOptions.CanDiscoverRepositoryWrites
