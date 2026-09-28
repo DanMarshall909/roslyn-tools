@@ -164,6 +164,22 @@ internal sealed record PreEffectActivityState(
     internal static PreEffectActivityState Open { get; } = new(1, false, []);
 }
 
+internal enum OperationGuardJournalKind
+{
+    ActivityAdmitted,
+    AcquisitionIntent,
+    ConfirmedInactive
+}
+
+internal sealed record OperationGuardJournalEvent(
+    long Sequence,
+    OperationGuardJournalKind Kind,
+    Guid AdmissionToken,
+    long ControlGeneration,
+    long FenceEpoch,
+    Guid ReservationToken,
+    DateTimeOffset CommittedAtUtc);
+
 internal sealed record OperationEffectJournalEvent(
     long Sequence,
     int EffectSequence,
@@ -190,6 +206,7 @@ internal sealed record DurableOperationRecord(
     internal ImmutableArray<OperationStagingJournalEvent> StagingJournal { get; init; } = [];
     internal ImmutableArray<OperationBackupJournalEvent> BackupJournal { get; init; } = [];
     internal ImmutableArray<OperationCleanupJournalEvent> CleanupJournal { get; init; } = [];
+    internal ImmutableArray<OperationGuardJournalEvent> GuardJournal { get; init; } = [];
     internal OperationOwnerLease? OwnerLease { get; init; }
     internal PreEffectActivityState PreEffectActivity { get; init; } = PreEffectActivityState.Open;
 }
@@ -357,6 +374,7 @@ internal sealed class DurableOperationLedger
     private const int MaximumActivePreEffectActivities = 32;
     private const int MaximumStagingJournalEvents = 4096;
     private const int MaximumBackupJournalEvents = 4096;
+    private const int MaximumGuardJournalEvents = 4096;
     private static readonly TimeSpan ApplyOwnerLeaseLifetime = TimeSpan.FromMinutes(1);
     private const int MaximumCoordinationReferenceBytes = 256;
     private const uint MoveFileReplaceExisting = 0x1;
@@ -890,7 +908,11 @@ internal sealed class DurableOperationLedger
             if (operation.CurrentState is not (OperationLifecycleState.Prepared or OperationLifecycleState.Applying)
                 || activity.IsClosed
                 || !operation.EffectJournal.IsEmpty
+                || (operation.GuardJournal.IsEmpty && activity.HasAdmissionHistory)
                 || activity.ActiveAdmissions.Length >= MaximumActivePreEffectActivities
+                // Every admitted activity may still need intent and inactivity records.
+                || operation.GuardJournal.Length + 3
+                   + 2 * activity.ActiveAdmissions.Length > MaximumGuardJournalEvents
                 || (operation.CurrentState == OperationLifecycleState.Applying
                     && (!OwnerMatches(operation.OwnerLease, reservation)
                         || operation.OwnerLease!.ExpiresAtUtc <= _utcNow().ToUniversalTime())))
@@ -906,13 +928,27 @@ internal sealed class DurableOperationLedger
                 activity.ControlGeneration,
                 reservation.FenceEpoch,
                 reservation.FenceToken);
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.Transitions[^1].CommittedAtUtc)
+                now = operation.Transitions[^1].CommittedAtUtc;
+            if (!operation.GuardJournal.IsEmpty
+                && now < operation.GuardJournal[^1].CommittedAtUtc)
+                now = operation.GuardJournal[^1].CommittedAtUtc;
             var next = operation with
             {
                 PreEffectActivity = activity with
                 {
                     HasAdmissionHistory = true,
                     ActiveAdmissions = activity.ActiveAdmissions.Add(admission)
-                }
+                },
+                GuardJournal = operation.GuardJournal.Add(new OperationGuardJournalEvent(
+                    operation.GuardJournal.Length + 1,
+                    OperationGuardJournalKind.ActivityAdmitted,
+                    admission.Token,
+                    admission.ControlGeneration,
+                    admission.FenceEpoch,
+                    admission.ReservationToken,
+                    now))
             };
             WriteRecord(recordPath, next);
             return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
@@ -921,6 +957,118 @@ internal sealed class DurableOperationLedger
             record => Result<PreEffectActivityAdmission, OperationLedgerError>.Ok(
                 record.PreEffectActivity.ActiveAdmissions[^1]),
             Result<PreEffectActivityAdmission, OperationLedgerError>.Err);
+    }
+
+    internal Result<OperationGuardJournalEvent, OperationLedgerError> AppendGuardAcquisitionIntent(
+        string repositoryId,
+        OperationId operationId,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        var updated = UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var latest = operation.GuardJournal.LastOrDefault(entry =>
+                entry.AdmissionToken == admission.Token);
+            if (operation.CurrentState != OperationLifecycleState.Prepared
+                || operation.PreEffectActivity.IsClosed
+                || !operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+                || admission.FenceEpoch != reservation.FenceEpoch
+                || admission.ReservationToken != reservation.FenceToken
+                || !operation.EffectJournal.IsEmpty
+                || operation.GuardJournal.Length >= MaximumGuardJournalEvents
+                || latest is null
+                || latest.Kind != OperationGuardJournalKind.ActivityAdmitted
+                || latest.ControlGeneration != admission.ControlGeneration
+                || latest.FenceEpoch != admission.FenceEpoch
+                || latest.ReservationToken != admission.ReservationToken)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Guard acquisition requires a current, durably admitted pre-effect activity."));
+            }
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.GuardJournal[^1].CommittedAtUtc)
+                now = operation.GuardJournal[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                GuardJournal = operation.GuardJournal.Add(new OperationGuardJournalEvent(
+                    operation.GuardJournal.Length + 1,
+                    OperationGuardJournalKind.AcquisitionIntent,
+                    admission.Token,
+                    admission.ControlGeneration,
+                    admission.FenceEpoch,
+                    admission.ReservationToken,
+                    now))
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+        return updated.Match(
+            record => Result<OperationGuardJournalEvent, OperationLedgerError>.Ok(
+                record.GuardJournal[^1]),
+            Result<OperationGuardJournalEvent, OperationLedgerError>.Err);
+    }
+
+    internal Result<OperationGuardJournalEvent, OperationLedgerError> AppendGuardConfirmedInactive(
+        string repositoryId,
+        OperationId operationId,
+        PreEffectActivityAdmission admission,
+        RepositoryMutationReservation reservation)
+    {
+        repositoryId = OperationRequestText.Required(repositoryId, nameof(repositoryId));
+        ArgumentNullException.ThrowIfNull(operationId);
+        ArgumentNullException.ThrowIfNull(admission);
+        ArgumentNullException.ThrowIfNull(reservation);
+        reservation.AssertHeld(repositoryId);
+
+        var updated = UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
+        {
+            var latest = operation.GuardJournal.LastOrDefault(entry =>
+                entry.AdmissionToken == admission.Token);
+            if (operation.CurrentState is not (OperationLifecycleState.Prepared
+                    or OperationLifecycleState.CancelledNoEffect)
+                || !operation.PreEffectActivity.ActiveAdmissions.Contains(admission)
+                || admission.FenceEpoch != reservation.FenceEpoch
+                || admission.ReservationToken != reservation.FenceToken
+                || !operation.EffectJournal.IsEmpty
+                || operation.GuardJournal.Length >= MaximumGuardJournalEvents
+                || latest is null
+                || latest.Kind != OperationGuardJournalKind.AcquisitionIntent
+                || latest.ControlGeneration != admission.ControlGeneration
+                || latest.FenceEpoch != admission.FenceEpoch
+                || latest.ReservationToken != admission.ReservationToken)
+            {
+                return Result<DurableOperationRecord, OperationLedgerError>.Err(new(
+                    OperationLedgerErrorKind.InvalidTransition,
+                    "Only a released guard under its admitted reservation may be recorded inactive."));
+            }
+            var now = _utcNow().ToUniversalTime();
+            if (now < operation.GuardJournal[^1].CommittedAtUtc)
+                now = operation.GuardJournal[^1].CommittedAtUtc;
+            var next = operation with
+            {
+                GuardJournal = operation.GuardJournal.Add(new OperationGuardJournalEvent(
+                    operation.GuardJournal.Length + 1,
+                    OperationGuardJournalKind.ConfirmedInactive,
+                    admission.Token,
+                    admission.ControlGeneration,
+                    admission.FenceEpoch,
+                    admission.ReservationToken,
+                    now))
+            };
+            WriteRecord(recordPath, next);
+            return Result<DurableOperationRecord, OperationLedgerError>.Ok(next);
+        });
+        return updated.Match(
+            record => Result<OperationGuardJournalEvent, OperationLedgerError>.Ok(
+                record.GuardJournal[^1]),
+            Result<OperationGuardJournalEvent, OperationLedgerError>.Err);
     }
 
     internal Result<DurableOperationRecord, OperationLedgerError> CompletePreEffectActivity(
@@ -944,9 +1092,16 @@ internal sealed class DurableOperationLedger
         return UpdateEffectJournal(repositoryId, operationId, (operation, recordPath) =>
         {
             var activity = operation.PreEffectActivity;
+            var guard = operation.GuardJournal.LastOrDefault(entry =>
+                entry.AdmissionToken == admission.Token);
             if (admission.FenceEpoch != reservation.FenceEpoch
                 || admission.ReservationToken != reservation.FenceToken
                 || !activity.ActiveAdmissions.Contains(admission)
+                || guard is null
+                || guard.Kind == OperationGuardJournalKind.AcquisitionIntent
+                || guard.ControlGeneration != admission.ControlGeneration
+                || guard.FenceEpoch != admission.FenceEpoch
+                || guard.ReservationToken != admission.ReservationToken
                 || (!operation.StagingJournal.IsEmpty
                     && operation.StagingJournal[^1].Kind == OperationStagingJournalKind.CreationAdmitted
                     && operation.StagingJournal[^1].AdmissionToken == admission.Token)
@@ -1897,9 +2052,16 @@ internal sealed class DurableOperationLedger
         return UpdateEffectJournal(plan.Key.RepositoryId, operationId, (operation, recordPath) =>
         {
             var activity = operation.PreEffectActivity;
+            var guardIntent = operation.GuardJournal.LastOrDefault(entry =>
+                entry.AdmissionToken == admission.Token);
             if (admission.FenceEpoch != reservation.FenceEpoch
                 || admission.ReservationToken != reservation.FenceToken
                 || !activity.ActiveAdmissions.Contains(admission)
+                || guardIntent is null
+                || guardIntent.Kind != OperationGuardJournalKind.AcquisitionIntent
+                || guardIntent.ControlGeneration != admission.ControlGeneration
+                || guardIntent.FenceEpoch != admission.FenceEpoch
+                || guardIntent.ReservationToken != admission.ReservationToken
                 || operation.RequestIdentity.PlanId != plan.Key.PlanId
                 || !FixedTimeHashEquals(operation.RequestIdentity.PlanHash, plan.Key.PlanHash)
                 || !plan.Pins.Any(pin =>
@@ -2856,6 +3018,17 @@ internal sealed class DurableOperationLedger
             {
                 return Corrupt<DurableOperationRecord>("The pre-effect activity fence is inconsistent.");
             }
+            if (stored.GuardJournal is not null
+                && stored.GuardJournal.Any(static entry => entry is null))
+            {
+                return Corrupt<DurableOperationRecord>("The guard journal contains a missing event.");
+            }
+            var guardJournal = stored.GuardJournal is null
+                ? ImmutableArray<OperationGuardJournalEvent>.Empty
+                : stored.GuardJournal.ToImmutableArray()!;
+            if (!ValidGuardJournal(guardJournal, preEffectActivity, transitions,
+                    effectJournal))
+                return Corrupt<DurableOperationRecord>("The guard journal is inconsistent.");
             if (stored.StagingJournal is not null
                 && stored.StagingJournal.Any(static entry => entry is null))
             {
@@ -2903,6 +3076,7 @@ internal sealed class DurableOperationLedger
                 StagingJournal = stagingJournal,
                 BackupJournal = backupJournal,
                 CleanupJournal = cleanupJournal,
+                GuardJournal = guardJournal,
                 OwnerLease = ownerLease,
                 PreEffectActivity = preEffectActivity
             });
@@ -3086,7 +3260,8 @@ internal sealed class DurableOperationLedger
             record.PreEffectActivity,
             record.StagingJournal.ToArray(),
             record.CleanupJournal.ToArray(),
-            record.BackupJournal.ToArray());
+            record.BackupJournal.ToArray(),
+            record.GuardJournal.ToArray());
         var bytes = JsonSerializer.SerializeToUtf8Bytes(stored, JsonOptions);
         WriteRecordBytes(recordPath, bytes);
     }
@@ -3264,6 +3439,76 @@ internal sealed class DurableOperationLedger
             }
         }
         return true;
+    }
+
+    private static bool ValidGuardJournal(
+        ImmutableArray<OperationGuardJournalEvent> journal,
+        PreEffectActivityState activity,
+        ImmutableArray<OperationTransition> transitions,
+        ImmutableArray<OperationEffectJournalEvent> effectJournal)
+    {
+        if (journal.IsEmpty)
+            return true;
+        if (journal.Length > MaximumGuardJournalEvents || !activity.HasAdmissionHistory)
+            return false;
+        var prepared = transitions.FirstOrDefault(transition =>
+            transition.State == OperationLifecycleState.Prepared);
+        if (prepared is null)
+            return false;
+
+        var latestByAdmission = new Dictionary<Guid, OperationGuardJournalEvent>();
+        for (var index = 0; index < journal.Length; index++)
+        {
+            var entry = journal[index];
+            if (entry is null
+                || entry.Sequence != index + 1
+                || !Enum.IsDefined(entry.Kind)
+                || entry.AdmissionToken == Guid.Empty
+                || entry.ControlGeneration <= 0
+                || entry.ControlGeneration > activity.ControlGeneration
+                || entry.FenceEpoch <= 0
+                || entry.ReservationToken == Guid.Empty
+                || entry.CommittedAtUtc < prepared.CommittedAtUtc
+                || (index > 0 && entry.CommittedAtUtc < journal[index - 1].CommittedAtUtc))
+                return false;
+
+            var hasPrior = latestByAdmission.TryGetValue(entry.AdmissionToken, out var prior);
+            if (entry.Kind == OperationGuardJournalKind.ActivityAdmitted)
+            {
+                if (hasPrior)
+                    return false;
+            }
+            else if (!hasPrior
+                     || prior!.ControlGeneration != entry.ControlGeneration
+                     || prior.FenceEpoch != entry.FenceEpoch
+                     || prior.ReservationToken != entry.ReservationToken
+                     || (entry.Kind == OperationGuardJournalKind.AcquisitionIntent
+                         && prior.Kind != OperationGuardJournalKind.ActivityAdmitted)
+                     || (entry.Kind == OperationGuardJournalKind.ConfirmedInactive
+                         && prior.Kind != OperationGuardJournalKind.AcquisitionIntent))
+            {
+                return false;
+            }
+            latestByAdmission[entry.AdmissionToken] = entry;
+        }
+        if (activity.ActiveAdmissions.Any(admission =>
+                !latestByAdmission.TryGetValue(admission.Token, out var latest)
+                || latest.ControlGeneration != admission.ControlGeneration
+                || latest.FenceEpoch != admission.FenceEpoch
+                || latest.ReservationToken != admission.ReservationToken))
+            return false;
+
+        var unresolved = latestByAdmission.Values
+            .Where(entry => entry.Kind == OperationGuardJournalKind.AcquisitionIntent
+                            && !activity.ActiveAdmissions.Any(admission =>
+                                admission.Token == entry.AdmissionToken))
+            .ToArray();
+        if (effectJournal.IsEmpty)
+            return unresolved.Length == 0;
+
+        return unresolved.Length == 1
+               && unresolved[0].FenceEpoch == effectJournal[0].FenceEpoch
+               && unresolved[0].ReservationToken == effectJournal[0].FenceToken;
     }
 
     private static bool ValidStagingJournal(
@@ -3731,7 +3976,8 @@ internal sealed class DurableOperationLedger
         PreEffectActivityState? PreEffectActivity = null,
         IReadOnlyList<OperationStagingJournalEvent>? StagingJournal = null,
         IReadOnlyList<OperationCleanupJournalEvent>? CleanupJournal = null,
-        IReadOnlyList<OperationBackupJournalEvent>? BackupJournal = null);
+        IReadOnlyList<OperationBackupJournalEvent>? BackupJournal = null,
+        IReadOnlyList<OperationGuardJournalEvent>? GuardJournal = null);
 
     private sealed record EffectJournalRecord(
         long Sequence,

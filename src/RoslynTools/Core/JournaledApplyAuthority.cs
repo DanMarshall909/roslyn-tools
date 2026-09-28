@@ -38,6 +38,11 @@ internal interface IJournaledRepositoryEffectBroker
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+///     A successful DisposeAsync completion proves that this session's physical
+///     guard is inactive and cannot leave an admitted effect in flight. A failed
+///     disposal leaves that outcome unknown and must keep the activity admitted.
+/// </summary>
 internal interface IJournaledRepositoryEffectSession : IAsyncDisposable
 {
     Task<GuardedPreflightEvidence?> FinalPreflightAsync(CancellationToken cancellationToken);
@@ -357,6 +362,16 @@ internal sealed class JournaledApplyAuthority
                 return Fail(JournaledApplyErrorKind.RecoveryRequired,
                     "The pre-effect activity is no longer current before guard acquisition.");
             }
+            var guardIntent = _ledger.AppendGuardAcquisitionIntent(
+                request.RepositoryId, request.OperationId, activity, reservation);
+            if (guardIntent.IsErr)
+            {
+                var error = guardIntent.Match(_ => null!, value => value);
+                return Fail(error.Kind == OperationLedgerErrorKind.InvalidTransition
+                        ? JournaledApplyErrorKind.RecoveryRequired
+                        : JournaledApplyErrorKind.LedgerUnavailable,
+                    "Guard acquisition intent could not be durably recorded: " + error.Message);
+            }
             IJournaledRepositoryEffectSession? session;
             try
             {
@@ -572,6 +587,36 @@ internal sealed class JournaledApplyAuthority
             return Fail(JournaledApplyErrorKind.UnsafeCoordination,
                 "The pre-effect guard could not be released; its activity remains active.",
                 CombineFailureCauses(failureCause, exception));
+        }
+
+        var guardState = _ledger.Load(request.RepositoryId, request.OperationId);
+        if (guardState.IsErr)
+        {
+            var error = guardState.Match(_ => null!, value => value);
+            return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                "Released guard activity could not be rechecked: " + error.Message,
+                failureCause);
+        }
+        var latestGuard = guardState.Match(value => value, _ => null!).GuardJournal
+            .LastOrDefault(entry => entry.AdmissionToken == activity.Token);
+        if (latestGuard?.Kind == OperationGuardJournalKind.AcquisitionIntent)
+        {
+            var inactive = _ledger.AppendGuardConfirmedInactive(
+                request.RepositoryId, request.OperationId, activity, reservation);
+            if (inactive.IsErr)
+            {
+                var error = inactive.Match(_ => null!, value => value);
+                return Fail(JournaledApplyErrorKind.LedgerUnavailable,
+                    "Released guard inactivity could not be durably recorded: " + error.Message,
+                    failureCause);
+            }
+        }
+        else if (latestGuard?.Kind is not (OperationGuardJournalKind.ActivityAdmitted
+                     or OperationGuardJournalKind.ConfirmedInactive))
+        {
+            return Fail(JournaledApplyErrorKind.RecoveryRequired,
+                "The pre-effect guard history cannot prove whether an acquisition was attempted.",
+                failureCause);
         }
 
         var completed = _ledger.CompletePreEffectActivity(

@@ -504,6 +504,13 @@ pre-effect fence, and the first effect intent in one durable ledger replacement.
 If the replacement is visible but its flush fails, no effect runs and the
 unresolved intent remains for reconciliation. A physical guard and public Apply
 still require the platform authority work tracked in #138 and #140.
+The internal ledger now records admission, acquisition intent, and confirmed
+inactivity as a [durable guard history](adr/0040-durable-pre-effect-guard-history.md).
+Acquisition intent precedes the broker call. No-effect drain requires inactivity
+after an attempted acquisition; a missing history or uncertain release keeps the
+admission and plan pin. Restart loading binds an unresolved handoff to the first
+effect intent's fence. A completed null broker result or successful session
+disposal is the internal proof of inactivity; #138 still needs a physical broker.
 
 - `Received` or authoritative `NotRecorded` during replayable dispatch resolution;
 - `Applying`, `Recovering`, `OwnerQuiescencePending`, or bounded `Reconciling` while nonterminal;
@@ -926,6 +933,11 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   the pin, including after a durable `CleanupVerified` record. Foreign roots,
   mixed provenance, active guard admission, and uncertain effects remain
   blocked. Shared authority and effectful recovery remain open.
+  [ADR-0040](adr/0040-durable-pre-effect-guard-history.md) records guard intent
+  before acquisition and confirmed inactivity before no-effect drain. It keeps
+  an uncertain or unjournaled activity active and pinned, and rejects extra
+  unresolved guard attempts during restart loading. Cross-owner reconciliation
+  and a physical effect broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

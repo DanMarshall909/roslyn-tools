@@ -2956,6 +2956,7 @@ public sealed class JournaledApplyAuthorityTests
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.Ledger.AppendStagingIntent(plan, request.OperationId, 1, admission, reservation)
             .IsOk.ShouldBeTrue();
+        fixture.JournalGuardIntent(request, admission, reservation);
         var intent = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
             plan, request.OperationId, admission, reservation,
             OperationGuardTokenSet.Expected(plan.Envelope.Payload));
@@ -3080,6 +3081,157 @@ public sealed class JournaledApplyAuthorityTests
             .Match(_ => throw new ShouldAssertException("Tampered inventory was accepted."),
                 error => error.Kind)
             .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Theory]
+    [InlineData("sequence")]
+    [InlineData("reservation")]
+    [InlineData("orphan-intent")]
+    [InlineData("release-without-attempt")]
+    [InlineData("duplicate-marker")]
+    [InlineData("untracked-admission")]
+    [InlineData("missing-event")]
+    [InlineData("no-admission-history")]
+    public async Task restart_rejects_inconsistent_guard_history(string tampering)
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, reservation);
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        var guardJournal = json["guardJournal"]!.AsArray();
+        switch (tampering)
+        {
+            case "sequence":
+                guardJournal[1]!["sequence"] = 99;
+                break;
+            case "reservation":
+                guardJournal[1]!["reservationToken"] = Guid.NewGuid().ToString();
+                break;
+            case "orphan-intent":
+                json["preEffectActivity"]!["activeAdmissions"] = new JsonArray();
+                break;
+            case "release-without-attempt":
+                guardJournal[1]!["kind"] = (int)OperationGuardJournalKind.ConfirmedInactive;
+                break;
+            case "duplicate-marker":
+                guardJournal[1]!["kind"] = (int)OperationGuardJournalKind.ActivityAdmitted;
+                break;
+            case "untracked-admission":
+                json["preEffectActivity"]!["activeAdmissions"]![0]!["token"]
+                    = Guid.NewGuid().ToString();
+                break;
+            case "missing-event":
+                guardJournal.Add(null);
+                break;
+            case "no-admission-history":
+                json["preEffectActivity"]!["hasAdmissionHistory"] = false;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(tampering));
+        }
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("Tampered guard history was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
+    public async Task restart_rejects_an_extra_unresolved_guard_after_first_effect_intent()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        (await fixture.CreateAuthority(new SimulatedBroker(fixture)).ApplyAsync(request))
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        var guardJournal = json["guardJournal"]!.AsArray();
+        var extraToken = Guid.NewGuid().ToString();
+        var marker = guardJournal[0]!.DeepClone();
+        marker["sequence"] = 3;
+        marker["admissionToken"] = extraToken;
+        var intent = guardJournal[1]!.DeepClone();
+        intent["sequence"] = 4;
+        intent["admissionToken"] = extraToken;
+        guardJournal.Add(marker);
+        guardJournal.Add(intent);
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        fixture.CreatePlainLedger().Load(request.RepositoryId, request.OperationId)
+            .Match(_ => throw new ShouldAssertException("Extra unresolved guard was accepted."),
+                error => error.Kind)
+            .ShouldBe(OperationLedgerErrorKind.Corrupt);
+    }
+
+    [Fact]
+    public async Task missing_guard_history_cannot_drain_or_extend_an_active_admission()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json.Remove("guardJournal");
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        var restarted = fixture.CreatePlainLedger();
+        restarted.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+        restarted.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        restarted.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions
+            .ShouldContain(activity);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task missing_guard_history_cannot_admit_work_after_an_earlier_activity_drained()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        var recordPath = DurableOperationLedger.GetRecordPath(
+            fixture.LedgerRoot, request.RepositoryId, request.OperationId);
+        var json = JsonNode.Parse(File.ReadAllText(recordPath))!.AsObject();
+        json.Remove("guardJournal");
+        File.WriteAllText(recordPath, json.ToJsonString());
+
+        var restarted = fixture.CreatePlainLedger();
+        restarted.Load(request.RepositoryId, request.OperationId).IsOk.ShouldBeTrue();
+        restarted.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
     [Theory]
@@ -3479,6 +3631,7 @@ public sealed class JournaledApplyAuthorityTests
         var activity = fixture.Ledger.BeginPreEffectActivity(
                 request.RepositoryId, request.OperationId, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, reservation);
 
         var result = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
             plan, request.OperationId, activity, reservation,
@@ -3487,6 +3640,155 @@ public sealed class JournaledApplyAuthorityTests
         result.IsErr.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Prepared);
         File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Fact]
+    public async Task first_effect_handoff_refuses_guard_tokens_without_a_durable_acquisition_intent()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalVerifiedArtifacts(plan, request, activity, reservation);
+
+        var handoff = fixture.Ledger.BeginApplyingWithFirstEffectIntent(
+            plan, request.OperationId, activity, reservation,
+            OperationGuardTokenSet.Expected(plan.Envelope.Payload));
+
+        handoff.IsErr.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldContain(activity);
+        operation.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_guard_attempt_cannot_drain_its_activity_before_inactivity_is_recorded()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, reservation);
+
+        var drained = fixture.Ledger.CompletePreEffectActivity(
+            request.RepositoryId, request.OperationId, activity, reservation,
+            OperationLifecycleState.RejectedUnsafeCoordination);
+
+        drained.IsErr.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldContain(activity);
+        operation.CleanupJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task guard_journal_refuses_out_of_order_and_stale_reservation_transitions()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        var first = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, first)
+            .Match(value => value, error => throw new IOException(error.Message));
+
+        fixture.Ledger.AppendGuardConfirmedInactive(
+                request.RepositoryId, request.OperationId, activity, first)
+            .IsErr.ShouldBeTrue();
+        fixture.JournalGuardIntent(request, activity, first);
+        fixture.Ledger.AppendGuardAcquisitionIntent(
+                request.RepositoryId, request.OperationId, activity, first)
+            .IsErr.ShouldBeTrue();
+        first.Dispose();
+        using var successor = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        fixture.Ledger.AppendGuardConfirmedInactive(
+                request.RepositoryId, request.OperationId, activity, successor)
+            .IsErr.ShouldBeTrue();
+
+        var operation = fixture.LoadOperation(request);
+        operation.GuardJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationGuardJournalKind.ActivityAdmitted,
+            OperationGuardJournalKind.AcquisitionIntent
+        ]);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldContain(activity);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task cancelled_guard_activity_records_inactivity_before_it_can_drain()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, activity, reservation);
+        fixture.Ledger.CancelBeforeFirstEffect(request.RepositoryId, request.OperationId)
+            .IsOk.ShouldBeTrue();
+
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsErr.ShouldBeTrue();
+        fixture.Ledger.AppendGuardConfirmedInactive(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.CompletePreEffectActivity(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.CancelledNoEffect);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.GuardJournal[^1].Kind.ShouldBe(OperationGuardJournalKind.ConfirmedInactive);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task guard_journal_timestamps_do_not_move_backward_with_the_clock()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var plan = fixture.StoredPlan!;
+        using var reservation = await fixture.Reservations.AcquireAsync(
+            plan.Envelope.Payload.Repository, CancellationToken.None);
+        var activity = fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .Match(value => value, error => throw new IOException(error.Message));
+        var first = fixture.LoadOperation(request).GuardJournal[^1].CommittedAtUtc;
+        fixture.Now = fixture.Now.AddMinutes(1);
+        fixture.JournalGuardIntent(request, activity, reservation);
+        var intentAt = fixture.LoadOperation(request).GuardJournal[^1].CommittedAtUtc;
+        fixture.Now = fixture.Now.AddMinutes(-1);
+
+        fixture.Ledger.AppendGuardConfirmedInactive(
+                request.RepositoryId, request.OperationId, activity, reservation)
+            .IsOk.ShouldBeTrue();
+        fixture.Ledger.BeginPreEffectActivity(
+                request.RepositoryId, request.OperationId, reservation)
+            .IsOk.ShouldBeTrue();
+
+        fixture.LoadOperation(request).GuardJournal
+            .Select(entry => entry.CommittedAtUtc)
+            .ShouldAllBe(committed => committed >= first);
+        fixture.LoadOperation(request).GuardJournal[^1].CommittedAtUtc
+            .ShouldBe(intentAt);
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
     }
 
     [Fact]
@@ -3501,6 +3803,7 @@ public sealed class JournaledApplyAuthorityTests
                 request.RepositoryId, request.OperationId, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.JournalVerifiedArtifacts(plan, request, activity, reservation, 1);
+        fixture.JournalGuardIntent(request, activity, reservation);
 
         fixture.Ledger.BeginApplyingWithFirstEffectIntent(
                 plan, request.OperationId, activity, reservation,
@@ -3539,6 +3842,7 @@ public sealed class JournaledApplyAuthorityTests
         var current = fixture.Ledger.BeginPreEffectActivity(
                 request.RepositoryId, request.OperationId, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
+        fixture.JournalGuardIntent(request, current, reservation);
 
         fixture.Ledger.BeginApplyingWithFirstEffectIntent(
                 plan, request.OperationId, current, reservation,
@@ -3571,6 +3875,7 @@ public sealed class JournaledApplyAuthorityTests
                 reservation)
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.JournalVerifiedArtifacts(plan, request, activity, reservation);
+        fixture.JournalGuardIntent(request, activity, reservation);
 
         fixture.Ledger.BeginApplyingWithFirstEffectIntent(
                 plan, request.OperationId, activity, reservation,
@@ -3611,6 +3916,7 @@ public sealed class JournaledApplyAuthorityTests
                 request.RepositoryId, request.OperationId, reservation)
             .Match(value => value, error => throw new IOException(error.Message));
         fixture.JournalVerifiedArtifacts(plan, request, activity, reservation);
+        fixture.JournalGuardIntent(request, activity, reservation);
         var preparedAt = fixture.LoadOperation(request).Transitions[^1].CommittedAtUtc;
         fixture.Now = fixture.Now.AddMinutes(-1);
 
@@ -3653,6 +3959,7 @@ public sealed class JournaledApplyAuthorityTests
         var wrongPlan = plan with { Key = plan.Key with { PlanHash = new string('b', 64) } };
         var wrongGuards = guards.SetItem(0, guards[0] with { VersionToken = "wrong" });
         var wrongActivity = activity with { Token = Guid.NewGuid() };
+        fixture.JournalGuardIntent(request, activity, reservation);
 
         fixture.Ledger.BeginApplyingWithFirstEffectIntent(
                 wrongPlan, request.OperationId, activity, reservation, guards)
@@ -3845,7 +4152,7 @@ public sealed class JournaledApplyAuthorityTests
             new LinuxStagingCleanupBoundary(plan.Envelope.Payload.Coordination.StagingRoot));
 
         var result = await fixture.CreateAuthority(
-                broker, ledgerDurability: new FailNthReplace(5), noEffectCleanup: cleanup)
+                broker, ledgerDurability: new FailNthReplace(7), noEffectCleanup: cleanup)
             .ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
@@ -4311,6 +4618,107 @@ public sealed class JournaledApplyAuthorityTests
     }
 
     [Fact]
+    public async Task broker_sees_durable_guard_intent_before_acquisition()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+        var broker = new SimulatedBroker(fixture)
+        {
+            DeclineAfterInspect = true,
+            RequireDurableGuardIntentAtAcquire = true
+        };
+
+        var attempt = await fixture.CreateAuthority(broker).ApplyAsync(request);
+
+        broker.SawDurableGuardIntent.ShouldBeTrue();
+        attempt.IsErr.ShouldBeTrue();
+        fixture.LoadOperation(request).EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task completed_guard_refusal_records_inactivity_before_no_effect_resolution()
+    {
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare();
+
+        var attempt = await fixture.CreateAuthority(
+            new SimulatedBroker(fixture) { DeclineAfterInspect = true }).ApplyAsync(request);
+
+        attempt.IsErr.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.GuardJournal.Select(entry => entry.Kind).ShouldBe([
+            OperationGuardJournalKind.ActivityAdmitted,
+            OperationGuardJournalKind.AcquisitionIntent,
+            OperationGuardJournalKind.ConfirmedInactive
+        ]);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.RejectedUnsafeCoordination);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldBeEmpty();
+        operation.EffectJournal.ShouldBeEmpty();
+        File.Exists(fixture.TargetPath).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task failed_guard_intent_record_prevents_broker_acquisition()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var broker = new SimulatedBroker(fixture);
+
+        var attempt = await fixture.CreateAuthority(
+            broker,
+            new FailGuardJournalReplace(OperationGuardJournalKind.AcquisitionIntent))
+            .ApplyAsync(request);
+
+        attempt.IsErr.ShouldBeTrue();
+        attempt.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        broker.Acquired.ShouldBeFalse();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.GuardJournal[^1].Kind.ShouldBe(OperationGuardJournalKind.ActivityAdmitted);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        operation.CleanupJournal.ShouldBeEmpty();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Fact]
+    public async Task failed_guard_inactivity_record_keeps_no_effect_cleanup_blocked()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var fixture = new ApplyFixture();
+        var request = fixture.Prepare(replacement: true);
+        var broker = new SimulatedBroker(fixture) { DeclineAfterInspect = true };
+
+        var attempt = await fixture.CreateAuthority(
+            broker,
+            new FailGuardJournalReplace(OperationGuardJournalKind.ConfirmedInactive))
+            .ApplyAsync(request);
+
+        attempt.IsErr.ShouldBeTrue();
+        attempt.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
+            error => error.Kind).ShouldBe(JournaledApplyErrorKind.LedgerUnavailable);
+        broker.Acquired.ShouldBeTrue();
+        var operation = fixture.LoadOperation(request);
+        operation.CurrentState.ShouldBe(OperationLifecycleState.Prepared);
+        operation.GuardJournal[^1].Kind.ShouldBe(OperationGuardJournalKind.AcquisitionIntent);
+        operation.PreEffectActivity.ActiveAdmissions.ShouldHaveSingleItem();
+        operation.CleanupJournal.ShouldBeEmpty();
+        fixture.ReloadPlan().Pins.Any(pin => pin.Kind == ChangePlanPinKind.OperationLedger)
+            .ShouldBeTrue();
+        File.ReadAllBytes(fixture.TargetPath).ShouldBe(fixture.OriginalContent);
+    }
+
+    [Fact]
     public async Task failed_preflight_and_terminal_record_preserve_the_preflight_cause()
     {
         using var fixture = new ApplyFixture();
@@ -4318,7 +4726,7 @@ public sealed class JournaledApplyAuthorityTests
         var broker = new SimulatedBroker(fixture) { FailPreflight = true };
 
         var result = await fixture.CreateAuthority(
-                broker, ledgerDurability: new FailNthReplace(5)).ApplyAsync(request);
+                broker, ledgerDurability: new FailNthReplace(7)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var error = result.Match(_ => throw new InvalidOperationException("Apply unexpectedly succeeded."),
@@ -4343,7 +4751,7 @@ public sealed class JournaledApplyAuthorityTests
         var broker = new SimulatedBroker(fixture);
 
         var result = await fixture.CreateAuthority(
-            broker, new FailNthReplace(5)).ApplyAsync(request);
+            broker, new FailNthReplace(6)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         result.Match(_ => null!, error => error).Kind
@@ -4445,7 +4853,7 @@ public sealed class JournaledApplyAuthorityTests
 
     [Theory]
     [InlineData(1, false)]
-    [InlineData(5, true)]
+    [InlineData(6, true)]
     public async Task pre_effect_fence_persistence_failure_prevents_repository_effect(
         int failedFlush,
         bool brokerWasAcquired)
@@ -4484,7 +4892,7 @@ public sealed class JournaledApplyAuthorityTests
     {
         using var fixture = new ApplyFixture();
         var request = fixture.Prepare();
-        var failingDurability = new FailDirectoryFlushFrom(5);
+        var failingDurability = new FailDirectoryFlushFrom(6);
 
         (await fixture.CreateAuthority(
                 new SimulatedBroker(fixture), failingDurability).ApplyAsync(request))
@@ -4710,7 +5118,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(8)).ApplyAsync(request);
+            new FailNthDirectoryFlush(9)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState
@@ -4727,7 +5135,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(7)).ApplyAsync(request);
+            new FailNthDirectoryFlush(8)).ApplyAsync(request);
 
         result.IsErr.ShouldBeTrue();
         var restarted = fixture.LoadOperation(request);
@@ -4763,7 +5171,7 @@ public sealed class JournaledApplyAuthorityTests
 
         var result = await fixture.CreateAuthority(
             broker,
-            new FailNthDirectoryFlush(10)).ApplyAsync(request);
+            new FailNthDirectoryFlush(11)).ApplyAsync(request);
 
         result.IsOk.ShouldBeTrue();
         fixture.LoadOperation(request).CurrentState.ShouldBe(OperationLifecycleState.Applied);
@@ -4775,7 +5183,7 @@ public sealed class JournaledApplyAuthorityTests
     {
         using var fixture = new ApplyFixture();
         var firstRequest = fixture.Prepare();
-        var durability = new FailDirectoryFlushFrom(10);
+        var durability = new FailDirectoryFlushFrom(11);
 
         var first = await fixture.CreateAuthority(
             new SimulatedBroker(fixture), durability).ApplyAsync(firstRequest);
@@ -4841,12 +5249,14 @@ public sealed class JournaledApplyAuthorityTests
         internal bool FailDisposeAfterPreflightFailure { get; init; }
         internal bool FailPreflight { get; init; }
         internal bool ThrowDuringAcquire { get; init; }
+        internal bool RequireDurableGuardIntentAtAcquire { get; init; }
         internal bool TamperArtifactBeforeFailedPreflight { get; init; }
         internal bool DeclineAfterInspect { get; init; }
         internal bool TamperArtifactBeforeDecline { get; init; }
         internal bool RequireActiveAtDisposeAfterPreflightFailure { get; init; }
         internal bool SawActiveAtDispose { get; private set; }
         internal bool Acquired { get; private set; }
+        internal bool SawDurableGuardIntent { get; private set; }
         internal bool SawDurableIntent { get; private set; }
         internal bool SawDurableAdmission { get; private set; }
         internal bool ReservationWasHeldThroughVerification { get; private set; }
@@ -4874,6 +5284,18 @@ public sealed class JournaledApplyAuthorityTests
                     && entry.Kind == OperationBackupJournalKind.Verified
                     && File.Exists(entry.ArtifactPath)
                     && File.ReadAllBytes(entry.ArtifactPath).SequenceEqual(effect.OriginalContent))));
+            if (RequireDurableGuardIntentAtAcquire)
+            {
+                var recordPath = DurableOperationLedger.GetRecordPath(
+                    fixture.LedgerRoot, fixture.Request!.RepositoryId,
+                    fixture.Request.OperationId);
+                var guardJournal = JsonNode.Parse(File.ReadAllText(recordPath))?
+                    ["guardJournal"]?.AsArray();
+                SawDurableGuardIntent = guardJournal is { Count: 2 }
+                                        && guardJournal[^1]?["kind"]?.GetValue<int>() == 1
+                                        && guardJournal[^1]?["admissionToken"]?.GetValue<string>()
+                                        == activity.Token.ToString();
+            }
             Acquired = true;
             if (ThrowDuringAcquire)
             {
@@ -5308,6 +5730,13 @@ public sealed class JournaledApplyAuthorityTests
                 }
             }
         }
+        internal void JournalGuardIntent(
+            CanonicalApplyRequest request,
+            PreEffectActivityAdmission activity,
+            RepositoryMutationReservation reservation) =>
+            _ledger.AppendGuardAcquisitionIntent(
+                    request.RepositoryId, request.OperationId, activity, reservation)
+                .Match(_ => true, error => throw new IOException(error.Message));
         internal RepositoryMutationReservationProvider Reservations => new(
             _authority.MutationReservationRoot, _authority);
         internal DurableOperationLedger CreateLedger(IOperationLedgerDurability durability) =>
@@ -5568,6 +5997,29 @@ public sealed class JournaledApplyAuthorityTests
         {
             if (Interlocked.Increment(ref _replaceCount) == failureNumber)
                 throw new IOException("Injected record replacement failure.");
+            File.Move(temporaryPath, recordPath, overwrite: true);
+        }
+
+        public void FlushDirectoryMetadata(string directory)
+        {
+        }
+    }
+
+    private sealed class FailGuardJournalReplace(OperationGuardJournalKind failedKind)
+        : IOperationLedgerDurability
+    {
+        public void FlushFileMetadata(string path)
+        {
+        }
+
+        public void ReplaceFile(string temporaryPath, string recordPath)
+        {
+            var guardJournal = JsonNode.Parse(File.ReadAllText(temporaryPath))?
+                ["guardJournal"]?.AsArray();
+            if (guardJournal is { Count: > 0 }
+                && guardJournal[^1]?["kind"]?.GetValue<int>()
+                == (int)failedKind)
+                throw new IOException("Injected guard journal record failure.");
             File.Move(temporaryPath, recordPath, overwrite: true);
         }
 
