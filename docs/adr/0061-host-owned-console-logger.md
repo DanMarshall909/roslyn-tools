@@ -27,5 +27,6 @@ inside Services.
 - Host-composed CLI/MCP/daemon logging remains unchanged.
 - Direct parameterless construction of a service is silent unless a logger is
   supplied. The typed application paths use host DI and remain diagnostic.
-- Other legacy Core output helpers and direct result rendering still need
-  separate migration before #53 closes.
+- The direct move result-rendering follow-up is completed by
+  [ADR-0062](0062-legacy-move-preview-result.md). Other legacy Core output
+  helpers still need migration before #53 closes.

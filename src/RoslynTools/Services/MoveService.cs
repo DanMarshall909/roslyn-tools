@@ -7,7 +7,6 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -883,7 +882,7 @@ internal class MoveService : IRtService
     /// <summary>
     /// Moves code between cross-project solutions
     /// </summary>
-    internal async Task ExecuteCrossProjectMoveAsync(
+    internal async Task<IReadOnlyList<string>> ExecuteCrossProjectMoveAsync(
         Workspace workspace,
         Solution solution,
         string fqn,
@@ -891,6 +890,7 @@ internal class MoveService : IRtService
         string? targetNamespace,
         bool dryRun)
     {
+        var previewLines = new List<string>();
         var targetProject = solution.Projects.FirstOrDefault(p =>
             string.Equals(p.Name, targetProjectName, StringComparison.OrdinalIgnoreCase));
 
@@ -908,7 +908,7 @@ internal class MoveService : IRtService
             string.Equals(sourceProject.Name, targetProjectName, StringComparison.OrdinalIgnoreCase))
         {
             _logger.RtInfo("nothing to move");
-            return;
+            return previewLines;
         }
 
         if (sourceProjectDir != null)
@@ -949,9 +949,9 @@ internal class MoveService : IRtService
 
             if (dryRun)
             {
-                RtResultRenderer.WriteText(RtResult<string>.Ok($"source: {filePath}"));
-                RtResultRenderer.WriteText(RtResult<string>.Ok($"destination: {destPath}"));
-                RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, true);
+                previewLines.Add($"source: {filePath}");
+                previewLines.Add($"destination: {destPath}");
+                previewLines.AddRange(RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, true));
                 continue;
             }
 
@@ -963,6 +963,8 @@ internal class MoveService : IRtService
             _logger.RtInfo("Moved '{Source}' -> '{Destination}'", filePath, destPath);
             RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, false);
         }
+
+        return previewLines;
     }
 
     /// <summary>
@@ -1411,9 +1413,9 @@ internal class MoveService : IRtService
         }
     }
 
-    private void RemoveCompileIncludeFromCsproj(string? csprojPath, string relPath, bool dryRun)
+    private static string[] RemoveCompileIncludeFromCsproj(string? csprojPath, string relPath, bool dryRun)
     {
-        if (csprojPath == null || !File.Exists(csprojPath)) return;
+        if (csprojPath == null || !File.Exists(csprojPath)) return [];
 
         var xml = File.ReadAllText(csprojPath);
 
@@ -1429,14 +1431,10 @@ internal class MoveService : IRtService
             })
             .ToList();
 
-        if (toRemove.Count == 0) return;
+        if (toRemove.Count == 0) return [];
 
         if (dryRun)
-        {
-            foreach (var el in toRemove)
-                RtResultRenderer.WriteText(RtResult<string>.Ok($"compile-remove: {el}"));
-            return;
-        }
+            return toRemove.Select(el => $"compile-remove: {el}").ToArray();
 
         foreach (var el in toRemove)
         {
@@ -1448,6 +1446,7 @@ internal class MoveService : IRtService
         }
 
         doc.Save(csprojPath);
+        return [];
     }
 
     /// <summary>

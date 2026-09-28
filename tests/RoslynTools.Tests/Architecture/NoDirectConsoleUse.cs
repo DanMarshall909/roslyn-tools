@@ -12,7 +12,7 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class NoDirectConsoleUse
 {
     [Fact]
-    public void services_do_not_call_ambient_console_or_log_adapters()
+    public void services_do_not_call_ambient_output_adapters()
     {
         var services = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Services");
         var violations = Directory.EnumerateFiles(services, "*.cs", SearchOption.AllDirectories)
@@ -24,7 +24,7 @@ public sealed class NoDirectConsoleUse
                 var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
                 var ambientCalls = root.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
                     .Where(node => node.Expression is IdentifierNameSyntax identifier
-                        && identifier.Identifier.Text is "RtConsole" or "RtLog")
+                        && identifier.Identifier.Text is "RtConsole" or "RtLog" or "RtResultRenderer")
                     .Select(node => $"{Path.GetRelativePath(services, path)}:"
                         + $"{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}"
                         + $" {node.Expression}.{node.Name}");

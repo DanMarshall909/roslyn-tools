@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Commands;
-using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
@@ -39,7 +38,7 @@ public class Move : IClassFixture<RtServicesFixture>
 
     [Fact]
     [Trait("Concern", "DryRun")]
-    public async Task dry_run_prints_source_destination_and_compile_remove_lines_without_moving_files()
+    public async Task dry_run_returns_source_destination_and_compile_remove_lines_without_moving_files()
     {
         const string src = """
                            namespace Pkg;
@@ -61,20 +60,23 @@ public class Move : IClassFixture<RtServicesFixture>
                                                    </Project>
                                                    """);
 
-        var stdout = new List<string>();
-        using (RoslynTools.Core.RtConsole.UseConsole(new CollectingResultConsole(stdout)))
-        {
-            await new MoveService().ExecuteCrossProjectMoveAsync(
-                workspace, solution,
-                "Pkg.Draft",
-                "TargetProject",
-                null,
-                true);
-        }
+        var preview = await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Pkg.Draft",
+            "TargetProject",
+            null,
+            true);
 
-        stdout.ShouldContain(l => l.StartsWith("source:", StringComparison.Ordinal));
-        stdout.ShouldContain(l => l.StartsWith("destination:", StringComparison.Ordinal));
-        stdout.ShouldContain(l => l.StartsWith("compile-remove:", StringComparison.Ordinal));
+        var sourcePath = solution.Projects.Single(p => p.Name == "SourceProject")
+            .Documents.Single().FilePath!;
+        var targetProjectPath = solution.Projects.Single(p => p.Name == "TargetProject").FilePath!;
+        var destinationPath = Path.Combine(Path.GetDirectoryName(targetProjectPath)!, "Draft.cs");
+        preview.ShouldBe(new[]
+        {
+            $"source: {sourcePath}",
+            $"destination: {destinationPath}",
+            "compile-remove: <Compile Include=\"Draft.cs\" />"
+        });
 
         // No files moved
         Assert.True(builder.SourceExists("Draft.cs"), "Original file must not be moved in dry-run");
@@ -384,25 +386,6 @@ public class Move : IClassFixture<RtServicesFixture>
         // The WhenToUse text must mention --move-file is overridden
         Assert.Contains("--move-file", MoveCommand.Info.WhenToUse, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("--to-project", MoveCommand.Info.WhenToUse, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private sealed class CollectingResultConsole(List<string> lines) : IRtConsole
-    {
-        public bool IsOutputRedirected => true;
-
-        public void Log(RtLogLevel level, string template, object?[] args)
-        {
-        }
-
-        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
-        {
-        }
-
-        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
-        {
-            if (context == RtOutputContext.Result)
-                lines.Add(message);
-        }
     }
 
     [Fact]
