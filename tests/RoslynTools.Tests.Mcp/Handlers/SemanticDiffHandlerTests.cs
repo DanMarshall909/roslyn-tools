@@ -224,6 +224,19 @@ public sealed class SemanticDiffHandlerTests
     }
 
     [Fact]
+    public async Task a_directory_arg_uses_the_injected_git_client_factory()
+    {
+        var factory = new RecordingGitClientFactory(new RecordingGitClient());
+        var result = await InvokeAsync(
+            new RecordingGitClient { ThrowNotARepository = true },
+            Args("""{"directory":"chosen-repository"}"""),
+            factory);
+
+        result.isError.ShouldBeFalse();
+        factory.WorkingDirectory.ShouldBe("chosen-repository");
+    }
+
+    [Fact]
     public void semantic_diff_is_descriptor_backed()
     {
         var services = new ServiceCollection();
@@ -255,13 +268,15 @@ public sealed class SemanticDiffHandlerTests
 
     private static async Task<ToolResult> InvokeAsync(
         IGitClient git,
-        JsonElement arguments)
+        JsonElement arguments,
+        IGitClientFactory? factory = null)
     {
         var operation = new SemanticDiffOperation(
             new GitSemanticDiffSourceProvider(git),
             new FileSemanticDiffSourceProvider(new FileTextReader()),
             new SemanticDiffService(),
-            new SemanticDiffTextRenderer());
+            new SemanticDiffTextRenderer(),
+            factory ?? new GitClientFactory());
 
         try
         {
@@ -324,5 +339,16 @@ public sealed class SemanticDiffHandlerTests
 
         public string? ReadWorkingTreeFile(string path) =>
             WorkingTreeFiles.TryGetValue(path, out var text) ? text : null;
+    }
+
+    private sealed class RecordingGitClientFactory(IGitClient git) : IGitClientFactory
+    {
+        public string? WorkingDirectory { get; private set; }
+
+        public IGitClient Create(string workingDirectory)
+        {
+            WorkingDirectory = workingDirectory;
+            return git;
+        }
     }
 }

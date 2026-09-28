@@ -129,10 +129,11 @@ internal static class HostServiceRegistration
     {
         services.AddSingleton<IProductCapabilityCatalog, ProductCapabilityCatalog>();
 
-        // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on
-        // IGitClient. The git working directory is the process's current directory; the
-        // batch-5 command can override per-invocation if it ever needs a different root.
-        services.AddSingleton<IGitClient>(_ => new GitClient(Directory.GetCurrentDirectory()));
+        // Default source uses this process's directory; explicit request directories
+        // obtain a separate client through the same host-owned factory.
+        services.AddSingleton<IGitClientFactory, GitClientFactory>();
+        services.AddSingleton<IGitClient>(provider => provider.GetRequiredService<IGitClientFactory>()
+            .Create(Directory.GetCurrentDirectory()));
 
         // FileSemanticDiffSourceProvider (an IRtService, auto-scanned below) depends on
         // IFileTextReader for the two-files-on-disc diff mode (US-123). The real reader hits

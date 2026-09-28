@@ -5,8 +5,8 @@ namespace RoslynTools.Services.SemanticDiff.Git;
 ///     directory chosen at construction. Exists so
 ///     <see cref="GitSemanticDiffSourceProvider" /> can be unit-tested with a fake —
 ///     no real repository required. The one real implementation,
-///     <see cref="GitClient" />, shells <c>git</c> via <c>System.Diagnostics.Process</c>
-///     and carries one integration test against a temp repo.
+///     selected by host composition, shells <c>git</c> and carries integration
+///     coverage against a temporary repository.
 ///     <para>
 ///         <b>Two error channels.</b> Repository / ref validation
 ///         (<see cref="EnsureRepository" />, <see cref="EnsureRefExists" />) throws —

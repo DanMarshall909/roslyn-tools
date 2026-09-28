@@ -208,6 +208,10 @@ structured tool responses. See
 The authenticated `gh` process adapter for feedback commands now compiles in
 CLI while the injectable issue-client contract stays in reusable Services.
 See [ADR-0075](adr/0075-cli-owned-github-issue-process-adapter.md).
+Semantic diff now requests directory-scoped git clients through a reusable
+factory contract; the concrete git process adapter and factory compile in
+shared Hosting for CLI and MCP. See
+[ADR-0076](adr/0076-host-owned-semantic-diff-git-client.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

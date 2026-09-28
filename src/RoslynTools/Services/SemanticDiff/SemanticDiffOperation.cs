@@ -24,12 +24,14 @@ internal sealed class SemanticDiffOperation(
     GitSemanticDiffSourceProvider gitSource,
     FileSemanticDiffSourceProvider fileSource,
     SemanticDiffService engine,
-    SemanticDiffTextRenderer renderer) : CommandApplicationPort<SemanticDiffOperationRequest, SemanticDiffOperationResult>, IRtService
+    SemanticDiffTextRenderer renderer,
+    IGitClientFactory gitClients) : CommandApplicationPort<SemanticDiffOperationRequest, SemanticDiffOperationResult>, IRtService
 {
     private readonly GitSemanticDiffSourceProvider _gitSource = gitSource;
     private readonly FileSemanticDiffSourceProvider _fileSource = fileSource;
     private readonly SemanticDiffService _engine = engine;
     private readonly SemanticDiffTextRenderer _renderer = renderer;
+    private readonly IGitClientFactory _gitClients = gitClients;
 
     public override ApplicationCommandDefinition Definition { get; } = new(
         new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
@@ -68,7 +70,7 @@ internal sealed class SemanticDiffOperation(
         {
             var source = request.Directory is null
                 ? _gitSource
-                : new GitSemanticDiffSourceProvider(new GitClient(request.Directory));
+                : new GitSemanticDiffSourceProvider(_gitClients.Create(request.Directory));
             return source.Load(request.From, request.To);
         }
 
