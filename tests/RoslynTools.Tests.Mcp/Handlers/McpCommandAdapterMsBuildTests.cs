@@ -494,10 +494,9 @@ public sealed class McpCommandAdapterMsBuildTests
     private static ServiceProvider CreateProvider(Action<IServiceCollection> addPorts)
     {
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
+        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
         services.RemoveAll<ICommandApplicationPort>();
         addPorts(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
         return services.BuildServiceProvider();
     }
 

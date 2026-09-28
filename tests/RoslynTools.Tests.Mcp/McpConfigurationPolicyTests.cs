@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Configuration;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp;
@@ -97,7 +96,7 @@ public sealed class McpConfigurationPolicyTests
         global::RoslynTools.App.LocalOnlyCommandNames.ShouldContain("config");
         global::RoslynTools.App.Commands.Select(command => command.Info.Name)
             .ShouldContain("config");
-        provider.GetRequiredService<CommandDescriptorRegistry>().All
+        provider.GetRequiredService<ApplicationCommandCatalog>().All
             .ShouldNotContain(descriptor => descriptor.ToolName == "config");
     }
 

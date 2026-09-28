@@ -123,10 +123,10 @@ combines typed public definitions with shared host metadata for `config`,
 `trust`, feedback, and the richer CLI `semantic-diff` projection. CLI-specific
 composition remains in the CLI assembly. Removing MCP's CLI project reference
 is complete: MCP composes these shared services through its own entry point,
-then adds protocol services. Its project references Core and Hosting, while the
-test project retains CLI for cross-host comparisons. Its general MCP test
-fixture still uses CLI bootstrap and remains a #56 follow-up; protocol tests
-now exercise MCP-owned composition. See
+then adds protocol services. Its project references Core and Hosting. The
+general MCP test fixture and protocol tests use this production composition;
+the test project retains CLI only for explicit descriptor and metadata
+comparisons. See
 [ADR-0044](adr/0044-typed-application-catalogue-for-mcp.md) and
 [ADR-0053](adr/0053-mcp-owned-host-composition.md).
 

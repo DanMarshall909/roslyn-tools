@@ -14,6 +14,17 @@ namespace RoslynTools.Tests.Mcp;
 public sealed class McpDependencyInjectionTests
 {
     [Fact]
+    public void Mcp_test_host_uses_the_production_composition_without_cli_descriptors()
+    {
+        using var provider = McpTestHost.CreateProvider();
+
+        provider.GetRequiredService<ApplicationCommandCatalog>().All.ShouldNotBeEmpty();
+        provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
+        provider.GetService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .ShouldBeNull();
+    }
+
+    [Fact]
     public void Mcp_project_does_not_reference_the_cli_project()
     {
         var project = XDocument.Load(Path.Combine(
@@ -74,7 +85,7 @@ public sealed class McpDependencyInjectionTests
         var tools = builder.Build();
 
         var visibleDescriptorCount = provider
-            .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .GetRequiredService<ApplicationCommandCatalog>()
             .All.Count(descriptor => descriptor.McpVisible
                                      && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
                                      && !descriptor.Effects.HasFlag(CommandEffects.LocalStateWrite)
@@ -101,7 +112,7 @@ public sealed class McpDependencyInjectionTests
     {
         using var provider = McpTestHost.CreateProvider(new McpHostOptions(FindRepoRoot()));
         var descriptors = provider
-            .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .GetRequiredService<ApplicationCommandCatalog>()
             .All.Where(descriptor => descriptor.McpVisible
                                      && descriptor.Audience == CommandAudience.Public)
             .ToList();

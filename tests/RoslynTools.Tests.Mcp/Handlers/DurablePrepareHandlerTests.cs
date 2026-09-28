@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -17,7 +17,7 @@ public sealed class DurablePrepareHandlerTests
     {
         using var provider = McpTestHost.CreateProvider(new McpHostOptions(Directory.GetCurrentDirectory()));
 
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>().All
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>().All
             .Single(candidate => candidate.ToolName == DurablePrepareCommandDefinition.Definition.Name);
         var tool = provider.GetRequiredService<ToolSchemaBuilder>().Build()
             .Single(candidate => candidate.name == DurablePrepareCommandDefinition.Definition.Name);

@@ -209,7 +209,7 @@ public sealed class CommandDescriptorTriggerContract
 
     private static List<ApplicationCommandDescriptor> ResolveDescriptors()
     {
-        using var provider = McpTestHost.CreateProvider();
+        using var provider = McpTestHost.CreateCliComparisonProvider();
         var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>()
             .All.Where(d => d.Port is not null)
             .ToList();

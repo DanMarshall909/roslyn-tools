@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 using Shouldly;
@@ -14,7 +14,7 @@ public sealed class PrimeHandlerTests
     {
         using var provider = McpTestHost.CreateProvider();
 
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>().All
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>().All
             .Single(candidate => candidate.ToolName == "prime");
         var tool = provider.GetRequiredService<ToolSchemaBuilder>().Build()
             .Single(candidate => candidate.name == "prime");

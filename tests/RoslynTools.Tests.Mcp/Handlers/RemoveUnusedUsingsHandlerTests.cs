@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -17,7 +17,7 @@ public sealed class RemoveUnusedUsingsHandlerTests
         using var untrustedProvider = McpTestHost.CreateProvider();
         using var trustedProvider = McpTestHost.CreateProvider(
             new McpHostOptions(Directory.GetCurrentDirectory()));
-        var descriptor = trustedProvider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = trustedProvider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate =>
                 candidate.ToolName == RemoveUnusedUsingsCommandDefinition.Definition.Name);
         var tool = trustedProvider.GetRequiredService<ToolSchemaBuilder>().Build()

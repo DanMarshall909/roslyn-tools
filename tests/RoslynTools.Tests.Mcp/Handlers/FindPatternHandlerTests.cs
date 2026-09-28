@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Daemon.Rpc;
@@ -18,7 +17,7 @@ public sealed class FindPatternHandlerTests
     public void Descriptor_projects_the_typed_read_only_daemon_contract()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == FindPatternCommandDefinition.Name);
         var definition = DaemonOwnedCommands.All
             .Single(candidate => candidate.Name == FindPatternCommandDefinition.Name);

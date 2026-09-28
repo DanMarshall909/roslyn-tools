@@ -227,8 +227,7 @@ public sealed class SemanticDiffHandlerTests
     public void semantic_diff_is_descriptor_backed()
     {
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
 
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<ToolRegistry>().GetTools()

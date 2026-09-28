@@ -19,7 +19,7 @@ public sealed class CommandDescriptorContracts
     public void discoverable_mcp_commands_require_application_ports()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
+        var descriptors = provider.GetRequiredService<ApplicationCommandCatalog>().All;
         var hostOptions = provider.GetRequiredService<McpHostOptions>();
         var outline = descriptors.Single(descriptor => descriptor.ToolName == "outline");
 
@@ -100,7 +100,7 @@ public sealed class CommandDescriptorContracts
     [Fact]
     public void cli_descriptor_projection_reuses_the_shared_typed_catalogue()
     {
-        using var provider = McpTestHost.CreateProvider();
+        using var provider = McpTestHost.CreateCliComparisonProvider();
         var shared = provider.GetRequiredService<ApplicationCommandCatalog>();
         var cli = provider.GetRequiredService<CommandDescriptorRegistry>();
         var typedNames = provider.GetServices<ICommandApplicationPort>()
@@ -151,7 +151,7 @@ public sealed class CommandDescriptorContracts
     {
         using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
 
-        provider.GetRequiredService<CommandDescriptorRegistry>().All
+        provider.GetRequiredService<ApplicationCommandCatalog>().All
             .ShouldNotContain(descriptor => descriptor.ToolName == "trust");
         provider.GetRequiredService<ToolSchemaBuilder>().Build()
             .ShouldNotContain(tool => tool.name == "trust");
@@ -161,7 +161,7 @@ public sealed class CommandDescriptorContracts
     public void every_migrated_descriptor_has_one_port_and_request_schema_parity()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All
+        var descriptors = provider.GetRequiredService<ApplicationCommandCatalog>().All
             .Where(descriptor => descriptor.Definition is not null)
             .ToList();
 
@@ -225,7 +225,7 @@ public sealed class CommandDescriptorContracts
     public void every_mcp_visible_descriptor_has_a_unique_tool_and_generated_schema()
     {
         using var provider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
-        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptors = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Where(descriptor => descriptor.McpVisible)
             .ToList();
         var tools = provider.GetRequiredService<ToolSchemaBuilder>().Build();
@@ -249,7 +249,7 @@ public sealed class CommandDescriptorContracts
     {
         using var untrustedProvider = McpTestHost.CreateProvider();
         using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
-        var descriptors = trustedProvider.GetRequiredService<CommandDescriptorRegistry>().All;
+        var descriptors = trustedProvider.GetRequiredService<ApplicationCommandCatalog>().All;
         var mutations = descriptors
             .Where(descriptor => descriptor.Definition?.Safety.Effect == CommandEffect.Mutation
                                  && descriptor.Audience == CommandAudience.Public)
@@ -291,7 +291,7 @@ public sealed class CommandDescriptorContracts
     [Fact]
     public void nested_feedback_operations_are_leaf_descriptors_and_operational_commands_are_hidden()
     {
-        using var provider = McpTestHost.CreateProvider();
+        using var provider = McpTestHost.CreateCliComparisonProvider();
         var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
 
         var add = descriptors.Single(descriptor => descriptor.ToolName == "feedback_add");
@@ -328,7 +328,7 @@ public sealed class CommandDescriptorContracts
     [Fact]
     public void probe_di_is_trusted_experimental_repository_code_execution_and_hidden_from_mcp()
     {
-        using var provider = McpTestHost.CreateProvider();
+        using var provider = McpTestHost.CreateCliComparisonProvider();
         var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
             .All.Single(candidate => candidate.ToolName == "probe_di");
 
@@ -345,7 +345,7 @@ public sealed class CommandDescriptorContracts
     public void outline_descriptor_projects_the_core_owned_command_definition_and_request_contract()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == OutlineCommandDefinition.Name);
         var definition = DaemonOwnedCommands.All
             .Single(candidate => candidate.Name == OutlineCommandDefinition.Name);
@@ -441,7 +441,7 @@ public sealed class CommandDescriptorContracts
     public void source_schema_exposes_related_symbol_inclusion_controls()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == SourceApplicationDefinition.Definition.Name);
         var tool = ToolSchemaBuilder.Build(descriptor);
 
@@ -468,7 +468,7 @@ public sealed class CommandDescriptorContracts
     public void delete_unreferenced_schema_requires_the_symbol_and_projects_the_typed_port()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == SafeDeleteCommandDefinition.Definition.Name);
         var tool = ToolSchemaBuilder.Build(descriptor);
 
@@ -512,7 +512,7 @@ public sealed class CommandDescriptorContracts
     public void move_schema_projects_the_explicit_mode_enum()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == MoveCommandDefinition.Definition.Name);
         var tool = ToolSchemaBuilder.Build(descriptor);
         var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
@@ -528,7 +528,7 @@ public sealed class CommandDescriptorContracts
     public void rename_schema_projects_default_single_and_explicit_batch_request_shapes()
     {
         using var provider = McpTestHost.CreateProvider();
-        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == RenameCommandDefinition.Definition.Name);
         var tool = ToolSchemaBuilder.Build(descriptor);
         using var schema = JsonDocument.Parse(JsonSerializer.Serialize(tool.inputSchema));
@@ -573,7 +573,7 @@ public sealed class CommandDescriptorContracts
     {
         using var untrustedProvider = McpTestHost.CreateProvider();
         using var trustedProvider = McpTestHost.CreateProvider(CreateTrustedHostOptions());
-        var descriptor = trustedProvider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = trustedProvider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == SolidReviewCommandDefinition.Definition.Name);
         var definition = descriptor.Definition
             ?? throw new InvalidOperationException("solid_review must project a typed definition.");

@@ -36,14 +36,35 @@ internal static class McpTestHost
 
     internal static ServiceProvider CreateProvider(
         McpHostOptions? hostOptions = null,
-        Action<IServiceCollection>? configure = null)
+        Action<IServiceCollection>? configure = null) =>
+        CreateProviderCore(hostOptions, configure, cliComparison: false);
+
+    internal static ServiceProvider CreateCliComparisonProvider(
+        McpHostOptions? hostOptions = null,
+        Action<IServiceCollection>? configure = null) =>
+        CreateProviderCore(hostOptions, configure, cliComparison: true);
+
+    private static ServiceProvider CreateProviderCore(
+        McpHostOptions? hostOptions,
+        Action<IServiceCollection>? configure,
+        bool cliComparison)
     {
         var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(
-            new StringReader(string.Empty),
-            new StringWriter(),
-            hostOptions);
+        if (cliComparison)
+        {
+            RoslynTools.Bootstrap.RegisterServices(services);
+            services.AddMcpServices(
+                new StringReader(string.Empty),
+                new StringWriter(),
+                hostOptions);
+        }
+        else
+        {
+            services.AddMcpHostServices(
+                new StringReader(string.Empty),
+                new StringWriter(),
+                hostOptions);
+        }
         services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
         services.AddSingleton<IDaemonLauncher, UnavailableDaemonLauncher>();
         configure?.Invoke(services);

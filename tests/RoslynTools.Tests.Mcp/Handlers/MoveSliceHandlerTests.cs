@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -30,7 +30,7 @@ public sealed class MoveSliceHandlerTests
         using var untrustedProvider = McpTestHost.CreateProvider();
         using var trustedProvider = McpTestHost.CreateProvider(
             new McpHostOptions(Directory.GetCurrentDirectory()));
-        var descriptor = trustedProvider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = trustedProvider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == MoveSliceCommandDefinition.Definition.Name);
         var tool = trustedProvider.GetRequiredService<ToolSchemaBuilder>().Build()
             .Single(candidate => candidate.name == MoveSliceCommandDefinition.Definition.Name);
@@ -170,8 +170,7 @@ public sealed class MoveSliceHandlerTests
             }));
         using var output = new StringWriter();
         var services = new ServiceCollection();
-        global::RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(
+        services.AddMcpHostServices(
             new StringReader(request + Environment.NewLine),
             output,
             new McpHostOptions(builder.Directory));
@@ -231,8 +230,7 @@ public sealed class MoveSliceHandlerTests
         });
         using var output = new StringWriter();
         var services = new ServiceCollection();
-        global::RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(
+        services.AddMcpHostServices(
             new StringReader(request + Environment.NewLine),
             output,
             new McpHostOptions(builder.Directory));
@@ -290,8 +288,7 @@ public sealed class MoveSliceHandlerTests
         });
         using var output = new StringWriter();
         var services = new ServiceCollection();
-        global::RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(
+        services.AddMcpHostServices(
             new StringReader(request + Environment.NewLine),
             output,
             new McpHostOptions(builder.Directory));

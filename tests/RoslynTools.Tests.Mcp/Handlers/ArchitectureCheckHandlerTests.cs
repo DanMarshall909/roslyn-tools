@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -16,7 +16,7 @@ public sealed class ArchitectureCheckHandlerTests
     public void Descriptor_is_public_read_only_and_has_typed_cli_mcp_schema_parity()
     {
         using var untrustedProvider = McpTestHost.CreateProvider();
-        var descriptor = untrustedProvider.GetRequiredService<CommandDescriptorRegistry>()
+        var descriptor = untrustedProvider.GetRequiredService<ApplicationCommandCatalog>()
             .All.Single(candidate => candidate.ToolName == ArchitectureCheckCommandDefinition.Name);
         var tool = untrustedProvider.GetRequiredService<ToolSchemaBuilder>().Build()
             .Single(candidate => candidate.name == ArchitectureCheckCommandDefinition.Name);
