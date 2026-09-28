@@ -88,13 +88,13 @@ internal static class DaemonCommand
             var state = DaemonState.TryRead();
 
             // Always try a clean pipe-based stop first — works for both tracked daemons and
-            // orphans (state file missing but process alive). TrySendDirectAsync ignores state.
+            // orphans (state file missing but process alive). TryStopDirectAsync ignores state.
             // Only treat exit code 0 as success; anything else (e.g. a BOM-mismatched daemon
             // returning 1 on deserialize failure) means the daemon is broken — fall through
             // to the kill-by-PID path below.
             if (client is not null)
             {
-                var exitCode = await client.TrySendDirectAsync(["stop"]);
+                var exitCode = await client.TryStopDirectAsync();
                 if (exitCode == 0)
                 {
                     await WaitForProcessExitAsync(state?.Pid);

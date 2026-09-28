@@ -3,7 +3,8 @@ using System.Text.Json;
 namespace RoslynTools.Daemon;
 
 /// <summary>
-/// A request object for daemon communication.
+/// Legacy control envelope. Only ping and stop are accepted; older fields remain
+/// on the wire so a new client can stop an older orphan daemon.
 /// </summary>
 internal sealed record DaemonRequest(
     string RequestId,

@@ -5,10 +5,10 @@ namespace RoslynTools.Tests.Architecture;
 
 /// <summary>
 ///     Architectural lock: production code must not reference <c>System.Console</c> directly —
-///     every write goes through <c>RtConsole</c> / <c>RtLog</c> / <c>IRtConsole</c> so that
-///     daemon-mode redirection (<c>DaemonPipeConsole</c>) actually intercepts the output. A direct
-///     <c>Console.WriteLine</c> in daemon mode is silently dropped: the daemon process is spawned
-///     with <c>CreateNoWindow=true</c> and its <c>Console.Out</c>/<c>Error</c> handles are detached.
+///     every write goes through <c>RtConsole</c> / <c>RtLog</c> / <c>IRtConsole</c>.
+///     A direct <c>Console.WriteLine</c> in daemon mode is silently dropped: the daemon
+///     process is spawned with <c>CreateNoWindow=true</c> and its
+///     <c>Console.Out</c>/<c>Error</c> handles are detached.
 /// </summary>
 public sealed class NoDirectConsoleUse
 {

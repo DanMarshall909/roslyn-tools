@@ -16,7 +16,6 @@ internal static class Bootstrap
     public static void RegisterServices(IServiceCollection services)
     {
         HostServiceRegistration.RegisterFoundationServices(services);
-        services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         HostServiceRegistration.RegisterApplicationInfrastructure(services);
         HostServiceRegistration.RegisterSuggestionCatalog(services);

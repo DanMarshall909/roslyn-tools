@@ -13,15 +13,13 @@ public class ConsoleGate
         {
             "RtConsole.cs",
             "IRtConsole.cs", // default Out implementation uses Console.Out as the base case
-            "SpectreRtConsole.cs", // CLI-side IRtConsole adapter delegating to Spectre.Console
-            "DaemonPipeConsole.cs" // Daemon IRtConsole adapter (Spectre NoColors profile)
+            "SpectreRtConsole.cs" // CLI-side IRtConsole adapter delegating to Spectre.Console
         };
 
     private static readonly HashSet<string> AnsiAllowed =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            "SpectreRtConsole.cs",
-            "DaemonPipeConsole.cs"
+            "SpectreRtConsole.cs"
         };
 
     [Fact]

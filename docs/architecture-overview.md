@@ -770,12 +770,14 @@ status indeterminate. No new apply or operation ID is created automatically.
 
 For the current hardening phase, the daemon is an optional typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). [ADR-0017](adr/0017-bounded-read-only-workspace-reuse.md) permits one narrow stateful exception: a bounded, content-fingerprint-validated lease cache for doctor, outline, describe, search_symbols, source, and relationships. It has no mutation workspace, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
 
-The CLI no longer forwards application argv from root startup. It binds the CLI
-invocation locally; typed application adapters can then invoke ports through
-structured daemon RPC. Public read-only commands are typed or explicitly local.
-The daemon receiver still accepts the old argv envelope until the next #53
-tracer removes that compatibility path. See
-[ADR-0054](adr/0054-cli-typed-daemon-dispatch-only.md).
+The CLI binds application arguments locally, and typed application adapters use
+structured daemon RPC to invoke ports. Public read-only commands are typed or
+explicitly local. The daemon's legacy envelope accepts only exact `ping` and
+`stop` controls; other argument arrays receive an error and cannot enter CLI
+parsing or execution. The stop client retains old wire fields solely to stop an
+older orphan daemon. The receiver logs request length rather than payload content.
+See [ADR-0054](adr/0054-cli-typed-daemon-dispatch-only.md) and
+[ADR-0055](adr/0055-daemon-legacy-control-only.md).
 
 MSBuild registration is process-global, so the daemon captures the exact SDK instance
 it registers: normalized MSBuild path plus version. Each typed request resolves the SDK
@@ -1011,10 +1013,11 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
-- **Daemon transport is still being separated.** CLI and MCP now compose shared
-  application services independently, and MCP has no CLI project reference. The
-  daemon request protocol and its host boundary still require the remaining
-  typed-request migration under #53.
+- **Daemon host ownership still needs separation.** CLI and MCP compose shared
+  application services independently, and MCP has no CLI project reference.
+  Typed RPC is the daemon's only application path, but the server process and
+  control command still live in the CLI assembly. Complete the daemon peer-host
+  boundary and architecture ratchets under #53.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.

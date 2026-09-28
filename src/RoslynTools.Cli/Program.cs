@@ -20,7 +20,7 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         // Internal mode: spawned by `rt maintainer daemon start`, runs as the background pipe server.
-        // The daemon installs DaemonPipeConsole per request, so do not pre-register Spectre.
+        // The daemon handles typed RPC without terminal rendering, so do not pre-register Spectre.
         if (args.Length > 0 && args[0] == "--daemon-serve")
             return await DaemonServer.RunAsync(DaemonServer.ParseIdleTimeout(args));
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
 using System.Text;
@@ -207,10 +206,7 @@ internal static class DaemonServer
         var line = await reader.ReadLineAsync(ct);
         if (line is null) return false;
 
-        // Peek the raw bytes — invaluable when the request can't be parsed (BOM, encoding, etc.)
-        // because without this you only see "deserialize failed" with no context on what came in.
-        await log.WriteLineAsync(
-            $"[{Now()}] read {line.Length} chars: {(line.Length > 200 ? line[..200] + "..." : line)}");
+        await log.WriteLineAsync($"[{Now()}] read {line.Length} chars");
 
         using var document = JsonDocument.Parse(line);
         if (document.RootElement.TryGetProperty("method", out var method)
@@ -238,8 +234,19 @@ internal static class DaemonServer
             return false;
         }
 
-        if (request is null) return false;
+        if (request is null)
+        {
+            await RespondAsync(writer, new DaemonResponse("?", "exit", Code: 1));
+            return false;
+        }
 
+        return await HandleLegacyControlRequestAsync(request, writer);
+    }
+
+    internal static async Task<bool> HandleLegacyControlRequestAsync(
+        DaemonRequest request,
+        TextWriter writer)
+    {
         if (request.Args is ["ping"])
         {
             await RespondAsync(writer, new DaemonResponse(request.RequestId, "stdout", "pong\n"));
@@ -254,68 +261,11 @@ internal static class DaemonServer
             return true;
         }
 
-        if (request.WorkingDirectory is not null)
-            Directory.SetCurrentDirectory(request.WorkingDirectory);
-
-        var argsDisplay = string.Join(" ", request.Args);
-        await log.WriteLineAsync($"[{Now()}] → {argsDisplay}");
-        var sw = Stopwatch.StartNew();
-
-        string? forwardedStdin = null;
-        if (request.Stdin is not null)
-        {
-            try
-            {
-                forwardedStdin = Encoding.UTF8.GetString(Convert.FromBase64String(request.Stdin));
-            }
-            catch (FormatException ex)
-            {
-                await log.WriteLineAsync($"[{Now()}] ignoring malformed base64 stdin: {ex.Message}");
-            }
-        }
-
-        var pipeConsole = new DaemonPipeConsole(writer, request.RequestId, forwardedStdin);
-        int exitCode;
-        try
-        {
-            Environment.ExitCode = 0;
-            using (RtConsole.UseConsole(pipeConsole))
-            {
-                exitCode = await App.RunAsync(request.Args, services);
-            }
-
-            exitCode = Math.Max(exitCode, Environment.ExitCode);
-        }
-        catch (IOException)
-        {
-            // Client disconnected mid-stream — daemon continues.
-            await log.WriteLineAsync($"[{Now()}] ← client disconnected after {sw.ElapsedMilliseconds}ms");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            try
-            {
-                await RespondAsync(writer, new DaemonResponse(request.RequestId, "stderr",
-                    $"[rt-daemon] unhandled exception: {ex.Message}\n"));
-            }
-            catch (IOException)
-            {
-            }
-
-            exitCode = 1;
-        }
-
-        await log.WriteLineAsync($"[{Now()}] ← exit {exitCode} in {sw.ElapsedMilliseconds}ms");
-
-        try
-        {
-            await RespondAsync(writer, new DaemonResponse(request.RequestId, "exit", Code: exitCode));
-        }
-        catch (IOException)
-        {
-        }
-
+        await RespondAsync(writer, new DaemonResponse(
+            request.RequestId,
+            "stderr",
+            "Legacy daemon application arguments are not supported; use typed RPC.\n"));
+        await RespondAsync(writer, new DaemonResponse(request.RequestId, "exit", Code: 1));
         return false;
     }
 
@@ -325,7 +275,7 @@ internal static class DaemonServer
             CultureInfo.InvariantCulture);
     }
 
-    private static async Task RespondAsync(StreamWriter writer, DaemonResponse response)
+    private static async Task RespondAsync(TextWriter writer, DaemonResponse response)
     {
         await writer.WriteLineAsync(JsonSerializer.Serialize(response, DaemonProtocol.JsonOpts));
     }
