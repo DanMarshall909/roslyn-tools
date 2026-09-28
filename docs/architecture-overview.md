@@ -212,6 +212,10 @@ Semantic diff now requests directory-scoped git clients through a reusable
 factory contract; the concrete git process adapter and factory compile in
 shared Hosting for CLI and MCP. See
 [ADR-0076](adr/0076-host-owned-semantic-diff-git-client.md).
+A syntax-tree ratchet now rejects ambient host adapters and host-framework
+imports across Core and Services, plus process-launch types in Services. It
+complements the project-reference, compiled-assembly, placement, and console
+gates; see [ADR-0077](adr/0077-reusable-host-source-ratchet.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

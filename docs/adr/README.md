@@ -141,3 +141,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0074](0074-mcp-solution-report-boundary.md) | MCP solution write reports stay out of the protocol stream | Accepted | 2026-09-29 |
 | [0075](0075-cli-owned-github-issue-process-adapter.md) | The GitHub issue process adapter belongs to CLI | Accepted | 2026-09-29 |
 | [0076](0076-host-owned-semantic-diff-git-client.md) | Semantic diff obtains git clients from shared hosting | Accepted | 2026-09-29 |
+| [0077](0077-reusable-host-source-ratchet.md) | Reusable source rejects host adapters and service process clients | Accepted | 2026-09-29 |
