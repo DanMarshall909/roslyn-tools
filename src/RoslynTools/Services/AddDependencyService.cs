@@ -69,13 +69,11 @@ internal class AddDependencyService : IRtService
         {
             case AddDependencyOutcome.TargetNotFound:
                 _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
-                Environment.ExitCode = 1;
                 break;
 
             case AddDependencyOutcome.TargetAmbiguous:
             case AddDependencyOutcome.Unsupported:
                 _logger.RtError("{Message}", result.Message);
-                Environment.ExitCode = 1;
                 break;
 
             case AddDependencyOutcome.AlreadyInjected:
@@ -192,7 +190,6 @@ internal class AddDependencyService : IRtService
         if (matches.Count == 0)
         {
             _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
-            Environment.ExitCode = 1;
             return null;
         }
 
@@ -204,7 +201,6 @@ internal class AddDependencyService : IRtService
             _logger.RtError(
                 "Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.",
                 typeName, candidateList);
-            Environment.ExitCode = 1;
             return null;
         }
 

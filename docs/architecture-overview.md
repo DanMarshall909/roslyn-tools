@@ -165,6 +165,10 @@ CLI process output implementations (`RtResultRenderer`, `RtSerializer`, and
 `StructuredOutput`) now compile into the CLI adapter, with an assembly
 placement test; shared result and format contracts remain in Core. See
 [ADR-0063](adr/0063-cli-owned-process-output.md).
+Services leave process exit status to the host. The add-dependency service
+returns failure outcomes without setting `Environment.ExitCode`, and a source
+test prevents this behavior from returning to Services. See
+[ADR-0064](adr/0064-service-exit-status-is-host-owned.md).
 
 Host diagnostics follow the same boundary. An application operation may consume a
 small typed probe or bootstrap port, but process launching, installed-file discovery,

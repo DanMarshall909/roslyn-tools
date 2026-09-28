@@ -44,6 +44,33 @@ public sealed class NoDirectConsoleUse
     }
 
     [Fact]
+    public void services_do_not_set_process_exit_code()
+    {
+        var services = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Services");
+        var violations = Directory.EnumerateFiles(services, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !Path.GetRelativePath(services, path)
+                .Split(Path.DirectorySeparatorChar)
+                .Any(part => part is "bin" or "obj"))
+            .SelectMany(path =>
+            {
+                var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
+                return root.DescendantNodes().OfType<AssignmentExpressionSyntax>()
+                    .Where(node => node.Left is MemberAccessExpressionSyntax
+                    {
+                        Expression: IdentifierNameSyntax { Identifier.Text: "Environment" },
+                        Name.Identifier.Text: "ExitCode"
+                    })
+                    .Select(node => $"{Path.GetRelativePath(services, path)}:"
+                        + $"{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}")
+                    .ToArray();
+            })
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        violations.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void production_code_does_not_reference_system_console_directly()
     {
         var srcDir = LocateSrcDirectory();

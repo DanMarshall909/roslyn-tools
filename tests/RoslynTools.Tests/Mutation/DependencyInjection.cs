@@ -65,7 +65,7 @@ public sealed class DependencyInjection
 
         try
         {
-            Environment.ExitCode = 0;
+            Environment.ExitCode = 37;
 
             var result = await new AddDependencyService(
                     NullLogger<AddDependencyService>.Instance,
@@ -73,9 +73,10 @@ public sealed class DependencyInjection
                 .ApplyAsync(solution, "AgentService", "IEmailService", null);
 
             result.Changed.ShouldBeFalse();
+            result.Outcome.ShouldBe(AddDependencyOutcome.TargetAmbiguous);
             result.Solution.ShouldBeSameAs(solution);
             result.TargetType.ShouldBeNull();
-            Environment.ExitCode.ShouldBe(1);
+            Environment.ExitCode.ShouldBe(37);
         }
         finally
         {
@@ -136,7 +137,7 @@ public sealed class DependencyInjection
 
         try
         {
-            Environment.ExitCode = 0;
+            Environment.ExitCode = 37;
 
             var result = await new AddDependencyService(
                     NullLogger<AddDependencyService>.Instance,
@@ -144,9 +145,10 @@ public sealed class DependencyInjection
                 .ApplyAsync(solution, "AgentService", "IEmailService", null);
 
             result.Changed.ShouldBeFalse();
+            result.Outcome.ShouldBe(AddDependencyOutcome.Unsupported);
             result.Solution.ShouldBeSameAs(solution);
             result.TargetType.ShouldBe("App.AgentService");
-            Environment.ExitCode.ShouldBe(1);
+            Environment.ExitCode.ShouldBe(37);
         }
         finally
         {

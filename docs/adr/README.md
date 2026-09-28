@@ -128,3 +128,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0061](0061-host-owned-console-logger.md) | Console logger belongs to host composition | Accepted | 2026-09-28 |
 | [0062](0062-legacy-move-preview-result.md) | Legacy move preview returns data to its caller | Accepted | 2026-09-29 |
 | [0063](0063-cli-owned-process-output.md) | CLI process output implementations belong to CLI | Accepted | 2026-09-29 |
+| [0064](0064-service-exit-status-is-host-owned.md) | Service outcomes do not set process exit status | Accepted | 2026-09-29 |
