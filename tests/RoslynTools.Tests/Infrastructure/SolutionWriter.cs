@@ -28,7 +28,7 @@ public class SolutionWriter : IDisposable
         var oldText = "a\nb\nc";
         var newText = "a\nX\nb\nc";
 
-        Core.SolutionWriter.PrintDiff(oldText, newText, "test.cs", new ConsoleSolutionWriteOutput());
+        new ConsoleSolutionWriteOutput().DocumentDiff(oldText, newText, "test.cs");
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -47,7 +47,7 @@ public class SolutionWriter : IDisposable
         var oldText = "a\nX\nb";
         var newText = "a\nb";
 
-        Core.SolutionWriter.PrintDiff(oldText, newText, "test.cs", new ConsoleSolutionWriteOutput());
+        new ConsoleSolutionWriteOutput().DocumentDiff(oldText, newText, "test.cs");
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -67,7 +67,7 @@ public class SolutionWriter : IDisposable
         var oldText = "a\nold\nc";
         var newText = "a\nnew\nc";
 
-        Core.SolutionWriter.PrintDiff(oldText, newText, "test.cs", new ConsoleSolutionWriteOutput());
+        new ConsoleSolutionWriteOutput().DocumentDiff(oldText, newText, "test.cs");
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -87,7 +87,7 @@ public class SolutionWriter : IDisposable
     {
         var text = "a\nb\nc";
 
-        Core.SolutionWriter.PrintDiff(text, text, "test.cs", new ConsoleSolutionWriteOutput());
+        new ConsoleSolutionWriteOutput().DocumentDiff(text, text, "test.cs");
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -105,7 +105,7 @@ public class SolutionWriter : IDisposable
         var oldText = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no";
         var newText = "a\nX\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nY\no";
 
-        Core.SolutionWriter.PrintDiff(oldText, newText, "test.cs", new ConsoleSolutionWriteOutput());
+        new ConsoleSolutionWriteOutput().DocumentDiff(oldText, newText, "test.cs");
 
         var output = _output.ToString();
         var hunkHeaders = output.Split('\n')

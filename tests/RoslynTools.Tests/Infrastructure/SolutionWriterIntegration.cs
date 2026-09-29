@@ -154,6 +154,9 @@ public class SolutionWriterIntegration
         {
         }
 
+        public void DocumentDiff(string oldText, string newText, string filePath) =>
+            Adapters.SolutionDiffRenderer.PrintDiff(oldText, newText, filePath, this);
+
         public void Warning(string message) => Warnings.Add(message);
     }
 

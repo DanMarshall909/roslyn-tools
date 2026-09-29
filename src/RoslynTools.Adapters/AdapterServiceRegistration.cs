@@ -12,6 +12,7 @@ internal static class AdapterServiceRegistration
 {
     internal static void RegisterCoreApplicationServices(IServiceCollection services)
     {
+        services.AddSingleton<ISolutionWriteOutput, ConsoleSolutionWriteOutput>();
         services.AddSingleton<IProductCapabilityCatalog, ProductCapabilityCatalog>();
 
         // Default source uses this process's directory; explicit request directories

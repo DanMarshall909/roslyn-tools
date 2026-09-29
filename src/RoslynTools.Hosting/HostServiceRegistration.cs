@@ -105,7 +105,6 @@ internal static class HostServiceRegistration
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ParameterChangeHelper>();
-        services.AddSingleton<ISolutionWriteOutput, ConsoleSolutionWriteOutput>();
         services.AddSingleton<ISolutionChangeWriter>(provider => new SolutionChangeWriter(
             provider.GetRequiredService<ISolutionWriteOutput>()));
         services.AddSingleton<IPreparedFileSystem, PhysicalPreparedFileSystem>();

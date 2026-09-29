@@ -57,7 +57,7 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
                     var doc = originalSolution.GetDocument(file.DocumentId)
                         ?? throw new InvalidOperationException($"Fix '{fix.Id}' references unknown document {file.DocumentId}.");
                     var oldText = (await doc.GetTextAsync()).ToString();
-                    SolutionWriter.PrintDiff(oldText, file.NewText, file.Path, _output);
+                    _output.DocumentDiff(oldText, file.NewText, file.Path);
                 }
             }
             return;

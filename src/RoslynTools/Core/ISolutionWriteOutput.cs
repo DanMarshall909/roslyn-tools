@@ -9,6 +9,9 @@ internal interface ISolutionWriteOutput
     /// <summary>Reports a diff line for the calling host to render.</summary>
     void Diff(string message);
 
+    /// <summary>Reports a document change for host-owned diff rendering.</summary>
+    void DocumentDiff(string oldText, string newText, string filePath);
+
     /// <summary>Reports a warning for the calling host to render.</summary>
     void Warning(string message);
 }
@@ -25,6 +28,11 @@ internal sealed class NullSolutionWriteOutput : ISolutionWriteOutput
 
     /// <summary>Discards a diff line.</summary>
     public void Diff(string message)
+    {
+    }
+
+    /// <summary>Discards a document preview.</summary>
+    public void DocumentDiff(string oldText, string newText, string filePath)
     {
     }
 

@@ -30,6 +30,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Renderer move: rt move-slice safely refused incomplete acquisition evidence and left clean `86c3006` unchanged. Used a byte-identical file move after rt caller inspection; 154 Core/CLI and 20 MCP tests passed.
 
+- Solution previews: DiffPlex and the console preview adapter now live outside Core/Hosting. The neutral sink carries document changes; existing output and prepared-write tests passed (181 Core/CLI, 30 MCP). Clean checkpoint `1e63fe7`.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

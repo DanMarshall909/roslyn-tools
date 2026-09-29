@@ -9,5 +9,8 @@ internal sealed class ConsoleSolutionWriteOutput : ISolutionWriteOutput
 
     public void Diff(string message) => RtConsole.WriteLine(RtOutputContext.Diff, message);
 
+    public void DocumentDiff(string oldText, string newText, string filePath) =>
+        Adapters.SolutionDiffRenderer.PrintDiff(oldText, newText, filePath, this);
+
     public void Warning(string message) => RtLog.Warning("{Message}", message);
 }
