@@ -35,7 +35,7 @@ namespace RoslynTools.Services.SemanticDiff;
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
-internal sealed class SemanticDiffTextRenderer : IRtService
+internal sealed class SemanticDiffTextRenderer : IRtService, ISemanticDiffTextRenderer
 {
     /// <summary>Emitted when there is nothing semantically interesting to show.</summary>
     public const string NoChanges = "no semantic changes";

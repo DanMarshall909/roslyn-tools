@@ -24,6 +24,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - YAML: removed Core YamlDotNet reference; decision data stays in Core and real YAML persistence is injected at the CLI. Focused checks passed 16 Core/CLI and 8 MCP tests. Manual extraction checkpoint: `0e6ba34`; rt suggestions do not provide a persistence-boundary extraction.
 
+- Renderer interface: rt extraction at clean `b52e9db` changed exactly the two previewed files; post-preview HEAD/status were unchanged. All 154 semantic-diff tests passed.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.
