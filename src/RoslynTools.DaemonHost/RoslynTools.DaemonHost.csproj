@@ -16,6 +16,7 @@
         <PackageReference Include="Microsoft.Extensions.Hosting"/>
     </ItemGroup>
     <ItemGroup>
+        <ProjectReference Include="../RoslynTools.Adapters/RoslynTools.Adapters.csproj"/>
         <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>
         <ProjectReference Include="../RoslynTools.Hosting/RoslynTools.Hosting.csproj"/>
     </ItemGroup>

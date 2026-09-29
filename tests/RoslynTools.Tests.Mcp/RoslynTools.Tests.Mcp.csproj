@@ -25,6 +25,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="../../src/RoslynTools.Adapters/RoslynTools.Adapters.csproj"/>
+        <ProjectReference Include="../../src/RoslynTools.Hosting/RoslynTools.Hosting.csproj"/>
+        <ProjectReference Include="../../src/RoslynTools.DaemonHost/RoslynTools.DaemonHost.csproj"/>
         <ProjectReference Include="../../src/RoslynTools/RoslynTools.csproj"/>
         <ProjectReference Include="../../src/RoslynTools.Cli/RoslynTools.Cli.csproj"/>
         <ProjectReference Include="../../src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"/>

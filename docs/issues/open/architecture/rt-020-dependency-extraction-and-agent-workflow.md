@@ -18,7 +18,9 @@ Reflection accumulates between operations without interrupting progress, except 
 ## Progress
 
 - Planning: package/usage audit through rt identified DiffPlex and YamlDotNet in Core, Scrutor in Hosting, and Microsoft-transitive Humanizer. Scope and exceptions confirmed.
-- Baseline: main is clean at `517a32e`; fetched origin/main matches. Focused characterization tests are running.
+- Baseline: main is clean at `517a32e`; fetched origin/main matches. Focused characterization passed: 176 Core/CLI and 20 MCP tests.
+
+- Preparation: add the outer adapter project and inward graph; explicitly declare test project dependencies used by their source.
 
 ## Findings to aggregate
 

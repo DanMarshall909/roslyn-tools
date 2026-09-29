@@ -20,10 +20,11 @@ public sealed class HostDependencyRatchetTests
         {
             ["RoslynTools"] = [],
             ["RoslynTools.Hosting"] = ["RoslynTools"],
-            ["RoslynTools.DaemonHost"] = ["RoslynTools", "RoslynTools.Hosting"],
-            ["RoslynTools.Mcp"] = ["RoslynTools", "RoslynTools.Hosting"],
+            ["RoslynTools.Adapters"] = ["RoslynTools", "RoslynTools.Hosting"],
+            ["RoslynTools.DaemonHost"] = ["RoslynTools", "RoslynTools.Hosting", "RoslynTools.Adapters"],
+            ["RoslynTools.Mcp"] = ["RoslynTools", "RoslynTools.Hosting", "RoslynTools.Adapters"],
             ["RoslynTools.Cli"] =
-                ["RoslynTools", "RoslynTools.Hosting", "RoslynTools.DaemonHost"]
+                ["RoslynTools", "RoslynTools.Hosting", "RoslynTools.DaemonHost", "RoslynTools.Adapters"]
         };
 
     [Fact]

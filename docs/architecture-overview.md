@@ -16,6 +16,12 @@ Companion documents:
 
 ## Architectural position
 
+Third-party integrations are extracted into `RoslynTools.Adapters`, which
+depends on Core and Hosting and is composed by CLI, MCP, and DaemonHost.
+Core and Hosting retain inward dependencies and own neutral contracts.
+[ADR-0079](adr/0079-third-party-adapter-boundary.md) records the package policy
+and staged extraction; RT-020 tracks its verification.
+
 `rt` is a semantic C# operation engine with multiple host adapters. The CLI is not the application layer, the MCP server is not a second implementation, and the daemon is not the owner of truth.
 
 The target shape is:
