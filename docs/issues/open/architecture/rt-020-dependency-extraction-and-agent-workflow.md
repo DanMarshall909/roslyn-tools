@@ -42,6 +42,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Coverage preparation: 64 Core/adapter cases and 109 MCP cases pass. Adapter source reaches 99.5% lines (only the existing unknown-enum fallback is unexecuted); decision persistence/store and solution diff renderer reach every line. Added preview argument/disk invariants, encoding, hunk-boundary and YAML compatibility checks. Separate Stryker targets preserve coverage after assembly moves.
 
+- Full-gate repair: the new build target exposed ambient repository inputs in the workspace-cache fixture. Baseline six cache tests pass; the original fixture inherited repository targets through deleted project and TPA paths. Isolated its project/solution and runtime-only metadata; all six cache assertions pass without relaxing production fingerprint safety.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

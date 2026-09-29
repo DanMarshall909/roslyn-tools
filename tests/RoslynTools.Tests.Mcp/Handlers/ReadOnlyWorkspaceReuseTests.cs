@@ -250,7 +250,12 @@ public sealed class ReadOnlyWorkspaceReuseTests
             Directory.CreateDirectory(projectRoot);
             SolutionPath = Path.Combine(projectRoot, $"{applicationName}.slnx");
             SourcePath = Path.Combine(projectRoot, "Widget.cs");
-            File.WriteAllText(SolutionPath, "<Solution />", Encoding.UTF8);
+            var projectPath = Path.Combine(projectRoot, $"{applicationName}.csproj");
+            File.WriteAllText(projectPath,
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>",
+                Encoding.UTF8);
+            File.WriteAllText(SolutionPath,
+                $"<Solution><Project Path=\"{applicationName}.csproj\" /></Solution>", Encoding.UTF8);
             File.WriteAllText(
                 SourcePath,
                 $"namespace {applicationName}; public sealed class Widget {{ public int Value => {applicationName.Length}; }}",
@@ -259,7 +264,12 @@ public sealed class ReadOnlyWorkspaceReuseTests
                 .AddSource("Widget.cs", File.ReadAllText(SourcePath));
             (_workspace, var solution) = builder.Build();
             var document = solution.Projects.Single().Documents.Single();
+            // Keep fixture inputs outside the repository: ambient project/TPA paths
+            // otherwise import this checkout's build targets into the cache fingerprint.
             _template = solution
+                .WithProjectFilePath(document.Project.Id, projectPath)
+                .WithProjectMetadataReferences(document.Project.Id,
+                    [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)])
                 .WithDocumentFilePath(document.Id, SourcePath)
                 .WithDocumentText(
                     document.Id,
