@@ -44,6 +44,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Full-gate repair: the new build target exposed ambient repository inputs in the workspace-cache fixture. Baseline six cache tests pass; the original fixture inherited repository targets through deleted project and TPA paths. Isolated its project/solution and runtime-only metadata; all six cache assertions pass without relaxing production fingerprint safety.
 
+- Documentation gate: reviewed the changed Core contracts and implementation fingerprints, documented copying/error/preview semantics, and updated only the affected review-index entries. Both public-Core documentation checks pass.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

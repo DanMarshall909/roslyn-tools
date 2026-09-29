@@ -39,6 +39,9 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
     ///     Renders fix diffs during preview or composes and silently applies all fixes through
     ///     the staged writer. An empty set retains the legacy no-change message.
     /// </summary>
+    /// <returns>A task that completes after reporting the preview or applying the composed changes.</returns>
+    /// <remarks>Preview does not write files. Output-sink and file-system errors propagate to the caller.</remarks>
+    /// <exception cref="InvalidOperationException">A preview fix references a document absent from the original solution.</exception>
     public async Task WriteFixesAsync(Solution originalSolution, IReadOnlyList<Fix> fixes, bool dryRun)
     {
         if (fixes.Count == 0)
