@@ -21,6 +21,5 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
         <PackageReference Include="DiffPlex"/>
-        <PackageReference Include="YamlDotNet"/>
     </ItemGroup>
 </Project>

@@ -69,7 +69,7 @@ public class SymbolLocatorDecision
                                             1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
                                           choose: 1
                                         """);
-                DecisionContext.Store = Core.Decisions.DecisionStore.Load(path);
+                DecisionContext.Store = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
 
                 var symbol = await SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo");
 
@@ -114,7 +114,7 @@ public class SymbolLocatorDecision
                                             1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
                                           choose: 99
                                         """);
-                DecisionContext.Store = Core.Decisions.DecisionStore.Load(path);
+                DecisionContext.Store = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
 
                 var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));

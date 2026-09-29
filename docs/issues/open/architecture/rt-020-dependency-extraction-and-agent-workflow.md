@@ -22,6 +22,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Preparation: add the outer adapter project and inward graph; explicitly declare test project dependencies used by their source.
 
+- YAML: removed Core YamlDotNet reference; decision data stays in Core and real YAML persistence is injected at the CLI. Focused checks passed 16 Core/CLI and 8 MCP tests. Manual extraction checkpoint: `0e6ba34`; rt suggestions do not provide a persistence-boundary extraction.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

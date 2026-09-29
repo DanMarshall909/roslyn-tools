@@ -1,6 +1,3 @@
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
-
 namespace RoslynTools.Core.Decisions;
 
 /// <summary>
@@ -26,23 +23,9 @@ internal sealed class DecisionStore
         return new DecisionStore(new List<DecisionEntry>());
     }
 
-    public static DecisionStore Load(string path)
-    {
-        if (!File.Exists(path))
-            return Empty();
+    public IReadOnlyList<DecisionEntry> Entries => entries.AsReadOnly();
 
-        var text = File.ReadAllText(path);
-        if (string.IsNullOrWhiteSpace(text))
-            return Empty();
-
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(LowerCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        var loaded = deserializer.Deserialize<List<DecisionEntry>>(text) ?? new List<DecisionEntry>();
-        return new DecisionStore(loaded);
-    }
+    public static DecisionStore FromEntries(IEnumerable<DecisionEntry> entries) => new(entries.ToList());
 
     public bool TryGetAnswer(string id, out int choice)
     {
@@ -61,19 +44,5 @@ internal sealed class DecisionStore
     {
         if (ids.Add(entry.Id))
             entries.Add(entry);
-    }
-
-    public void Save(string path)
-    {
-        var serializer = new SerializerBuilder()
-            .WithNamingConvention(LowerCaseNamingConvention.Instance)
-            .Build();
-
-        var header =
-            "# rt decisions — fill `choose:` for each entry, then re-run the same command." + Environment.NewLine +
-            "# `choose:` is the integer index of the option you want." + Environment.NewLine;
-
-        var yaml = serializer.Serialize(entries);
-        File.WriteAllText(path, header + yaml);
     }
 }

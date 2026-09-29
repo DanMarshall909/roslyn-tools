@@ -403,13 +403,13 @@ internal static class App
                     {
                         // Load is inside the try so malformed YAML / missing file errors flow
                         // through TryHandleUserErrorAsync and get the clean exit-1 treatment.
-                        DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
+                        DecisionContext.Store = services.GetRequiredService<IDecisionFileStore>().Load(decisionsFile.FullName);
                         await next(context);
                     }
                     catch (DecisionsRequiredException)
                     {
                         var store = DecisionContext.Store!;
-                        store.Save(decisionsFile.FullName);
+                        services.GetRequiredService<IDecisionFileStore>().Save(decisionsFile.FullName, store);
                         RtLog.Warning(
                             "wrote {PendingCount} pending decision(s) to {DecisionsFile}; resolve `choose:` fields and re-run.",
                             store.PendingCount,

@@ -10,7 +10,7 @@ public class DecisionStore
     {
         var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".yaml");
 
-        var store = Core.Decisions.DecisionStore.Load(path);
+        var store = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
 
         store.AnyPending.ShouldBeFalse();
         store.TryGetAnswer("ambig-Foo-2", out _).ShouldBeFalse();
@@ -33,9 +33,9 @@ public class DecisionStore
                     [1] = "Method   Bar.Foo()  (P1)"
                 }
             });
-            store.Save(path);
+            new Adapters.Decisions.YamlDecisionFileStore().Save(path, store);
 
-            var reloaded = Core.Decisions.DecisionStore.Load(path);
+            var reloaded = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
 
             reloaded.AnyPending.ShouldBeTrue();
             reloaded.PendingCount.ShouldBe(1);
@@ -62,7 +62,7 @@ public class DecisionStore
                                       choose: 1
                                     """);
 
-            var store = Core.Decisions.DecisionStore.Load(path);
+            var store = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
 
             store.AnyPending.ShouldBeFalse();
             store.TryGetAnswer("ambig-Foo-2", out var choice).ShouldBeTrue();
@@ -98,7 +98,7 @@ public class DecisionStore
                 Q = "2 symbols match 'Foo'",
                 Options = new Dictionary<int, string> { [0] = "a", [1] = "b" }
             });
-            store.Save(path);
+            new Adapters.Decisions.YamlDecisionFileStore().Save(path, store);
 
             var text = File.ReadAllText(path);
 
