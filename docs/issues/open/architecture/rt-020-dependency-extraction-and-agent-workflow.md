@@ -1,6 +1,6 @@
 # RT-020: Dependency extraction and agent workflow
 
-- Status: In progress
+- Status: Awaiting independent completion review
 - Authority: accepted implementation plan in the 2026-09-29 development session
 
 ## Acceptance
@@ -46,13 +46,44 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Documentation gate: reviewed the changed Core contracts and implementation fingerprints, documented copying/error/preview semantics, and updated only the affected review-index entries. Both public-Core documentation checks pass.
 
-## Findings to aggregate
+## Final verification
 
-- Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.
-- Workspace acquisition reports partial evidence for transitive test-project references; do not treat relationship absence as complete proof.
-- MCP suggest advertises no workspace argument but inherits requirements that reject a workspace-free call.
-- Agent skill and feedback documentation contain stale command paths and capability claims.
+Verified source at `bc059c0` (subsequent candidate preparation changes only this record):
 
-## Related work
+- `bash scripts/check-local.sh --full`: PASS. Debug build, 3,178 Core/CLI tests, 230 MCP tests, nine existing Core/CLI skips, and full format verification.
+- `dotnet build RoslynTools.slnx -c Release -v minimal` and `dotnet test RoslynTools.slnx -c Release --no-build -v minimal`: PASS with the same counts.
+- `npm test`: PASS, seven content checks, generated command reference/site build, four built-site checks. Six agent-hook tests and three portable skill validations also pass.
+- CLI and MCP self-contained `linux-x64` publishes: PASS. Published CLI primer/suggestion/semantic text diff and actual MCP initialize/list/prime/suggest protocol calls: PASS.
+- rt production architecture check: six projects, zero violations. The full solution stops safely at an unresolved `FixtureCases` binding in a test source; retain that limitation. Build/package/compiled-reference tests independently cover inner boundaries and host/test references.
+- Adapter line coverage: 99.5%; the existing unknown-enum semantic-renderer fallback is unexecuted. Final adapter mutation report: 164 assertion kills, 21 timeouts, one equivalent survivor, no uncovered mutants; compile errors and ignored mutants are reported separately. Scoped Core and MCP reports retain legacy survivors/uncovered branches and do not establish whole-file mutation completeness. All covering/killing test identifiers resolve; isolated calibration faults fail assertions in each owning assembly.
+- One formatting-only correction reformatted the newly added anonymous protocol request object; unrelated formatting was preserved.
 
-Shared reflection changes are owned by the ai-rules repository in an isolated worktree. Its existing unrelated working changes and unpublished commit must be preserved.
+Raw logs, command/revision/exit metadata, calibration, coverage, mutation attribution and clean checkpoints live under ignored `artifacts/dependency-extraction/`. The exact candidate manifest and independent verdict are retained there for this handoff. Final publication requires that review and unchanged upstream.
+
+## Measured compact discovery
+
+Published binary, same `suggest "find callers of a method" --top 3` request: JSON emits 5,806 bytes; `--llm` emits 1,432 bytes (75.3% smaller). These are byte measurements, not token counts or a universal ratio. Start with `prime` (835 bytes in JSON), then bounded suggestions and scoped help; the full compact catalogue is 6,867 bytes and serves broader discovery. Retain completeness/safety diagnostics when projecting results.
+
+## Aggregate reflection
+
+| Evidence | Narrow owner / proposed improvement | Disposition and trade-off |
+|---|---|---|
+| `extract-interface` FQN lookup failed; short name worked; preview lists files/members without patch text | rt symbol resolver and preview contract: consistent identities plus optional bounded patches | Recorded for follow-up; keep caller checks and complete Git diff review until supported. Rich previews must remain bounded. |
+| No operation expresses extracting persistence behind a port and rewiring host lifetime; `move-slice` refused incomplete acquisition | rt refactoring surface: assess a persistence-boundary or dependency-extraction plan tool | Manual extraction preserved behavior after clean checkpoints. Do not relax evidence safety to reduce manual work. A general planner needs a proved behavioral contract. |
+| Relationship responses include large workspace diagnostic envelopes | rt result projection: compact summaries with retrievable diagnostic detail/completeness | Follow-up proposal. Current callers inspect bounded structured data; hiding completeness warnings would make absence claims unsafe. |
+| MCP suggest rejected workspace-free input; generic lists advertised strings; variant branches omitted applicable fields | shared command metadata / MCP schema builder | Fixed with actual protocol/schema RED cases. Preserve metadata as the single command authority. |
+| Published feedback examples used a stale path; App-only parsing omitted Program's maintainer projection | command metadata / discovery tests / use-rt skill | Fixed and verified through the actual CLI entrypoint. In-process tests remain preferable where they cover the real entrypoint; spawned tests are excluded from mutation attribution. |
+| Clean-check and dry-run/application defaults were easy to miss | repo use-rt and refactoring-slices guidance | Added explicit same-HEAD/empty-status checks and exact command help routing. Capture findings between operations, never between the final clean check and apply. |
+| New declarative build guard triggers conservative custom-target workspace cache exclusion | rt workspace input fingerprinting | Preserve safety. Follow-up: distinguish proved pure validation targets from evaluation side effects; false reuse would be worse than an extra load. Cache tests now use isolated inputs. |
+| Full-solution architecture analysis stops at unresolved test `FixtureCases`; production-only six-project analysis passes | rt acquisition / architecture analysis | Record the full failure and scoped success separately. Imported-package and compiled/project guards provide additional independent evidence; no complete full-solution analysis claim. |
+| `check-local.sh` lacks executable mode although examples invoke it directly | repo verification entrypoint documentation or file mode | Follow-up; this session used `bash scripts/check-local.sh --full`. |
+| Root Stryker config cannot cover moved adapter/MCP source through the Core project; console status totals obscure compile errors/ignored cases | assembly-owned mutation configs and evidence reader | Added scoped owning configs, calibration and resolved test attribution. Use JSON counts; distinguish timeout from assertion kill. Future legacy CLI/MCP root globs need separate owning targets. |
+| Repeated small observations could distract from delivery or become unreviewed standing rules | shared ai-rules reflection + delivery/review skill | Implemented quiet capture/dedup in existing authorized records and aggregate handoff; exceptions only for active correctness, safety, evidence or progress. Future memory/rule changes retain owner authority. No compulsory journal. |
+
+No general rt planner, workspace cache relaxation, or blanket follow-up tool work is claimed complete. These are candidates for owner prioritization; the current dependency boundary and discovery fixes are independently verifiable.
+
+## Shared ai-rules publication boundary
+
+The quiet continuous-reflection policy is implemented and separately reviewed at `a6b8d943d2eb31a71403964406bfc97e1d860a6c` on `work/continuous-reflection` in `/home/dan/code/ai-rules-continuous-reflection`. Generated-policy, installer, scaffold, convention and skill checks pass; an independent scenario review is PASS. This changes the shared reflection rule, reflect skill, and delivery/review procedures together.
+
+That branch remains unpublished because ai-rules requires explicit user push approval. The durable ai-rules checkout's unrelated unpushed commit and five dirty files are preserved. Installed global links still point to that durable checkout; this work does not claim global activation or client reload. Its reconciliation and publication are handed back explicitly rather than overwriting local work.
