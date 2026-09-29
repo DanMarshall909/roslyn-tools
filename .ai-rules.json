@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "resources": {
+    "memory": {
+      "reserveMiBPerActiveWorktree": 8192,
+      "basis": "estimated",
+      "estimateReason": "Allow 8 GiB for a .NET solution build, both test projects, Roslyn workspace analysis, and scoped mutation work until a representative successful process-group peak is measured."
+    }
+  }
+}

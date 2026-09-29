@@ -58,7 +58,7 @@ Verified source at `bc059c0` (subsequent candidate preparation changes only this
 - Adapter line coverage: 99.5%; the existing unknown-enum semantic-renderer fallback is unexecuted. Final adapter mutation report: 164 assertion kills, 21 timeouts, one equivalent survivor, no uncovered mutants; compile errors and ignored mutants are reported separately. Scoped Core and MCP reports retain legacy survivors/uncovered branches and do not establish whole-file mutation completeness. All covering/killing test identifiers resolve; isolated calibration faults fail assertions in each owning assembly.
 - One formatting-only correction reformatted the newly added anonymous protocol request object; unrelated formatting was preserved.
 
-Raw logs, command/revision/exit metadata, calibration, coverage, mutation attribution and clean checkpoints live under ignored `artifacts/dependency-extraction/`. The exact candidate manifest and independent verdict are retained there for this handoff. Final publication requires that review and unchanged upstream.
+Raw logs, command/revision/exit metadata, calibration, coverage, mutation attribution and clean checkpoints live under ignored `artifacts/dependency-extraction/`. The exact candidate manifest and independent verdict are retained there. The reviewed roslyn-tools implementation was published to `main` through normal pushes with unchanged upstream.
 
 ## Measured compact discovery
 
@@ -86,10 +86,12 @@ No general rt planner, workspace cache relaxation, or blanket follow-up tool wor
 
 The quiet continuous-reflection policy is implemented and separately reviewed at `a6b8d943d2eb31a71403964406bfc97e1d860a6c` on `work/continuous-reflection` in `/home/dan/code/ai-rules-continuous-reflection`. Generated-policy, installer, scaffold, convention and skill checks pass; an independent scenario review is PASS. This changes the shared reflection rule, reflect skill, and delivery/review procedures together.
 
-After explicit user approval, `work/continuous-reflection` was pushed to origin at `a6b8d943d2eb31a71403964406bfc97e1d860a6c`; the remote ref was verified. The durable ai-rules checkout's unrelated unpushed commit and five dirty files are preserved. The default branch and global installation have not incorporated this change, so client reload and policy activation are not claimed. Reconciliation of the preserved checkout remains a separate step.
+After explicit user approval, `work/continuous-reflection` was pushed to origin at `a6b8d943d2eb31a71403964406bfc97e1d860a6c`; the remote ref was verified. That was an intermediate publication checkpoint. The preserved durable checkout was subsequently reconciled, independently reviewed, and integrated into the ai-rules default branch at `27e4dfa5df92d09f9ee9ab59e18a3b669c3a197f`. The durable checkout is clean and synchronized with `origin/master`, and the installed global `reflect` skill resolves to that checkout. New agent sessions receive the integrated policy; already running clients may require a reload.
 
 ## Decision log
 
 2026-09-29: Independent completion review passed for the frozen implementation and this exact archive update. Resolve the roslyn-tools implementation after the verified dependency, compatibility, discovery and local reflection changes. Publish only the reviewed roslyn-tools tree through a normal push with unchanged upstream. The separate ai-rules branch remains a reviewed, unpublished handoff pending its owner's push approval and reconciliation of preserved durable-checkout work.
 
 2026-09-29: The user approved publishing the reviewed ai-rules branch. Pushed `work/continuous-reflection` and confirmed the remote points to `a6b8d943`; preserved the existing ai-rules checkout and installed guidance.
+
+2026-09-29: Supersede the earlier ai-rules handoff boundary after reconciling the durable checkout. The independently reviewed quiet-reflection policy and repository-resource guidance are on clean, synchronized `ai-rules` `master` at `27e4dfa`; installed global rule links resolve there. Running clients may need to reload their session instructions.
