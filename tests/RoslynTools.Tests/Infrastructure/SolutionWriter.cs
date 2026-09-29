@@ -96,6 +96,7 @@ public class SolutionWriter : IDisposable
             (l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))).ToArray();
 
         diffLines.ShouldBeEmpty();
+        lines.ShouldNotContain(line => line.StartsWith("@@", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -111,6 +112,30 @@ public class SolutionWriter : IDisposable
         lines.Count(line => line.StartsWith("@@", StringComparison.Ordinal)).ShouldBe(expectedHunks);
         if (gap == 6)
             lines.ShouldContain("@@ -1,8 +1,8 @@");
+    }
+
+    [Theory]
+    [InlineData(true, "@@ -14,7 +15,7 @@")]
+    [InlineData(false, "@@ -14,7 +13,7 @@")]
+    public void later_hunks_report_original_and_updated_line_numbers(bool insert, string expectedHeader)
+    {
+        var original = Enumerable.Range(1, 20).Select(number => number.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        var updated = new List<string>(original);
+        if (insert)
+            updated.Insert(1, "inserted");
+        else
+            updated.RemoveAt(1);
+        updated[updated.IndexOf("17")] = "changed";
+
+        new ConsoleSolutionWriteOutput().DocumentDiff(string.Join('\n', original), string.Join('\n', updated), "test.cs");
+
+        var lines = _output.ToString().Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+        lines.ShouldContain("--- test.cs");
+        lines.ShouldContain("+++ test.cs");
+        lines.ShouldContain(expectedHeader);
+        lines.ShouldContain(" 16");
+        lines.ShouldContain("-17");
+        lines.ShouldContain("+changed");
     }
 
     [Fact]

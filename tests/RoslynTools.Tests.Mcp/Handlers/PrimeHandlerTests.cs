@@ -27,6 +27,7 @@ public sealed class PrimeHandlerTests
         tool.inputSchema["type"].ShouldBe("object");
         tool.inputSchema.ShouldNotContainKey("properties");
         tool.inputSchema.ShouldNotContainKey("required");
+        tool.inputSchema.ShouldNotContainKey("oneOf");
         tool.annotations.readOnlyHint.ShouldBeTrue();
         tool.annotations.destructiveHint.ShouldBeFalse();
         tool.metadata["rt/effects"].ShouldBe(Array.Empty<string>());

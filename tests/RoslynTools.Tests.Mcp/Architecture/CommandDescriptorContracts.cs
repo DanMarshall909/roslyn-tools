@@ -541,6 +541,7 @@ public sealed class CommandDescriptorContracts
             variant.GetProperty("properties").GetProperty("mode")
                 .GetProperty("enum")[0].GetString() == "Batch");
 
+        single.GetProperty("properties").GetProperty("mode").GetProperty("type").GetString().ShouldBe("string");
         foreach (var name in new[] { "symbol", "new-name", "solution" })
             single.GetProperty("properties").GetProperty(name).GetProperty("type").GetString()
                 .ShouldBe("string");
@@ -568,6 +569,19 @@ public sealed class CommandDescriptorContracts
         batch.GetProperty("not").GetProperty("anyOf").EnumerateArray()
             .Select(rule => rule.GetProperty("required")[0].GetString())
             .ShouldBe(["symbol", "new-name"], ignoreOrder: true);
+    }
+
+    [Theory]
+    [InlineData("suggest_command", "top")]
+    [InlineData("dependency_graph", "depth")]
+    public void discovery_exposes_integer_limits_including_nullable_values(string toolName, string property)
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
+            .All.Single(candidate => candidate.ToolName == toolName);
+        using var schema = JsonDocument.Parse(JsonSerializer.Serialize(ToolSchemaBuilder.Build(descriptor).inputSchema));
+        schema.RootElement.GetProperty("properties").GetProperty(property).GetProperty("type").GetString()
+            .ShouldBe("integer");
     }
 
     [Fact]

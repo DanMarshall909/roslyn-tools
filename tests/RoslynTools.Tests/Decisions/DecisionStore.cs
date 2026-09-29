@@ -172,7 +172,8 @@ public class DecisionStore
 
             var text = File.ReadAllText(path);
 
-            text.ShouldStartWith("# rt decisions", Case.Sensitive);
+            text.ShouldStartWith("# rt decisions — fill `choose:` for each entry, then re-run the same command." + Environment.NewLine
+                + "# `choose:` is the integer index of the option you want." + Environment.NewLine, Case.Sensitive);
             text.ShouldContain("ambig-Foo-2", Case.Sensitive);
             text.ShouldContain("choose:", Case.Sensitive);
         }
