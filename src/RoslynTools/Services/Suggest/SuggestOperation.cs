@@ -53,8 +53,21 @@ internal static class SuggestCommandDefinition
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.InProcess,
         [],
-        product: CommandProductMetadata.FromLegacy(
-            Info,
-            CommandSafety.ReadOnly,
-            maturity: CapabilityMaturity.Experimental));
+        product: new CommandProductMetadata(
+            CapabilityMaturity.Experimental,
+            CommandEffects.None,
+            ConditionallyMutable: false,
+            CommandIdempotency.Idempotent,
+            CommandAudience.Public,
+            TrustRequirement.None,
+            WorkspaceRequirement.None,
+            Prerequisites: [],
+            CommandCost.Low,
+            CancellationSupport.Cooperative,
+            new CommandResourceLimits(
+                DefaultTimeoutMilliseconds: 5_000,
+                MaximumItems: 100,
+                MaximumOutputBytes: 1_048_576),
+            Limitations: [],
+            Info.Examples));
 }

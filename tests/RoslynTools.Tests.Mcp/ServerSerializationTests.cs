@@ -273,6 +273,36 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("suggest_command", "{\"query\":\"extract an interface from a class\",\"top\":3}", "results")]
+    [InlineData("prime", "{}", "hotCommands")]
+    public async Task discovery_works_with_an_empty_persistent_trust_registry(
+        string tool, string arguments, string resultProperty)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"rt-discovery-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var registry = new RepositoryTrustRegistry(Path.Combine(directory, "trust.json"));
+            using var argumentDocument = JsonDocument.Parse(arguments);
+            var request = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0", method = "tools/call", id = 7,
+                @params = new { name = tool, arguments = argumentDocument.RootElement }
+            });
+            var output = await RunSingleRequestAsync(request, new McpHostOptions(trustRegistry: registry));
+            using var document = JsonDocument.Parse(output);
+            var result = document.RootElement.GetProperty("result");
+            result.GetProperty("isError").GetBoolean().ShouldBeFalse(output);
+            result.GetProperty("structuredContent").GetProperty(resultProperty).GetArrayLength()
+                .ShouldBeGreaterThan(0);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task suggest_requires_its_typed_query_through_the_protocol()
     {

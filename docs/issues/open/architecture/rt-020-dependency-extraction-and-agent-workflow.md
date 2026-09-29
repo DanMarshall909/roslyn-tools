@@ -34,6 +34,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Dependency guard: evaluated direct/imported package and outward project references fail with RTDEP001/RTDEP002. Six injected violations were RED before enforcement; all seven policy tests and 19 host boundary tests now pass. Compiled Core/Hosting references and the rt architecture graph enforce the inward boundary.
 
+- Workspace-free discovery: explicit suggest metadata now matches its catalogue-only behavior. The production-style empty trust registry regression reproduced InvalidInput before the fix; prime and suggest protocol calls now succeed. All 29 serialization/prime tests pass.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.
