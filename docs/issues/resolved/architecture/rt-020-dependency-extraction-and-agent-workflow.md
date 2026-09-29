@@ -1,6 +1,6 @@
 # RT-020: Dependency extraction and agent workflow
 
-- Status: Awaiting independent completion review
+- Status: Resolved
 - Authority: accepted implementation plan in the 2026-09-29 development session
 
 ## Acceptance
@@ -87,3 +87,7 @@ No general rt planner, workspace cache relaxation, or blanket follow-up tool wor
 The quiet continuous-reflection policy is implemented and separately reviewed at `a6b8d943d2eb31a71403964406bfc97e1d860a6c` on `work/continuous-reflection` in `/home/dan/code/ai-rules-continuous-reflection`. Generated-policy, installer, scaffold, convention and skill checks pass; an independent scenario review is PASS. This changes the shared reflection rule, reflect skill, and delivery/review procedures together.
 
 That branch remains unpublished because ai-rules requires explicit user push approval. The durable ai-rules checkout's unrelated unpushed commit and five dirty files are preserved. Installed global links still point to that durable checkout; this work does not claim global activation or client reload. Its reconciliation and publication are handed back explicitly rather than overwriting local work.
+
+## Decision log
+
+2026-09-29: Independent completion review passed for the frozen implementation and this exact archive update. Resolve the roslyn-tools implementation after the verified dependency, compatibility, discovery and local reflection changes. Publish only the reviewed roslyn-tools tree through a normal push with unchanged upstream. The separate ai-rules branch remains a reviewed, unpublished handoff pending its owner's push approval and reconciliation of preserved durable-checkout work.
