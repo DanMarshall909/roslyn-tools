@@ -19,6 +19,15 @@ Before editing, state:
 
 Inspect the current branch, working tree, project instructions, and any live specification or tracking issue. Preserve unrelated changes. Do not commit, push, file issues, or mutate external systems unless the user has authorized that action.
 
+Before each individual refactoring, require a clean commit and record HEAD plus
+full status (including untracked files). After dry-run, require the same HEAD
+and empty status immediately before apply. Preserve unexpected edits as evidence;
+do not reset, stash or clean to manufacture a passing checkpoint. Test and commit
+each coherent refactoring before the next, including manual extractions.
+
+Follow [continuous reflection](../../../docs/agent-playbook.md#continuous-reflection)
+quietly during execution; aggregate findings at the normal handoff.
+
 ## Choose the slice type
 
 ### Mechanical symbol change

@@ -32,11 +32,52 @@ rt refactor rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --soluti
 Check exit code, stdout/stderr separation, sensible dry-run diffs, and workspace
 load warnings.
 
+## Continuous reflection
+
+Apply the shared Reflection rule and `reflect` procedure throughout the task.
+Watch for dry-run edits, preview/apply differences, incomplete semantic results,
+misleading discovery, oversized responses, repeated calls, missing operations
+and manual fallback work.
+
+Deduplicate actionable findings in the existing task or maintainer feedback
+record (`rt maintainer feedback add`). Include the command and revision,
+expected and observed behavior, minimal reproduction, workaround and proposed
+acceptance criterion. Measure response bytes and call counts when assessing
+cost; label token estimates as estimates. Preserve completeness and safety
+diagnostics when selecting a smaller result payload.
+
+Record feedback between operations, never between the final clean-commit check
+and applying a confirmed refactoring. Continue the task unless a finding
+threatens current correctness or safety, invalidates required evidence, or
+blocks meaningful progress. Present material findings together when control
+returns to the user. Propose future standing-guidance changes for owner review;
+implement those already authorized by the task.
+
+## Compact discovery and safe application
+
+Start with `rt prime`, then `rt suggest "<intent>" --top 3 --llm`, then the
+chosen command's `--help`. Use `rt dump-help --compact` when the task needs a
+wider catalogue; reserve the full dump for reference generation. Use JSON when
+machine parsing is needed. Choose a bounded file, symbol, project or result
+limit; do not hide partial-workspace warnings to make results look complete.
+
+Before every refactoring, require `git status --porcelain=v1 --untracked-files=all`
+to be empty and record `git rev-parse HEAD`. Run the supported preview, inspect
+its complete proposed changes, and require unchanged HEAD plus empty status
+again immediately before applying. Unexpected edits are defect evidence: keep
+them and investigate before application. Test, review and commit the coherent
+change before starting another refactoring. Manual extractions use the same
+clean checkpoints and caller/behavior evidence.
+
+Inspect each command's apply controls. Some mutators default to preview and
+require `--dry-run false` to write; omitting the flag still previews. Durable
+prepare/apply operations have their own reviewed-plan protocol.
+
 ## Parallel Safety
 
 `rt` is designed for parallel agent worktrees. Known guarded race sites:
 
-- `rt feedback add`: `FeedbackStore.Append` serializes JSON writes with an
+- `rt maintainer feedback add`: `FeedbackStore.Append` serializes JSON writes with an
   in-process semaphore plus `FileShare.None` lock.
 - Wrapper rebuilds: `rt.ps1` uses a named mutex; `rt.sh` uses `flock`.
 - `scripts/deploy-skill.ps1`: retries copy operations and exits cleanly after

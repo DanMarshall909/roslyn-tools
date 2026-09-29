@@ -70,7 +70,7 @@ dotnet tool uninstall --global roslyn-tools-rt
 Ask `rt` which command fits a task:
 
 ```powershell
-rt suggest "find every caller of a method"
+rt suggest "find every caller of a method" --top 3 --llm
 ```
 
 Inspect a type semantically:
@@ -97,7 +97,15 @@ Print the compact session primer used by coding agents:
 rt prime
 ```
 
-MCP clients invoke `prime` with an empty object and receive the same structured primer.
+MCP clients invoke `prime` with `{}` and `suggest_command` with
+`{"query":"find callers of a method","top":3}`. Both work before workspace
+selection or repository trust. Use the selected command's help or MCP input
+schema for its actual arguments and apply controls.
+
+Agents can start with [the use-rt skill](skills/use-rt/SKILL.md). The compact
+path is `prime` → `suggest --top 3 --llm` → scoped `--help`; use
+`dump-help --compact` for a broader catalogue. This keeps discovery bounded
+while preserving warnings about incomplete semantic evidence.
 
 ## Core workflows
 
@@ -320,19 +328,19 @@ Add architecture rules alongside complexity checks to enforce project and depend
 Unhandled `rt` exceptions are recorded automatically. Feature requests and reproducible gaps can also be added manually:
 
 ```powershell
-rt feedback list
-rt feedback list --status all
+rt maintainer feedback list
+rt maintainer feedback list --status all
 
-rt feedback add `
+rt maintainer feedback add `
   --description "replace-new should support multi-argument drops" `
   --command-line "rt refactor replace-new --type Option<string> ..."
 
 # Preview possible duplicate GitHub issues; this does not write anything.
-rt feedback report --id FB-001 --dry-run
+rt maintainer feedback report --id FB-001 --dry-run
 
 # After review, explicitly create a new issue or link an existing one.
-rt feedback report --id FB-001 --yes
-rt feedback report --id FB-001 --attach-to 123
+rt maintainer feedback report --id FB-001 --yes
+rt maintainer feedback report --id FB-001 --attach-to 123
 ```
 
 Inside a checkout containing a `ralph` directory, feedback is stored in `ralph/feedback.json`. Elsewhere it falls back to `~/.rt/feedback.json`.

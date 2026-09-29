@@ -1,7 +1,6 @@
 ---
 name: session-log
 description: "Protocol-first design session: walk through a workflow using real and simulated rt commands, generating expected outputs to discover the right tool contracts before implementing them. Triggers on: /session-log, design session, simulate rt commands, protocol session."
-user-invocable: true
 ---
 
 # session-log — Protocol-First Design Session
@@ -67,8 +66,8 @@ Design rt workflows by declaring commands (real or invented) and generating thei
 - A symbol invented in step 2 must appear with the same name in step 3's diff
 - For simulated mutations, the diff must reflect what the real source file would look like before and after
 - Real commands: always `--dry-run` first for mutations
-- At close, for each simulated command that represents a missing or broken rt feature, log via `rt feedback add` with `--description "rt: <command> — <what it should do>"`.
-- If a real command exits 0 with no output and no error, also log it via `rt feedback add`: `--description "rt: <command> returned empty silently — <what was expected>"`.
+- At close, for each simulated command that represents a missing or broken rt feature, log via `rt maintainer feedback add` with `--description "rt: <command> — <what it should do>"`.
+- If a real command exits 0 with no output and no error, also log it via `rt maintainer feedback add`: `--description "rt: <command> returned empty silently — <what was expected>"`.
 - **Issue logging is on by default** — write issues inline the moment a gap or blocker is found. Do not batch to the retrospective. The user does not need to ask for this.
 - Session files live in `ralph/sessions/` and should be committed — they are specs, not scratch
 

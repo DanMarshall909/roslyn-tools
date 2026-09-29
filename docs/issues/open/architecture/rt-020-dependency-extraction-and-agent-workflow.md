@@ -38,6 +38,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - MCP request discovery: generic sequence inputs now advertise arrays, and request variants carry their applicable fields and common requirements. Three regressions failed before correction; 75 descriptor, move-slice, change-signature, and protocol tests pass. Existing trusted stdio move-slice dry-runs verify advertised arrays deserialize.
 
+- CLI/agent discovery: seven real-catalogue intent cases pass without ranker changes. Actual CLI entrypoint parsing rejects stale feedback examples before correction and accepts both canonical maintainer examples afterward. Refreshed portable skill/entrypoint guidance, compact discovery, preview defaults, clean checkpoints, and quiet reflection. All eight discovery tests, six agent-hook tests, three skill validations and reference generation pass.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

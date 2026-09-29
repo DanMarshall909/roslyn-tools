@@ -79,9 +79,9 @@ internal static class HostCommandMetadata
         true,
         "meta",
         "Recording rt dogfood feedback, bugs, missing features, and unexpected command behavior. "
-        + "Use feedback add to create an item or feedback list to review existing items.",
+        + "Use rt maintainer feedback add to create an item or rt maintainer feedback list to review existing items.",
         [
-            "rt feedback add --description \"rename should also preview related symbols\"",
-            "rt feedback list --status pending"
+            "rt maintainer feedback add --description \"rename should also preview related symbols\"",
+            "rt maintainer feedback list --status pending"
         ]);
 }

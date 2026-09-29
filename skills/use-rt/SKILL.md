@@ -1,53 +1,63 @@
 ---
 name: use-rt
-description: "Reference guide for the rt Roslyn CLI tool — solution-wide C# rename, refactor, navigation, and analysis. Load this when performing any C# refactoring or symbol-navigation task. Triggers on: /use-rt, use rt, roslyn refactoring, rt command."
-user-invocable: true
+description: "Use rt for C# symbol inspection, navigation, dependency analysis, and refactoring before manual Read/Edit. Triggers on: /use-rt, use rt, roslyn refactoring, rt command."
 ---
 
-# rt — Roslyn CLI Reference
+# Use rt for C# work
 
-`rt` is a Roslyn-powered C# refactoring CLI. It performs solution-wide refactoring (rename, move, extract-*, find-refs, etc.) using semantic analysis instead of text matching.
+`rt` uses Roslyn to resolve C# symbols and their references. Install with
+`dotnet tool install -g roslyn-tools-rt`; the current tool targets .NET 10.
+In a checkout, use its wrapper or
+`dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- <arguments>`
+when `rt` is not on PATH. Build from the current source before validating changes.
 
-> **Install:** `dotnet tool install -g roslyn-tools-rt` (requires .NET 8 SDK or later). After install, `rt` is on your PATH.
+## Discover only what the task needs
 
-## Command groups
+1. `rt prime` gives the short session primer without loading a workspace.
+2. `rt suggest "<task in plain English>" --top 3 --llm` ranks candidate commands.
+3. Read the selected command's `--help` for exact parameters and apply controls.
+4. Use `rt dump-help --compact` for a wider catalogue, or `rt dump-help` for the
+   generated full reference. Do not maintain a second command list in this skill.
 
-Every command lives under one of three top-level groups. Either form works:
+MCP offers `prime` with `{}` and `suggest_command` with
+`{"query":"<intent>","top":3}` before selecting or trusting a repository.
+Use the returned tool schema to form arguments; collections are JSON arrays.
+Some tools require explicit repository trust and an absolute solution path.
+Trust is a user decision; do not grant it merely to make discovery work.
 
-```
-rt <group> <command> [args...]   # canonical, e.g. rt refactor extract-method ...
-rt <command> [args...]           # root shortcut — works for every command name
-```
+## Inspect, preview, apply
 
-| Group | Purpose |
-|---|---|
-| `rt inspect` | Read-only: examine a single symbol or file (`describe`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`) |
-| `rt analyze` | Read-only: scan for cross-cutting issues (`circular-deps`, `dependency-graph`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`, and more) |
-| `rt refactor` | Mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.) |
+Use `rt inspect outline <file.cs>` or `rt inspect describe <symbol>` before
+reading or editing existing C# source. Use relationships to find semantic
+callers/references. Pass `--solution <path>` explicitly when targeting matters.
+Prefer bounded symbol/file/project requests and `--llm` for reading or `--json`
+for machine parsing when the command supports them. Keep completeness warnings
+visible; incomplete results cannot prove absence of references.
 
-## Full command reference
+Before each refactoring, start at a clean commit: record HEAD and full Git status,
+including untracked files. Use the supported dry-run/preview, review the complete
+proposal, and require unchanged HEAD and empty status again immediately before
+apply. A dry-run that writes files is a tool defect: preserve its changes as
+evidence and investigate before applying. Test and commit each coherent change
+before the next refactoring, including manual extractions.
 
-The authoritative, always-current reference is the binary itself:
+Check the command's help: some mutators default to preview and require
+`--dry-run false` to apply. Omitting `--dry-run` does not necessarily write.
+Durable prepare/apply commands have their own reviewed-plan protocol.
 
-```sh
-rt dump-help
-```
+If rt cannot express the change, record the gap and use a bounded manual change
+under the same caller, behavior and clean-commit checks. A safety refusal or
+incomplete acquisition requires investigation before any fallback mutation.
 
-This also writes `docs/COMMANDS.md` on each build (gitignored). Use it for flags, examples, aliases, and output format for any specific command.
+## Reflect without interrupting the task
 
-## Solution targeting
+Quietly aggregate repeated calls, excessive response size, discovery mismatches,
+missing operations, preview/apply differences and manual fallback friction in
+an existing authorized task or tool-feedback record. Measure bytes/call counts
+when discussing savings; preserve safety and completeness diagnostics.
 
-Most commands need `--solution <path>`. If omitted, `rt` walks up from the current directory looking for a single `.sln` / `.slnx`. Pass an explicit path when there's ambiguity or when invoking from outside the repo.
-
-## Output conventions
-
-- **Read-only commands** (describe, outline, find-impl, find-duplicates, find-pattern, dependency-graph): JSON to stdout
-- **Mutation commands** (rename, move, extract-*, etc.): plain text diff to stdout
-- **All commands**: diagnostics and progress to stderr; results to stdout
-- **Exit codes**: `0` success, `1` error, `2` decisions required (see `--decisions <path.yaml>`)
-
-## Rules
-
-- Always pass `--dry-run` first for any mutation command, confirm the diff looks correct, then re-run without it
-- All commands support `--dry-run`
-- Never block on a failed `rt` call — fall back to manual edits and continue
+Use `rt maintainer feedback --help` for the current feedback workflow. Capture
+findings between operations, not after the last clean check before apply.
+Continue ordinary work and report material findings together at handoff. Pause
+only affected actions when correctness, safety, required evidence or meaningful
+progress is at risk. Propose new standing-guidance changes for owner review.

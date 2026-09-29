@@ -19,9 +19,9 @@ presence.
 ## Inspect pending feedback
 
 ```powershell
-rt feedback list
-rt feedback list --status processed
-rt feedback list --status all
+rt maintainer feedback list
+rt maintainer feedback list --status processed
+rt maintainer feedback list --status all
 ```
 
 Each item should be classified as one of:
@@ -38,14 +38,14 @@ Do not turn exception text directly into a backlog item without checking the com
 For a genuine defect or sufficiently concrete feature request, preview duplicate candidates first:
 
 ```powershell
-rt feedback report --id FB-001 --dry-run
+rt maintainer feedback report --id FB-001 --dry-run
 ```
 
 After reviewing the candidates, either link an existing issue or explicitly create one:
 
 ```powershell
-rt feedback report --id FB-001 --attach-to 123
-rt feedback report --id FB-001 --yes
+rt maintainer feedback report --id FB-001 --attach-to 123
+rt maintainer feedback report --id FB-001 --yes
 ```
 
 The command records the GitHub issue number and URL on the local feedback entry, so retries do not create duplicates. The generated issue includes:
@@ -63,15 +63,15 @@ It deliberately omits machine-specific working directories, solution paths, and 
 After triage, record the outcome through the CLI:
 
 ```powershell
-rt feedback process --id FB-001 --resolution "Reported as GitHub issue #123"
+rt maintainer feedback process --id FB-001 --resolution "Reported as GitHub issue #123"
 ```
 
 Use a specific resolution, for example:
 
 ```powershell
-rt feedback process --id FB-002 --resolution "Duplicate of FB-001"
-rt feedback process --id FB-003 --resolution "Already fixed by commit abc1234"
-rt feedback process --id FB-004 --resolution "Not actionable: no command line or reproduction"
+rt maintainer feedback process --id FB-002 --resolution "Duplicate of FB-001"
+rt maintainer feedback process --id FB-003 --resolution "Already fixed by commit abc1234"
+rt maintainer feedback process --id FB-004 --resolution "Not actionable: no command line or reproduction"
 ```
 
 ## Optional Claude Code schedule
@@ -80,8 +80,8 @@ Claude Code can perform this triage periodically while it is running. Configure 
 
 ```text
 Schedule a durable daily cron to triage rt feedback. Read pending items through
-rt feedback list, verify each report against the current repository, preview duplicate
-GitHub issues with rt feedback report --dry-run, and present proposed issue actions for
+rt maintainer feedback list, verify each report against the current repository, preview duplicate
+GitHub issues with rt maintainer feedback report --dry-run, and present proposed issue actions for
 human approval. Mark reviewed items processed with a specific resolution.
 ```
 

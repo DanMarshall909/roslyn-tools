@@ -4,8 +4,13 @@ Guidance for agentic coding tools working in this repository.
 
 ## Project skills
 
-@C:\code\roslyn-tools\.agents\skills\session-log\SKILL.md
+@.agents/skills/session-log/SKILL.md
 @.agents/skills/refactoring-slices/SKILL.md
+
+For C# work, start with [use-rt](skills/use-rt/SKILL.md), then `rt prime` and
+`rt suggest "<task>" --top 3 --llm`. Apply
+[continuous reflection](docs/agent-playbook.md#continuous-reflection) quietly
+throughout the task and aggregate material findings at handoff.
 
 ---
 
@@ -16,6 +21,8 @@ Guidance for agentic coding tools working in this repository.
 - Solution: `RoslynTools.slnx`.
 - Main CLI project: `src/RoslynTools.Cli/RoslynTools.Cli.csproj`.
 - Core library project: `src/RoslynTools/RoslynTools.csproj`.
+- Shared hosting project: `src/RoslynTools.Hosting/RoslynTools.Hosting.csproj`.
+- Outer third-party adapters: `src/RoslynTools.Adapters/RoslynTools.Adapters.csproj`.
 - MCP host project: `src/RoslynTools.Mcp/RoslynTools.Mcp.csproj`.
 - Test projects:
   - `tests/RoslynTools.Tests/RoslynTools.Tests.csproj`
@@ -59,7 +66,7 @@ For a compact agent-oriented catalogue:
 ```powershell
 rt dump-help --compact
 rt prime
-rt suggest "<task in plain English>"
+rt suggest "<task in plain English>" --top 3 --llm
 ```
 
 The canonical command metadata lives in each command's `RtCommandInfo`. Do not hand-maintain a second command catalogue.
@@ -96,6 +103,7 @@ The installed SDK must satisfy `global.json`. Use PowerShell syntax by default o
 - Prefer `--json`, `--yaml`, or `--llm` for automation rather than scraping formatted terminal output.
 - Use `--decisions <file>` for repeatable disambiguation instead of interactive selection.
 - Use `--dry-run` before a mutating command when the intended change is not already proven by a narrow test.
+- Start every refactoring at a clean commit. Record HEAD and full status before preview; require the same HEAD and empty status after dry-run and immediately before apply. If a preview writes files, preserve the evidence and investigate. Test and commit each coherent change before the next refactoring.
 - **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: feedback writes, wrapper rebuilds, skill deployment, and isolated MSBuild `obj` directories are protected. See [docs/agent-playbook.md](docs/agent-playbook.md).
 
 ## Build commands
