@@ -20,7 +20,7 @@ internal static class McpServiceRegistration
         HostServiceRegistration.RegisterApplicationInfrastructure(services);
         HostServiceRegistration.RegisterSuggestionCatalog(services);
         HostServiceRegistration.RegisterApplicationCatalog(services);
-        HostServiceRegistration.RegisterCoreApplicationServices(services);
+        AdapterServiceRegistration.RegisterCoreApplicationServices(services);
         services.Replace(ServiceDescriptor.Singleton<ISolutionWriteOutput>(NullSolutionWriteOutput.Instance));
         return services.AddMcpServices(input, output, hostOptions);
     }

@@ -24,13 +24,13 @@ internal sealed class SemanticDiffOperation(
     GitSemanticDiffSourceProvider gitSource,
     FileSemanticDiffSourceProvider fileSource,
     SemanticDiffService engine,
-    SemanticDiffTextRenderer renderer,
+    ISemanticDiffTextRenderer renderer,
     IGitClientFactory gitClients) : CommandApplicationPort<SemanticDiffOperationRequest, SemanticDiffOperationResult>, IRtService
 {
     private readonly GitSemanticDiffSourceProvider _gitSource = gitSource;
     private readonly FileSemanticDiffSourceProvider _fileSource = fileSource;
     private readonly SemanticDiffService _engine = engine;
-    private readonly SemanticDiffTextRenderer _renderer = renderer;
+    private readonly ISemanticDiffTextRenderer _renderer = renderer;
     private readonly IGitClientFactory _gitClients = gitClients;
 
     public override ApplicationCommandDefinition Definition { get; } = new(

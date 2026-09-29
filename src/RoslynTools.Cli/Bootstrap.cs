@@ -35,7 +35,7 @@ internal static class Bootstrap
             sp => sp.GetRequiredService<FeedbackReportOperation>());
         HostServiceRegistration.RegisterApplicationCatalog(services);
         services.AddSingleton<CommandDescriptorRegistry>();
-        HostServiceRegistration.RegisterCoreApplicationServices(services);
+        AdapterServiceRegistration.RegisterCoreApplicationServices(services);
 
         // Register every IRtCommand in this assembly as a transient so commands that move
         // to ctor-injection can be resolved via App.Discover (US-072). The set is small

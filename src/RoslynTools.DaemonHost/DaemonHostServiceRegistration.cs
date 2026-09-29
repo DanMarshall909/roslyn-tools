@@ -15,7 +15,7 @@ internal static class DaemonHostServiceRegistration
         HostServiceRegistration.RegisterApplicationInfrastructure(services);
         HostServiceRegistration.RegisterSuggestionCatalog(services);
         HostServiceRegistration.RegisterApplicationCatalog(services);
-        HostServiceRegistration.RegisterCoreApplicationServices(services);
+        AdapterServiceRegistration.RegisterCoreApplicationServices(services);
         services.AddSingleton<IDaemonSdkContextGuard>(
             new DaemonMsBuildCompatibility(registeredIdentity));
     }

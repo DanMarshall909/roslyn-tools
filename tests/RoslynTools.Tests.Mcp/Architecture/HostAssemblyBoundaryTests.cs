@@ -71,7 +71,7 @@ public sealed class HostAssemblyBoundaryTests
         var services = new ServiceCollection();
 
         HostServiceRegistration.RegisterApplicationCatalog(services);
-        HostServiceRegistration.RegisterCoreApplicationServices(services);
+        AdapterServiceRegistration.RegisterCoreApplicationServices(services);
 
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(ApplicationCommandCatalog));
         services.ShouldContain(descriptor => descriptor.ServiceType == typeof(IProductCapabilityCatalog));

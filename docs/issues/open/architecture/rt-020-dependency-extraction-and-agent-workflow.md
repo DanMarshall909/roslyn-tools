@@ -26,6 +26,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Renderer interface: rt extraction at clean `b52e9db` changed exactly the two previewed files; post-preview HEAD/status were unchanged. All 154 semantic-diff tests passed.
 
+- Composition: Hosting no longer references Scrutor; adapter registration scans the Core and Adapter assemblies, and semantic-diff consumes its neutral port. 176 Core/CLI and 31 MCP tests passed from clean `447ce36`; scoped format verification passed.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.
