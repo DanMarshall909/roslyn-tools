@@ -28,6 +28,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Composition: Hosting no longer references Scrutor; adapter registration scans the Core and Adapter assemblies, and semantic-diff consumes its neutral port. 176 Core/CLI and 31 MCP tests passed from clean `447ce36`; scoped format verification passed.
 
+- Renderer move: rt move-slice safely refused incomplete acquisition evidence and left clean `86c3006` unchanged. Used a byte-identical file move after rt caller inspection; 154 Core/CLI and 20 MCP tests passed.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.
