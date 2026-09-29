@@ -32,6 +32,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Solution previews: DiffPlex and the console preview adapter now live outside Core/Hosting. The neutral sink carries document changes; existing output and prepared-write tests passed (181 Core/CLI, 30 MCP). Clean checkpoint `1e63fe7`.
 
+- Dependency guard: evaluated direct/imported package and outward project references fail with RTDEP001/RTDEP002. Six injected violations were RED before enforcement; all seven policy tests and 19 host boundary tests now pass. Compiled Core/Hosting references and the rt architecture graph enforce the inward boundary.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

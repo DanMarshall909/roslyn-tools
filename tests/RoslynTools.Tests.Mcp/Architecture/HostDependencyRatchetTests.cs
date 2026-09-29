@@ -84,6 +84,19 @@ public sealed class HostDependencyRatchetTests
     }
 
     [Fact]
+    public void reusable_assemblies_reference_only_framework_microsoft_and_inward_core_assemblies()
+    {
+        foreach (var assembly in new[] { typeof(ApplicationCommandCatalog).Assembly, typeof(HostServiceRegistration).Assembly })
+        {
+            var references = assembly.GetReferencedAssemblies().Select(reference => reference.Name!);
+            references.ShouldAllBe(name => name == "System" || name == "netstandard" || name == "mscorlib"
+                || name.StartsWith("System.", StringComparison.Ordinal)
+                || name.StartsWith("Microsoft.", StringComparison.Ordinal)
+                || (assembly == typeof(HostServiceRegistration).Assembly && name == "RoslynTools"));
+        }
+    }
+
+    [Fact]
     public void cli_mcp_and_daemon_compose_the_same_typed_application_contracts()
     {
         var cliServices = new ServiceCollection();

@@ -1,0 +1,23 @@
+<Project>
+    <!-- Evaluate items at execution time so references from later imports are checked too. -->
+    <Target Name="ValidateReusableDependencies"
+            BeforeTargets="CollectPackageReferences;ResolveReferences"
+            Condition="'$(MSBuildProjectName)' == 'RoslynTools' Or '$(MSBuildProjectName)' == 'RoslynTools.Hosting'">
+        <ItemGroup>
+            <_ForbiddenReusablePackage Include="@(PackageReference)"
+                Condition="'%(PackageReference.Identity)' != 'Microsoft.Build.Locator' And
+                           '%(PackageReference.Identity)' != 'Microsoft.Build' And
+                           '%(PackageReference.Identity)' != 'Microsoft.CodeAnalysis.Workspaces.MSBuild' And
+                           '%(PackageReference.Identity)' != 'Microsoft.CodeAnalysis.CSharp.Workspaces' And
+                           '%(PackageReference.Identity)' != 'Microsoft.Extensions.Logging.Abstractions' And
+                           '%(PackageReference.Identity)' != 'Microsoft.Extensions.DependencyInjection' And
+                           !('%(PackageReference.Identity)' == 'Roslynator.Analyzers' And '%(PackageReference.PrivateAssets)' == 'all')" />
+            <_ForbiddenReusableProject Include="@(ProjectReference)"
+                Condition="'$(MSBuildProjectName)' == 'RoslynTools' Or '%(ProjectReference.Filename)' != 'RoslynTools'" />
+        </ItemGroup>
+        <Error Code="RTDEP001" Condition="'@(_ForbiddenReusablePackage)' != ''"
+               Text="$(MSBuildProjectName) has unapproved direct package reference(s): @(_ForbiddenReusablePackage). Put third-party application dependencies in RoslynTools.Adapters; update the approved Microsoft list only after architecture review." />
+        <Error Code="RTDEP002" Condition="'@(_ForbiddenReusableProject)' != ''"
+               Text="$(MSBuildProjectName) has outward project reference(s): @(_ForbiddenReusableProject). Core has no project dependencies; Hosting may reference only Core." />
+    </Target>
+</Project>

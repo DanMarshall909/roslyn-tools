@@ -4,23 +4,78 @@
   "layers": [
     {
       "name": "Core",
-      "projects": ["RoslynTools"],
+      "projects": [
+        "RoslynTools"
+      ],
       "allowedProjectReferences": []
     },
     {
+      "name": "Hosting",
+      "projects": [
+        "RoslynTools.Hosting"
+      ],
+      "allowedProjectReferences": [
+        "Core"
+      ]
+    },
+    {
+      "name": "Adapters",
+      "projects": [
+        "RoslynTools.Adapters"
+      ],
+      "allowedProjectReferences": [
+        "Core",
+        "Hosting"
+      ]
+    },
+    {
+      "name": "Daemon",
+      "projects": [
+        "RoslynTools.DaemonHost"
+      ],
+      "allowedProjectReferences": [
+        "Core",
+        "Hosting",
+        "Adapters"
+      ]
+    },
+    {
       "name": "Cli",
-      "projects": ["RoslynTools.Cli"],
-      "allowedProjectReferences": ["Core"]
+      "projects": [
+        "RoslynTools.Cli"
+      ],
+      "allowedProjectReferences": [
+        "Core",
+        "Hosting",
+        "Adapters",
+        "Daemon"
+      ]
     },
     {
       "name": "Mcp",
-      "projects": ["RoslynTools.Mcp"],
-      "allowedProjectReferences": ["Core", "Cli"]
+      "projects": [
+        "RoslynTools.Mcp"
+      ],
+      "allowedProjectReferences": [
+        "Core",
+        "Hosting",
+        "Adapters"
+      ]
     },
     {
       "name": "Tests",
-      "projects": ["RoslynTools.Tests", "RoslynTools.Tests.Mcp"],
-      "allowedProjectReferences": ["Core", "Cli", "Mcp"],
+      "projects": [
+        "RoslynTools.Tests",
+        "RoslynTools.Tests.Mcp"
+      ],
+      "allowedProjectReferences": [
+        "Core",
+        "Hosting",
+        "Adapters",
+        "Daemon",
+        "Cli",
+        "Mcp"
+      ],
       "allowSameLayerReferences": true
     }
   ]
