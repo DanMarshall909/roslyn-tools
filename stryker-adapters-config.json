@@ -1,0 +1,25 @@
+{
+  "stryker-config": {
+    "configuration": "Release",
+    "reporters": [
+      "json",
+      "cleartext"
+    ],
+    "thresholds": {
+      "high": 100,
+      "low": 95,
+      "break": 0
+    },
+    "concurrency": 4,
+    "additional-timeout": 10000,
+    "project": "src/RoslynTools.Adapters/RoslynTools.Adapters.csproj",
+    "test-projects": [
+      "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+      "tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj"
+    ],
+    "mutate": [
+      "**/*.cs"
+    ],
+    "test-case-filter": "FullyQualifiedName~RoslynTools.Tests.Decisions.DecisionStore|FullyQualifiedName~RoslynTools.Tests.Infrastructure.SolutionWriter|FullyQualifiedName~WriteFixesAsync|FullyQualifiedName~SemanticDiffTextRendererTests|FullyQualifiedName~HostAssemblyBoundaryTests|FullyQualifiedName~HostDependencyRatchetTests|FullyQualifiedName~McpDependencyInjectionTests|FullyQualifiedName~PreparedChangeSetContractTests"
+  }
+}

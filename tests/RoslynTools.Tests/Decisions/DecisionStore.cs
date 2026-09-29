@@ -74,6 +74,76 @@ public class DecisionStore
         }
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \n\t")]
+    [InlineData("null")]
+    public void empty_decision_documents_have_no_pending_choices(string yaml)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, yaml);
+            var store = new Adapters.Decisions.YamlDecisionFileStore().Load(path);
+            store.Entries.ShouldBeEmpty();
+            store.TryGetAnswer("missing", out var choice).ShouldBeFalse();
+            choice.ShouldBe(-1);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void load_preserves_entry_order_answers_and_unknown_property_compatibility()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, """
+                - id: answered
+                  q: First
+                  choose: 0
+                  future-property: ignored
+                - id: pending
+                  q: Second
+                """);
+            var files = new Adapters.Decisions.YamlDecisionFileStore();
+            var store = files.Load(path);
+            store.Add(new DecisionEntry { Id = "answered", Q = "Replacement", Choose = 1 });
+            files.Save(path, store);
+            var reloaded = files.Load(path);
+
+            reloaded.Entries.Select(entry => entry.Id).ShouldBe(["answered", "pending"]);
+            reloaded.Entries[0].Q.ShouldBe("First");
+            reloaded.PendingCount.ShouldBe(1);
+            reloaded.TryGetAnswer("answered", out var choice).ShouldBeTrue();
+            choice.ShouldBe(0);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void malformed_yaml_is_reported_without_replacing_the_file()
+    {
+        var path = Path.GetTempFileName();
+        const string malformed = "- id: [unterminated";
+        try
+        {
+            File.WriteAllText(path, malformed);
+            Should.Throw<YamlDotNet.Core.YamlException>(() => new Adapters.Decisions.YamlDecisionFileStore().Load(path));
+            File.ReadAllText(path).ShouldBe(malformed);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void adds_is_idempotent_for_same_id()
     {

@@ -142,7 +142,14 @@ Stryker.NET is pinned in `.config/dotnet-tools.json` and configured by
 ```powershell
 dotnet tool restore
 dotnet stryker
+dotnet stryker --config-file stryker-adapters-config.json
+dotnet stryker --config-file stryker-mcp-schema-config.json
 ```
+
+Each configuration targets one production assembly. The adapter and MCP schema
+configurations select owning in-process tests and exclude spawned-process
+journeys. Moving code across projects requires changing the mutation target;
+a glob under the Core configuration cannot mutate an outer assembly.
 
 For surviving mutants, choose one valid response: add the missing test, delete
 dead code, or document a genuinely equivalent mutant and add it to the ignore

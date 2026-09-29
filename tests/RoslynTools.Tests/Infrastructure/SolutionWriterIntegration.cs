@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
@@ -7,6 +8,41 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class SolutionWriterIntegration
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task changed_documents_preserve_preview_inputs_and_apply_encoding(bool dryRun)
+    {
+        const string before = "class Original { }";
+        const string after = "class Updated { }";
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", before);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var path = document.FilePath!;
+            var originalBytes = File.ReadAllBytes(path);
+            var updated = solution.WithDocumentText(document.Id, SourceText.From(after, Encoding.Unicode));
+            var output = new RecordingSolutionWriteOutput();
+
+            await Core.SolutionWriter.ApplyChangesAsync(solution, updated, dryRun, output);
+
+            if (dryRun)
+            {
+                File.ReadAllBytes(path).ShouldBe(originalBytes);
+                output.DocumentDiffs.ShouldBe([(before, after, path)]);
+                output.Results.ShouldBeEmpty();
+            }
+            else
+            {
+                File.ReadAllBytes(path).ShouldBe(Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(after)));
+                output.DocumentDiffs.ShouldBeEmpty();
+                output.Results.ShouldContain($"Updated: {path}");
+            }
+        }
+    }
+
     [Fact]
     public async Task writes_added_documents_to_new_files()
     {
@@ -148,14 +184,19 @@ public class SolutionWriterIntegration
 
         internal List<string> Warnings { get; } = [];
 
+        internal List<(string Before, string After, string Path)> DocumentDiffs { get; } = [];
+
         public void Result(string message) => Results.Add(message);
 
         public void Diff(string message)
         {
         }
 
-        public void DocumentDiff(string oldText, string newText, string filePath) =>
+        public void DocumentDiff(string oldText, string newText, string filePath)
+        {
+            DocumentDiffs.Add((oldText, newText, filePath));
             Adapters.SolutionDiffRenderer.PrintDiff(oldText, newText, filePath, this);
+        }
 
         public void Warning(string message) => Warnings.Add(message);
     }

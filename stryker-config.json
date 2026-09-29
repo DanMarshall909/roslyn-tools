@@ -24,7 +24,6 @@
       "**/Services/SemanticDiff/SemanticDiffService.cs",
       "**/Services/SemanticDiff/SemanticDiffDelta.cs",
       "**/Services/SemanticDiff/DeclarationWalker.cs",
-      "**/Services/SemanticDiff/SemanticDiffTextRenderer.cs",
       "**/Commands/AddStaticImportCommand.cs",
       "**/Models/DebugReport.cs",
       "**/RoslynTools.Cli/App.cs",

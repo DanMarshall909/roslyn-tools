@@ -133,6 +133,7 @@ public sealed class HostDependencyRatchetTests
             var output = provider.GetRequiredService<ISolutionWriteOutput>();
             output.Result("result");
             output.Diff("diff");
+            output.DocumentDiff("before", "after", "file.cs");
             output.Warning("warning");
         }
 

@@ -98,6 +98,21 @@ public class SolutionWriter : IDisposable
         diffLines.ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData(6, 1)]
+    [InlineData(7, 2)]
+    public void hunk_merging_respects_six_lines_of_shared_context(int gap, int expectedHunks)
+    {
+        var context = string.Join('\n', Enumerable.Range(1, gap).Select(index => $"context-{index}"));
+        new ConsoleSolutionWriteOutput().DocumentDiff(
+            $"before\n{context}\nafter", $"updated-before\n{context}\nupdated-after", "test.cs");
+
+        var lines = _output.ToString().Split('\n');
+        lines.Count(line => line.StartsWith("@@", StringComparison.Ordinal)).ShouldBe(expectedHunks);
+        if (gap == 6)
+            lines.ShouldContain("@@ -1,8 +1,8 @@");
+    }
+
     [Fact]
     public void produces_separate_hunks()
     {
