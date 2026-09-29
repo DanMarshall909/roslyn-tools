@@ -7225,6 +7225,33 @@
       "resolution": "Reported as GitHub issue #119: https://github.com/DanMarshall909/roslyn-tools/issues/119",
       "gitHubIssueNumber": 119,
       "gitHubIssueUrl": "https://github.com/DanMarshall909/roslyn-tools/issues/119"
+    },
+    {
+      "id": "FB-377",
+      "type": "user-feedback",
+      "timestamp": "2026-09-29T13:12:10.4117969\u002B00:00",
+      "commandLine": "rt inspect outline tests/RoslynTools.Tests.Mcp/ServerSerializationTests.cs --solution RoslynTools.slnx --json",
+      "description": "During RT-012, inspect outline for an existing MCP test file emitted 33,353,887 bytes of JSON for seven requested items; inspect outline --llm for RtConsole emitted 4,049,346 bytes for three items. Repeated workspace diagnostics dominate bounded symbol results and token budgets.",
+      "expectedResult": "Keep completeness and workspace diagnostics visible but summarize or deduplicate them in compact output, with a separate retrievable diagnostic detail artifact or bounded page.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-378",
+      "type": "user-feedback",
+      "timestamp": "2026-09-29T13:12:10.4216027\u002B00:00",
+      "commandLine": "rt suggest \u0022migrate MCP server to official C# SDK while preserving tool registry\u0022 --top 3 --llm",
+      "description": "During an official MCP C# SDK migration, suggest ranked migrate-to-ioptions first (13.91) and move second (6.93); neither performs or meaningfully guides protocol-host migration. The relevant check-architecture appeared third with a sample for another solution.",
+      "expectedResult": "For protocol-host replacement, identify no applicable automatic refactor and rank the relevant architecture analysis and focused inspection commands with repository-local examples.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-379",
+      "type": "user-feedback",
+      "timestamp": "2026-09-29T13:18:01.1485015\u002B00:00",
+      "commandLine": "rt analyze check-architecture --solution RoslynTools.slnx --config .rt/architecture.json --llm",
+      "description": "During RT-012, check-architecture could not evaluate the repository because Dependency binding is unresolved for FixtureCases in tests/RoslynTools.Tests/Analysis/SolidSemanticReviewContractTests.cs line 36. The identical failure occurs on clean main at 52192be and on the SDK worktree, so the analysis gate gives no architecture verdict.",
+      "expectedResult": "Report the unresolved binding with enough project/compilation context to repair it or continue assessing unaffected architecture rules with an explicit partial result and nonzero exit status.",
+      "status": "pending"
     }
   ]
 }

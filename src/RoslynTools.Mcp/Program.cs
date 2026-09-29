@@ -33,7 +33,7 @@ if (hostOptions.ShowHelp)
 
 var services = new ServiceCollection();
 services.AddSingleton(configuration);
-services.AddMcpHostServices(RtConsole.In, RtConsole.Out, hostOptions);
+services.AddMcpHostServices(RtConsole.OpenStandardInput(), RtConsole.OpenStandardOutput(), hostOptions);
 
 using var provider = services.BuildServiceProvider();
 var validatedConfiguration = McpConfigurationValidator.Validate(

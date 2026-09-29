@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using Shouldly;
@@ -8,100 +7,77 @@ using Shouldly;
 namespace RoslynTools.Tests.Mcp;
 
 /// <summary>
-/// Regression tests for US-130 — the rt MCP server must not crash when the
-/// JSON-RPC request id is a default-initialized JsonElement (malformed request,
-/// no parent document) or when a JsonElement's backing document has been
-/// disposed before serialization runs. Both manifest as
-/// <see cref="InvalidOperationException"/> from
-/// <c>System.Text.Json.Serialization.Converters.JsonElementConverter.Write</c>.
+/// Protocol and catalogue tests through the same SDK transport used by the host.
 /// </summary>
 public class ServerSerializationTests
 {
-    private static async Task<string> RunSingleRequestAsync(
+    private static Task<string> RunSingleRequestAsync(
         string requestLine,
-        McpHostOptions? hostOptions = null)
+        McpHostOptions? hostOptions = null) =>
+        McpProtocolHarness.RunAsync(requestLine, hostOptions);
+
+    [Fact]
+    public async Task idless_initialize_before_handshake_emits_no_response()
     {
-        var services = new ServiceCollection();
-        services.AddMcpHostServices(
-            new StringReader(requestLine + Environment.NewLine),
-            new StringWriter(),
-            hostOptions);
-        using var provider = services.BuildServiceProvider();
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}
+            {"jsonrpc":"2.0","method":"initialize","id":42,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}
+            {"jsonrpc":"2.0","method":"notifications/initialized"}
+            {"jsonrpc":"2.0","method":"tools/list","id":43}
+            """);
 
-        var server = provider.GetRequiredService<Server>();
-        await server.RunAsync();
-
-        var output = provider.GetRequiredService<TextWriter>();
-        return output.ToString() ?? string.Empty;
+        var responses = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        responses.Length.ShouldBe(2, output);
+        using var initialize = JsonDocument.Parse(responses[0]);
+        initialize.RootElement.GetProperty("id").GetInt32().ShouldBe(42);
+        using var tools = JsonDocument.Parse(responses[1]);
+        tools.RootElement.GetProperty("id").GetInt32().ShouldBe(43);
+        tools.RootElement.GetProperty("result").GetProperty("tools")
+            .GetArrayLength().ShouldBeGreaterThan(0);
     }
 
     [Fact]
-    public async Task malformed_request_without_id_does_not_crash_and_returns_null_id_error()
+    public async Task malformed_json_returns_a_parse_error_and_the_server_recovers()
     {
-        // Missing `id` field — current code hits SendErrorAsync(default(JsonElement), ...),
-        // and JsonSerializer crashes trying to write a JsonElement with no parent.
-        var output = await RunSingleRequestAsync("""{"jsonrpc":"2.0","method":"initialize"}""");
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","id":9,"method":"tools/list",
+            {"jsonrpc":"2.0","method":"tools/list","id":2}
+            """);
 
-        output.ShouldNotBeNullOrWhiteSpace();
-        using var doc = JsonDocument.Parse(output);
-        var root = doc.RootElement;
-        root.GetProperty("jsonrpc").GetString().ShouldBe("2.0");
-        root.GetProperty("id").ValueKind.ShouldBe(JsonValueKind.Null);
-        root.GetProperty("error").GetProperty("code").GetInt32().ShouldBe(-32700);
-    }
-
-    [Fact]
-    public async Task serialization_fault_emits_internal_error_response_instead_of_throwing()
-    {
-        // Defence-in-depth: even if something inside the response object throws
-        // during serialization, the server must not propagate the exception.
-        // We simulate the disposed-JsonElement case by building a response that
-        // embeds a JsonElement whose document has already been disposed.
-        JsonElement disposedElement;
-        using (var doc = JsonDocument.Parse("""{"x": 1}"""))
-        {
-            disposedElement = doc.RootElement;
-        } // doc disposed — `disposedElement` is now stale.
-
-        var poisoned = new { jsonrpc = "2.0", id = (object?)1, payload = disposedElement };
-        var output = new StringWriter();
-
-        // Server.SendResponseAsync is private; call via the public RunAsync flow
-        // would require routing a path that produces this exact object. Instead
-        // we verify the defence-in-depth behaviour at the level it must hold:
-        // SendResponseAsync must catch and emit a -32603 envelope. Use the
-        // internal IVT seam.
-        var services = new ServiceCollection();
-        services.AddMcpHostServices(new StringReader(string.Empty), output);
-        using var provider = services.BuildServiceProvider();
-        var server = provider.GetRequiredService<Server>();
-
-        // ReSharper disable once AccessToDisposedClosure
-        var act = async () => await server.SendResponseForTestAsync(poisoned);
-        await act.ShouldNotThrowAsync();
-
-        var written = output.ToString();
-        written.ShouldNotBeNullOrWhiteSpace();
-        using var resp = JsonDocument.Parse(written);
-        resp.RootElement.GetProperty("error").GetProperty("code").GetInt32().ShouldBe(-32603);
-        resp.RootElement.GetProperty("id").ValueKind.ShouldBe(JsonValueKind.Null);
+        var responses = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        responses.Length.ShouldBe(2);
+        using var parseError = JsonDocument.Parse(responses[0]);
+        parseError.RootElement.GetProperty("error").GetProperty("code").GetInt32()
+            .ShouldBe(-32700);
+        parseError.RootElement.GetProperty("id").GetInt32().ShouldBe(9);
+        using var discovery = JsonDocument.Parse(responses[1]);
+        discovery.RootElement.GetProperty("id").GetInt32().ShouldBe(2);
+        discovery.RootElement.GetProperty("result").GetProperty("tools")
+            .GetArrayLength().ShouldBeGreaterThan(0);
     }
 
     [Fact]
     public async Task initialize_request_with_numeric_id_round_trips_as_number()
     {
-        var output = await RunSingleRequestAsync("""{"jsonrpc":"2.0","method":"initialize","id":42}""");
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"initialize","id":42,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}""");
 
         using var doc = JsonDocument.Parse(output);
         var idEl = doc.RootElement.GetProperty("id");
         idEl.ValueKind.ShouldBe(JsonValueKind.Number);
         idEl.GetInt64().ShouldBe(42);
+        var serverInfo = doc.RootElement.GetProperty("result").GetProperty("serverInfo");
+        serverInfo.GetProperty("name").GetString().ShouldBe("roslyn-tools-mcp");
+        serverInfo.GetProperty("version").GetString().ShouldBe("1.0.0");
     }
 
     [Fact]
     public async Task initialize_request_with_string_id_round_trips_as_string()
     {
-        var output = await RunSingleRequestAsync("""{"jsonrpc":"2.0","method":"initialize","id":"abc-123"}""");
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"initialize","id":"abc-123","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}""");
 
         using var doc = JsonDocument.Parse(output);
         var idEl = doc.RootElement.GetProperty("id");
@@ -114,7 +90,7 @@ public class ServerSerializationTests
     {
         var output = await RunSingleRequestAsync(
             """
-            {"jsonrpc":"2.0","method":"initialize","id":1}
+            {"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}
             {"jsonrpc":"2.0","method":"notifications/initialized"}
             {"jsonrpc":"2.0","method":"tools/list","id":2}
             """);
@@ -125,22 +101,6 @@ public class ServerSerializationTests
         initialize.RootElement.GetProperty("id").GetInt32().ShouldBe(1);
         using var tools = JsonDocument.Parse(responses[1]);
         tools.RootElement.GetProperty("id").GetInt32().ShouldBe(2);
-    }
-
-    [Theory]
-    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", true)]
-    [InlineData("{\"jsonrpc\":\"1.0\",\"method\":\"notifications/initialized\"}", false)]
-    [InlineData("{\"method\":\"notifications/initialized\"}", false)]
-    [InlineData("{\"jsonrpc\":\"2.0\"}", false)]
-    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\"}", false)]
-    [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"id\":1}", false)]
-    public void initialized_notification_requires_the_exact_notification_shape(
-        string json,
-        bool expected)
-    {
-        using var document = JsonDocument.Parse(json);
-
-        Server.IsInitializedNotification(document.RootElement).ShouldBe(expected);
     }
 
     [Fact]
@@ -180,6 +140,19 @@ public class ServerSerializationTests
         result.GetProperty("isError").GetBoolean().ShouldBeFalse();
         result.GetProperty("structuredContent").GetProperty("hotCommands")
             .GetArrayLength().ShouldBe(6);
+    }
+
+    [Fact]
+    public async Task call_without_arguments_uses_an_empty_argument_object()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/call","id":7,"params":{"name":"prime"}}""");
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        result.GetProperty("structuredContent").GetProperty("hotCommands")
+            .GetArrayLength().ShouldBeGreaterThan(0);
     }
 
     [Fact]

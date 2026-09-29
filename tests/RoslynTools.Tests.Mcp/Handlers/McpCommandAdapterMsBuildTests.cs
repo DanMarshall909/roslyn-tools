@@ -494,7 +494,7 @@ public sealed class McpCommandAdapterMsBuildTests
     private static ServiceProvider CreateProvider(Action<IServiceCollection> addPorts)
     {
         var services = new ServiceCollection();
-        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpHostServices(Stream.Null, Stream.Null);
         services.RemoveAll<ICommandApplicationPort>();
         addPorts(services);
         return services.BuildServiceProvider();

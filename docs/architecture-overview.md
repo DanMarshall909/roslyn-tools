@@ -935,7 +935,7 @@ If two surfaces describe the same fact, the catalogue wins and CI rejects the dr
 
 ## MCP boundary
 
-The preferred MCP implementation is the official C# SDK. A handwritten protocol implementation is acceptable only with equivalent spawned-process conformance evidence for every advertised protocol version.
+The MCP host uses the official C# SDK for stdio framing and the protocol lifecycle. The host projects its shared typed catalogue into SDK tools and maps SDK calls back to application ports; Core and Hosting have no MCP protocol dependency. Spawned-process tests cover legacy `initialize` versions and current `server/discover`. Broader conformance remains open under RT-012. See [ADR-0080](adr/0080-official-mcp-sdk-transport.md).
 
 Stable MCP behaviour includes:
 
@@ -1116,7 +1116,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   The wider process interruption matrix, shared authority, and physical effect
   broker remain open.
 - **Workspace completeness remains local and operation-scoped.** Production MSBuild acquisition can close its declared manifest and certify `Complete`; arbitrary `AdhocWorkspace` instances remain unverified, and operations that depend on analyzer output or narrower compilation contexts must extend and validate their own manifest premises. Complete local acquisition does not establish a runtime closed world for reflection, framework activation, generated consumers, or external callers.
-- **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
+- **MCP is experimental until conformance gates pass.** The SDK transport and structured tool results are in place; pagination, cancellation, and other spawned-process conformance gates remain open under RT-012.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
 - **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.

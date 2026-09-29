@@ -20,6 +20,11 @@ internal static class RtConsole
     internal static TextReader In => Current.In;
 
     /// <summary>
+    /// Opens the raw standard input stream for a protocol host.
+    /// </summary>
+    internal static Stream OpenStandardInput() => Console.OpenStandardInput();
+
+    /// <summary>
     /// Checks if the console input is redirected (piped) rather than a TTY.
     /// </summary>
     internal static bool IsInputRedirected => Current.IsInputRedirected;
@@ -28,6 +33,11 @@ internal static class RtConsole
     /// Writes output to the console.
     /// </summary>
     internal static TextWriter Out => Current.Out;
+
+    /// <summary>
+    /// Opens the raw standard output stream for a protocol host.
+    /// </summary>
+    internal static Stream OpenStandardOutput() => Console.OpenStandardOutput();
 
     /// <summary>
     /// Checks if the console output is redirected.

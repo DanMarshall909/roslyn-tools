@@ -160,7 +160,7 @@ public sealed class HostAssemblyBoundaryTests
 
         using var daemonProvider = daemonServices.BuildServiceProvider();
         using var mcpProvider = new ServiceCollection()
-            .AddMcpHostServices(TextReader.Null, TextWriter.Null)
+            .AddMcpHostServices(Stream.Null, Stream.Null)
             .BuildServiceProvider();
         daemonProvider.GetRequiredService<ApplicationCommandCatalog>().All
             .Select(descriptor => descriptor.ToolName)

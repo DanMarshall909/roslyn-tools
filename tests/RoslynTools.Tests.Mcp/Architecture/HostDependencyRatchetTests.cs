@@ -104,7 +104,7 @@ public sealed class HostDependencyRatchetTests
         using var cliProvider = cliServices.BuildServiceProvider();
 
         using var mcpProvider = new ServiceCollection()
-            .AddMcpHostServices(TextReader.Null, TextWriter.Null)
+            .AddMcpHostServices(Stream.Null, Stream.Null)
             .BuildServiceProvider();
 
         var daemonServices = new ServiceCollection();
@@ -124,7 +124,7 @@ public sealed class HostDependencyRatchetTests
     public void mcp_solution_write_reports_do_not_escape_to_the_process_console()
     {
         using var provider = new ServiceCollection()
-            .AddMcpHostServices(TextReader.Null, TextWriter.Null)
+            .AddMcpHostServices(Stream.Null, Stream.Null)
             .BuildServiceProvider();
         var console = new CapturingConsole();
 

@@ -38,10 +38,10 @@ needs local filesystem and MSBuild access, so the preferred distribution should
 be a versioned MCP Bundle if client support is adequate, with self-contained
 platform release artifacts as the immediate portable baseline.
 
-The MCP host also implements protocol dispatch directly and reports protocol
-version `2024-11-05`. Distribution work is the natural point to move protocol
-lifecycle, version negotiation, cancellation, schemas, and structured errors to
-the official MCP C# SDK rather than extending the handwritten transport.
+The MCP host previously implemented protocol dispatch directly and reported
+protocol version `2024-11-05`. The official MCP C# SDK now owns the protocol
+lifecycle and version negotiation. Pagination, long-running cancellation, and
+broader conformance remain part of this distribution issue.
 
 ## Acceptance Criteria
 
@@ -82,15 +82,19 @@ the official MCP C# SDK rather than extending the handwritten transport.
       self-check and fail closed on launcher, build-host, or MCP handshake errors. SDK
       selection is reported; it becomes fatal when an in-scope `global.json` request
       cannot be selected, while installation and MCP startup do not require a separate SDK.
-- [ ] The MCP host uses the official MCP C# SDK for supported protocol-version
+- [x] The MCP host uses the official MCP C# SDK for supported protocol-version
       negotiation and legacy fallback rather than maintaining a bespoke
-      lifecycle implementation.
+      lifecycle implementation. Spawned tests cover legacy `initialize` at
+      `2024-11-05`, `2025-03-26`, `2025-06-18`, and `2025-11-25`, plus
+      `server/discover` at `2026-07-28`; see ADR-0080.
 - [x] A controlled spawned-stdio integration test proves that the doctor handshake
       accepts only valid newline-delimited MCP responses, validates discovery schemas,
       captures stderr separately, and terminates a timed-out child process. Broader server
       lifecycle coverage remains below.
-- [ ] Full MCP server integration tests prove that stdout contains only valid,
+- [x] Full MCP server integration tests prove that stdout contains only valid,
       newline-delimited MCP messages and that diagnostics are written to stderr.
+      The spawned host tests read each response as JSON, require no extra stdout,
+      and exercise invalid startup options with separately captured stderr.
 - [ ] Integration tests cover capability discovery, `tools/list` pagination and
       schemas, `tools/call` success and structured failure, cancellation, and
       graceful shutdown for every supported protocol era.
@@ -121,3 +125,4 @@ the official MCP C# SDK rather than extending the handwritten transport.
 | 2026-09-10 | Add a preview per-user Git common-directory trust registry | A stable MCP registration can serve newly registered task worktrees. Each request still validates its target, while startup and invocation-scoped trust remain compatible. The Git-object anchor is continuity hardening, not ADR-0011 OS physical identity. |
 | 2026-09-10 | Publish a repo marketplace with a portable Agent Plugins 1.0 MCP bundle | The bundle owns a stable bare-command stdio transport and retains a compatibility Codex manifest. Portable schemas cannot yet express Codex startup-required or timeout policy, so those guarantees remain explicitly incomplete. |
 | 2026-09-10 | Make installation verification an installed-launcher doctor mode | Installers now execute `rt inspect doctor --installation-only`. The CLI host owns process and SDK probing, core consumes injected typed results, and MSBuild registration occurs only after repository trust authorizes normal solution loading. |
+| 2026-09-29 | Delegate stdio protocol lifecycle to the official MCP C# SDK | The five pinned-SDK protocol versions have spawned handshake, discovery, invocation, and EOF evidence. The shared tool catalogue and application ports remain host-neutral. Pagination, long-running cancellation, and wider malformed-input conformance remain open. |

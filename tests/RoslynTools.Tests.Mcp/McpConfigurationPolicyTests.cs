@@ -151,13 +151,30 @@ public sealed class McpConfigurationPolicyTests
         startInfo.Environment["LOCALAPPDATA"] = Path.Combine(fixture.Home, ".local", "share");
         using var process = Process.Start(startInfo)
                             ?? throw new InvalidOperationException("Failed to start the MCP host.");
+        var response = string.Empty;
         if (input is not null)
+        {
+            await process.StandardInput.WriteLineAsync(
+                """{"jsonrpc":"2.0","method":"initialize","id":-1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"rt-tests","version":"1.0"}}}""");
+            await process.StandardInput.FlushAsync();
+            var initialization = await process.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(10));
+            initialization.ShouldNotBeNullOrWhiteSpace();
+            using (var document = JsonDocument.Parse(initialization))
+                document.RootElement.GetProperty("id").GetInt32().ShouldBe(-1);
+            await process.StandardInput.WriteLineAsync(
+                """{"jsonrpc":"2.0","method":"notifications/initialized"}""");
             await process.StandardInput.WriteLineAsync(input);
+            await process.StandardInput.FlushAsync();
+            response = await process.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(10))
+                ?? throw new EndOfStreamException("The MCP host did not answer tools/list.");
+        }
         process.StandardInput.Close();
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return new ProcessResult(process.ExitCode, await stdout, await stderr);
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        return new ProcessResult(process.ExitCode, response + await stdout, await stderr);
     }
 
     private static string FindMcpDll()

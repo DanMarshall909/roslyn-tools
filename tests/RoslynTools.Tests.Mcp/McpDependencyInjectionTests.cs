@@ -42,7 +42,7 @@ public sealed class McpDependencyInjectionTests
     public void Mcp_registers_shared_application_and_mcp_runtime_services_without_cli_types()
     {
         var services = new ServiceCollection();
-        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpHostServices(Stream.Null, Stream.Null);
 
         using var provider = services.BuildServiceProvider();
 

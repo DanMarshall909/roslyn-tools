@@ -240,7 +240,7 @@ public sealed class SemanticDiffHandlerTests
     public void semantic_diff_is_descriptor_backed()
     {
         var services = new ServiceCollection();
-        services.AddMcpHostServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpHostServices(Stream.Null, Stream.Null);
 
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<ToolRegistry>().GetTools()

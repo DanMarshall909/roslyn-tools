@@ -12,8 +12,8 @@ internal static class McpServiceRegistration
 {
     public static IServiceCollection AddMcpHostServices(
         this IServiceCollection services,
-        TextReader input,
-        TextWriter output,
+        Stream input,
+        Stream output,
         McpHostOptions? hostOptions = null)
     {
         HostServiceRegistration.RegisterFoundationServices(services);
@@ -27,18 +27,19 @@ internal static class McpServiceRegistration
 
     public static IServiceCollection AddMcpServices(
         this IServiceCollection services,
-        TextReader input,
-        TextWriter output,
+        Stream input,
+        Stream output,
         McpHostOptions? hostOptions = null)
     {
-        services.AddSingleton(input);
-        services.AddSingleton(output);
         services.AddSingleton(hostOptions ?? new McpHostOptions());
         services.AddSingleton<ToolSchemaBuilder>();
         services.AddSingleton<IMcpMsBuildBinding, McpMsBuildBinding>();
         services.AddSingleton<McpCommandAdapter>();
         services.AddSingleton<ToolRegistry>();
-        services.AddSingleton<Server>();
+        services.AddSingleton(provider => new Server(
+            provider.GetRequiredService<ToolRegistry>(),
+            input,
+            output));
 
         return services;
     }

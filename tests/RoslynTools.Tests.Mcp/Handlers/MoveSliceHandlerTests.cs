@@ -175,21 +175,16 @@ public sealed class MoveSliceHandlerTests
                     }
                 }
             }));
-        using var output = new StringWriter();
-        var services = new ServiceCollection();
-        services.AddMcpHostServices(
-            new StringReader(request + Environment.NewLine),
-            output,
-            new McpHostOptions(builder.Directory));
-
+        string output;
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, solution))
-        using (var provider = services.BuildServiceProvider())
         {
-            await provider.GetRequiredService<Server>().RunAsync();
+            output = await McpProtocolHarness.RunAsync(
+                request,
+                new McpHostOptions(builder.Directory));
         }
 
-        var responses = output.ToString()
+        var responses = output
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         responses.Length.ShouldBe(2);
         using var discovery = JsonDocument.Parse(responses[0]);
@@ -235,21 +230,16 @@ public sealed class MoveSliceHandlerTests
                 }
             }
         });
-        using var output = new StringWriter();
-        var services = new ServiceCollection();
-        services.AddMcpHostServices(
-            new StringReader(request + Environment.NewLine),
-            output,
-            new McpHostOptions(builder.Directory));
-
+        string output;
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, solution))
-        using (var provider = services.BuildServiceProvider())
         {
-            await provider.GetRequiredService<Server>().RunAsync();
+            output = await McpProtocolHarness.RunAsync(
+                request,
+                new McpHostOptions(builder.Directory));
         }
 
-        using var invocation = JsonDocument.Parse(output.ToString());
+        using var invocation = JsonDocument.Parse(output);
         invocation.RootElement.TryGetProperty("error", out _).ShouldBeFalse();
         var result = invocation.RootElement.GetProperty("result");
         result.GetProperty("isError").GetBoolean().ShouldBeFalse();
@@ -293,21 +283,16 @@ public sealed class MoveSliceHandlerTests
                 }
             }
         });
-        using var output = new StringWriter();
-        var services = new ServiceCollection();
-        services.AddMcpHostServices(
-            new StringReader(request + Environment.NewLine),
-            output,
-            new McpHostOptions(builder.Directory));
-
+        string output;
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, solution))
-        using (var provider = services.BuildServiceProvider())
         {
-            await provider.GetRequiredService<Server>().RunAsync();
+            output = await McpProtocolHarness.RunAsync(
+                request,
+                new McpHostOptions(builder.Directory));
         }
 
-        using var invocation = JsonDocument.Parse(output.ToString());
+        using var invocation = JsonDocument.Parse(output);
         invocation.RootElement.TryGetProperty("error", out _).ShouldBeFalse();
         var result = invocation.RootElement.GetProperty("result");
         result.GetProperty("isError").GetBoolean().ShouldBeTrue();

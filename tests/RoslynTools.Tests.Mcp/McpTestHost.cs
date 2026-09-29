@@ -54,15 +54,15 @@ internal static class McpTestHost
         {
             RoslynTools.Bootstrap.RegisterServices(services);
             services.AddMcpServices(
-                new StringReader(string.Empty),
-                new StringWriter(),
+                Stream.Null,
+                Stream.Null,
                 hostOptions);
         }
         else
         {
             services.AddMcpHostServices(
-                new StringReader(string.Empty),
-                new StringWriter(),
+                Stream.Null,
+                Stream.Null,
                 hostOptions);
         }
         services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
