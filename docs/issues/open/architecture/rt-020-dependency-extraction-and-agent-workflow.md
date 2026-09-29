@@ -36,6 +36,8 @@ Reflection accumulates between operations without interrupting progress, except 
 
 - Workspace-free discovery: explicit suggest metadata now matches its catalogue-only behavior. The production-style empty trust registry regression reproduced InvalidInput before the fix; prime and suggest protocol calls now succeed. All 29 serialization/prime tests pass.
 
+- MCP request discovery: generic sequence inputs now advertise arrays, and request variants carry their applicable fields and common requirements. Three regressions failed before correction; 75 descriptor, move-slice, change-signature, and protocol tests pass. Existing trusted stdio move-slice dry-runs verify advertised arrays deserialize.
+
 ## Findings to aggregate
 
 - Relationship responses carry very large workspace diagnostic envelopes; inspect compact structured payloads while preserving completeness limitations.

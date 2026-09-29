@@ -50,6 +50,13 @@ public sealed class MoveSliceHandlerTests
         properties.Keys.ShouldContain("namespace");
         properties.Keys.ShouldContain("dry-run");
         properties.Keys.ShouldContain("add-internals-visible-to");
+        foreach (var name in new[] { "types", "add-internals-visible-to" })
+        {
+            properties[name]["type"].ShouldBe("array");
+            properties[name]["items"].ShouldBeOfType<Dictionary<string, object>>()["type"]
+                .ShouldBe("string");
+        }
+        properties["namespace"]["type"].ShouldBe("string");
         untrustedProvider.GetRequiredService<ToolRegistry>().GetTools()
             .ShouldNotContain(candidate => candidate.name == MoveSliceCommandDefinition.Definition.Name);
     }

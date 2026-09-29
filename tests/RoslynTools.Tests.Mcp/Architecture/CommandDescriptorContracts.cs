@@ -541,6 +541,20 @@ public sealed class CommandDescriptorContracts
             variant.GetProperty("properties").GetProperty("mode")
                 .GetProperty("enum")[0].GetString() == "Batch");
 
+        foreach (var name in new[] { "symbol", "new-name", "solution" })
+            single.GetProperty("properties").GetProperty(name).GetProperty("type").GetString()
+                .ShouldBe("string");
+        single.GetProperty("properties").GetProperty("dry-run").GetProperty("type").GetString()
+            .ShouldBe("boolean");
+        single.GetProperty("properties").TryGetProperty("csv", out _).ShouldBeFalse();
+        foreach (var name in new[] { "csv", "solution" })
+            batch.GetProperty("properties").GetProperty(name).GetProperty("type").GetString()
+                .ShouldBe("string");
+        batch.GetProperty("properties").GetProperty("dry-run").GetProperty("type").GetString()
+            .ShouldBe("boolean");
+        batch.GetProperty("properties").TryGetProperty("symbol", out _).ShouldBeFalse();
+        batch.GetProperty("properties").TryGetProperty("new-name", out _).ShouldBeFalse();
+
         single.GetProperty("required").EnumerateArray()
             .Select(value => value.GetString())
             .ShouldBe(["symbol", "new-name"], ignoreOrder: true);
@@ -554,6 +568,18 @@ public sealed class CommandDescriptorContracts
         batch.GetProperty("not").GetProperty("anyOf").EnumerateArray()
             .Select(rule => rule.GetProperty("required")[0].GetString())
             .ShouldBe(["symbol", "new-name"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void logging_conversion_exposes_exclusions_as_an_array()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<ApplicationCommandCatalog>()
+            .All.Single(candidate => candidate.ToolName == ConvertConsoleLoggingCommandDefinition.Definition.Name);
+        using var schema = JsonDocument.Parse(JsonSerializer.Serialize(ToolSchemaBuilder.Build(descriptor).inputSchema));
+        var exclude = schema.RootElement.GetProperty("properties").GetProperty("exclude");
+        exclude.GetProperty("type").GetString().ShouldBe("array");
+        exclude.GetProperty("items").GetProperty("type").GetString().ShouldBe("string");
     }
 
     [Fact]

@@ -52,10 +52,10 @@ public sealed class ChangeSignatureHandlerTests
 
         var requiredByOperation = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["rename-param"] = ["operation", "oldName", "newName"],
-            ["reorder"] = ["operation", "order"],
-            ["add-param"] = ["operation", "paramSpec"],
-            ["remove-param"] = ["operation", "paramName"]
+            ["rename-param"] = ["methodSpec", "operation", "oldName", "newName"],
+            ["reorder"] = ["methodSpec", "operation", "order"],
+            ["add-param"] = ["methodSpec", "operation", "paramSpec"],
+            ["remove-param"] = ["methodSpec", "operation", "paramName"]
         };
         var variants = root.GetProperty("oneOf").EnumerateArray().ToArray();
         variants.Length.ShouldBe(4);
@@ -64,6 +64,8 @@ public sealed class ChangeSignatureHandlerTests
             var operation = variant.GetProperty("properties").GetProperty("operation")
                 .GetProperty("enum")[0].GetString()!;
             requiredByOperation.ShouldContainKey(operation);
+            variant.GetProperty("properties").GetProperty("methodSpec").GetProperty("type").GetString()
+                .ShouldBe("string");
             variant.GetProperty("required").EnumerateArray().Select(item => item.GetString())
                 .ShouldBe(requiredByOperation[operation], ignoreOrder: true);
             var forbidden = variant.GetProperty("not").GetProperty("anyOf").EnumerateArray()

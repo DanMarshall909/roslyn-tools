@@ -125,7 +125,7 @@ internal sealed class ToolSchemaBuilder(
             properties.Count > 0 ? properties : null);
         if (definition.RequestVariants.Count > 0)
             schema["oneOf"] = definition.RequestVariants
-                .Select(variant => BuildRequestVariantSchema(requestType, variant))
+                .Select(variant => BuildRequestVariantSchema(requestType, variant, properties, required))
                 .ToArray();
 
         return schema;
@@ -133,25 +133,30 @@ internal sealed class ToolSchemaBuilder(
 
     private static Dictionary<string, object> BuildRequestVariantSchema(
         Type requestType,
-        CommandRequestVariant variant)
+        CommandRequestVariant variant,
+        IReadOnlyDictionary<string, Dictionary<string, object>> rootProperties,
+        IReadOnlyList<string> rootRequired)
     {
         var discriminator = ResolveRequestProperty(requestType, variant.DiscriminatorProperty);
         var discriminatorName = JsonPropertyName(discriminator);
         var discriminatorSchema = BuildPropertySchema(discriminator.PropertyType);
         discriminatorSchema["enum"] = new[] { variant.DiscriminatorValue };
 
-        var required = variant.RequiredProperties
-            .Select(name => JsonPropertyName(ResolveRequestProperty(requestType, name)))
+        var required = rootRequired.Concat(variant.RequiredProperties
+            .Select(name => JsonPropertyName(ResolveRequestProperty(requestType, name))))
             .ToList();
         if (variant.DiscriminatorRequired)
             required.Add(discriminatorName);
 
+        var forbidden = variant.ForbiddenProperties
+            .Select(name => JsonPropertyName(ResolveRequestProperty(requestType, name)))
+            .ToHashSet(StringComparer.Ordinal);
+        var properties = rootProperties
+            .Where(property => !forbidden.Contains(property.Key))
+            .ToDictionary(property => property.Key, property => property.Value, StringComparer.Ordinal);
+        properties[discriminatorName] = discriminatorSchema;
         var schema = JsonSchemaBuilder.Object(
-            [.. required.Distinct(StringComparer.Ordinal)],
-            new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal)
-            {
-                [discriminatorName] = discriminatorSchema
-            });
+            [.. required.Distinct(StringComparer.Ordinal)], properties);
         if (variant.ForbiddenProperties.Count > 0)
         {
             schema["not"] = new Dictionary<string, object>
@@ -217,9 +222,15 @@ internal sealed class ToolSchemaBuilder(
     private static Dictionary<string, object> BuildPropertySchema(Type type)
     {
         var valueType = Nullable.GetUnderlyingType(type) ?? type;
-        if (valueType.IsArray)
+        var elementType = valueType.IsArray
+            ? valueType.GetElementType()
+            : valueType.IsGenericType
+              && valueType.GetGenericArguments() is [var itemType]
+              && typeof(IEnumerable<>).MakeGenericType(itemType).IsAssignableFrom(valueType)
+                ? itemType
+                : null;
+        if (elementType is not null)
         {
-            var elementType = valueType.GetElementType() ?? typeof(string);
             return new Dictionary<string, object>
             {
                 ["type"] = "array",
