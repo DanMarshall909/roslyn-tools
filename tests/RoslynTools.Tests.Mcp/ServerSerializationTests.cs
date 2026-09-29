@@ -287,7 +287,9 @@ public class ServerSerializationTests
             using var argumentDocument = JsonDocument.Parse(arguments);
             var request = JsonSerializer.Serialize(new
             {
-                jsonrpc = "2.0", method = "tools/call", id = 7,
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 7,
                 @params = new { name = tool, arguments = argumentDocument.RootElement }
             });
             var output = await RunSingleRequestAsync(request, new McpHostOptions(trustRegistry: registry));
