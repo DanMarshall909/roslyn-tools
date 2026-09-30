@@ -7254,6 +7254,15 @@
       "description": "During RT-012, check-architecture could not evaluate the repository because Dependency binding is unresolved for FixtureCases in tests/RoslynTools.Tests/Analysis/SolidSemanticReviewContractTests.cs line 36. The identical failure occurs on clean main at 52192be and on the SDK worktree, so the analysis gate gives no architecture verdict.",
       "expectedResult": "Report the unresolved binding with enough project/compilation context to repair it or continue assessing unaffected architecture rules with an explicit partial result and nonzero exit status.",
       "status": "pending"
+    },
+    {
+      "id": "FB-380",
+      "type": "user-feedback",
+      "timestamp": "2026-09-30T05:43:07.9638215\u002B00:00",
+      "commandLine": "rt inspect outline src/RoslynTools.Mcp/Server.cs --solution RoslynTools.slnx --json",
+      "description": "On clean main 0c8c761, outline returns outcome Partial and workspace state Partial because required workspace:input-set is Failed with detail \u0022Workspace input discovery found state that cannot be reused safely.\u0022 Its expectedFingerprint and observedFingerprint are identical (648C7CA2AF81F2888423504B4154C89BC5EF1256CB716A99CAF9341A21BE0F35), and projectCount is 8. Reproduced with the current Release CLI; raw JSON and stderr are in ignored artifacts/rt012/outline-recheck.*. This forces manual source reading despite a seemingly complete workspace.",
+      "expectedResult": "For a clean repository with matching input-set fingerprints, mark input-set reusable and return a complete outline; if another condition invalidates reuse, report that distinct condition and evidence rather than an unexplained false Partial.",
+      "status": "pending"
     }
   ]
 }
