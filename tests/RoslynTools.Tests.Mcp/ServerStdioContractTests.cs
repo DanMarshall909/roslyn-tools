@@ -8,6 +8,170 @@ namespace RoslynTools.Tests.Mcp;
 
 public sealed class ServerStdioContractTests
 {
+    [Theory]
+    [InlineData("2024-11-05")]
+    [InlineData("2025-03-26")]
+    [InlineData("2025-06-18")]
+    [InlineData("2025-11-25")]
+    [InlineData("2026-07-28")]
+    public async Task spawned_server_reports_protocol_faults_and_recovers(
+        string protocolVersion)
+    {
+        using var process = StartServer();
+        var stderr = process.StandardError.ReadToEndAsync();
+        var modern = protocolVersion == "2026-07-28";
+        var metadata = new Dictionary<string, object>
+        {
+            ["io.modelcontextprotocol/protocolVersion"] = protocolVersion,
+            ["io.modelcontextprotocol/clientInfo"] = new { name = "rt-edge-test", version = "1.0" },
+            ["io.modelcontextprotocol/clientCapabilities"] = new { }
+        };
+        try
+        {
+            if (modern)
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = 1,
+                    method = "server/discover",
+                    @params = new { _meta = metadata }
+                });
+            else
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = 1,
+                    method = "initialize",
+                    @params = new
+                    {
+                        protocolVersion,
+                        capabilities = new { },
+                        clientInfo = new { name = "rt-edge-test", version = "1.0" }
+                    }
+                });
+            using (var handshake = await ReadResponseAsync(process))
+                handshake.RootElement.GetProperty("id").GetInt32().ShouldBe(1);
+            if (!modern)
+                await SendAsync(process, new { jsonrpc = "2.0", method = "notifications/initialized" });
+
+            await process.StandardInput.WriteLineAsync(
+                "{\"jsonrpc\":\"2.0\",\"id\":90,\"method\":\"tools/list\",");
+            await process.StandardInput.FlushAsync();
+            using (var malformed = await ReadResponseAsync(process))
+            {
+                malformed.RootElement.GetProperty("id").GetInt32().ShouldBe(90);
+                malformed.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32700);
+            }
+
+            var parameters = modern ? new { _meta = metadata } : null;
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = "edge-id",
+                method = "rt/unknown",
+                @params = parameters
+            });
+            using (var unknown = await ReadResponseAsync(process))
+            {
+                unknown.RootElement.GetProperty("id").GetString().ShouldBe("edge-id");
+                unknown.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32601);
+            }
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 91,
+                method = 7,
+                @params = parameters
+            });
+            // SDK 2.2.0 currently emits ParseError (-32700) for this valid JSON
+            // with an invalid Request object. JSON-RPC requires InvalidRequest
+            // (-32600); RT-012 tracks this upstream classification gap.
+            using (var invalidRequest = await ReadResponseAsync(process))
+            {
+                invalidRequest.RootElement.GetProperty("id").GetInt32().ShouldBe(91);
+                invalidRequest.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32700);
+            }
+
+            var callParameters = new Dictionary<string, object?>
+            {
+                ["name"] = "suggest_command",
+                ["arguments"] = new { top = 1 }
+            };
+            if (modern)
+                callParameters["_meta"] = metadata;
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 92,
+                method = "tools/call",
+                @params = callParameters
+            });
+            using (var failure = await ReadResponseAsync(process))
+            {
+                failure.RootElement.GetProperty("id").GetInt32().ShouldBe(92);
+                var result = failure.RootElement.GetProperty("result");
+                result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+                using var error = JsonDocument.Parse(result.GetProperty("content")[0]
+                    .GetProperty("text").GetString()!);
+                error.RootElement.GetProperty("kind").GetString().ShouldBe("InvalidInput");
+                if (modern)
+                    result.GetProperty("resultType").GetString().ShouldBe("complete");
+            }
+
+            if (modern)
+            {
+                var wrongVersionMetadata = new Dictionary<string, object>(metadata)
+                {
+                    ["io.modelcontextprotocol/protocolVersion"] = "2025-11-25"
+                };
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = 93,
+                    method = "tools/list",
+                    @params = new { _meta = wrongVersionMetadata }
+                });
+                using var wrongVersion = await ReadResponseAsync(process);
+                wrongVersion.RootElement.GetProperty("id").GetInt32().ShouldBe(93);
+                wrongVersion.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32600);
+            }
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                method = "notifications/unrecognized",
+                @params = parameters
+            });
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 94,
+                method = "tools/list",
+                @params = parameters
+            });
+            using (var recovered = await ReadResponseAsync(process))
+            {
+                recovered.RootElement.GetProperty("id").GetInt32().ShouldBe(94);
+                recovered.RootElement.GetProperty("result").GetProperty("tools")[0]
+                    .GetProperty("name").GetString().ShouldBe("prime");
+            }
+
+            process.StandardInput.Close();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            process.ExitCode.ShouldBe(0, await stderr);
+            (await process.StandardOutput.ReadToEndAsync()).ShouldBeEmpty();
+        }
+        finally
+        {
+            await StopAsync(process);
+        }
+    }
+
     [Fact]
     public async Task spawned_server_rejects_stale_and_out_of_range_tool_page_cursors()
     {

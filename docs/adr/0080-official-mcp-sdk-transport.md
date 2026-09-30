@@ -22,8 +22,19 @@ legacy `initialize` clients and current `server/discover` clients. Spawned-proce
 tests exercise each version advertised by the pinned SDK, real tool calls, stdout
 purity, stderr diagnostics, and graceful EOF. A controlled stdio test also proves
 request cancellation under a blocked application port in every supported era.
-Remaining malformed-input and protocol edge cases stay in RT-012 rather than
-being assumed consequences of using the SDK.
+Spawned tests in every era also exercise malformed JSON, unknown methods,
+typed tool failures, notification silence, recovery, and graceful EOF. The
+current `server/discover` era additionally rejects a request that changes its
+negotiated protocol version. These tests establish the enumerated stdio
+integration behaviors; they do not claim coverage of optional MCP features.
+
+One pinned SDK 2.2.0 deviation remains: a valid JSON object with a non-string
+`method` is an invalid JSON-RPC Request and should receive `-32600` (Invalid
+Request), but the SDK emits `-32700` (Parse Error, reserved for invalid JSON)
+under the [JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification).
+The spawned test characterizes this observed behavior. RT-012 keeps its
+standards-correct classification unresolved rather than adding a second protocol
+parser to this host.
 
 As of 2026-09-30, the MCP host returns `tools/list` in pages of at most 20.
 `prime` and `suggest_command` lead the first page so agents can discover the

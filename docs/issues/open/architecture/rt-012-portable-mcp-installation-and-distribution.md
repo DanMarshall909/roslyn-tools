@@ -40,8 +40,8 @@ platform release artifacts as the immediate portable baseline.
 
 The MCP host previously implemented protocol dispatch directly and reported
 protocol version `2024-11-05`. The official MCP C# SDK now owns the protocol
-lifecycle and version negotiation. Pagination, long-running cancellation, and
-broader conformance remain part of this distribution issue.
+lifecycle and version negotiation. Spawned tests cover the supported stdio eras,
+including pagination, cancellation, and malformed-JSON recovery.
 
 ## Acceptance Criteria
 
@@ -95,9 +95,14 @@ broader conformance remain part of this distribution issue.
       newline-delimited MCP messages and that diagnostics are written to stderr.
       The spawned host tests read each response as JSON, require no extra stdout,
       and exercise invalid startup options with separately captured stderr.
-- [ ] Integration tests cover capability discovery, `tools/list` pagination and
+- [x] Integration tests cover capability discovery, `tools/list` pagination and
       schemas, `tools/call` success and structured failure, cancellation, and
       graceful shutdown for every supported protocol era.
+- [ ] The pinned MCP SDK reports `-32600` (Invalid Request) when valid JSON has
+      a non-string `method`. SDK 2.2.0 currently reports `-32700` (Parse Error),
+      although [JSON-RPC 2.0](https://www.jsonrpc.org/specification) reserves that
+      code for invalid JSON. The spawned test characterizes this deviation;
+      recheck an SDK fix before removing this gate or adding host transport logic.
 - [x] A versioned `server.json` describes the repository, package or bundle,
       stdio transport, runtime requirements, and supported configuration, and is
       validated for eventual MCP Registry publication.
@@ -128,3 +133,4 @@ broader conformance remain part of this distribution issue.
 | 2026-09-29 | Delegate stdio protocol lifecycle to the official MCP C# SDK | The five pinned-SDK protocol versions have spawned handshake, discovery, invocation, and EOF evidence. The shared tool catalogue and application ports remain host-neutral. Pagination, long-running cancellation, and wider malformed-input conformance remain open. |
 | 2026-09-30 | Prove request cancellation across all supported stdio protocol versions | A controlled blocking application port confirms that `notifications/cancelled` reaches the request token, suppresses the cancelled response, and leaves the connection usable in the four legacy versions and `2026-07-28`. Pagination, schema coverage across pages, and remaining protocol edge cases still keep the integration criterion open. |
 | 2026-09-30 | Page MCP tool discovery and verify all pages during installation | The stdio host returns up to 20 tools per `tools/list`, puts `prime` and `suggest_command` first, and rejects invalid cursors. Spawned tests walk the full catalogue and check schemas in all five protocol versions; installation doctor follows and validates every page. Remaining protocol edge cases keep the composite criterion open. |
+| 2026-09-30 | Complete the enumerated stdio integration matrix and retain an SDK error-code gate | Spawned tests in all five advertised versions now cover discovery, complete paged schemas, successful and typed-failure calls, cancellation, malformed JSON, unknown methods, notification silence, recovery, and EOF. The 2026 era also checks version-drift rejection. A separate test records that valid JSON with `method: 7` gets `-32700` from SDK 2.2.0 rather than the JSON-RPC-required `-32600`; this unresolved classification, portable plugin timeout policy, and MCP Bundle evaluation keep RT-012 open. |
