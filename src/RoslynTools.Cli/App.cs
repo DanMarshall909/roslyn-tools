@@ -320,7 +320,7 @@ internal static class App
                 root.AddCommand(cmd);
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt) = RegisterGlobalOptions(root);
+            showWorkspaceWarningsOpt, fullWorkspaceEvidenceOpt, noSuggestOpt, trustRepositoryOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -394,6 +394,7 @@ internal static class App
                     : OutputFormat.Text;
                 RtContext.RelaxJson = context.ParseResult.GetValueForOption(relaxJsonOpt);
                 RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
+                RtContext.FullWorkspaceEvidence = context.ParseResult.GetValueForOption(fullWorkspaceEvidenceOpt);
                 RtContext.NoSuggest = context.ParseResult.GetValueForOption(noSuggestOpt);
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
@@ -450,7 +451,7 @@ internal static class App
     /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
         Option<FileInfo?> decisionsOpt, Option<bool> relaxJsonOpt,
-        Option<bool> showWorkspaceWarningsOpt, Option<bool> noSuggestOpt,
+        Option<bool> showWorkspaceWarningsOpt, Option<bool> fullWorkspaceEvidenceOpt, Option<bool> noSuggestOpt,
         Option<bool> trustRepositoryOpt)
         RegisterGlobalOptions(RootCommand root)
     {
@@ -467,6 +468,9 @@ internal static class App
             + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
         var showWorkspaceWarningsOpt = new Option<bool>("--show-workspace-warnings",
             "Show MSBuild workspace warnings (NuGet audit, unresolved imports, etc.). Off by default.");
+        var fullWorkspaceEvidenceOpt = new Option<bool>("--full-workspace-evidence",
+            "Emit every workspace input and diagnostic in typed inspection results. "
+            + "Default output summarizes this evidence to keep agent responses bounded.");
         var noSuggestOpt = new Option<bool>("--no-suggest",
             "Suppress 'Did you mean: ...' suggestion tails on drill-in not-found errors. Off by default; "
             + "useful for strict-output pipelines that pin error text.");
@@ -476,11 +480,11 @@ internal static class App
             + "This authority is invocation-scoped and is not available through MCP tool requests.");
         foreach (var option in new Option[]
                      { jsonOpt, llmOpt, markdownOpt, yamlOpt, relaxJsonOpt, decisionsOpt,
-                         showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt })
+                         showWorkspaceWarningsOpt, fullWorkspaceEvidenceOpt, noSuggestOpt, trustRepositoryOpt })
             root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt);
+            showWorkspaceWarningsOpt, fullWorkspaceEvidenceOpt, noSuggestOpt, trustRepositoryOpt);
     }
 
     private static string TruncateOneLine(string text, int max)

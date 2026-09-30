@@ -33,8 +33,11 @@ public sealed class FindUnusedWorkspaceOutput
             {
                 using var document = JsonDocument.Parse(output);
                 var root = document.RootElement;
-                root.GetProperty("schemaVersion").GetString().ShouldBe("rt.result.v1");
-                root.GetProperty("workspace").GetProperty("state").GetString().ShouldNotBe("Complete");
+                root.GetProperty("schemaVersion").GetString().ShouldBe("rt.result.v2");
+                var workspaceJson = root.GetProperty("workspace");
+                workspaceJson.GetProperty("state").GetString().ShouldNotBe("Complete");
+                workspaceJson.GetProperty("evidenceSummary").GetProperty("totalDiagnostics")
+                    .GetInt32().ShouldBeGreaterThan(0);
                 var symbols = root.GetProperty("data").GetProperty("symbols").EnumerateArray().ToArray();
                 symbols.ShouldNotBeEmpty();
                 foreach (var symbol in symbols)

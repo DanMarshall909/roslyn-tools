@@ -170,12 +170,16 @@ Common global options:
 | `--llm` | Emit compact output intended for LLM consumption |
 | `--decisions <file>` | Read and persist disambiguation choices in YAML |
 | `--show-workspace-warnings` | Include MSBuild workspace warnings |
+| `--full-workspace-evidence` | Include every workspace input and diagnostic in typed inspection output |
 | `--no-suggest` | Suppress suggestion tails on not-found errors |
 | `--relax-json` | Use relaxed JSON escaping instead of the strict default |
 | `--trust-repository` | Permit this CLI invocation to evaluate the reviewed repository |
 
 Strict JSON escaping is the default. Use `--relax-json` only when raw Unicode and
 HTML-sensitive characters are preferable to maximum downstream portability.
+Large typed inspection results use a compact `rt.result.v2` workspace summary
+in JSON and LLM output. Use `--full-workspace-evidence` to retrieve the
+complete `rt.result.v1` workspace account when diagnosing a partial result.
 
 Commands that need a user choice can use a decisions file:
 

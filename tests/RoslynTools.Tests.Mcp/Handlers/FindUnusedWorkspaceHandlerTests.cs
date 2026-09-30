@@ -13,7 +13,7 @@ namespace RoslynTools.Tests.Mcp.Handlers;
 public sealed class FindUnusedWorkspaceHandlerTests
 {
     [Fact]
-    public async Task incomplete_mcp_envelope_retains_all_projects_and_round_trips_through_cli_json()
+    public async Task incomplete_mcp_envelope_retains_all_projects_and_cli_can_request_full_json()
     {
         using var builder = new AdhocProjectBuilder("Domain");
         builder.AddSource("DomainUnion.cs", string.Join(Environment.NewLine,
@@ -53,10 +53,27 @@ public sealed class FindUnusedWorkspaceHandlerTests
             var typed = JsonSerializer.Deserialize<RtResultEnvelope<FindUnusedAnalysisResult>>(
                 result.content, JsonEncoders.Select(false)).ShouldNotBeNull();
             var cliOutput = new FindUnusedEnvelopeResult(typed);
-            using var writer = new StringWriter();
-            cliOutput.RenderJson(writer);
-            using var cliDocument = JsonDocument.Parse(writer.ToString());
-            JsonElement.DeepEquals(root, cliDocument.RootElement).ShouldBeTrue();
+            var previousFullEvidence = RtContext.FullWorkspaceEvidence;
+            try
+            {
+                RtContext.FullWorkspaceEvidence = false;
+                using var compactWriter = new StringWriter();
+                cliOutput.RenderJson(compactWriter);
+                using var compactDocument = JsonDocument.Parse(compactWriter.ToString());
+                compactDocument.RootElement.GetProperty("schemaVersion").GetString().ShouldBe("rt.result.v2");
+                compactDocument.RootElement.GetProperty("workspace").GetProperty("evidenceSummary")
+                    .GetProperty("totalDiagnostics").GetInt32().ShouldBe(diagnostics.Length);
+
+                RtContext.FullWorkspaceEvidence = true;
+                using var fullWriter = new StringWriter();
+                cliOutput.RenderJson(fullWriter);
+                using var fullDocument = JsonDocument.Parse(fullWriter.ToString());
+                JsonElement.DeepEquals(root, fullDocument.RootElement).ShouldBeTrue();
+            }
+            finally
+            {
+                RtContext.FullWorkspaceEvidence = previousFullEvidence;
+            }
         }
     }
 }

@@ -143,3 +143,6 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0076](0076-host-owned-semantic-diff-git-client.md) | Semantic diff obtains git clients from shared hosting | Accepted | 2026-09-29 |
 | [0077](0077-reusable-host-source-ratchet.md) | Reusable source rejects host adapters and service process clients | Accepted | 2026-09-29 |
 | [0078](0078-change-signature-operation-discriminator.md) | One typed change-signature operation across CLI and MCP | Accepted | 2026-09-29 |
+| [0079](0079-third-party-adapter-boundary.md) | Third-party adapters stay outside reusable layers | Accepted | 2026-09-29 |
+| [0080](0080-official-mcp-sdk-transport.md) | Official MCP SDK owns the stdio protocol lifecycle | Accepted | 2026-09-29 |
+| [0081](0081-bounded-cli-workspace-evidence.md) | Bound workspace evidence in CLI inspection results | Accepted | 2026-09-30 |

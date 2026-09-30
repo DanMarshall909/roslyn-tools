@@ -6,6 +6,7 @@ internal static class CliInvocationClassifier
     {
         "--json",
         "--llm",
+        "--full-workspace-evidence",
         "--markdown",
         "--no-suggest",
         "--relax-json",

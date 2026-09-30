@@ -15,6 +15,7 @@ public sealed class GlobalFormatFlag : IDisposable
     public void Dispose()
     {
         RtContext.Format = OutputFormat.Text;
+        RtContext.FullWorkspaceEvidence = false;
     }
 
     // ── AC-8: no flag → Text ───────────────────────────────────────────────────────
@@ -37,6 +38,16 @@ public sealed class GlobalFormatFlag : IDisposable
         await App.RunAsync(["dump-help", "--json"]);
 
         RtContext.Format.ShouldBe(OutputFormat.Json);
+    }
+
+    [Fact]
+    public async Task full_workspace_evidence_flag_is_explicit_and_resets_on_next_invocation()
+    {
+        await App.RunAsync(["dump-help", "--full-workspace-evidence"]);
+        RtContext.FullWorkspaceEvidence.ShouldBeTrue();
+
+        await App.RunAsync(["dump-help"]);
+        RtContext.FullWorkspaceEvidence.ShouldBeFalse();
     }
 
     // ── --llm sets Format to Llm ──────────────────────────────────────────────────

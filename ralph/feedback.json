@@ -7233,7 +7233,9 @@
       "commandLine": "rt inspect outline tests/RoslynTools.Tests.Mcp/ServerSerializationTests.cs --solution RoslynTools.slnx --json",
       "description": "During RT-012, inspect outline for an existing MCP test file emitted 33,353,887 bytes of JSON for seven requested items; inspect outline --llm for RtConsole emitted 4,049,346 bytes for three items. Repeated workspace diagnostics dominate bounded symbol results and token budgets.",
       "expectedResult": "Keep completeness and workspace diagnostics visible but summarize or deduplicate them in compact output, with a separate retrievable diagnostic detail artifact or bounded page.",
-      "status": "pending"
+      "status": "processed",
+      "processedAt": "2026-09-30T03:59:41.0967816\u002B00:00",
+      "resolution": "Typed CLI inspection envelopes now project compact v2 workspace evidence when large: 3,943,162-byte outline fell to 20,803 bytes while retaining Partial state, exact counts and priority failures. --full-workspace-evidence retrieves the complete v1 account. JSON and LLM regression tests cover size, grouping and full retrieval."
     },
     {
       "id": "FB-378",

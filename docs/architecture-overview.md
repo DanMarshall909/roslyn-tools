@@ -203,6 +203,13 @@ Core no longer reads that CLI flag. See
 The process-global output context now lives in shared Hosting rather than
 Core; its internal namespace and host behavior are preserved. See
 [ADR-0070](adr/0070-host-owned-output-context.md).
+Typed inspection envelopes keep the full acquisition account through the
+application port. CLI projects bounded `rt.result.v2` workspace evidence when
+the account exceeds sample limits, including for JSON and LLM output; small
+accounts stay on `rt.result.v1`. `--full-workspace-evidence` retrieves the
+complete `rt.result.v1` account. The compact projection retains
+the state, counts, limitations, and priority failure samples; see
+[ADR-0081](adr/0081-bounded-cli-workspace-evidence.md).
 Duplicate extraction warnings and the match summary now pass through an
 injected logger; Core no longer renders those diagnostics directly. See
 [ADR-0071](adr/0071-extraction-diagnostics-through-logger.md).

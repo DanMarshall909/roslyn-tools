@@ -85,6 +85,16 @@ public sealed class AppRegistration
     }
 
     [Fact]
+    public void registers_global_options_adds_explicit_full_workspace_evidence_option()
+    {
+        var root = new RootCommand("test");
+
+        App.RegisterGlobalOptions(root);
+
+        root.Options.ShouldContain(o => o.Name == "full-workspace-evidence");
+    }
+
+    [Fact]
     public void registers_global_options_adds_invocation_scoped_repository_trust_option()
     {
         var root = new RootCommand("test");
@@ -111,6 +121,7 @@ public sealed class AppRegistration
                 "relax-json",
                 "decisions",
                 "show-workspace-warnings",
+                "full-workspace-evidence",
                 "no-suggest",
                 "trust-repository"
             });

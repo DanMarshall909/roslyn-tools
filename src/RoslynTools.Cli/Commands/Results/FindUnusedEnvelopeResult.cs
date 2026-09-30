@@ -19,7 +19,7 @@ internal sealed class FindUnusedEnvelopeResult(RtResultEnvelope<FindUnusedAnalys
 
     [OutputField(OutputLevel.Llm, "diagnostics")]
     public string Diagnostics => string.Join(Environment.NewLine,
-        envelope.Diagnostics.Where(diagnostic => RtContext.ShowWorkspaceWarnings
+        DisplayedEnvelope().Diagnostics.Where(diagnostic => RtContext.ShowWorkspaceWarnings
                 || diagnostic.Severity == "Error"
                 || diagnostic.Context is { } context
                     && context.TryGetValue("completenessImpact", out var impact) && impact != "None")
@@ -32,7 +32,12 @@ internal sealed class FindUnusedEnvelopeResult(RtResultEnvelope<FindUnusedAnalys
     public string? ProfileSummary => _symbols.ProfileSummary;
 
     public void RenderJson(TextWriter writer)
-        => writer.Write(JsonSerializer.Serialize(envelope, JsonEncoders.Select(RtContext.RelaxJson)));
+        => writer.Write(JsonSerializer.Serialize(DisplayedEnvelope(), JsonEncoders.Select(RtContext.RelaxJson)));
+
+    private RtResultEnvelope<FindUnusedAnalysisResult> DisplayedEnvelope() =>
+        RtContext.FullWorkspaceEvidence
+            ? envelope
+            : (RtResultEnvelope<FindUnusedAnalysisResult>)((ICompactWorkspaceEvidence)envelope).CompactWorkspaceEvidence();
 
     public void RenderText(TextWriter writer)
     {

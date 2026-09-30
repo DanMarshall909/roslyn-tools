@@ -26,6 +26,13 @@ internal static class RtContext
     public static bool ShowWorkspaceWarnings { get; set; }
 
     /// <summary>
+    ///     Emit every workspace input and diagnostic in typed inspection envelopes.
+    ///     The default compact projection keeps the state, counts, and representative
+    ///     diagnostics while bounding routine agent output.
+    /// </summary>
+    public static bool FullWorkspaceEvidence { get; set; }
+
+    /// <summary>
     ///     When true, suppress the "Did you mean: ..." tail appended to drill-in not-found error messages
     ///     (e.g. <c>rt inspect describe Type.Misspelt(int)</c>). Default false → suggestions ON because the
     ///     tail goes to stderr alongside the error message and never pollutes structured stdout output.

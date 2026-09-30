@@ -33,6 +33,9 @@ callers/references. Pass `--solution <path>` explicitly when targeting matters.
 Prefer bounded symbol/file/project requests and `--llm` for reading or `--json`
 for machine parsing when the command supports them. Keep completeness warnings
 visible; incomplete results cannot prove absence of references.
+Typed inspection results summarize workspace inputs and repeated diagnostics by
+default. If a partial result needs a full audit, rerun the same command with
+`--full-workspace-evidence` and save its potentially large JSON output to a file.
 
 Before each refactoring, start at a clean commit: record HEAD and full Git status,
 including untracked files. Use the supported dry-run/preview, review the complete

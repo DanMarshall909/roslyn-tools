@@ -15,7 +15,11 @@ internal static class RtResultRenderer
         if (result.Value is IRtOutput output)
             RtSerializer.Write(output);
         else
-            StructuredOutput.Write(result.Value, SymbolFormatter.DefaultJsonOptions);
+            StructuredOutput.Write(
+                result.Value is ICompactWorkspaceEvidence envelope && !RtContext.FullWorkspaceEvidence
+                    ? envelope.CompactWorkspaceEvidence()
+                    : result.Value,
+                SymbolFormatter.DefaultJsonOptions);
     }
 
     internal static void WriteText(RtResult<string> result)
