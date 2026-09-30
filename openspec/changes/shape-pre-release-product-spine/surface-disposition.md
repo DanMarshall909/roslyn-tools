@@ -1,9 +1,13 @@
 # Current command disposition for `0.1-preview`
 
-This is a target classification, not a claim that any current implementation already
-passes the shared provenance, structured-output, cancellation, resource, parity, and
-packaging gates. Thin compatibility wrappers may exist temporarily during migration,
-but only the destination contract is eligible for preview support.
+This is a provisional target classification, not the final product-surface freeze or a
+claim that any current implementation already passes the shared provenance,
+structured-output, cancellation, resource, parity, and packaging gates. The
+[pre-freeze audit](pre-freeze-surface-audit.md) reviews the live 60-entry catalogue
+for user usefulness first and agent output cost second. Its representative task
+corpus and final disposition gate remain open. Thin compatibility wrappers may
+exist temporarily during migration, but only the destination contract is eligible
+for preview support.
 
 ## Analyze commands
 
@@ -66,19 +70,19 @@ but only the destination contract is eligible for preview support.
 | `convert-static-class` | Rebuild later as staged recipe | Removed until complete | Advertised interface/DI stages are skipped. |
 | `convert-to-record` | `recipe convert-to-record` | Experimental | Equality, serialization, and ABI risk. |
 | `extract-class` | `recipe extract-class` | Experimental | State, coupling, DI, and multi-file risk. |
-| `extract-interface` | `prepare-extract-interface` | Preview plan-only | Core typed plan after impact evidence. |
-| `extract-method` | `prepare-extract-method` | Preview plan-only | Control-flow and known edge cases. |
-| `extract-string-constant` | Standard code action | Experimental | Low-value top-level command. |
-| `fix-namespace` | Standard code action or move/import recipe | Experimental | Reference and physical-path effects. |
-| `implement-interface` | Standard code action or interface recipe | Experimental | Throwing stubs are incomplete behaviour. |
+| `extract-interface` | `prepare-extract-interface` if admitted | Conditional preview plan-only | Require demand and interface-impact fixtures before promising it. |
+| `extract-method` | `prepare-extract-method` if admitted | Conditional preview plan-only | Require demand and control-flow fixtures before promising it. |
+| `extract-string-constant` | Standard code action | Remove from ordinary discovery | Low-value top-level command; retain an internal engine only for a proved caller. |
+| `fix-namespace` | Standard code action or move recipe | Remove from ordinary discovery | Physical-path and reference effects belong in a complete move workflow. |
+| `implement-interface` | Standard code action or interface recipe | Remove from ordinary discovery | Throwing stubs are incomplete behaviour. |
 | `inline-method` | `recipe inline-method` | Experimental | Evaluation order and side-effect risk. |
 | `make-async` | `recipe async-propagation` | Experimental | Direct callers are insufficient for general propagation. |
 | `make-instance` | `recipe change-method-staticness --to instance` | Experimental | May leave unresolved call sites. |
-| `make-sealed` | Standard code action | Experimental | External derivation cannot be proven locally. |
+| `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally. |
 | `make-static` | `recipe change-method-staticness --to static` | Experimental | Requires state and dispatch analysis. |
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
 | `move` | `prepare-move-symbol` | Preview plan-only | Core typed plan with project/path effects. |
-| `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Consolidate; current scope is static methods. |
+| `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Group move discovery but keep the static-method contract distinct from a slice transaction. |
 | `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project edits, and one transactional apply. |
 | `narrow-dependency` | `recipe segregate-interface` | Experimental | DI follow-up and consumer partitioning. |
 | `rename` | `prepare-rename` | Preview plan-only | First change-plan pilot. |
@@ -87,9 +91,9 @@ but only the destination contract is eligible for preview support.
 | `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic. |
 | `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
-| `delete-unreferenced` | `prepare-delete-unreferenced` | Preview plan-only/high risk | Candidate language; require complete workspace and explicit limitations. |
+| `delete-unreferenced` | `prepare-delete-unreferenced` if admitted | Experimental/high risk | Require complete workspace, explicit external/dynamic-use limitations, a review protocol, and refusal conditions; a loaded solution cannot prove all use absent. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |
-| `trust` | Local repository trust control plane | Preview | Explicit local add/remove verbs are the user authorization boundary; never expose through daemon or MCP discovery. |
+| `trust` | Local repository trust control plane | Preview | Move out of the refactor category and correct its user-scoped effect label; explicit add/remove is the authorization boundary and is never MCP-discoverable. |
 
 ## Ancillary commands and surface conventions
 
@@ -102,6 +106,7 @@ but only the destination contract is eligible for preview support.
 | `feedback_report` | Maintainer CLI with explicit external apply | Never ordinary agent discovery. |
 | `prime` | Generated `doctor --quick` / capabilities primer | Remove hard-coded command truth. |
 | `dump-help` | Generated documentation tool | Maintainer surface. |
+| `prepare-operation` | Internal durable coordination primitive | Remove from normal help and suggestion discovery until a complete plan lifecycle exists; it does not prepare a refactor plan. |
 | daemon lifecycle | Internal performance experiment | Not packaged or advertised for preview. |
 | root plus grouped duplicates | One canonical grammar | Remove duplicate product identities before release. |
 | cryptic short aliases | None unless justified by evidence | Remove before compatibility exists. |

@@ -14,8 +14,42 @@
 - Platform-hardening tasks referenced below remain authoritative. Do not duplicate or
   weaken them in an implementation PR.
 - New standalone public transformations are frozen until Milestone 5 exits.
+- The current admission guard limits growth while the pre-freeze surface audit is
+  completed. It does not constitute final ratification of the preview catalogue.
 
-## Milestone 0: freeze, reconcile, and establish the programme
+## Milestone 0: audit usefulness, then freeze the product surface
+
+### 0.0 Pre-freeze command and workflow analysis
+
+- [x] Inventory all 60 current source-built CLI catalogue entries, measure MCP
+  discovery count and bytes under the current profile, and identify ancillary
+  primer, suggestion, feedback, daemon, trust, and lifecycle surfaces.
+  Distinguish the installed launcher from checkout HEAD.
+- [x] Give every current CLI catalogue entry a provisional destination in
+  `surface-disposition.md` and record grouped user-job, overlap, correctness,
+  and audience reasoning in `pre-freeze-surface-audit.md`.
+- [x] Measure representative per-call response bytes using `rt` itself,
+  including CLI/MCP and `--llm`; prioritize task usefulness and safety before
+  token savings. Full workflow calls and elapsed times remain in the task corpus.
+- [ ] Check each CLI and MCP operation's actual effects, trust/completeness,
+  audience, request/result schema, and per-command evidence against the
+  provisional destination. Resolve every mismatch before final ratification.
+- [ ] Execute a task corpus in representative repositories for the supported,
+  missing, ambiguous, partial-workspace, and unsafe workflows in the audit.
+  Record expected versus actual suggestion rank, invocable arguments, output
+  usefulness, calls, bytes, elapsed time, and failure semantics.
+- [ ] Revise `surface-disposition.md` after the task-corpus results, including
+  the plan-only whitelist and control-plane/lifecycle audience; obtain a final
+  reviewed disposition before declaring the preview surface frozen.
+
+### Pre-freeze decision gate
+
+- [ ] Every supported user job has an ordered, executable route or an honest
+  unsupported outcome; no internal primitive is suggested as a user workflow.
+- [ ] Every catalogue entry and MCP tool has a reviewed destination, with
+  distinct typed contracts retained where consolidation would obscure effects.
+- [ ] The final disposition explains measured usefulness first and bounded
+  output/call cost second, without dropping completeness or safety evidence.
 
 ### 0.1 Command census and disposition
 
@@ -25,8 +59,9 @@
   external execution), default mode, conditional mutability, idempotency, host
   exposure, structured output, trust/workspace requirements, cost, resource limits,
   known limitations, and target disposition.
-- [x] Ratify `surface-disposition.md` against the current authoritative command catalogue and fail CI when a
-  public command has no disposition.
+- [x] Establish the initial `surface-disposition.md` classification against the
+  then-current catalogue and fail CI when a public command has no disposition.
+  Final ratification remains in the pre-freeze decision gate above.
 - [x] Add an architecture gate that rejects a new standalone public command while the
   product-spine freeze is active unless this OpenSpec is amended and approved.
 
@@ -53,7 +88,7 @@
 
 ### Milestone 0 exit
 
-- [ ] Every current capability has one approved target disposition.
+- [ ] Every current capability has one evidence-reviewed final target disposition.
 - [ ] No new standalone transformation can enter the public catalogue silently.
 - [ ] Documentation authority conflicts are resolved or explicitly tracked.
 - [ ] The current baseline failures and dirty implementation state are recorded without
@@ -317,9 +352,12 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   contract.
 - [ ] Migrate `change-signature` only after overload, optional/default parameter,
   external API, and call-site fixtures pass.
-- [ ] Migrate `move-symbol`, `extract-method`, `extract-interface`, and
-  `delete-unreferenced` one representative slice at a time under their declared
-  completeness and safety preconditions.
+- [ ] Migrate only the move variants admitted by the final whitelist, one
+  representative symbol or slice operation at a time under its completeness and
+  transaction preconditions.
+- [ ] Reconsider `extract-method`, `extract-interface`, and
+  `delete-unreferenced` after the task corpus and safety fixtures; migrate only
+  operations explicitly admitted to preview plan-only support.
 - [ ] Keep advanced or framework-specific transformations in experimental recipe
   planning; do not widen the preview mutation whitelist opportunistically.
 

@@ -30,6 +30,12 @@ NOT depend on, start, or advertise the daemon.
 
 ### Requirement: command admission is catalogue-derived
 
+Final preview-surface admission SHALL follow a review of every live CLI and MCP
+capability against representative user jobs, including overlap, usefulness,
+completeness, effects, audience, and measured call/output cost. Usefulness and
+safety SHALL take precedence over output size. An interim guard against new
+standalone public commands SHALL NOT be treated as final surface ratification.
+
 Every public capability SHALL have one host-neutral definition containing its request
 schema, result schema, maturity, effects, conditional mutability, idempotency, trust
 and workspace requirements, prerequisites, cost, time/item/byte limits, known
@@ -42,6 +48,16 @@ MCP discovery, `doctor`, and `suggest` SHALL project from that definition.
   maturity, effects, prerequisites, workspace, and resource metadata
 - **THEN** command admission fails in CI
 - **AND** the command remains experimental or undiscoverable
+
+#### Scenario: final public surface is proposed
+
+- **WHEN** the preview command set is submitted for final freeze
+- **THEN** every live command and MCP tool has an evidence-reviewed disposition
+- **AND** representative supported tasks have an ordered, invocable workflow
+- **AND** unavailable tasks return an honest unsupported outcome instead of
+  recommending unrelated or unsafe commands
+- **AND** measured output and call costs preserve required completeness and safety
+  evidence
 
 #### Scenario: conditionally mutating command is described
 

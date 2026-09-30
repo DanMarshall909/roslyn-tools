@@ -41,8 +41,9 @@ implemented and tested; the package remains useful without it.
 
 This change establishes:
 
-- one command-by-command disposition and a `Stable | Preview | Experimental |
-  Maintainer-only | Removed` maturity model;
+- a pre-freeze, command-by-command workflow audit that judges usefulness and
+  safety before token cost, then one reviewed disposition and a
+  `Stable | Preview | Experimental | Maintainer-only | Removed` maturity model;
 - a smaller public CLI/MCP surface with no stable daemon dependency;
 - one versioned capability and result contract carrying safety, prerequisites, cost,
   source/workspace provenance, diagnostics, limitations, and next actions;
@@ -136,7 +137,8 @@ may consolidate even where thin CLI conveniences remain.
 
 ## Delivery strategy
 
-1. Freeze and classify the surface.
+1. Audit the live CLI/MCP surface against representative user and agent jobs,
+   measure output/call cost, then classify and freeze the supported surface.
 2. Finish mutation containment and remove apply from supported MCP discovery.
 3. Establish shared descriptors, structured results, provenance, and `doctor`.
 4. Deliver symbol discovery, relationships, and workflow recommendations.

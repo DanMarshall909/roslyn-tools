@@ -17,6 +17,8 @@
    and one plan-only mutation end to end before converting siblings.
 7. **The existing hardening change owns platform truth.** This design links to its
    gates; it does not create weaker copies.
+8. **Usefulness precedes token cost.** Validate the user job, semantic evidence,
+   and complete workflow before optimizing output bytes or call count.
 
 ## Authority and dependency boundaries
 
@@ -48,6 +50,15 @@ files because display limiting occurred before the context count. It recommended
 `outline` command for each displayed file rather than classifying the semantic change
 or constructing a workflow. This is useful evidence for the target design: discovery
 must operate on semantic facts and distinguish total context from displayed items.
+
+The [2026-10-01 pre-freeze audit](pre-freeze-surface-audit.md) supersedes those
+historical counts for current-surface decisions: source-built HEAD has 60
+catalogue entries (25 read/analyze/CI, 34 refactor including `trust`, and one
+lifecycle entry). MCP discovery under the current trust profile has 60 tools over
+three pages. The audit records live workflow failures, provisional command
+dispositions, and response byte costs. The existing command-admission guard is
+an interim growth control. Final surface ratification follows the representative
+task-corpus gate.
 
 ## Target workflow
 
@@ -120,9 +131,11 @@ point or separate package.
 | Change | `prepare-*` | Preview | Produce an immutable, revision-bound plan for an admitted refactor. |
 | Change | `verify-plan` | Preview | Report diagnostic, semantic, project, and candidate-test consequences without writing. |
 
-`rename`, `change-signature`, `move-symbol`, `extract-method`, `extract-interface`, and
-`delete-unreferenced` remain separate typed preparation schemas. A generic `prepare`
-router may group them in CLI help, but it must preserve their discriminated contracts.
+Admitted `rename`, `change-signature`, and move variants retain separate typed
+preparation schemas. `extract-method`, `extract-interface`, and
+`delete-unreferenced` are conditional on the final pre-freeze whitelist and their
+safety fixtures. A generic `prepare` router may group admitted operations in CLI
+help, but it must preserve their discriminated contracts.
 
 ## Shared capability metadata
 
@@ -393,7 +406,9 @@ Before compatibility is promised:
 
 Each slice owns one seam, one public behaviour, and one narrow gate:
 
-1. **Surface census and admission:** metadata only; no operation behaviour changes.
+1. **Pre-freeze workflow audit, surface census, and admission:** measure useful
+   task completion before token cost; review every command and then ratify the
+   final disposition. Metadata-only admission causes no operation behaviour change.
 2. **Containment:** finish the existing dirty branch and hide apply paths.
 3. **Envelope pilot:** migrate `outline` through identical CLI/MCP structured output.
 4. **Workspace pilot:** add `doctor` by projecting the existing completeness model.
