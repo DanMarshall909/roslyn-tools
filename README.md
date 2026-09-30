@@ -101,6 +101,9 @@ MCP clients invoke `prime` with `{}` and `suggest_command` with
 `{"query":"find callers of a method","top":3}`. Both work before workspace
 selection or repository trust. Use the selected command's help or MCP input
 schema for its actual arguments and apply controls.
+Raw `tools/list` responses contain at most 20 tools. `prime` and
+`suggest_command` appear on the first page; follow `nextCursor` to inspect the
+complete catalogue and its schemas.
 
 Agents can start with [the use-rt skill](skills/use-rt/SKILL.md). The compact
 path is `prime` → `suggest --top 3 --llm` → scoped `--help`; use

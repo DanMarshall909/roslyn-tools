@@ -22,6 +22,8 @@ when `rt` is not on PATH. Build from the current source before validating change
 MCP offers `prime` with `{}` and `suggest_command` with
 `{"query":"<intent>","top":3}` before selecting or trusting a repository.
 Use the returned tool schema to form arguments; collections are JSON arrays.
+Raw `tools/list` returns at most 20 tools with these two entry points first;
+follow `nextCursor` when inspecting the rest of the catalogue.
 Some tools require explicit repository trust and an absolute solution path.
 Trust is a user decision; do not grant it merely to make discovery work.
 

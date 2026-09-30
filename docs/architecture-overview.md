@@ -150,6 +150,11 @@ comparisons. See
 CLI-only feedback operations remain registered only in the CLI process; direct
 daemon RPC for their legacy names returns `command_not_found`.
 
+The outer MCP host pages `tools/list` at 20 tools per response, placing `prime`
+and `suggest_command` first for bounded discovery. The cursor is checked against
+the current catalogue count. Installation doctor follows every page and checks
+each tool schema, while the application catalogue and ports stay host-neutral.
+
 Architecture tests lock the production project graph: Core has no project
 reference; Hosting depends only on Core; MCP and DaemonHost depend only on Core
 and Hosting; CLI depends on Core, Hosting, and DaemonHost. Compiled-reference

@@ -20,10 +20,18 @@ host; Core, Hosting, and Adapters do not depend on MCP protocol types.
 Keep the SDK's default protocol-version selection so the host can negotiate
 legacy `initialize` clients and current `server/discover` clients. Spawned-process
 tests exercise each version advertised by the pinned SDK, real tool calls, stdout
-purity, stderr diagnostics, and graceful EOF. Broader conformance, especially
-pagination, cancellation under a long-running operation, and malformed-input
-edge cases, remains an RT-012 gate rather than an assumed consequence of using
-the SDK.
+purity, stderr diagnostics, and graceful EOF. A controlled stdio test also proves
+request cancellation under a blocked application port in every supported era.
+Remaining malformed-input and protocol edge cases stay in RT-012 rather than
+being assumed consequences of using the SDK.
+
+As of 2026-09-30, the MCP host returns `tools/list` in pages of at most 20.
+`prime` and `suggest_command` lead the first page so agents can discover the
+session entry points with one bounded response. A count-bound cursor advances
+through the stable catalogue; invalid or stale cursors produce JSON-RPC invalid
+params. The installation doctor follows every cursor, validates each page's
+schemas and unique tool names, and fails closed on repeated cursors or an
+unfinished page sequence.
 
 ## Consequences
 

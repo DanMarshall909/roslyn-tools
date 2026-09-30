@@ -37,6 +37,7 @@ internal sealed class DoctorEnvironmentProbe(
 {
     private const string ExpectedProtocol = "2024-11-05";
     private const string ExpectedServer = "roslyn-tools-mcp";
+    private const int MaximumToolPages = 32;
     private readonly string? _cliLauncher = cliLauncher ?? Environment.ProcessPath;
     private readonly string? _mcpLauncher = mcpLauncher;
     private readonly string? _buildHostDirectory = buildHostDirectory;
@@ -129,10 +130,28 @@ internal sealed class DoctorEnvironmentProbe(
 
             await process.StandardInput.WriteLineAsync(
                 "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}");
-            await process.StandardInput.WriteLineAsync(
-                "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}");
-            await process.StandardInput.FlushAsync(timeoutSource.Token);
-            var toolsLine = await process.StandardOutput.ReadLineAsync(timeoutSource.Token);
+            var responseLines = new List<string?> { initializeLine };
+            var seenCursors = new HashSet<string>(StringComparer.Ordinal);
+            string? cursor = null;
+            for (var page = 0; page < MaximumToolPages; page++)
+            {
+                var parameters = new Dictionary<string, string>();
+                if (cursor is not null)
+                    parameters["cursor"] = cursor;
+                await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
+                {
+                    jsonrpc = "2.0",
+                    id = page + 2,
+                    method = "tools/list",
+                    @params = parameters
+                }));
+                await process.StandardInput.FlushAsync(timeoutSource.Token);
+                var pageLine = await process.StandardOutput.ReadLineAsync(timeoutSource.Token);
+                responseLines.Add(pageLine);
+                cursor = ReadNextToolCursor(pageLine);
+                if (cursor is null || !seenCursors.Add(cursor))
+                    break;
+            }
             process.StandardInput.Close();
 
             var remainingStdoutTask = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
@@ -141,7 +160,7 @@ internal sealed class DoctorEnvironmentProbe(
             var stderr = await stderrTask;
             var stdout = string.Join(
                 Environment.NewLine,
-                new[] { initializeLine, toolsLine, remainingStdout }
+                responseLines.Append(remainingStdout)
                     .Where(line => !string.IsNullOrWhiteSpace(line)));
             return ValidateMcpOutput(stdout, stderr, process.ExitCode);
         }
@@ -166,6 +185,28 @@ internal sealed class DoctorEnvironmentProbe(
         finally
         {
             process?.Dispose();
+        }
+    }
+
+    private static string? ReadNextToolCursor(string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            return document.RootElement.GetProperty("result")
+                .TryGetProperty("nextCursor", out var next)
+                && next.ValueKind == JsonValueKind.String
+                    ? next.GetString()
+                    : null;
+        }
+        catch (Exception exception) when (exception is JsonException
+                                          or InvalidOperationException
+                                          or KeyNotFoundException)
+        {
+            return null;
         }
     }
 
@@ -213,6 +254,11 @@ internal sealed class DoctorEnvironmentProbe(
         string? serverName = null;
         var toolCount = 0;
         var responses = 0;
+        var initializeSeen = false;
+        var expectedToolResponseId = 2;
+        var finalPageSeen = false;
+        var toolNames = new HashSet<string>(StringComparer.Ordinal);
+        var seenCursors = new HashSet<string>(StringComparer.Ordinal);
         foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             try
@@ -225,18 +271,51 @@ internal sealed class DoctorEnvironmentProbe(
                 var result = root.GetProperty("result");
                 if (id == 1)
                 {
+                    if (initializeSeen || responses != 0)
+                        diagnostics.Add("MCP returned an unexpected initialization response.");
+                    initializeSeen = true;
                     protocol = result.GetProperty("protocolVersion").GetString();
                     serverName = result.GetProperty("serverInfo").GetProperty("name").GetString();
                 }
-                else if (id == 2)
+                else if (id == expectedToolResponseId)
                 {
+                    if (!initializeSeen)
+                        diagnostics.Add("MCP tools/list responded before initialization.");
+                    if (finalPageSeen)
+                        diagnostics.Add("MCP tools/list returned a page after its final page.");
                     var tools = result.GetProperty("tools").EnumerateArray().ToArray();
-                    toolCount = tools.Length;
-                    if (tools.Any(tool => tool.GetProperty("inputSchema").ValueKind != JsonValueKind.Object))
-                        diagnostics.Add("MCP tools/list returned a tool without an object input schema.");
-                    if (tools.Any(tool => tool.TryGetProperty("outputSchema", out var schema)
-                                          && schema.ValueKind != JsonValueKind.Object))
-                        diagnostics.Add("MCP tools/list returned a non-object output schema.");
+                    toolCount += tools.Length;
+                    foreach (var tool in tools)
+                    {
+                        if (!tool.TryGetProperty("name", out var name)
+                            || name.ValueKind != JsonValueKind.String
+                            || string.IsNullOrWhiteSpace(name.GetString()))
+                            diagnostics.Add("MCP tools/list returned a tool without a name.");
+                        else if (!toolNames.Add(name.GetString()!))
+                            diagnostics.Add($"MCP tools/list repeated tool '{name.GetString()}'.");
+
+                        if (!tool.TryGetProperty("inputSchema", out var inputSchema)
+                            || inputSchema.ValueKind != JsonValueKind.Object
+                            || !inputSchema.TryGetProperty("type", out var type)
+                            || type.ValueKind != JsonValueKind.String
+                            || type.GetString() != "object")
+                            diagnostics.Add("MCP tools/list returned a tool without an object input schema.");
+                        if (tool.TryGetProperty("outputSchema", out var outputSchema)
+                            && outputSchema.ValueKind != JsonValueKind.Object)
+                            diagnostics.Add("MCP tools/list returned a non-object output schema.");
+                    }
+
+                    if (result.TryGetProperty("nextCursor", out var nextCursor)
+                        && nextCursor.ValueKind != JsonValueKind.Null)
+                    {
+                        if (nextCursor.ValueKind != JsonValueKind.String)
+                            diagnostics.Add("MCP tools/list returned a non-string page cursor.");
+                        else if (!seenCursors.Add(nextCursor.GetString()!))
+                            diagnostics.Add("MCP tools/list repeated a page cursor.");
+                    }
+                    else
+                        finalPageSeen = true;
+                    expectedToolResponseId++;
                 }
                 else
                 {
@@ -254,8 +333,12 @@ internal sealed class DoctorEnvironmentProbe(
             }
         }
 
-        if (responses != 2)
-            diagnostics.Add($"MCP handshake expected two JSON-RPC responses but received {responses}.");
+        if (!initializeSeen || responses < 2)
+            diagnostics.Add($"MCP handshake expected initialization and tools/list responses but received {responses}.");
+        if (!finalPageSeen && expectedToolResponseId > 2)
+            diagnostics.Add("MCP tools/list pagination did not reach a final page.");
+        if (!finalPageSeen && expectedToolResponseId - 2 >= MaximumToolPages)
+            diagnostics.Add($"MCP tools/list exceeded {MaximumToolPages} pages.");
         if (protocol != ExpectedProtocol)
             diagnostics.Add($"MCP protocol version was '{protocol ?? "missing"}', expected '{ExpectedProtocol}'.");
         if (serverName != ExpectedServer)

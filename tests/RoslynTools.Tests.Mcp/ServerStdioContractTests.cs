@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Shouldly;
 
@@ -6,6 +8,221 @@ namespace RoslynTools.Tests.Mcp;
 
 public sealed class ServerStdioContractTests
 {
+    [Fact]
+    public async Task spawned_server_rejects_stale_and_out_of_range_tool_page_cursors()
+    {
+        using var process = StartServer();
+        var stderr = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 1,
+                method = "initialize",
+                @params = new
+                {
+                    protocolVersion = "2024-11-05",
+                    capabilities = new { },
+                    clientInfo = new { name = "rt-cursor-test", version = "1.0" }
+                }
+            });
+            using (var handshake = await ReadResponseAsync(process))
+                handshake.RootElement.GetProperty("id").GetInt32().ShouldBe(1);
+            await SendAsync(process, new { jsonrpc = "2.0", method = "notifications/initialized" });
+            await SendAsync(process, new { jsonrpc = "2.0", id = 2, method = "tools/list" });
+            string validCursor;
+            using (var firstPage = await ReadResponseAsync(process))
+                validCursor = firstPage.RootElement.GetProperty("result")
+                    .GetProperty("nextCursor").GetString()!;
+
+            var parts = validCursor.Split(':');
+            parts.Length.ShouldBe(3);
+            var count = int.Parse(parts[1], CultureInfo.InvariantCulture);
+            var countText = count.ToString(CultureInfo.InvariantCulture);
+            var invalidCursors = new[]
+            {
+                $"rt-tools-v1:{(count + 1).ToString(CultureInfo.InvariantCulture)}:20",
+                $"rt-tools-v1:{countText}:0",
+                $"rt-tools-v1:{countText}:21",
+                $"rt-tools-v1:{countText}:{countText}",
+                $"rt-tools-v1:{countText}:{(count + 20).ToString(CultureInfo.InvariantCulture)}"
+            };
+            var requestId = 3;
+            foreach (var cursor in invalidCursors)
+            {
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = requestId,
+                    method = "tools/list",
+                    @params = new { cursor }
+                });
+                using var response = await ReadResponseAsync(process);
+                response.RootElement.GetProperty("id").GetInt32().ShouldBe(requestId);
+                response.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32602);
+                requestId++;
+            }
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = requestId,
+                method = "tools/list",
+                @params = new { cursor = validCursor }
+            });
+            using (var recovered = await ReadResponseAsync(process))
+                recovered.RootElement.GetProperty("result").GetProperty("tools")
+                    .GetArrayLength().ShouldBeGreaterThan(0);
+
+            process.StandardInput.Close();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            process.ExitCode.ShouldBe(0, await stderr);
+            (await process.StandardOutput.ReadToEndAsync()).ShouldBeEmpty();
+        }
+        finally
+        {
+            await StopAsync(process);
+        }
+    }
+
+    [Theory]
+    [InlineData("2024-11-05")]
+    [InlineData("2025-03-26")]
+    [InlineData("2025-06-18")]
+    [InlineData("2025-11-25")]
+    [InlineData("2026-07-28")]
+    public async Task spawned_server_pages_the_complete_tool_catalogue_with_valid_schemas(
+        string protocolVersion)
+    {
+        using var process = StartServer();
+        var stderr = process.StandardError.ReadToEndAsync();
+        var modern = protocolVersion == "2026-07-28";
+        var metadata = new Dictionary<string, object>
+        {
+            ["io.modelcontextprotocol/protocolVersion"] = protocolVersion,
+            ["io.modelcontextprotocol/clientInfo"] = new { name = "rt-page-test", version = "1.0" },
+            ["io.modelcontextprotocol/clientCapabilities"] = new { }
+        };
+        try
+        {
+            if (modern)
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = 1,
+                    method = "server/discover",
+                    @params = new { _meta = metadata }
+                });
+            else
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = 1,
+                    method = "initialize",
+                    @params = new
+                    {
+                        protocolVersion,
+                        capabilities = new { },
+                        clientInfo = new { name = "rt-page-test", version = "1.0" }
+                    }
+                });
+            using (var handshake = await ReadResponseAsync(process))
+                handshake.RootElement.GetProperty("id").GetInt32().ShouldBe(1);
+            if (!modern)
+                await SendAsync(process, new { jsonrpc = "2.0", method = "notifications/initialized" });
+
+            var names = new List<string>();
+            var cursors = new HashSet<string>(StringComparer.Ordinal);
+            string? cursor = null;
+            var requestId = 2;
+            do
+            {
+                var parameters = new Dictionary<string, object?>();
+                if (modern)
+                    parameters["_meta"] = metadata;
+                if (cursor is not null)
+                    parameters["cursor"] = cursor;
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id = requestId,
+                    method = "tools/list",
+                    @params = parameters
+                });
+                var line = await process.StandardOutput.ReadLineAsync()
+                    .WaitAsync(TimeSpan.FromSeconds(10));
+                line.ShouldNotBeNullOrWhiteSpace();
+                Encoding.UTF8.GetByteCount(line).ShouldBeLessThan(64 * 1024);
+                using var page = JsonDocument.Parse(line);
+                page.RootElement.GetProperty("id").GetInt32().ShouldBe(requestId);
+                var result = page.RootElement.GetProperty("result");
+                var tools = result.GetProperty("tools").EnumerateArray().ToArray();
+                tools.Length.ShouldBeInRange(1, 20);
+                foreach (var tool in tools)
+                {
+                    var name = tool.GetProperty("name").GetString();
+                    name.ShouldNotBeNullOrWhiteSpace();
+                    names.Add(name);
+                    tool.GetProperty("inputSchema").GetProperty("type")
+                        .GetString().ShouldBe("object");
+                    tool.GetProperty("outputSchema").GetProperty("oneOf")
+                        .GetArrayLength().ShouldBe(2);
+                }
+
+                if (requestId == 2)
+                {
+                    tools[0].GetProperty("name").GetString().ShouldBe("prime");
+                    tools[1].GetProperty("name").GetString().ShouldBe("suggest_command");
+                }
+
+                cursor = result.TryGetProperty("nextCursor", out var next)
+                    ? next.GetString()
+                    : null;
+                if (cursor is not null)
+                    cursors.Add(cursor).ShouldBeTrue("A page cursor must not repeat.");
+                requestId++;
+            } while (cursor is not null && requestId < 10);
+
+            cursor.ShouldBeNull("The tool catalogue must terminate within eight pages.");
+            names.Count.ShouldBe(60);
+            names.Distinct(StringComparer.Ordinal).Count().ShouldBe(names.Count);
+            names.ShouldContain("prime");
+            names.ShouldContain("move_slice");
+            names.ShouldContain("semantic_diff");
+
+            var invalidParameters = new Dictionary<string, object?>
+            {
+                ["cursor"] = "invalid-cursor"
+            };
+            if (modern)
+                invalidParameters["_meta"] = metadata;
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = requestId,
+                method = "tools/list",
+                @params = invalidParameters
+            });
+            using (var invalid = await ReadResponseAsync(process))
+            {
+                invalid.RootElement.GetProperty("id").GetInt32().ShouldBe(requestId);
+                invalid.RootElement.GetProperty("error").GetProperty("code")
+                    .GetInt32().ShouldBe(-32602);
+            }
+
+            process.StandardInput.Close();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            process.ExitCode.ShouldBe(0, await stderr);
+            (await process.StandardOutput.ReadToEndAsync()).ShouldBeEmpty();
+        }
+        finally
+        {
+            await StopAsync(process);
+        }
+    }
+
     [Theory]
     [InlineData("2024-11-05")]
     [InlineData("2025-03-26")]

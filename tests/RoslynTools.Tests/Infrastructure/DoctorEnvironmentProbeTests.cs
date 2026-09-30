@@ -73,6 +73,100 @@ public sealed class DoctorEnvironmentProbeTests
     }
 
     [Fact]
+    public async Task installation_probe_follows_each_tool_page_and_checks_every_schema()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var directory = new TemporaryDirectory();
+        var cli = Path.Combine(directory.Path, "rt");
+        var mcp = Path.Combine(directory.Path, "roslyn-tools-mcp");
+        var buildHost = Path.Combine(directory.Path, "BuildHost-netcore");
+        File.WriteAllText(cli, "#!/bin/sh\nexit 0\n");
+        File.WriteAllText(mcp, """
+            #!/bin/sh
+            read initialize
+            printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"roslyn-tools-mcp"}}}'
+            read initialized
+            read first
+            printf '%s' "$first" | grep -q '"method":"tools/list"' || exit 10
+            printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"first","inputSchema":{"type":"object"}}],"nextCursor":"page-two"}}'
+            read second
+            printf '%s' "$second" | grep -q '"cursor":"page-two"' || exit 11
+            printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"second","inputSchema":{"type":"object"},"outputSchema":{"type":"object"}}]}}'
+            """);
+        File.SetUnixFileMode(cli, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(mcp, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        CreateBuildHost(buildHost);
+        var probe = new DoctorEnvironmentProbe(
+            cli,
+            mcp,
+            buildHost,
+            TimeSpan.FromSeconds(2),
+            _ => new DoctorSdkSelection(true, null, null));
+
+        var result = await probe.ProbeAsync(directory.Path, CancellationToken.None);
+
+        result.IsHealthy.ShouldBeTrue(string.Join(Environment.NewLine, result.Diagnostics));
+        result.DiscoveredTools.ShouldBe(2);
+        result.Diagnostics.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void invalid_schema_on_a_later_tool_page_fails_installation_validation()
+    {
+        var stdout = """
+            {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"roslyn-tools-mcp"}}}
+            {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"first","inputSchema":{"type":"object"}}],"nextCursor":"page-two"}}
+            {"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"second","inputSchema":{"type":"string"}}]}}
+            """;
+
+        var result = DoctorEnvironmentProbe.ValidateMcpOutput(stdout, string.Empty, 0);
+
+        result.Healthy.ShouldBeFalse();
+        result.DiscoveredTools.ShouldBe(2);
+        result.Diagnostics.ShouldContain(message =>
+            message.Contains("object input schema", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void repeated_tool_page_cursor_fails_installation_validation()
+    {
+        var stdout = """
+            {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"roslyn-tools-mcp"}}}
+            {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"first","inputSchema":{"type":"object"}}],"nextCursor":"page-two"}}
+            {"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"second","inputSchema":{"type":"object"}}],"nextCursor":"page-two"}}
+            """;
+
+        var result = DoctorEnvironmentProbe.ValidateMcpOutput(stdout, string.Empty, 0);
+
+        result.Healthy.ShouldBeFalse();
+        result.Diagnostics.ShouldContain(message =>
+            message.Contains("repeated a page cursor", StringComparison.Ordinal));
+        result.Diagnostics.ShouldContain(message =>
+            message.Contains("did not reach a final page", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void duplicate_initialization_response_fails_installation_validation(
+        bool beforeToolPage)
+    {
+        const string initialize = """{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"roslyn-tools-mcp"}}}""";
+        const string tools = """{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"prime","inputSchema":{"type":"object"}}]}}""";
+        var stdout = beforeToolPage
+            ? string.Join('\n', initialize, initialize, tools)
+            : string.Join('\n', initialize, tools, initialize);
+
+        var result = DoctorEnvironmentProbe.ValidateMcpOutput(stdout, string.Empty, 0);
+
+        result.Healthy.ShouldBeFalse();
+        result.Diagnostics.ShouldContain(message =>
+            message.Contains("initialization response", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void stdout_diagnostics_fail_json_rpc_purity()
     {
         var result = DoctorEnvironmentProbe.ValidateMcpOutput(

@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using RoslynTools.Mcp.Tools;
@@ -12,6 +14,8 @@ namespace RoslynTools.Mcp;
 /// </summary>
 internal sealed class Server(ToolRegistry toolRegistry, Stream input, Stream output)
 {
+    private const int ToolPageSize = 20;
+    private const string ToolCursorPrefix = "rt-tools-v1";
     private readonly ToolRegistry _toolRegistry = toolRegistry;
     private readonly Stream _input = input;
     private readonly Stream _output = output;
@@ -27,10 +31,8 @@ internal sealed class Server(ToolRegistry toolRegistry, Stream input, Stream out
             },
             Handlers = new McpServerHandlers
             {
-                ListToolsHandler = (_, _) => ValueTask.FromResult(new ListToolsResult
-                {
-                    Tools = _toolRegistry.GetTools().Select(ToProtocolTool).ToArray()
-                }),
+                ListToolsHandler = (request, _) =>
+                    ValueTask.FromResult(ListTools(request.Params?.Cursor)),
                 CallToolHandler = async (request, requestCancellationToken) =>
                 {
                     var arguments = JsonSerializer.SerializeToElement(
@@ -56,6 +58,53 @@ internal sealed class Server(ToolRegistry toolRegistry, Stream input, Stream out
         await using var server = McpServer.Create(transport, options);
         await server.RunAsync(cancellationToken);
     }
+
+    private ListToolsResult ListTools(string? cursor)
+    {
+        var definitions = _toolRegistry.GetTools()
+            .OrderBy(definition => DiscoveryPriority(definition.name))
+            .ToArray();
+        var start = ParseToolCursor(cursor, definitions.Length);
+        var page = definitions.Skip(start).Take(ToolPageSize)
+            .Select(ToProtocolTool).ToArray();
+        var next = start + page.Length;
+        return new ListToolsResult
+        {
+            Tools = page,
+            NextCursor = next < definitions.Length
+                ? $"{ToolCursorPrefix}:{definitions.Length.ToString(CultureInfo.InvariantCulture)}:{next.ToString(CultureInfo.InvariantCulture)}"
+                : null
+        };
+    }
+
+    private static int ParseToolCursor(string? cursor, int count)
+    {
+        if (cursor is null)
+            return 0;
+
+        var parts = cursor.Split(':');
+        if (parts.Length != 3
+            || parts[0] != ToolCursorPrefix
+            || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var cursorCount)
+            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var start)
+            || cursorCount != count
+            || start < ToolPageSize
+            || start >= count
+            || start % ToolPageSize != 0)
+            throw new McpProtocolException("Invalid or stale tools/list cursor.", McpErrorCode.InvalidParams);
+
+        return start;
+    }
+
+    private static int DiscoveryPriority(string name) => name switch
+    {
+        "prime" => 0,
+        "suggest_command" => 1,
+        "search_symbols" => 2,
+        "relationships" => 3,
+        "move_slice" => 4,
+        _ => 5
+    };
 
     private static Tool ToProtocolTool(ToolDefinition definition)
     {
