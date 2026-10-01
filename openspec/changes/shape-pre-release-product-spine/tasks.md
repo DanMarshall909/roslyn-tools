@@ -139,6 +139,9 @@
 
 - [ ] Amend or supersede ADR-0002 so workflow suggestions and follow-ons originate in
   host-neutral application metadata rather than adapter-owned response decoration.
+- [x] Project the three migrated pilot commands' follow-ons from their shared
+  application definitions into the daemon catalogue and replace retired
+  `find_refs` guidance with public `relationships` references mode.
 - [ ] Amend RT-012's daemon-as-execution-owner decision to acknowledge ADR-0008 and the
   daemon-free `0.1-preview` topology.
 - [ ] Reconcile RT-007 completed criteria, its remaining bridge work, and the unchecked

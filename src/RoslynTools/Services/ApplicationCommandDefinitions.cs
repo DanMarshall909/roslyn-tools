@@ -46,8 +46,8 @@ internal static class OutlineCommandDefinition
                 "describe",
                 "Use after outline when a returned type or member needs a focused signature view."),
             new CommandFollowOn(
-                "find_refs",
-                "Use after outline when you need to trace references to a symbol it identified.")
+                "relationships",
+                "Use relationships in references mode after outline to trace references to a symbol it identified.")
         ],
         product: CommandProductMetadata.FromLegacy(
             Metadata,
@@ -88,8 +88,8 @@ internal static class AddDependencyCommandDefinition
                 "describe",
                 "Use after the preview or change to review the target constructor and injected field."),
             new CommandFollowOn(
-                "find_refs",
-                "Use after the change to find call sites that can now use the injected dependency.")
+                "relationships",
+                "Use relationships in references mode after the change to inspect references to the target class and affected call sites.")
         ]);
 
     internal static string Name => Definition.Name;
@@ -128,8 +128,8 @@ internal static class MakeSealedCommandDefinition
                 "describe",
                 "Use after the preview or change to inspect the class declaration and its modifiers."),
             new CommandFollowOn(
-                "find_refs",
-                "Use after sealing to review references to the class before committing the change.")
+                "relationships",
+                "Use relationships in references mode after sealing to review references to the class before committing the change.")
         ]);
 }
 

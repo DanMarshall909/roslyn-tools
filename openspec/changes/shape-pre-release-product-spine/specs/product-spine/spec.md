@@ -49,6 +49,13 @@ MCP discovery, `doctor`, and `suggest` SHALL project from that definition.
 - **THEN** command admission fails in CI
 - **AND** the command remains experimental or undiscoverable
 
+#### Scenario: migrated commands suggest a reference lookup
+
+- **WHEN** `outline` emits a result follow-on or the `add-dependency` and `make-sealed` application definitions advertise one
+- **THEN** that follow-on names the public `relationships` capability and explains its `references` mode
+- **AND** the legacy daemon projection uses the same application-defined follow-on metadata
+- **AND** ordinary MCP discovery does not expose the retired `find_refs` identity
+
 #### Scenario: final public surface is proposed
 
 - **WHEN** the preview command set is submitted for final freeze

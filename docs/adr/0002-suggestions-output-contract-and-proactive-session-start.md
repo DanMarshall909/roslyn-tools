@@ -55,6 +55,20 @@ MCP project the same workflow; neither executes it during suggestion. This is
 a narrow pilot: general metadata-generated workflows and reconciliation of
 inspection-result follow-ons remain open in RT-016.
 
+## 2026-10-02 amendment: migrated result follow-ons
+
+The migrated `outline` result envelope uses
+`ApplicationCommandDefinition.SuggestedTools` as its follow-on source. The
+`add-dependency` and `make-sealed` application definitions carry the same kind
+of metadata; their mutation result bodies do not yet emit those follow-ons.
+The legacy daemon catalogue projects the three definition lists rather than
+copying the entries. Their reference follow-on names the public `relationships` capability
+and explains its `references` mode; `find_refs` remains a compatibility identity
+outside ordinary MCP discovery. `CommandFollowOn` still carries only a name and
+reason, so this does not make the mode a populated invokable argument. General
+workflow generation and legacy `_suggestions` reconciliation remain open in
+RT-016; the adapter-owned invariant above applies to the legacy field.
+
 ## Alternatives considered
 
 - **`_suggestions` inside the core service:** Rejected — services don't know the `--solution` path or the host format. Generating pre-filled commands inside the service would couple it to CLI/MCP rendering concerns.

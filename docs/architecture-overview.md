@@ -1058,6 +1058,12 @@ Human text is not the MCP machine contract. A structured MCP tool returns `struc
 
 Suggestions/follow-ons are application metadata projected by hosts. They are not invented by a renderer, and destructive follow-ons are suppressed when workspace completeness, confidence, or safety policy does not allow them.
 
+For the migrated `outline` result and the `add-dependency` and `make-sealed`
+application definitions, the legacy daemon catalogue references each
+definition's `SuggestedTools` list. Reference follow-ons use the public
+`relationships` identity and name its `references` mode in the reason; typed
+follow-on arguments and mutation-result emission remain future work.
+
 ## Capability catalogue as the source of truth
 
 | Concern | Canonical source |

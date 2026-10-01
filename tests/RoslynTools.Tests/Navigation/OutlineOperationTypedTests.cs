@@ -60,6 +60,9 @@ public sealed class OutlineOperationTypedTests
                 .ShouldContain(type => type.Name == "Order");
             envelope.Paging.TotalItems.ShouldBe(1);
             envelope.Paging.Truncated.ShouldBeFalse();
+            envelope.NextActions.Select(action => action.Capability)
+                .ShouldBe(["describe", "relationships"]);
+            envelope.NextActions[1].Reason.ShouldContain("references mode");
             operation.Definition.ResponseType.ShouldBe(typeof(RtResultEnvelope<OutlineResult>));
         }
     }

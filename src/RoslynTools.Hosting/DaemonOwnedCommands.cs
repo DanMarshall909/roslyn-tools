@@ -30,42 +30,21 @@ internal static class DaemonOwnedCommands
             CommandSafety.ReadOnly,
             typeof(OutlineRequest),
             typeof(RtResultEnvelope<OutlineResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after outline when a returned type or member needs a focused signature view."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after outline when you need to trace references to a symbol it identified.")
-            ]),
+            OutlineCommandDefinition.Definition.SuggestedTools),
         new DaemonCommandDefinition(
             AddDependencyCommandDefinition.Name,
             AddDependencyCommandDefinition.Info,
             CommandSafety.ReviewByDefault,
             typeof(AddDependencyRequest),
             typeof(MutationExecutionResult<AddDependencyResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after the preview or change to review the target constructor and injected field."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after the change to find call sites that can now use the injected dependency.")
-            ]),
+            AddDependencyCommandDefinition.Definition.SuggestedTools),
         new DaemonCommandDefinition(
             MakeSealedCommandDefinition.Name,
             MakeSealedCommandDefinition.Info,
             CommandSafety.ReviewByDefault,
             typeof(MakeSealedRequest),
             typeof(MutationExecutionResult<MakeSealedResult>),
-            [
-                new CommandFollowOn(
-                    "describe",
-                    "Use after the preview or change to inspect the class declaration and its modifiers."),
-                new CommandFollowOn(
-                    "find_refs",
-                    "Use after sealing to review references to the class before committing the change.")
-            ]),
+            MakeSealedCommandDefinition.Definition.SuggestedTools),
         new DaemonCommandDefinition(
             CircularDepsCommandDefinition.Name,
             CircularDepsCommandDefinition.Info,

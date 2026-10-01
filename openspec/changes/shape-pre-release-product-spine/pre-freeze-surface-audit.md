@@ -469,6 +469,15 @@ still names the retired `find_refs` identity. MCP does put `prime` and
 `suggest_command` first, but complete discovery under the current trust profile
 still required three pages.
 
+A later discoverability slice replaces the retired `find_refs` follow-on in
+the `outline` result and the `add-dependency` and `make-sealed` application
+definitions with the public `relationships` capability, naming its
+`references` mode. The daemon's pilot
+catalogue now projects those follow-ons from the same application definitions
+instead of retaining copied entries. The mode is still prose in the follow-on
+reason; typed invokable follow-on arguments remain part of the RT-016 workflow
+contract work.
+
 The focused search's workspace object alone was about 14.5 KB versus 714 bytes
 of symbol data. It and `doctor` reported `Partial` on this clean checkout because
 `workspace:input-set` was failed despite matching expected and observed

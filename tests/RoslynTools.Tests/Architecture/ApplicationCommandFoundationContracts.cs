@@ -115,7 +115,8 @@ public sealed class ApplicationCommandFoundationContracts
         outline.Safety.ShouldBe(CommandSafety.ReadOnly);
         outline.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.DaemonPreferred);
         outline.SuggestedTools.Select(tool => tool.ToolName)
-            .ShouldBe(["describe", "find_refs"]);
+            .ShouldBe(["describe", "relationships"]);
+        outline.SuggestedTools[1].WhenToUse.ShouldContain("references mode");
         outline.Product.Maturity.ShouldBe(CapabilityMaturity.StableCandidate);
         outline.Product.WorkspaceRequirement.ShouldBe(WorkspaceRequirement.Semantic);
 
@@ -127,7 +128,8 @@ public sealed class ApplicationCommandFoundationContracts
         addDependency.Safety.ShouldBe(CommandSafety.ReviewByDefault);
         addDependency.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         addDependency.SuggestedTools.Select(tool => tool.ToolName)
-            .ShouldBe(["describe", "find_refs"]);
+            .ShouldBe(["describe", "relationships"]);
+        addDependency.SuggestedTools[1].WhenToUse.ShouldContain("references mode");
         addDependency.Product.Effects.ShouldBe(
             CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite);
         addDependency.Product.ConditionallyMutable.ShouldBeTrue();

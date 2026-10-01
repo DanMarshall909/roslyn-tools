@@ -576,22 +576,28 @@ public sealed class DaemonCommandDispatcherTests
     [Fact]
     public void Mutation_definitions_publish_their_typed_transport_contracts()
     {
+        var outline = DaemonOwnedCommands.All
+            .Single(command => command.Name == OutlineCommandDefinition.Name);
         var addDependency = DaemonOwnedCommands.All
             .Single(command => command.Name == AddDependencyCommandDefinition.Name);
         var makeSealed = DaemonOwnedCommands.All
             .Single(command => command.Name == MakeSealedCommandDefinition.Name);
 
+        outline.SuggestedTools.ShouldBeSameAs(OutlineCommandDefinition.Definition.SuggestedTools);
         addDependency.RequestType.ShouldBe(typeof(AddDependencyRequest));
         addDependency.ResponseType.ShouldBe(typeof(MutationExecutionResult<AddDependencyResult>));
         addDependency.Safety.ShouldBe(CommandSafety.ReviewByDefault);
+        addDependency.SuggestedTools.ShouldBeSameAs(AddDependencyCommandDefinition.Definition.SuggestedTools);
         addDependency.SuggestedTools.Select(tool => tool.ToolName)
-            .ShouldBe(["describe", "find_refs"]);
+            .ShouldBe(["describe", "relationships"]);
 
         makeSealed.RequestType.ShouldBe(typeof(MakeSealedRequest));
         makeSealed.ResponseType.ShouldBe(typeof(MutationExecutionResult<MakeSealedResult>));
         makeSealed.Safety.ShouldBe(CommandSafety.ReviewByDefault);
+        makeSealed.SuggestedTools.ShouldBeSameAs(MakeSealedCommandDefinition.Definition.SuggestedTools);
         makeSealed.SuggestedTools.Select(tool => tool.ToolName)
-            .ShouldBe(["describe", "find_refs"]);
+            .ShouldBe(["describe", "relationships"]);
+        makeSealed.SuggestedTools[1].WhenToUse.ShouldContain("references mode");
     }
 
     private sealed record EchoRequest(string Value);
@@ -774,7 +780,7 @@ public sealed class DaemonCommandDispatcherTests
         commandName.Replace('-', '_') is "outline" or "add_dependency"
             ? [
                 new CommandFollowOn("describe", "Inspect the result."),
-                new CommandFollowOn("find_refs", "Find references.")
+                new CommandFollowOn("relationships", "Find references.")
             ]
             : []);
 }
