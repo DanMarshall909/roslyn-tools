@@ -34,7 +34,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Logger.Log", "LogInfo");
 
@@ -60,7 +60,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Logger.Log", "LogInfo");
         }
@@ -84,7 +84,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var execution = await ExecuteAsync("Logger.Log", "LogInfo");
             execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
@@ -98,7 +98,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var originalContent = await project.ReadSourceAsync("LogApp.cs");
 
@@ -131,7 +131,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 "Factory.CreateStringOption",

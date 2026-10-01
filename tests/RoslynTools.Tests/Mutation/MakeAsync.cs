@@ -41,7 +41,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent");
         }
@@ -58,7 +58,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent");
         }
@@ -75,7 +75,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent");
         }
@@ -91,7 +91,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent");
         }
@@ -109,7 +109,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
 
         var originalContent = await project.ReadSourceAsync("AgentService.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var execution = await ExecuteAsync("AgentService", "AlreadyAsyncMethod");
             execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
@@ -126,7 +126,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent", noRename: true);
         }
@@ -150,7 +150,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
                                     """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Svc", "Send");
         }
@@ -167,7 +167,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("AgentService", "GetAgent");
         }
@@ -202,7 +202,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
                                     """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Processor", "Run");
         }
@@ -237,7 +237,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
                                     """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Worker", "Fetch");
         }
@@ -255,7 +255,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         project.AddSource("AgentService.cs", AgentServiceSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var result = await _services.Resolve<MakeAsyncOperation>().ExecuteAsync(
                 new MakeAsyncRequest("AgentService", "NonExistent", Solution: "ignored"));

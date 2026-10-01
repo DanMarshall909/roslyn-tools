@@ -42,10 +42,11 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     {
         var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var exitCode = await App.RunAsync(
-                ["delete-unreferenced", "--symbol", "Orphan", "--solution", "ignored", "--dry-run", "false"]);
+                ["--trust-repository", "delete-unreferenced", "--symbol", "Orphan",
+                    "--solution", project.SolutionPath, "--dry-run", "false"]);
 
             exitCode.ShouldBe(0);
             var content = await project.ReadSourceAsync("SafeApp.cs");
@@ -98,7 +99,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     {
         var (project, workspace, solution) = await BuildFixtureAsync();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var execution = await ExecuteAsync("Svc.Dead", "method");
 
@@ -217,7 +218,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["SafeApp"]);
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var execution = await ExecuteAsync("Logger");
 
@@ -243,7 +244,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         await ExplicitWorkspaceAcquisition.AttachAsync(solution, ["SafeApp"]);
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync("Dead");
 

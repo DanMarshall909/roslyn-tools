@@ -27,7 +27,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 "AgentService",
@@ -39,6 +39,31 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         Assert.True(project.SourceExists("IAgentService.cs"),
             "IAgentService.cs should have been created alongside AgentService.cs");
+    }
+
+    [Fact]
+    public async Task rejects_an_output_directory_outside_the_trusted_repository_before_staging()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", "namespace MyApp; public class Widget { public void Run() { } }");
+        var (workspace, sln) = project.Build();
+        var sourceBefore = await project.ReadSourceAsync("Widget.cs");
+        var outputDir = Directory.CreateTempSubdirectory("rt-extract-outside-");
+        try
+        {
+            using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
+            {
+                await Should.ThrowAsync<IOException>(() => ExecuteAsync(
+                    "Widget", "ignored", outputDir.FullName, null, false));
+            }
+
+            Directory.EnumerateFileSystemEntries(outputDir.FullName).ShouldBeEmpty();
+            (await project.ReadSourceAsync("Widget.cs")).ShouldBe(sourceBefore);
+        }
+        finally
+        {
+            outputDir.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -57,7 +82,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 "AgentService",
@@ -89,7 +114,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 "AgentService",
@@ -119,7 +144,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 "AgentService",
@@ -165,7 +190,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, null, false);
         }
@@ -189,7 +214,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, null, false);
         }
@@ -213,7 +238,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Secret", "ignored", null, null, false);
         }
@@ -240,7 +265,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Secret", "ignored", null, null, false);
         }
@@ -270,7 +295,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                      """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Repo", "ignored", null, null, false);
         }
@@ -296,7 +321,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, "MyApp.Contracts", false);
         }
@@ -318,7 +343,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Calculator", "ignored", null, null, false);
         }
@@ -378,7 +403,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, null, false);
         }
@@ -399,7 +424,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, null, false);
         }
@@ -423,7 +448,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         var outputDir = Path.Combine(project.Directory, "Contracts");
         var service = new ExtractInterfaceService(new SymbolResolutionService());
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var preparation = (await service.PrepareAsync(sln, "Widget", outputDir, null)).Unwrap();
             var addedDoc = AddedDocument(preparation.Solution, "IWidget.cs");
@@ -470,7 +495,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                       """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("Widget", "ignored", null, null, false);
         }

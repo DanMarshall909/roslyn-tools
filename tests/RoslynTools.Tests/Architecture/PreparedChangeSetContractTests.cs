@@ -235,7 +235,7 @@ public sealed class PreparedChangeSetContractTests
     [Fact]
     public async Task full_writer_applies_text_and_move_effects_after_preflight()
     {
-        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        var directory = CreatePhysicalTempDirectory("rt-prepared-");
         try
         {
             var sourcePath = Path.Combine(directory.FullName, "Before.cs");
@@ -243,7 +243,8 @@ public sealed class PreparedChangeSetContractTests
             var textPath = Path.Combine(directory.FullName, "notes.txt");
             await File.WriteAllTextAsync(sourcePath, "class Before;");
             await File.WriteAllTextAsync(textPath, "before");
-            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
             var changeSet = new PreparedChangeSet(
                 movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
                 textEdits: [new PreparedFileWrite(textPath, "after")]);
@@ -261,9 +262,216 @@ public sealed class PreparedChangeSetContractTests
     }
 
     [Fact]
+    public async Task full_writer_rejects_an_out_of_root_write_before_staging()
+    {
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var repositoryRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo")).FullName;
+            var outsideRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo-sibling")).FullName;
+            var outsidePath = Path.Combine(outsideRoot, "Escape.cs");
+            using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+            var changeSet = new PreparedChangeSet(newFiles: [new PreparedFileWrite(outsidePath, "escape")]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            File.Exists(outsidePath).ShouldBeFalse();
+            Directory.EnumerateFileSystemEntries(repositoryRoot).ShouldBeEmpty();
+            Directory.EnumerateFileSystemEntries(outsideRoot).ShouldBeEmpty();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_requires_a_trusted_root_before_staging()
+    {
+        var directory = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var outputPath = Path.Combine(directory.FullName, "New.cs");
+            var changeSet = new PreparedChangeSet(newFiles: [new PreparedFileWrite(outputPath, "class New;")]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            var error = await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            error.Message.ShouldContain("no trusted repository root", Case.Sensitive);
+            Directory.EnumerateFileSystemEntries(directory.FullName).ShouldBeEmpty();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_a_symlinked_output_directory_before_staging()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var repositoryRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo")).FullName;
+            var outsideRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "outside")).FullName;
+            var link = Path.Combine(repositoryRoot, "linked");
+            Directory.CreateSymbolicLink(link, outsideRoot);
+            var outsidePath = Path.Combine(outsideRoot, "Escape.cs");
+            using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+            var changeSet = new PreparedChangeSet(newFiles:
+            [
+                new PreparedFileWrite(Path.Combine(link, "Escape.cs"), "escape")
+            ]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            File.Exists(outsidePath).ShouldBeFalse();
+            Directory.EnumerateFileSystemEntries(outsideRoot).ShouldBeEmpty();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_a_symlinked_trusted_root_before_staging()
+    {
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var target = Directory.CreateDirectory(Path.Combine(parent.FullName, "target")).FullName;
+            var linkedRoot = Path.Combine(parent.FullName, "linked-root");
+            try
+            {
+                Directory.CreateSymbolicLink(linkedRoot, target);
+            }
+            catch (Exception exception) when (OperatingSystem.IsWindows()
+                                               && exception is UnauthorizedAccessException or IOException)
+            {
+                return;
+            }
+
+            using var trust = RepositoryTrustContext.UseExplicitTrust(linkedRoot);
+            var changeSet = new PreparedChangeSet(newFiles:
+            [
+                new PreparedFileWrite(Path.Combine(linkedRoot, "New.cs"), "class New;")
+            ]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            Directory.EnumerateFileSystemEntries(target).ShouldBeEmpty();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_parent_traversal_before_lexical_normalization()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var repositoryRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo")).FullName;
+            var outsideRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "outside")).FullName;
+            var link = Path.Combine(repositoryRoot, "linked");
+            Directory.CreateSymbolicLink(link, outsideRoot);
+            using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+            var changeSet = new PreparedChangeSet(newFiles:
+            [
+                new PreparedFileWrite(Path.Combine(link, "..", "Inside.cs"), "escape")
+            ]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            File.Exists(Path.Combine(repositoryRoot, "Inside.cs")).ShouldBeFalse();
+            Directory.EnumerateFileSystemEntries(outsideRoot).ShouldBeEmpty();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_an_out_of_root_move_destination_before_staging()
+    {
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var repositoryRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo")).FullName;
+            var outsideRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "outside")).FullName;
+            var sourcePath = Path.Combine(repositoryRoot, "Source.cs");
+            var destinationPath = Path.Combine(outsideRoot, "Destination.cs");
+            await File.WriteAllTextAsync(sourcePath, "source");
+            using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+            var changeSet = new PreparedChangeSet(movedFiles:
+            [
+                new PreparedFileMove(sourcePath, destinationPath)
+            ]);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            (await File.ReadAllTextAsync(sourcePath)).ShouldBe("source");
+            File.Exists(destinationPath).ShouldBeFalse();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_an_out_of_root_solution_document_before_staging()
+    {
+        var parent = CreatePhysicalTempDirectory("rt-contained-");
+        try
+        {
+            var repositoryRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "repo")).FullName;
+            var outsideRoot = Directory.CreateDirectory(Path.Combine(parent.FullName, "outside")).FullName;
+            var outsidePath = Path.Combine(outsideRoot, "Changed.cs");
+            await File.WriteAllTextAsync(outsidePath, "class Before;");
+            using var workspace = new AdhocWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var documentId = DocumentId.CreateNewId(projectId);
+            var original = workspace.CurrentSolution
+                .AddProject(ProjectInfo.Create(projectId, VersionStamp.Create(),
+                    "Outside", "Outside", LanguageNames.CSharp))
+                .AddDocument(documentId, "Changed.cs", SourceText.From("class Before;"),
+                    filePath: outsidePath);
+            var changed = original.WithDocumentText(documentId, SourceText.From("class After;"));
+            using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() =>
+                writer.ApplyAsync(new PreparedChangeSet(original, changed)));
+
+            (await File.ReadAllTextAsync(outsidePath)).ShouldBe("class Before;");
+            Directory.EnumerateFileSystemEntries(repositoryRoot).ShouldBeEmpty();
+        }
+        finally
+        {
+            parent.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task full_writer_rejects_a_move_conflict_before_any_write()
     {
-        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        var directory = CreatePhysicalTempDirectory("rt-prepared-");
         try
         {
             var sourcePath = Path.Combine(directory.FullName, "Before.cs");
@@ -272,7 +480,8 @@ public sealed class PreparedChangeSetContractTests
             await File.WriteAllTextAsync(sourcePath, "class Before;");
             await File.WriteAllTextAsync(destinationPath, "class After;");
             await File.WriteAllTextAsync(textPath, "before");
-            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
             var changeSet = new PreparedChangeSet(
                 movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
                 textEdits: [new PreparedFileWrite(textPath, "after")]);
@@ -291,13 +500,14 @@ public sealed class PreparedChangeSetContractTests
     [Fact]
     public async Task full_writer_creates_missing_move_destination_directories()
     {
-        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        var directory = CreatePhysicalTempDirectory("rt-prepared-");
         try
         {
             var sourcePath = Path.Combine(directory.FullName, "Before.cs");
             var destinationPath = Path.Combine(directory.FullName, "nested", "After.cs");
             await File.WriteAllTextAsync(sourcePath, "class Before;");
-            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
             var changeSet = new PreparedChangeSet(
                 movedFiles: [new PreparedFileMove(sourcePath, destinationPath)]);
 
@@ -315,7 +525,7 @@ public sealed class PreparedChangeSetContractTests
     [Fact]
     public async Task full_writer_rolls_back_prior_writes_and_moves_when_a_later_move_fails()
     {
-        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        var directory = CreatePhysicalTempDirectory("rt-prepared-");
         try
         {
             var firstSource = Path.Combine(directory.FullName, "First.cs");
@@ -331,7 +541,7 @@ public sealed class PreparedChangeSetContractTests
                 physical,
                 (source, destination) =>
                     PathComparer.Equals(source, secondSource)
-                    && PathComparer.Equals(destination, secondDestination)));
+                    && PathComparer.Equals(destination, secondDestination)), directory.FullName);
             var changeSet = new PreparedChangeSet(
                 movedFiles:
                 [
@@ -357,7 +567,7 @@ public sealed class PreparedChangeSetContractTests
     [Fact]
     public async Task full_writer_rejects_stale_solution_content_before_writing()
     {
-        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        var directory = CreatePhysicalTempDirectory("rt-prepared-");
         try
         {
             var path = Path.Combine(directory.FullName, "Changed.cs");
@@ -380,7 +590,8 @@ public sealed class PreparedChangeSetContractTests
             var changed = original.WithDocumentText(
                 documentId,
                 SourceText.From("class After;"));
-            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
 
             await Should.ThrowAsync<IOException>(() =>
                 writer.ApplyAsync(new PreparedChangeSet(original, changed)));
@@ -541,6 +752,10 @@ public sealed class PreparedChangeSetContractTests
                 Diff.Add(message);
         }
     }
+
+    private static DirectoryInfo CreatePhysicalTempDirectory(string prefix) =>
+        new(RepositoryTrustRegistry.CanonicalizeExistingPath(
+            Directory.CreateTempSubdirectory(prefix).FullName));
 
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase

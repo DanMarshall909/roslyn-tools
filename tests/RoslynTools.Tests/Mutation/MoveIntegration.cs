@@ -1,3 +1,4 @@
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -29,6 +30,7 @@ public class MoveIntegration
             .AddSource("Target.cs", targetSource);
 
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
@@ -69,6 +71,7 @@ public class MoveIntegration
             .AddSource("Consumer.cs", consumerSource);
 
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
@@ -98,6 +101,7 @@ public class MoveIntegration
             .AddSource("Foo/Movable.cs", source);
 
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
@@ -134,6 +138,7 @@ public class MoveIntegration
             .AddSource("Consumer.cs", consumerSource);
 
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
@@ -171,6 +176,7 @@ public class MoveIntegration
             .AddSource("Consumer.cs", consumerSource);
 
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,

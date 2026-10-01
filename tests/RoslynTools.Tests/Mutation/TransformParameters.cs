@@ -1,3 +1,4 @@
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -40,6 +41,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null,
                 false);
@@ -86,6 +88,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "Greeter.Greet", "GreetArgs", null, false);
         }
@@ -120,6 +123,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Parser.TryParse", "ParseArgs", null, false));
@@ -147,6 +151,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, false));
@@ -199,6 +204,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "Calculator.Add", "AddArgs", null, false);
         }
@@ -241,6 +247,7 @@ public class TransformParameters
         var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Service.cs");
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "Service.Execute", "ExecuteArgs", null, true);
         }
@@ -268,6 +275,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, false));
@@ -293,6 +301,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Empty.Run", "RunArgs", null, false));
@@ -317,6 +326,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "NoMethodSeparatorHere", "Args", null, false));
@@ -364,6 +374,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs",
                 false);
@@ -427,6 +438,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             await new TransformParametersService().RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs",
                 false);
@@ -476,6 +488,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs",
@@ -511,6 +524,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", false));
@@ -540,6 +554,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs",
@@ -568,6 +583,7 @@ public class TransformParameters
 
         var (workspace, sln) = project.Build();
         using (workspace)
+        using (RepositoryTrustContext.UseExplicitTrust(project.Directory))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "NeitherService.Do", null, null, false));

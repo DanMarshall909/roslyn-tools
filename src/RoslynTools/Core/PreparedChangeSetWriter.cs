@@ -72,19 +72,25 @@ internal sealed class PhysicalPreparedFileSystem : IPreparedFileSystem
 internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
 {
     private readonly IPreparedFileSystem _fileSystem;
+    private readonly string? _repositoryRoot;
 
-    internal PreparedChangeSetWriter(IPreparedFileSystem fileSystem)
+    internal PreparedChangeSetWriter(IPreparedFileSystem fileSystem, string? repositoryRoot = null)
     {
         _fileSystem = fileSystem;
+        _repositoryRoot = repositoryRoot;
     }
 
     /// <summary>
-    ///     Preflights and stages the supplied set, then commits it without observing
-    ///     cancellation mid-commit. A failed commit restores every affected file from backup;
-    ///     if restoration also fails, recovery evidence is retained and named in the exception.
+    ///     Requires a trusted repository root and checks every affected path before staging.
+    ///     It then stages and commits without observing cancellation mid-commit. A failed
+    ///     commit restores affected files from backup; failed restoration retains named
+    ///     recovery evidence. Path checks do not exclude concurrent filesystem swaps.
     /// </summary>
     /// <param name="changeSet">The validated, non-replayable mutation description.</param>
     /// <param name="cancellationToken">Cancellation observed before commit starts.</param>
+    /// <exception cref="IOException">
+    ///     Trust or path containment cannot be proven, or a filesystem effect fails.
+    /// </exception>
     public async Task ApplyAsync(
         PreparedChangeSet changeSet,
         CancellationToken cancellationToken = default)
@@ -93,6 +99,7 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
         cancellationToken.ThrowIfCancellationRequested();
 
         var plan = await BuildPlanAsync(changeSet, cancellationToken);
+        ValidateAffectedPaths(changeSet, plan, ResolveRepositoryRoot(changeSet));
         ValidatePlan(plan);
         ValidateCurrentState(plan);
 
@@ -146,6 +153,102 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
 
         CleanStagedFiles(stagedWrites);
         TryDeleteRecoveryDirectory(recoveryDirectory);
+    }
+
+    private string ResolveRepositoryRoot(PreparedChangeSet changeSet)
+    {
+        if (_repositoryRoot is not null)
+            return RepositoryTrustRegistry.CanonicalizeExistingPath(Path.GetFullPath(_repositoryRoot));
+
+        if (RepositoryTrustContext.TrustedRepositoryRoot is { Length: > 0 } trustedRoot)
+            return RepositoryTrustRegistry.CanonicalizeExistingPath(Path.GetFullPath(trustedRoot));
+
+        if (changeSet.OriginalSolution?.FilePath is { Length: > 0 } solutionPath)
+            return RepositoryTrustContext.ResolveWorkspaceIdentity(solutionPath).WorktreeRoot;
+
+        throw new IOException("Prepared mutation has no trusted repository root; no file was staged.");
+    }
+
+    private static void ValidateAffectedPaths(
+        PreparedChangeSet changeSet,
+        MutationPlan plan,
+        string repositoryRoot)
+    {
+        if (!Directory.Exists(repositoryRoot))
+            throw new IOException(
+                $"Trusted repository root '{repositoryRoot}' does not exist; no file was staged.");
+
+        foreach (var write in changeSet.NewFiles
+                     .Concat(changeSet.ProjectFileEdits)
+                     .Concat(changeSet.TextEdits))
+            ValidateContainedPath(write.Path, repositoryRoot);
+        foreach (var deletion in changeSet.DeletedFiles)
+            ValidateContainedPath(deletion, repositoryRoot);
+        foreach (var move in changeSet.MovedFiles)
+        {
+            ValidateContainedPath(move.SourcePath, repositoryRoot);
+            ValidateContainedPath(move.DestinationPath, repositoryRoot);
+        }
+
+        if (changeSet.OriginalSolution is not null && changeSet.ChangedSolution is not null)
+        {
+            var changes = changeSet.ChangedSolution.GetChanges(changeSet.OriginalSolution);
+            foreach (var projectChange in changes.GetProjectChanges())
+            {
+                foreach (var documentId in projectChange.GetChangedDocuments()
+                             .Concat(projectChange.GetAddedDocuments())
+                             .Concat(projectChange.GetRemovedDocuments()))
+                {
+                    var path = changeSet.ChangedSolution.GetDocument(documentId)?.FilePath
+                               ?? changeSet.OriginalSolution.GetDocument(documentId)?.FilePath;
+                    if (path is not null)
+                        ValidateContainedPath(path, repositoryRoot);
+                }
+            }
+        }
+
+        foreach (var path in plan.Writes.Select(write => write.Path)
+                     .Concat(plan.Deletions.Select(deletion => deletion.Path))
+                     .Concat(plan.Moves.SelectMany(move => new[] { move.SourcePath, move.DestinationPath }))
+                     .Concat(plan.AffectedPaths))
+            ValidateContainedPath(path, repositoryRoot);
+    }
+
+    private static void ValidateContainedPath(string path, string repositoryRoot)
+    {
+        if (path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Contains("..", StringComparer.Ordinal))
+            throw new IOException($"Prepared path '{path}' contains parent traversal; no file was staged.");
+
+        var fullPath = Path.GetFullPath(path);
+        if (!RepositoryTrustRegistry.IsContained(repositoryRoot, fullPath)
+            || PathComparer.Equals(repositoryRoot, fullPath))
+            throw new IOException(
+                $"Prepared path '{path}' is outside the trusted repository root '{repositoryRoot}'; no file was staged.");
+
+        var current = Path.GetPathRoot(fullPath)!;
+        ValidateExistingComponent(current, path);
+        foreach (var segment in Path.GetRelativePath(current, fullPath)
+                     .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            current = Path.Combine(current, segment);
+            try
+            {
+                ValidateExistingComponent(current, path);
+            }
+            catch (Exception exception) when (exception is FileNotFoundException
+                                               or DirectoryNotFoundException)
+            {
+                break;
+            }
+        }
+    }
+
+    private static void ValidateExistingComponent(string component, string preparedPath)
+    {
+        if ((File.GetAttributes(component) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException(
+                $"Prepared path '{preparedPath}' traverses a symbolic link or reparse point at '{component}'; no file was staged.");
     }
 
     private List<Exception> CleanPreparation(

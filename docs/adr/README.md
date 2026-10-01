@@ -148,3 +148,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0081](0081-bounded-cli-workspace-evidence.md) | Bound workspace evidence in CLI inspection results | Accepted | 2026-09-30 |
 | [0082](0082-maintainer-only-durable-prepare.md) | Keep durable Prepare on the maintainer surface | Accepted | 2026-10-01 |
 | [0083](0083-honest-unsupported-plan-suggestions.md) | Return honest unsupported outcomes for unavailable plan tasks | Accepted | 2026-10-01 |
+| [0084](0084-pre-stage-containment-for-prepared-writes.md) | Check prepared mutation paths before staging | Accepted | 2026-10-01 |

@@ -25,7 +25,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                   """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Calc.Add");
         }
@@ -50,7 +50,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                      """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await ExecuteResultAsync("Service.GetValue");
             result.IsErr.ShouldBeTrue();
@@ -75,7 +75,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                   """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await ExecuteResultAsync("Repo.GetCount");
             result.IsErr.ShouldBeTrue();
@@ -100,7 +100,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                   """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await ExecuteResultAsync("Base.Describe");
             result.IsErr.ShouldBeTrue();
@@ -132,7 +132,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                  """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Helper.Format");
         }
@@ -163,7 +163,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         var before = await proj.ReadSourceAsync("Util.cs");
 
         MutationExecutionResult<MakeStaticResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             execution = await ExecuteAsync("Util.Square", dryRun: true);
         }

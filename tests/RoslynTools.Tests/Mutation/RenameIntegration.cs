@@ -64,7 +64,7 @@ public class RenameIntegration
 
         var (workspace, solution) = project.Build();
 
-        var operation = CreateOperation(workspace, solution);
+        var operation = CreateOperation(workspace, solution, project.Directory);
         (await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Single,
             "Foo.OldType",
@@ -100,7 +100,7 @@ public class RenameIntegration
         var csvPath = Path.Combine(project.ProjectDir, "rename.csv");
         File.WriteAllText(csvPath, "source_symbol,target_name\nFoo.OldA,NewA\nFoo.OldB,NewB\n");
 
-        var operation = CreateOperation(workspace, solution);
+        var operation = CreateOperation(workspace, solution, project.Directory);
         (await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
             CsvPath: csvPath,
@@ -146,7 +146,7 @@ public class RenameIntegration
 
             """);
 
-        var operation = CreateOperation(workspace, solution);
+        var operation = CreateOperation(workspace, solution, project.Directory);
         (await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
             CsvPath: csvPath,
@@ -161,13 +161,13 @@ public class RenameIntegration
         renamed.ShouldContain("void pending()", Case.Sensitive);
     }
 
-    private static RenameOperation CreateOperation(Workspace workspace, Solution solution)
+    private static RenameOperation CreateOperation(Workspace workspace, Solution solution, string repositoryRoot)
     {
         return new RenameOperation(
             new FixedWorkspaceSessionFactory(workspace, solution),
             new RenameService(new SymbolResolutionService()),
             new PreparedChangeSetExecutor(
-                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem(), repositoryRoot)));
     }
 
     private sealed class FixedWorkspaceSessionFactory(

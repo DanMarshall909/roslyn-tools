@@ -37,7 +37,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Calc.cs", source);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Calculator.Add", false);
         }
@@ -79,7 +79,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Fmt.cs", source);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Formatter.Format", false);
         }
@@ -119,7 +119,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Parser.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Parser.Parse", false);
         }
@@ -157,7 +157,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Service.cs", source);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Service.Sanitize", false);
         }
@@ -192,7 +192,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Helper.cs", source);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Helper.Double", false);
         }
@@ -234,7 +234,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Greeter.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var execution = await ExecuteAsync("Greeter.Hello", true);
             execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
@@ -278,7 +278,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Processor.cs", callerSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("MathUtil.Square", false);
         }
@@ -323,7 +323,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
 
         MutationExecutionResult<MakeInstanceResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             execution = await ExecuteAsync("Utility.Ping", false);
         }

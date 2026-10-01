@@ -16,6 +16,7 @@ public sealed class MigrateToIOptions
     {
         using var fixture = BuildFixture();
         var operation = CreateOperation(fixture.Workspace, fixture.Solution, new SolutionChangeWriter());
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.ProjectDir);
 
         var execution = (await operation.ExecuteAsync(Request())).Unwrap();
 
@@ -48,6 +49,7 @@ public sealed class MigrateToIOptions
     {
         using var fixture = BuildFixture(builderStyleRegistration: true);
         var operation = CreateOperation(fixture.Workspace, fixture.Solution, new SolutionChangeWriter());
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.ProjectDir);
 
         var execution = (await operation.ExecuteAsync(Request())).Unwrap();
 
@@ -82,6 +84,7 @@ public sealed class MigrateToIOptions
         using var fixture = BuildFixture();
         var service = new MigrateToIOptionsService();
         var prepared = (await service.PrepareAsync(fixture.Solution, "MyFeature", "MyFeatureOptions")).Unwrap();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.ProjectDir);
         await new SolutionChangeWriter().ApplyChangesAsync(fixture.Solution, prepared.Solution, dryRun: false);
         var writer = new CapturingSolutionChangeWriter();
         var operation = CreateOperation(fixture.Workspace, fixture.Workspace.CurrentSolution, writer);

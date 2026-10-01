@@ -116,6 +116,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   For the captured `Verify a prepared plan without applying` query, one
   source-built CLI response fell from 2,452 to 103 stdout bytes; this is a
   per-call byte comparison, not a complete workflow or token budget.
+- Prepared mutations now reject outside paths, parent traversal, and existing
+  symlink components before staging, including extraction output (ADR-0084).
+  Direct legacy writer apply and path-swap races remain open; this does not
+  satisfy the optional apply admission gate.
 
 ## Dependencies and reconciliation
 

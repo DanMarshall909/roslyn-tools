@@ -96,6 +96,7 @@ public class WriteFixesAsync_apply
                 MutationKind: "demo",
                 Files: new[] { new FixFile(doc.Id, doc.FilePath!, newText) });
 
+            using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
             await new SolutionChangeWriter().WriteFixesAsync(sln, [fix], dryRun: false);
 
             (await File.ReadAllTextAsync(doc.FilePath!)).ShouldContain("=> 42");

@@ -358,7 +358,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var beforeCaller = await project.ReadSourceAsync("Caller.cs");
 
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalOut = Console.Out;
             using var output = new StringWriter();
@@ -421,7 +421,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var exitCode = await App.RunAsync(
             [
@@ -431,7 +431,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "count",
                 "total",
                 "--solution",
-                "ignored",
+                Path.Combine(project.Directory, "fixture.sln"),
+                "--trust-repository",
                 "--dry-run",
                 "false"
             ]);
@@ -460,7 +461,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalError = Console.Error;
             using var error = new StringWriter();
@@ -1775,7 +1776,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalError = Console.Error;
             using var error = new StringWriter();
@@ -1811,7 +1812,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalError = Console.Error;
             using var error = new StringWriter();
@@ -1851,7 +1852,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("Service.cs");
 
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalOut = Console.Out;
             using var output = new StringWriter();
@@ -1892,7 +1893,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("Service.cs");
 
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var originalOut = Console.Out;
             using var output = new StringWriter();
@@ -1933,13 +1934,14 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var exitCode = await App.RunAsync(
             [
                 "change-signature", "add-param",
                 "TestApp.Service.Foo", "int b = 0",
-                "--solution", "ignored", "--dry-run", "false"
+                "--solution", Path.Combine(project.Directory, "fixture.sln"),
+                "--trust-repository", "--dry-run", "false"
             ]);
 
             exitCode.ShouldBe(0);
@@ -1959,13 +1961,14 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
         var (workspace, solution) = project.Build();
         using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var exitCode = await App.RunAsync(
             [
                 "change-signature", "remove-param",
                 "TestApp.Service.Foo", "a",
-                "--solution", "ignored", "--dry-run", "false"
+                "--solution", Path.Combine(project.Directory, "fixture.sln"),
+                "--trust-repository", "--dry-run", "false"
             ]);
 
             exitCode.ShouldBe(0);

@@ -70,6 +70,15 @@ internal sealed class WorkspaceLoader
         return new OverrideScope();
     }
 
+    /// <summary>Test-only workspace override with an explicit mutation root.</summary>
+    internal static IDisposable UseTrustedOverride(
+        Workspace workspace, Solution solution, string repositoryRoot)
+    {
+        var trustScope = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
+        Override.Value = (workspace, solution);
+        return new OverrideScope(trustScope);
+    }
+
     // ── Instance API (DI path) ───────────────────────────────────────────────
 
     /// <summary>
@@ -476,11 +485,13 @@ internal sealed class WorkspaceLoader
         }
     }
 
-    private sealed class OverrideScope : IDisposable
+    private sealed class OverrideScope(IDisposable? trustScope = null) : IDisposable
     {
+        /// <summary>Clears the test workspace override and restores the prior trust scope.</summary>
         public void Dispose()
         {
             Override.Value = null;
+            trustScope?.Dispose();
         }
     }
 }

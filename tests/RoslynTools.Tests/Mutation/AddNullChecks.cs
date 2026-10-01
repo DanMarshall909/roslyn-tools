@@ -53,7 +53,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         proj.AddSource("OrderService.cs", ServiceSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -83,7 +83,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
                                           """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -107,7 +107,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         proj.AddSource("OrderService.cs", AlreadyGuardedSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -130,7 +130,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         proj.AddSource("OrderService.cs", NullableAnnotatedSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -152,7 +152,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("OrderService.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", true);
         }
@@ -179,7 +179,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("OrderService.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -209,7 +209,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
                                           """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -233,7 +233,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
                                           """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -257,7 +257,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
                                           """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -281,7 +281,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
                                           """);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("OrderService", "Process", false);
         }
@@ -301,7 +301,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         proj.AddSource("OrderService.cs", ServiceSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await _services.Resolve<AddNullChecksOperation>().ExecuteAsync(
                 new AddNullChecksRequest("OrderService", "NonExistent", "ignored"));

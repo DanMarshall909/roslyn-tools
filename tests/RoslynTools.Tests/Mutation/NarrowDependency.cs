@@ -186,7 +186,7 @@ public sealed class NarrowDependencyOperationTests
         var (workspace, solution) = project.Build();
         using var services = new RtServicesFixture();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             var exitCode = await services.Resolve<NarrowDependencyCommand>().Build().InvokeAsync(
             [

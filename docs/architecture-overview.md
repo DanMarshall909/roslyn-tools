@@ -544,6 +544,17 @@ not meaningful. `Apply` requires explicit caller selection and remains in-proces
 Existing `apply-default` catalogue entries are containment debt, not a migration
 target; port conversion alone cannot preserve or justify them.
 
+For the trusted-local preview, the prepared writer now checks raw and planned
+affected paths against an authority-derived checkout root before creating stage
+files or destination directories. It rejects parent traversal, outside paths,
+and existing symlink/reparse-point components; extraction output uses this same
+boundary. [ADR-0084](adr/0084-pre-stage-containment-for-prepared-writes.md)
+records this preflight and its limits. The path-string check does not prevent a
+concurrent component swap and rejects symlinked aliases to the checkout. The
+internal legacy direct `SolutionWriter` apply branch remains outside this
+prepared-writer boundary. Unattended apply still
+requires the physical effect broker and the other platform-hardening gates.
+
 Repository identity and mutation coordination span OS principals and hosts. An OS-
 or service-protected registry outside repository control maps checkout/Git-common-dir filesystem identity
 to one non-reused repository ID and records mode, owner/authority, active recovery

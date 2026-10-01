@@ -28,6 +28,7 @@ public class ConvertToRecord
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         (await ExecuteAsync(workspace, sln, "Point")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -46,6 +47,7 @@ public class ConvertToRecord
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         (await ExecuteAsync(workspace, sln, "Point")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -65,6 +67,7 @@ public class ConvertToRecord
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         (await ExecuteAsync(workspace, sln, "WithEquals")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -83,6 +86,7 @@ public class ConvertToRecord
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         var execution = (await ExecuteAsync(workspace, sln, "WithMutableProp")).Unwrap();
 
         execution.Diagnostics.ShouldHaveSingleItem().Message

@@ -215,7 +215,7 @@ public class Rename : IClassFixture<RtServicesFixture>
             new FixedWorkspaceSessionFactory(workspace, sln),
             new RenameService(new SymbolResolutionService()),
             new PreparedChangeSetExecutor(
-                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem(), project.Directory)));
 
         var result = await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
@@ -256,7 +256,7 @@ public class Rename : IClassFixture<RtServicesFixture>
             new FixedWorkspaceSessionFactory(workspace, sln),
             new RenameService(new SymbolResolutionService()),
             new PreparedChangeSetExecutor(
-                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem(), project.Directory)));
         var result = await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
             CsvPath: csvPath,

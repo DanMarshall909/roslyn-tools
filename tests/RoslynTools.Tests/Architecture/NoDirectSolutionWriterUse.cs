@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -52,6 +53,20 @@ public sealed class NoDirectSolutionWriterUse
             "Production code must call ISolutionChangeWriter, not the static SolutionWriter.ApplyChangesAsync, "
             + "so mutation tests can stub the writer and DI-managed writers can layer policy.\n\n"
             + "Offending sites:\n  " + string.Join("\n  ", violations));
+    }
+
+    [Fact]
+    public void solution_change_writer_uses_the_legacy_static_writer_only_for_dry_runs()
+    {
+        var adapterPath = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core", "SolutionChangeWriter.cs");
+        var root = CSharpSyntaxTree.ParseText(File.ReadAllText(adapterPath)).GetCompilationUnitRoot();
+        var calls = root.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Where(IsStaticSolutionWriterApplyChangesAsyncCall);
+
+        foreach (var call in calls)
+            Assert.Contains(call.ArgumentList.Arguments, argument =>
+                argument.NameColon?.Name.Identifier.Text == "dryRun"
+                && argument.Expression.IsKind(SyntaxKind.TrueLiteralExpression));
     }
 
     private static bool IsStaticSolutionWriterApplyChangesAsyncCall(InvocationExpressionSyntax invocation)

@@ -37,7 +37,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -87,7 +87,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Greet", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Greet", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -120,7 +120,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Double", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Double", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -153,7 +153,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Compute", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Compute", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -178,7 +178,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Missing", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Missing", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -202,7 +202,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.NonExistent", false, false);
+                workspace, sln, project.Directory, "App.Source.Add", "App.NonExistent", false, false);
 
             result.ShouldBeFalse();
         }
@@ -230,7 +230,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.NewUtils", true, false);
+                workspace, sln, project.Directory, "App.Source.Add", "App.NewUtils", true, false);
 
             result.ShouldBeTrue();
         }
@@ -277,7 +277,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -315,7 +315,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.Target", false, true);
+                workspace, sln, project.Directory, "App.Source.Add", "App.Target", false, true);
 
             result.ShouldBeTrue();
         }
@@ -348,7 +348,7 @@ public class MoveMethod
         using (workspace)
         {
             var result = await ExecuteAsync(
-                workspace, sln, "App.Source.Add", "App.Target", false, false);
+                workspace, sln, project.Directory, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -374,11 +374,13 @@ public class MoveMethod
     private static async Task<bool> ExecuteAsync(
         Workspace workspace,
         Solution solution,
+        string repositoryRoot,
         string methodFqn,
         string toType,
         bool createFile,
         bool dryRun)
     {
+        using var trust = RepositoryTrustContext.UseExplicitTrust(repositoryRoot);
         var operation = new MoveMethodOperation(
             new FixedWorkspaceSessionFactory(workspace, solution),
             new MoveMethodService(),

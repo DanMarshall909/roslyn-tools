@@ -30,9 +30,10 @@ public class ReplaceType
 
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
-            await App.RunAsync(["replace-datetime", "--solution", "ignored", "--dry-run", "false"]);
+            await App.RunAsync(["--trust-repository", "replace-datetime",
+                "--solution", project.SolutionPath, "--dry-run", "false"]);
         }
 
         var content = await project.ReadSourceAsync("MyService.cs");

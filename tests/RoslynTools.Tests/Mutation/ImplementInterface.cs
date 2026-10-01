@@ -35,7 +35,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", ImplAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Repo", "IRepository", false);
         }
@@ -57,7 +57,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", ImplAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Repo", "IRepository", false);
         }
@@ -77,7 +77,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", ImplAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("PartialRepo", "IRepository", false);
         }
@@ -103,7 +103,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", ImplAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteAsync("Repo", "IRepository", false);
         }
@@ -126,7 +126,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var execution = await ExecuteAsync("Repo", "IRepository", true);
             execution.Status.ShouldBe(MutationExecutionStatus.DryRun);

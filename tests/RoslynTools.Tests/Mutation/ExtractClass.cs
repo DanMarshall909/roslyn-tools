@@ -86,7 +86,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService",
@@ -103,12 +103,37 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
+    public async Task rejects_an_output_directory_outside_the_trusted_repository_before_staging()
+    {
+        using var project = BuildFixture();
+        var (workspace, sln) = project.Build();
+        var sourceBefore = await project.ReadSourceAsync("BigService.cs");
+        var outputDir = Directory.CreateTempSubdirectory("rt-extract-outside-");
+        try
+        {
+            using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
+            {
+                await Should.ThrowAsync<IOException>(() => ExecuteExtractClassAsync(
+                    "BigService", "LogInfo", "LogHelper", false, "ignored",
+                    outputDir.FullName, false));
+            }
+
+            Directory.EnumerateFileSystemEntries(outputDir.FullName).ShouldBeEmpty();
+            (await project.ReadSourceAsync("BigService.cs")).ShouldBe(sourceBefore);
+        }
+        finally
+        {
+            outputDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task removes_the_extracted_members_from_the_source_type()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService",
@@ -130,7 +155,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService",
@@ -152,7 +177,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService",
@@ -180,7 +205,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         CommandCapture capture;
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync(
                 "BigService",
@@ -225,7 +250,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var shippingBefore = await project.ReadSourceAsync("Shipping/SharedService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync(
                 "SharedService",
@@ -268,7 +293,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync(
                 "BigService",
@@ -304,7 +329,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync(
                 "BigService",
@@ -345,7 +370,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService",
@@ -380,7 +405,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync("Missing", "Go", "Helper", false, "ignored", null, false);
         }
@@ -402,7 +427,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync("BigService", "Nonexistent", "Helper", true, "ignored", null, false);
         }
@@ -425,7 +450,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync("BigService", "Go,Missing", "Helper", true, "ignored", null, false);
         }
@@ -451,7 +476,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             capture = await RunExtractClassAsync("BigService", "Clone", "Helper", false, "ignored", null, false);
         }
@@ -476,7 +501,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
                 false);

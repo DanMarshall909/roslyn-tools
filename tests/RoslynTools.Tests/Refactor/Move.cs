@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Commands;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
@@ -96,6 +97,7 @@ public class Move : IClassFixture<RtServicesFixture>
         builder.AddProject("TargetProject");
 
         var (workspace, solution) = builder.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(builder.Directory);
 
         // Write a csproj with NO explicit Compile Include (SDK-glob style)
         var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
@@ -127,6 +129,7 @@ public class Move : IClassFixture<RtServicesFixture>
         builder.AddProject("TargetProject");
 
         var (workspace, solution) = builder.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(builder.Directory);
 
         // Write a minimal .csproj with an explicit <Compile Include>
         var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
@@ -172,6 +175,7 @@ public class Move : IClassFixture<RtServicesFixture>
         builder.AddProject("TargetProject");
 
         var (workspace, solution) = builder.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(builder.Directory);
 
         await new MoveService().ExecuteCrossProjectMoveAsync(
             workspace, solution,
@@ -218,6 +222,7 @@ public class Move : IClassFixture<RtServicesFixture>
         builder.AddProject("TargetProject");
 
         var (workspace, solution) = builder.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(builder.Directory);
 
         await new MoveService().ExecuteCrossProjectMoveAsync(
             workspace, solution,
@@ -254,6 +259,7 @@ public class Move : IClassFixture<RtServicesFixture>
         builder.AddProject("TargetProject");
 
         var (workspace, solution) = builder.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(builder.Directory);
 
         var targetDir = Path.GetDirectoryName(
             solution.Projects.First(p => p.Name == "TargetProject").FilePath)!;

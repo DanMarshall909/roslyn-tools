@@ -45,7 +45,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteLegacyAsync(
                 "MyTests",
@@ -82,7 +82,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteLegacyAsync(
                 "OrderTests",
@@ -119,7 +119,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteLegacyAsync(
                 "OrderTests",
@@ -161,7 +161,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("MyTests.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var execution = await ExecuteLegacyAsync(
                 "MyTests",
@@ -198,7 +198,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await ExecuteLegacyAsync(
                 "MyTests",

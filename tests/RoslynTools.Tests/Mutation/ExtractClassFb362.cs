@@ -43,7 +43,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Score", "Scoring", true, "ignored", null, false);
@@ -76,7 +76,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """");
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Template", "Templates", true, "ignored", null, false);
@@ -119,7 +119,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Score", "Scoring", true, "ignored", null, false);
@@ -151,7 +151,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Helper", "Maths", true, "ignored", null, false);
@@ -183,7 +183,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Helper,Twice", "Maths", true, "ignored", null, false);
@@ -216,7 +216,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteExtractClassAsync(
                 "BigService", "Origin,Point", "Geometry", true, "ignored", null, false);

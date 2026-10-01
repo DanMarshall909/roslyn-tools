@@ -26,6 +26,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
         using (workspace)
@@ -55,6 +56,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -85,6 +87,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -115,6 +118,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -145,6 +149,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -171,6 +176,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -197,6 +203,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -223,6 +230,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -253,6 +261,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var original = await project.ReadSourceAsync("LogApp.cs");
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
@@ -280,6 +289,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var original = await project.ReadSourceAsync("LogApp.cs");
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
@@ -308,6 +318,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var original = await project.ReadSourceAsync("LogApp.cs");
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
@@ -331,6 +342,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", "class App { void Run() { } }");
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
         using (workspace)
@@ -358,6 +370,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -396,6 +409,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                         }
                                         """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -428,6 +442,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var original = await project.ReadSourceAsync("LogApp.cs");
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
@@ -476,6 +491,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -509,6 +525,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         MutationExecutionResult<ConvertConsoleLoggingResult> execution;
         using (workspace)
@@ -543,6 +560,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -570,6 +588,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -599,6 +618,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -627,6 +647,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {
@@ -655,6 +676,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        }
                                        """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
 
         using (workspace)
         {

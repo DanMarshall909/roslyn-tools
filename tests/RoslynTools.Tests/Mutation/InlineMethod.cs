@@ -35,7 +35,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         project.AddSource("MathHelper.cs", MathHelperSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Double");
         }
@@ -67,7 +67,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Triple");
         }
@@ -83,7 +83,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         project.AddSource("MathHelper.cs", MathHelperSource);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Double");
         }
@@ -116,7 +116,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Square");
         }
@@ -137,7 +137,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         var originalContent = await project.ReadSourceAsync("MathHelper.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var execution = await ExecuteAsync("MathHelper", "Double", dryRun: true);
             execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
@@ -173,7 +173,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         var originalContent = await project.ReadSourceAsync("MathHelper.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var result = await ExecuteResultAsync("MathHelper", "Complex");
             result.IsErr.ShouldBeTrue();
@@ -193,7 +193,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         var originalContent = await project.ReadSourceAsync("MathHelper.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             var result = await ExecuteResultAsync("MathHelper", "NonExistent");
             result.IsErr.ShouldBeTrue();
@@ -229,7 +229,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Double");
         }
@@ -260,7 +260,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
                                            """);
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync("MathHelper", "Double");
         }

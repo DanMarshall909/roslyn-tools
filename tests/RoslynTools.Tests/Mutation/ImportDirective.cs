@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -117,6 +118,7 @@ public class ImportDirective
                                     class App { }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -140,6 +142,7 @@ public class ImportDirective
                                              global using System;
                                              """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "GlobalUsings.cs");
 
         using (workspace)
@@ -164,6 +167,7 @@ public class ImportDirective
                                              using static System.Console;
                                              """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "GlobalUsings.cs");
 
         using (workspace)
@@ -204,6 +208,7 @@ public class ImportDirective
                                     }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -242,6 +247,7 @@ public class ImportDirective
                                     }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -292,6 +298,7 @@ public class ImportDirective
                                     }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -329,6 +336,7 @@ public class ImportDirective
                                     }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -367,6 +375,7 @@ public class ImportDirective
                                     }
                                     """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
         using (workspace)
@@ -470,6 +479,7 @@ public class ImportDirective
                                         using System.Text;
                                         """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "Imports.cs");
 
         using (workspace)
@@ -493,6 +503,7 @@ public class ImportDirective
                                         using System.Text;
                                         """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "Imports.cs");
 
         using (workspace)
@@ -523,6 +534,7 @@ public class ImportDirective
                                         using System.Text;
                                         """);
         var (workspace, solution) = project.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
         var filePath = Path.Combine(project.ProjectDir, "Imports.cs");
 
         using (workspace)

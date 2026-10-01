@@ -30,9 +30,10 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
-            var exitCode = await App.RunAsync(["replace-xunit-asserts", "--solution", "ignored", "--apply"]);
+            var exitCode = await App.RunAsync(["--trust-repository", "replace-xunit-asserts",
+                "--solution", project.SolutionPath, "--apply"]);
 
             exitCode.ShouldBe(0);
         }
@@ -80,7 +81,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -125,7 +126,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -155,7 +156,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -187,7 +188,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -217,7 +218,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -246,7 +247,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -278,7 +279,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -309,7 +310,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await ExecuteAsync(apply: true);
         }
@@ -338,7 +339,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
 
         MutationExecutionResult<ReplaceXunitAssertsResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             execution = await ExecuteAsync(apply: true);
         }
@@ -371,7 +372,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
         var original = await project.ReadSourceAsync("ExampleTests.cs");
 
         MutationExecutionResult<ReplaceXunitAssertsResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             execution = await ExecuteAsync();
         }
@@ -403,7 +404,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
         var original = await project.ReadSourceAsync("ExampleTests.cs");
 
         MutationExecutionResult<ReplaceXunitAssertsResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             execution = await ExecuteAsync(dryRun: true);
         }
@@ -435,7 +436,7 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
 
-        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, solution, project.Directory))
         {
             await Should.ThrowAsync<OperationCanceledException>(async () =>
                 await ExecuteAsync(apply: true, cancellationToken: cancellation.Token));

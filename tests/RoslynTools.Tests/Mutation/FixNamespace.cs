@@ -25,7 +25,7 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
@@ -53,7 +53,7 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
 
         var (workspace, sln) = project.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             await ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
@@ -85,7 +85,7 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         var originalProgram = await project.ReadSourceAsync("Program.cs");
 
         MutationExecutionResult<FixNamespaceResult> execution;
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, project.Directory))
         {
             execution = await ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),

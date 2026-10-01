@@ -34,6 +34,7 @@ public sealed class AddDependency
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         await ExecuteAsync(workspace, sln, "AgentService", "IEmailService", null, false);
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
@@ -69,6 +70,7 @@ public sealed class AddDependency
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         await ExecuteAsync(workspace, sln, "AgentService", "IEmailService", "_mailer", false);
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
@@ -105,6 +107,7 @@ public sealed class AddDependency
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
+        using var trust = RepositoryTrustContext.UseExplicitTrust(proj.Directory);
         await ExecuteAsync(workspace, sln, "NoCtor", "ILogService", null, false);
 
         var content = await proj.ReadSourceAsync("NoCtor.cs");

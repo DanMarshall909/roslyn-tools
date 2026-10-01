@@ -31,7 +31,7 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", SealAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Standalone", "ignored", DryRun: false));
@@ -56,7 +56,7 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", SealAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             var result = await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Animal", "ignored", DryRun: false));
@@ -81,7 +81,7 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         var before = await proj.ReadSourceAsync("Types.cs");
 
         // Should not throw — just skip
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Shape", "ignored", DryRun: false));
@@ -104,7 +104,7 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Circle", "ignored", DryRun: false));
@@ -127,7 +127,7 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseTrustedOverride(workspace, sln, proj.Directory))
         {
             await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Standalone", "ignored", DryRun: true));
