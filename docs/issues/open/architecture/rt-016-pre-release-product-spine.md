@@ -129,8 +129,13 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   validates prepared affected paths before output, rejecting pathless changed
   or added documents and conflicting affected paths without a partial diff.
   Removed documents now produce deletion previews; project additions/removals
-  fail before output, matching prepared apply support. Project metadata and
-  non-source document changes still need a truthful preview contract.
+  fail before output, matching prepared apply support. Prepared change-set
+  construction now rejects identified non-source document, solution
+  analyzer-reference/option, project reference/metadata, and source-document
+  metadata/order deltas before preview or apply, including mixed changes that
+  previously produced partial results. Supported representations for those
+  deltas remain future work; audit further Roslyn snapshot state before an
+  exhaustive admission claim.
   Older cross-project move helpers exercised by tests still contain direct `File.Move` and
   project-file save effects; audit them in another containment slice before
   any apply admission claim.

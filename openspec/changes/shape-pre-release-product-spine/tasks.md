@@ -68,6 +68,10 @@
     without a partial report.
   - [x] Render removed source documents as deletions and reject project
     additions/removals before preview output, matching prepared apply support.
+  - [x] Reject identified unsupported non-source document, solution
+    analyzer-reference/option, project reference/metadata, and source-document
+    metadata/order deltas during prepared change-set construction so preview
+    and apply cannot silently ignore them.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

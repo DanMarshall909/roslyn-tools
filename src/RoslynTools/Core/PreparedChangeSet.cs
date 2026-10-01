@@ -24,6 +24,9 @@ internal sealed class PreparedChangeSet
         if ((originalSolution is null) != (changedSolution is null))
             throw new ArgumentException("Original and changed solutions must be supplied together.");
 
+        if (originalSolution is not null)
+            ValidateSupportedSolutionDelta(originalSolution, changedSolution!);
+
         OriginalSolution = originalSolution;
         ChangedSolution = changedSolution;
         NewFiles = newFiles?.ToArray() ?? [];
@@ -107,6 +110,84 @@ internal sealed class PreparedChangeSet
             throw new ArgumentException(
                 "Prepared file moves cannot form chains or cycles.",
                 nameof(MovedFiles));
+    }
+
+    private static void ValidateSupportedSolutionDelta(Solution originalSolution, Solution changedSolution)
+    {
+        var changes = changedSolution.GetChanges(originalSolution);
+        if (changes.GetAddedProjects().Any() || changes.GetRemovedProjects().Any())
+            throw new NotSupportedException(
+                "Prepared solution change set does not support adding or removing projects.");
+        if (!originalSolution.AnalyzerReferences.SequenceEqual(changedSolution.AnalyzerReferences))
+            throw new NotSupportedException(
+                "Prepared solution changes do not support solution analyzer references.");
+        if (originalSolution.Id != changedSolution.Id
+            || originalSolution.FilePath != changedSolution.FilePath
+            || !originalSolution.ProjectIds.SequenceEqual(changedSolution.ProjectIds)
+            || !Equals(originalSolution.Options, changedSolution.Options))
+            throw new NotSupportedException(
+                "Prepared solution changes do not support solution metadata changes.");
+
+        foreach (var projectChange in changes.GetProjectChanges())
+        {
+            if (projectChange.GetAddedAdditionalDocuments().Any()
+                || projectChange.GetChangedAdditionalDocuments().Any()
+                || projectChange.GetRemovedAdditionalDocuments().Any()
+                || !projectChange.OldProject.AdditionalDocumentIds.SequenceEqual(
+                    projectChange.NewProject.AdditionalDocumentIds))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support additional documents.");
+
+            if (projectChange.GetAddedAnalyzerConfigDocuments().Any()
+                || projectChange.GetChangedAnalyzerConfigDocuments().Any()
+                || projectChange.GetRemovedAnalyzerConfigDocuments().Any()
+                || !projectChange.OldProject.AnalyzerConfigDocuments.Select(document => document.Id)
+                    .SequenceEqual(projectChange.NewProject.AnalyzerConfigDocuments.Select(document => document.Id)))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support analyzer config documents.");
+
+            var oldProject = projectChange.OldProject;
+            var newProject = projectChange.NewProject;
+            var oldDocumentIds = oldProject.DocumentIds;
+            var newDocumentIds = newProject.DocumentIds;
+            if (!oldDocumentIds.Where(newDocumentIds.Contains)
+                    .SequenceEqual(newDocumentIds.Where(oldDocumentIds.Contains)))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support source document order changes.");
+            if (!oldProject.ProjectReferences.SequenceEqual(newProject.ProjectReferences))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support project references.");
+            if (!oldProject.MetadataReferences.SequenceEqual(newProject.MetadataReferences)
+                || !oldProject.AnalyzerReferences.SequenceEqual(newProject.AnalyzerReferences))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support metadata or analyzer references.");
+
+            if (oldProject.Name != newProject.Name
+                || oldProject.AssemblyName != newProject.AssemblyName
+                || oldProject.Language != newProject.Language
+                || oldProject.FilePath != newProject.FilePath
+                || oldProject.OutputFilePath != newProject.OutputFilePath
+                || oldProject.OutputRefFilePath != newProject.OutputRefFilePath
+                || oldProject.DefaultNamespace != newProject.DefaultNamespace
+                || oldProject.IsSubmission != newProject.IsSubmission
+                || !Equals(oldProject.CompilationOptions, newProject.CompilationOptions)
+                || !Equals(oldProject.ParseOptions, newProject.ParseOptions)
+                || !Equals(oldProject.CompilationOutputInfo, newProject.CompilationOutputInfo))
+                throw new NotSupportedException(
+                    "Prepared solution changes do not support project metadata changes.");
+
+            foreach (var documentId in projectChange.GetChangedDocuments())
+            {
+                var oldDocument = oldProject.GetDocument(documentId)!;
+                var newDocument = newProject.GetDocument(documentId)!;
+                if (oldDocument.Name != newDocument.Name
+                    || newDocument.FilePath is not null && oldDocument.FilePath != newDocument.FilePath
+                    || oldDocument.SourceCodeKind != newDocument.SourceCodeKind
+                    || !oldDocument.Folders.SequenceEqual(newDocument.Folders))
+                    throw new NotSupportedException(
+                        $"Prepared solution changes do not support document metadata changes for '{newDocument.Name}'.");
+            }
+        }
     }
 
     private static void AddSolutionPaths(

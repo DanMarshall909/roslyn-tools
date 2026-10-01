@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -128,6 +129,68 @@ public class SolutionWriterIntegration
             output.DiffLines.ShouldBeEmpty();
             output.DocumentDiffs.ShouldBeEmpty();
             output.Results.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task unsupported_additional_document_prevents_partial_preview_or_apply()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", "class Original { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var additionalPath = Path.Combine(project.ProjectDir, "settings.json");
+            var changed = solution
+                .WithDocumentText(document.Id, SourceText.From("class Updated { }"))
+                .AddAdditionalDocument(
+                    DocumentId.CreateNewId(document.Project.Id), "settings.json", SourceText.From("{}"),
+                    filePath: additionalPath);
+            var output = new RecordingSolutionWriteOutput();
+            var writer = new Core.SolutionChangeWriter(output);
+
+            await Should.ThrowAsync<NotSupportedException>(() =>
+                writer.ApplyChangesAsync(solution, changed, dryRun: true));
+            await Should.ThrowAsync<NotSupportedException>(() =>
+                writer.ApplyChangesAsync(solution, changed, dryRun: false));
+
+            output.DiffLines.ShouldBeEmpty();
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+            File.ReadAllText(document.FilePath!).ShouldBe("class Original { }");
+            File.Exists(additionalPath).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task changed_document_order_prevents_partial_preview_or_apply()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("First.cs", "class First { }");
+        project.AddSource("Second.cs", "class Second { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var projectId = solution.Projects.Single().Id;
+            var documents = solution.Projects.Single().Documents.ToArray();
+            var changed = solution
+                .WithDocumentText(documents[0].Id, SourceText.From("class Updated { }"))
+                .WithProjectDocumentsOrder(projectId,
+                    ImmutableList.Create(documents[1].Id, documents[0].Id));
+            var output = new RecordingSolutionWriteOutput();
+            var writer = new Core.SolutionChangeWriter(output);
+
+            await Should.ThrowAsync<NotSupportedException>(() =>
+                writer.ApplyChangesAsync(solution, changed, dryRun: true));
+            await Should.ThrowAsync<NotSupportedException>(() =>
+                writer.ApplyChangesAsync(solution, changed, dryRun: false));
+
+            output.DiffLines.ShouldBeEmpty();
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+            File.ReadAllText(documents[0].FilePath!).ShouldBe("class First { }");
+            File.ReadAllText(documents[1].FilePath!).ShouldBe("class Second { }");
         }
     }
 
@@ -303,7 +366,7 @@ public class SolutionWriterIntegration
             var changed = solution.WithDocumentFilePath(document.Id, destination)
                 .WithDocumentText(document.Id, SourceText.From("class Moved { }"));
 
-            await Should.ThrowAsync<FileNotFoundException>(() =>
+            await Should.ThrowAsync<NotSupportedException>(() =>
                 project.ApplySolutionAsync(solution, changed));
 
             File.ReadAllText(document.FilePath!).ShouldBe(before);

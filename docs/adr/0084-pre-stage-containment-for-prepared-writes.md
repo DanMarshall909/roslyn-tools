@@ -42,6 +42,11 @@ the path being mutated.
   rendering any diff, so a pathless changed or added document or conflicting
   affected path fails without a misleading partial report. It renders removed
   documents as deletions and rejects project additions or removals before output.
+  `PreparedChangeSet` also rejects identified unsupported solution deltas at
+  construction: non-source documents, solution analyzer references and options,
+  project references and metadata, and source-document metadata or order
+  changes. This prevents a partial preview or apply when a supported source
+  edit accompanies one of these unsupported deltas.
 - On systems where the trusted checkout is reached through a symlinked ancestor,
   the preflight rejects the alias path. Callers must use physical paths until a
   handle-based boundary can safely support aliases.

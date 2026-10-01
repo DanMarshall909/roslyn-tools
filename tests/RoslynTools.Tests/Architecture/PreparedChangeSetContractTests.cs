@@ -1,5 +1,8 @@
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
 using Shouldly;
@@ -58,6 +61,140 @@ public sealed class PreparedChangeSetContractTests
         var exception = Should.Throw<ArgumentException>(() => new PreparedChangeSet(original, changed));
 
         exception.Message.ShouldContain("no file path");
+    }
+
+    [Fact]
+    public void rejects_non_source_document_deltas_before_affected_paths_are_derived()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var original = workspace.CurrentSolution.AddProject(ProjectInfo.Create(
+            projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp));
+
+        var additionalId = DocumentId.CreateNewId(projectId);
+        var analyzerConfigId = DocumentId.CreateNewId(projectId);
+        var additional = original.AddAdditionalDocument(
+            additionalId, "settings.json", SourceText.From("{}"), filePath: "settings.json");
+        var analyzerConfig = original.AddAnalyzerConfigDocument(
+            analyzerConfigId, ".editorconfig", SourceText.From("root = true"),
+            filePath: ".editorconfig");
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, additional))
+            .Message.ShouldContain("additional documents");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, analyzerConfig))
+            .Message.ShouldContain("analyzer config documents");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(
+                additional, additional.WithAdditionalDocumentText(additionalId, SourceText.From("{ \"x\": 1 }"))))
+            .Message.ShouldContain("additional documents");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(
+                analyzerConfig, analyzerConfig.RemoveAnalyzerConfigDocument(analyzerConfigId)))
+            .Message.ShouldContain("analyzer config documents");
+    }
+
+    [Fact]
+    public void rejects_project_reference_and_metadata_deltas()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var referencedProjectId = ProjectId.CreateNewId();
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp))
+            .AddProject(ProjectInfo.Create(
+                referencedProjectId, VersionStamp.Create(), "Referenced", "Referenced", LanguageNames.CSharp));
+        var withReference = original.AddProjectReference(projectId, new ProjectReference(referencedProjectId));
+        var withAssemblyName = original.WithProjectAssemblyName(projectId, "ChangedAssembly");
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, withReference))
+            .Message.ShouldContain("project references");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, withAssemblyName))
+            .Message.ShouldContain("project metadata");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(
+                original, withReference,
+                projectFileEdits: [new PreparedFileWrite("PreparedChanges.csproj", "<Project />")]))
+            .Message.ShouldContain("project references");
+    }
+
+    [Fact]
+    public void rejects_source_document_path_changes_that_writer_cannot_represent()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp))
+            .AddDocument(documentId, "Before.cs", SourceText.From("class Before;"), filePath: "Before.cs");
+        var changed = original.WithDocumentFilePath(documentId, "After.cs");
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, changed))
+            .Message.ShouldContain("document metadata");
+    }
+
+    [Fact]
+    public void rejects_source_document_order_changes_instead_of_reporting_no_changes()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var firstId = DocumentId.CreateNewId(projectId);
+        var secondId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp))
+            .AddDocument(firstId, "First.cs", SourceText.From("class First;"), filePath: "First.cs")
+            .AddDocument(secondId, "Second.cs", SourceText.From("class Second;"), filePath: "Second.cs");
+        var reordered = original.WithProjectDocumentsOrder(
+            projectId, ImmutableList.Create(secondId, firstId));
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, reordered))
+            .Message.ShouldContain("document order");
+    }
+
+    [Fact]
+    public void rejects_solution_analyzer_references_alone_or_with_a_source_edit()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp))
+            .AddDocument(documentId, "Source.cs", SourceText.From("class Before;"), filePath: "Source.cs");
+        var withAnalyzer = original.AddAnalyzerReference(new TestAnalyzerReference());
+        var mixed = withAnalyzer.WithDocumentText(documentId, SourceText.From("class After;"));
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, withAnalyzer))
+            .Message.ShouldContain("solution analyzer references");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, mixed))
+            .Message.ShouldContain("solution analyzer references");
+    }
+
+    [Fact]
+    public void rejects_solution_options_that_have_no_file_write_representation()
+    {
+        using var workspace = new AdhocWorkspace();
+        var original = workspace.CurrentSolution;
+        var changed = original.WithOptions(original.Options.WithChangedOption(
+            FormattingOptions.UseTabs, LanguageNames.CSharp, true));
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, changed))
+            .Message.ShouldContain("solution metadata");
+    }
+
+    [Fact]
+    public void rejects_project_additions_and_removals_even_without_file_paths()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var original = workspace.CurrentSolution.AddProject(ProjectInfo.Create(
+            projectId, VersionStamp.Create(), "PreparedChanges", "PreparedChanges", LanguageNames.CSharp));
+        var added = original.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Added", "Added", LanguageNames.CSharp));
+
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, added))
+            .Message.ShouldContain("adding or removing projects");
+        Should.Throw<NotSupportedException>(() => new PreparedChangeSet(original, original.RemoveProject(projectId)))
+            .Message.ShouldContain("adding or removing projects");
     }
 
     [Fact]
@@ -817,6 +954,17 @@ public sealed class PreparedChangeSetContractTests
             if (context == RtOutputContext.Diff)
                 Diff.Add(message);
         }
+    }
+
+    private sealed class TestAnalyzerReference : AnalyzerReference
+    {
+        public override string FullPath => "TestAnalyzer.dll";
+
+        public override object Id { get; } = new();
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => [];
+
+        public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() => [];
     }
 
     private static DirectoryInfo CreatePhysicalTempDirectory(string prefix) =>

@@ -565,6 +565,10 @@ The preview renderer validates prepared affected paths before emitting a diff;
 pathless changed or added documents and conflicting affected paths fail without
 a partial report. Removed documents appear as deletions. Project additions and
 removals are rejected before output because prepared apply does not support them.
+Prepared change-set construction also rejects identified non-source document,
+solution analyzer-reference/option, project reference/metadata, and
+source-document metadata/order deltas that the prepared writer cannot represent;
+mixed source and unsupported changes in these categories fail together.
 Unattended apply still requires the physical effect broker and the other
 platform-hardening gates.
 

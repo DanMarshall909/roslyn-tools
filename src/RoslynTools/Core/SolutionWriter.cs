@@ -17,12 +17,8 @@ internal static class SolutionWriter
         Solution newSolution,
         ISolutionWriteOutput? output = null)
     {
-        var changes = newSolution.GetChanges(originalSolution);
-        if (changes.GetAddedProjects().Any() || changes.GetRemovedProjects().Any())
-            throw new NotSupportedException(
-                "Solution preview does not support adding or removing projects.");
-
         _ = new PreparedChangeSet(originalSolution, newSolution);
+        var changes = newSolution.GetChanges(originalSolution);
         output ??= NullSolutionWriteOutput.Instance;
         var fileCount = 0;
 
