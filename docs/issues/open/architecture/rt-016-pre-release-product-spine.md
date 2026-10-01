@@ -17,10 +17,12 @@ summary: "Shape a trustworthy 0.1-preview around semantic discovery, impact, pla
 
 ## Context
 
-The current generated catalogue exposes 56 ordinary commands: 23 read-only and
-33 mutating. Forty-one catalogue entries do not advertise JSON output, while the
-installed MCP surface exposes 61 tools after suggestion and feedback operations
-are included. The breadth is concentrated in bespoke refactors even though the
+The 2026-10-01 source-built catalogue exposes 60 entries: 25
+inspect/analyze/CI, 34 refactor (including the local `trust` control), and one
+lifecycle command. Thirty-nine entries do not advertise JSON output even though
+several can emit JSON. The MCP surface under the current persistent-trust
+profile exposes 60 tools: 58 shared with CLI plus `prime` and `suggest_command`.
+The breadth is concentrated in bespoke refactors even though the
 beginning and end of the agent workflow remain incomplete:
 
 ```text
@@ -29,16 +31,17 @@ orient -> discover -> understand -> assess impact -> plan -> verify
 
 Several current surface contracts are also misleading or incomplete:
 
-- `rt suggest` truncates changed files before reporting the context count and then
-  recommends only `outline` calls;
-- `convert-static-class` advertises interface generation and DI registration while
-  explicitly skipping both;
-- the command-oriented `add-test` acceptance contract retains skipped tests;
-- `feedback_add` and `feedback_process` write state while their descriptors classify
-  them as read-only;
-- `probe-di` loads a repository assembly and invokes its registration method;
-- MCP schemas and structured results are not yet consistent enough to treat every
-  projected command as a supported product contract.
+- `suggest` misses parameter-edit and dependency-boundary workflows, sometimes
+  ranking an internal coordination primitive as if it were a refactor plan;
+- a healthy checkout can report `Partial` workspace state, weakening absence and
+  safe-delete conclusions;
+- mutation variants, including batch rename, signature changes, and project
+  moves, need distinct plan evidence before preview admission;
+- root help omits usable discovery entry points, while MCP output schemas are
+  generic and some request properties are undocumented;
+- `convert-static-class`, the mixed `add-test` mode, feedback commands, daemon
+  controls, and `probe-di` are now outside normal public discovery, but their
+  internal or experimental contracts still need explicit review.
 
 The existing `critical-platform-hardening` OpenSpec already owns repository trust,
 workspace completeness, mutation containment and recovery, canonical operation

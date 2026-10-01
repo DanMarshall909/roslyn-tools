@@ -25,9 +25,9 @@ for preview support.
 | `list-imports` | `inventory imports` | Preview -> Stable | Feed the imports recipe without judging style. |
 | `list-smells` | Concrete `check` rules | Preview -> Stable | Split long-method, large-type, and dependency rules. |
 | `probe-di` | Trusted `recipe inspect-di` CLI | Experimental | Executes repository code; absent from normal MCP. |
-| `semantic-diff` | `semantic-diff` | Stable candidate | Keep with explicit parse-only limitations. |
+| `semantic-diff` | `semantic-diff` | Stable candidate | Keep with explicit parse-only/rename limits; two-file mode is no-evaluation and needs mode-specific trust/workspace metadata. |
 | `solid` | Concrete `check` rules | Preview | Remove SOLID violation branding. |
-| `solid-review` | Optional external semantic triage | Experimental | Preserve raw findings; require explicit trust and source-transmission consent. |
+| `solid-review` | Optional external semantic triage | Experimental | Preserve deterministic findings; classify actual external/source-transmission effects per mode and require explicit consent. |
 | `static-class-inventory` | `inventory static-types` | Experimental -> Preview | Input to a future staticness recipe. |
 
 ## CI commands
@@ -40,9 +40,9 @@ for preview support.
 
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
-| `config` | Local host configuration inspection | Preview | Keep as the MSBuild-free repair and effective-settings inspection path; never expose through daemon or MCP discovery. |
+| `config` | Local host configuration inspection | Preview | Keep as the MSBuild-free repair path; live no-repository mode needs truthful no-workspace/no-trust metadata and remains outside MCP discovery. |
 | `describe` | `describe` | Stable candidate | Keep compact signature contract. |
-| `doctor` | `doctor` | Stable candidate | Keep as the workspace and installation preflight. |
+| `doctor` | `doctor` | Stable candidate | Keep as workspace and installation preflight; describe installation-only no-evaluation separately and make it easy to find in MCP discovery. |
 | `find-callers` | `relationships callers` | Removed from public surface | Retain a temporary internal wrapper while the canonical relationship contract settles. |
 | `find-impl` | `relationships implementations` | Removed from public surface | Retain a temporary internal wrapper while the canonical relationship contract settles. |
 | `find-pattern` | `structural-search --mode example` | Preview | Consolidate with duplicates. |
@@ -62,10 +62,10 @@ for preview support.
 | `add-dynamic-dependency` | `recipe preserve-reflection-type` | Trusted experimental | Runtime/trimming semantics. |
 | `add-global-import` | `recipe imports --kind global` | Experimental | Consolidate import planners. |
 | `add-null-checks` | Standard code action or `recipe add-null-guards` | Experimental | Can change behaviour. |
-| `add-static-import` | `recipe imports --kind static` | Experimental | Consolidate import planners. |
+| `add-static-import` | `recipe imports --kind static` | Experimental | Consolidate import planners; separately review `--simplify-all-static-imports` because it rewrites existing qualifiers. |
 | `add-test` | Future narrow xUnit scaffold recipe, if demanded | Removed from public surface | Delete rt-specific mode; current command mixes unrelated jobs. |
 | `add-xml-doc` | `recipe apply-documentation-map` | Experimental | Generated content needs explicit review. |
-| `change-signature` | `prepare-change-signature` | Preview plan-only | Core typed plan; external/API risk. |
+| `change-signature` | `prepare-change-signature` | Preview plan-only | Keep rename/reorder/add/remove parameter variants typed; default values, forced removal, and external/API impact need separate plan evidence. |
 | `convert-console-logging` | `recipe migrate-console-logging` | Experimental | Framework and injection assumptions. |
 | `convert-static-class` | Rebuild later as staged recipe | Removed until complete | Advertised interface/DI stages are skipped. |
 | `convert-to-record` | `recipe convert-to-record` | Experimental | Equality, serialization, and ABI risk. |
@@ -81,14 +81,14 @@ for preview support.
 | `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally. |
 | `make-static` | `recipe change-method-staticness --to static` | Experimental | Requires state and dispatch analysis. |
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
-| `move` | `prepare-move-symbol` | Preview plan-only | Core typed plan with project/path effects. |
+| `move` | `prepare-move-symbol` | Preview plan-only | Review namespace, project, and physical-file variants with explicit changed-file and reference manifests. |
 | `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Group move discovery but keep the static-method contract distinct from a slice transaction. |
-| `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project edits, and one transactional apply. |
+| `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project-reference/friend-assembly edits and justifications, and one transactional apply. |
 | `narrow-dependency` | `recipe segregate-interface` | Experimental | DI follow-up and consumer partitioning. |
-| `rename` | `prepare-rename` | Preview plan-only | First change-plan pilot. |
-| `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically. |
+| `rename` | `prepare-rename` | Preview plan-only | First single-symbol change-plan pilot; batch CSV and selective related edits require separate evidence. |
+| `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically; preserve typed argument filters. |
 | `replace-datetime` | `recipe use-time-provider` | Experimental | Framework and constructor-injection assumptions. |
-| `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic. |
+| `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic; argument filters and possible matched-argument removal need explicit review. |
 | `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` if admitted | Experimental/high risk | Require complete workspace, explicit external/dynamic-use limitations, a review protocol, and refusal conditions; a loaded solution cannot prove all use absent. |
@@ -99,13 +99,13 @@ for preview support.
 
 | Current capability | Destination | Decision |
 |---|---|---|
-| `suggest_command` | `suggest` workflow guidance | Rebuild from catalogue, Git, and semantic context. |
-| `feedback_add` | Maintainer/dogfood CLI | Remove from normal MCP; correct write classification. |
-| `feedback_list` | Maintainer CLI | May expose local paths, traces, and samples. |
-| `feedback_process` | Maintainer CLI | Correct write classification. |
+| `suggest_command` | `suggest` workflow guidance | Rebuild from catalogue, Git, and semantic context; reconcile MCP required query with CLI's optional Git-context query and label this primary discovery route deliberately. |
+| `feedback_add` | Maintainer/dogfood CLI | Keep out of normal MCP; internal descriptor already marks LocalStateWrite, so verify CLI help and runtime projection. |
+| `feedback_list` | Maintainer CLI | May expose local paths, traces, and samples; add paging/limits before a 206-item list can consume 520 KB. |
+| `feedback_process` | Maintainer CLI | Internal descriptor marks local read/write; verify CLI help and runtime projection. |
 | `feedback_report` | Maintainer CLI with explicit external apply | Never ordinary agent discovery. |
 | `prime` | Generated `doctor --quick` / capabilities primer | Remove hard-coded command truth. |
-| `dump-help` | Generated documentation tool | Maintainer surface. |
+| `dump-help` | Generated documentation tool | Maintainer surface; make its own `--help` explain the generated views. |
 | `prepare-operation` | Internal durable coordination primitive | Remove from normal help and suggestion discovery until a complete plan lifecycle exists; it does not prepare a refactor plan. |
 | daemon lifecycle | Internal performance experiment | Not packaged or advertised for preview. |
 | root plus grouped duplicates | One canonical grammar | Remove duplicate product identities before release. |
