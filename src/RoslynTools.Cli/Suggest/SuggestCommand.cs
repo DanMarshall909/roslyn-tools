@@ -144,15 +144,15 @@ internal static class SuggestCommand
 
         var csFiles = changed
             .Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            .Take(top)
             .ToList();
+        var displayedFiles = csFiles.Take(top).ToList();
 
         if (RtContext.Format == OutputFormat.Json)
         {
             var payload = new
             {
                 context = $"{csFiles.Count} .cs file(s) changed vs HEAD",
-                suggestions = csFiles.Select(f => $"rt inspect outline \"{f}\" --solution <slnx>")
+                suggestions = displayedFiles.Select(f => $"rt inspect outline \"{f}\" --solution <slnx>")
                     .Append("rt dump-help --compact")
                     .ToList()
             };
@@ -168,7 +168,7 @@ internal static class SuggestCommand
         }
 
         RtConsole.WriteLine(RtOutputContext.Ui, $"[silver]Context: {csFiles.Count} changed .cs file(s)[/]");
-        foreach (var f in csFiles)
+        foreach (var f in displayedFiles)
             RtConsole.WriteLine(RtOutputContext.Result,
                 $"rt inspect outline \"{f}\" --solution <slnx>");
         RtConsole.WriteLine(RtOutputContext.Result, "rt dump-help --compact");

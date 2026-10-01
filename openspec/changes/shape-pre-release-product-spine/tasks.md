@@ -306,7 +306,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   prerequisites, expected output, dependency, and stop condition for every step.
 - [ ] Add a relevance threshold and typed `Unsupported` result naming the missing
   capability.
-- [ ] Fix total-versus-display count handling and add the observed 37-changed/3-
+- [x] Fix total-versus-display count handling and add the observed 37-changed/3-
   displayed regression fixture.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.

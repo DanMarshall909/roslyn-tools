@@ -131,6 +131,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   2,774 bytes of irrelevant ranked commands to 775 bytes of one workflow;
   the compact text route was 341 bytes. These are per-call stdout sizes, not
   measured end-to-end workflow savings. General task routing remains open.
+- Omitted-query CLI suggestion now counts every changed C# path before applying
+  `--top` to displayed outline calls. A temporary-Git regression covers 37
+  changed C# files, three displayed calls, a non-C# change, and `--top 0`.
+  Semantic Git-context classification and MCP omitted-query parity remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text
