@@ -318,8 +318,9 @@ measured the same source-built `relationships callers ExecuteAsync --include-tes
 displayed identities with truncation. These are per-call byte counts on this
 checkout, not an end-to-end token measure. The separate no-store legacy
 `SymbolLocator` ambiguity path was later bounded by
-[ADR-0096](../../../docs/adr/0096-bound-legacy-symbol-ambiguity.md); its
-member-signature overload error still needs a bound.
+[ADR-0096](../../../docs/adr/0096-bound-legacy-symbol-ambiguity.md), and its
+member-signature overload error by
+[ADR-0097](../../../docs/adr/0097-bound-member-overload-ambiguity.md).
 
 These are one-run observations on the current source-built checkout, not
 benchmark distributions; concurrent workspace activity may affect times. The

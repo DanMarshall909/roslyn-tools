@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using Shouldly;
@@ -104,6 +106,85 @@ public class DescribeDrillIn
             var message = result.Match(_ => "", e => e.Message);
             message.ShouldContain("int Add(int, int)");
             message.ShouldContain("double Add(double, double)");
+        }
+    }
+
+    [Fact]
+    [Trait("Concern", "Overloads")]
+    public async Task many_name_only_overloads_return_bounded_complete_signatures()
+    {
+        var members = string.Join(Environment.NewLine,
+            Enumerable.Range(0, 80).Select(index =>
+                $"public sealed class T{index:D3} {{ }} public void Mix(T{index:D3} value) {{ }}"));
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Calculator.cs", $$"""
+            namespace TestApp;
+            public class Calculator
+            {
+                {{members}}
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var result = await SymbolLocator.TryFindMemberBySignatureAsync(
+                solution, "TestApp.Calculator.Mix");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Message.ShouldStartWith(
+                "'TestApp.Calculator.Mix' is ambiguous on type 'TestApp.Calculator'. Candidates:");
+            error.Context.ShouldNotBeNull();
+            error.Context!["candidateCount"].ShouldBe("80");
+            var displayed = int.Parse(error.Context["displayedCandidateCount"],
+                CultureInfo.InvariantCulture);
+            displayed.ShouldBeInRange(1, 12);
+            error.Context["candidatesTruncated"].ShouldBe("true");
+            var candidates = error.Context["candidates"].Split(';');
+            candidates.Length.ShouldBe(displayed);
+            var expected = Enumerable.Range(0, displayed)
+                .Select(index => $"void Mix(T{index:D3})")
+                .ToArray();
+            candidates.SequenceEqual(expected, StringComparer.Ordinal).ShouldBeTrue();
+            foreach (var signature in expected)
+                error.Message.ShouldContain(signature);
+            error.Message.ShouldContain("Pass an explicit parameter signature.");
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
+            Encoding.UTF8.GetByteCount(error.Context["candidates"])
+                .ShouldBeLessThanOrEqualTo(4_096);
+        }
+    }
+
+    [Fact]
+    [Trait("Concern", "Overloads")]
+    public async Task long_member_name_does_not_expand_ambiguity_message()
+    {
+        var typeName = new string('界', 500);
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("LongNames.cs", $$"""
+            namespace TestApp;
+            public class {{typeName}}
+            {
+                public void Mix(int value) { }
+                public void Mix(string value) { }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var result = await SymbolLocator.TryFindMemberBySignatureAsync(
+                solution, $"TestApp.{typeName}.Mix");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Context.ShouldNotBeNull();
+            error.Context!["candidateCount"].ShouldBe("2");
+            error.Context["symbolTruncated"].ShouldBe("true");
+            Encoding.UTF8.GetByteCount(error.Context["symbol"]).ShouldBeLessThanOrEqualTo(256);
+            Encoding.UTF8.GetByteCount(error.Context["type"]).ShouldBeLessThanOrEqualTo(256);
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
         }
     }
 

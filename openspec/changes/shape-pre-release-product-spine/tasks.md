@@ -282,7 +282,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   truncation metadata, and a filtered `search-symbols` disambiguation route.
 - [x] Bound the no-store legacy `SymbolLocator` ambiguity error while retaining
   complete candidate names, original order, total/truncation metadata, and the
-  full decisions-file selection path. Member-signature overload errors remain.
+- [x] Bound member-signature overload ambiguity by candidate count and UTF-8
+  bytes while preserving the describe drill-in prefix, complete signatures,
+  source order, and explicit parameter-signature recovery route.
 
 ### 3.2 Symbol search
 

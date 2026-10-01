@@ -325,10 +325,10 @@ internal static class SymbolLocator
         if (matches.Count == 1)
             return Result<ISymbol, RtError>.Ok(matches[0]);
 
-        var candidates = string.Join("; ", matches.Select(SignatureFormatter.Signature));
-        return Result<ISymbol, RtError>.Err(
-            RtError.AmbiguousMatch(
-                $"'{input}' is ambiguous on type '{typeFqn}'. Candidates: {candidates}"));
+        return Result<ISymbol, RtError>.Err(BoundedAmbiguousMatch(
+            input,
+            matches.Select(SignatureFormatter.Signature),
+            typeFqn));
     }
 
     /// <summary>
@@ -394,7 +394,8 @@ internal static class SymbolLocator
 
     private static RtError BoundedAmbiguousMatch(
         string name,
-        IEnumerable<string> candidateNames)
+        IEnumerable<string> candidateNames,
+        string? containingType = null)
     {
         var candidates = candidateNames.ToArray();
         var listed = new List<string>();
@@ -419,6 +420,10 @@ internal static class SymbolLocator
         }
 
         var query = LimitUtf8(name, MaximumAmbiguityQueryBytes);
+        var memberAmbiguity = containingType is not null;
+        var guidance = memberAmbiguity
+            ? "Pass an explicit parameter signature."
+            : "Pass a more specific fully-qualified name.";
         var candidateCount = candidates.Length.ToString(CultureInfo.InvariantCulture);
         var displayedCount = listed.Count.ToString(CultureInfo.InvariantCulture);
         var context = new Dictionary<string, string>
@@ -429,15 +434,21 @@ internal static class SymbolLocator
             ["displayedCandidateCount"] = displayedCount,
             ["candidatesTruncated"] = listed.Count < candidates.Length ? "true" : "false",
             ["candidates"] = string.Join(';', listed),
-            ["disambiguateWith"] = "Pass a more specific fully-qualified name."
+            ["disambiguateWith"] = guidance
         };
+        if (containingType is not null)
+            context["type"] = LimitUtf8(containingType, MaximumAmbiguityQueryBytes);
+
         var summary = listed.Count == 0
             ? "No candidate fits within the response budget"
-            : string.Join(", ", listed);
+            : string.Join(memberAmbiguity ? "; " : ", ", listed);
+        var prefix = containingType is null
+            ? $"Multiple symbols match '{query}': "
+            : $"'{query}' is ambiguous on type '{context["type"]}'. Candidates: ";
         return RtError.AmbiguousMatch(
-            $"Multiple symbols match '{query}': {summary}. "
+            $"{prefix}{summary}. "
             + $"{candidateCount} candidates; showing {displayedCount}. "
-            + "Pass a more specific fully-qualified name.",
+            + guidance,
             context);
     }
 

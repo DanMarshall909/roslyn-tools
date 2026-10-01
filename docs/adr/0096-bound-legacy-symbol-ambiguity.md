@@ -26,7 +26,8 @@ prefix, semicolon context delimiter, and existing recovery wording.
 
 The decisions-file path continues to receive the full candidate set and its
 original index mapping. The member-signature overload error has a separate
-message contract and is outside this decision.
+message contract, subsequently bounded by
+[ADR-0097](0097-bound-member-overload-ambiguity.md).
 
 ## Consequences
 
@@ -36,8 +37,8 @@ message contract and is outside this decision.
 - Raw string limits do not cap JSON-escaped wire size. The context preserves
   only a prefix of complete names; callers can supply a more specific fully
   qualified name to resolve the ambiguity.
-- Legacy member-signature overload output remains unbounded until its own
-  accepted slice.
+- The subsequent member-signature slice shares the byte-budget helper while
+  preserving its own message prefix and overload signatures (ADR-0097).
 
 ## References
 

@@ -552,7 +552,9 @@ directs callers to narrow a `search-symbols` query before retrying. This
 applies to consumers of `SymbolCandidateService` ([ADR-0095](adr/0095-bound-shared-symbol-ambiguity.md)).
 The no-store `SymbolLocator` ambiguity error has its own bounded presentation
 while retaining full decisions-file choices ([ADR-0096](adr/0096-bound-legacy-symbol-ambiguity.md)).
-Member-signature overload ambiguity still needs a bound.
+Member-signature overload ambiguity shares the byte limits while retaining its
+distinct message prefix and complete listed signatures
+([ADR-0097](adr/0097-bound-member-overload-ambiguity.md)).
 
 Every structured operation response carries, where applicable:
 

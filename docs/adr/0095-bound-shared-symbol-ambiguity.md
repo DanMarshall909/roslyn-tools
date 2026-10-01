@@ -45,8 +45,9 @@ ambiguity error is not a search result.
   the representative CLI and MCP paths are measured separately. `search-symbols`
   has its own result limits and requires filtering when a broad query truncates.
 - Legacy `SymbolLocator` uses a separate ambiguity contract. Its general
-  no-store path is bounded by [ADR-0096](0096-bound-legacy-symbol-ambiguity.md);
-  member-signature overload ambiguity remains separate work.
+  no-store path is bounded by [ADR-0096](0096-bound-legacy-symbol-ambiguity.md),
+  and member-signature overload ambiguity by
+  [ADR-0097](0097-bound-member-overload-ambiguity.md).
 
 ## References
 
