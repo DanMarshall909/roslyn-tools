@@ -291,6 +291,10 @@ then discovery ordering. Unit tests replace both ports without starting a host p
 or registering MSBuild globally. The MCP adapter likewise invokes installation-only
 doctor requests without registering MSBuild, so a self-contained installation can
 diagnose an absent SDK rather than failing before the doctor operation runs.
+Doctor result safety includes `RepositoryCodeExecution` once a trusted workspace
+acquisition starts, including when acquisition fails after it begins. Installation-only,
+trust-required, and SDK-bootstrap failure results omit that effect. The broader
+command definition still needs separate mode-specific discovery metadata.
 
 MSBuild instance identity, exact-selection values, and compatibility errors are
 shared in the reusable assembly for CLI, daemon, and MCP hosts. The daemon SDK

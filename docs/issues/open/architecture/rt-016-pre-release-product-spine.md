@@ -114,6 +114,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- Doctor result safety now includes `RepositoryCodeExecution` after trusted
+  workspace acquisition begins, even if acquisition fails; installation-only,
+  trust-required, and SDK-bootstrap failure results omit it. Mode-specific
+  discovery metadata remains open.
 - CLI output-format flags now fail early when a selected public command's
   declared formats do not include the requested effective format (ADR-0099).
   Source-built `complexity --llm` had exited 0 with no output; grouped, root,

@@ -120,6 +120,14 @@ passes; final admission needs a healthy/partial fixture and an explicit
 completeness-bearing result. The parse-only two-file `semantic-diff`,
 installation-only `doctor`, and preview-only `solid-review` paths also confirm
 that effects/trust/workspace claims need mode-level projection.
+Doctor's result now reports `RepositoryCodeExecution` after trusted workspace
+acquisition starts, including an acquisition failure. Installation-only and
+pre-acquisition results omit it; the scalar command catalogue still overstates
+installation-only workspace requirements and understates full-mode effects.
+In a DoctorOperation-only Stryker run with 15 in-process tests, every mutant on
+the new safety decision and effect names was killed. The whole file scored
+56.21% (86 killed, 60 survived, 7 no coverage), so broader doctor behavior
+coverage remains separate from this mode-safety correction.
 `circular-deps` builds namespace edges from textual `using` directives, so its
 cycle findings are syntax-derived. The architecture test that would ratchet
 category marker contracts is currently skipped; turn it back on before relying

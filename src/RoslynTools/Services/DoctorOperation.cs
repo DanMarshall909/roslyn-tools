@@ -185,6 +185,7 @@ internal sealed class DoctorOperation(
                 stopwatch.ElapsedMilliseconds,
                 environment));
 
+        var workspaceAcquisitionAttempted = false;
         try
         {
             var bootstrap = _workspaceBootstrap.Register(selected);
@@ -206,6 +207,8 @@ internal sealed class DoctorOperation(
                     environment));
             }
 
+            // Workspace acquisition may evaluate repository build inputs before returning or failing.
+            workspaceAcquisitionAttempted = true;
             using (var lease = await _sessions.AcquireAsync(selected, cancellationToken))
             {
                 var solution = lease.Solution;
@@ -229,7 +232,8 @@ internal sealed class DoctorOperation(
                     diagnostics,
                     stopwatch.ElapsedMilliseconds,
                     environment,
-                    lease.SourceRevision));
+                    lease.SourceRevision,
+                    workspaceAcquisitionAttempted));
             }
         }
         catch (Exception exception) when (exception is IOException
@@ -247,7 +251,8 @@ internal sealed class DoctorOperation(
                 GetTrust(selected),
                 MergeDiagnostics(environment, exception.Message),
                 stopwatch.ElapsedMilliseconds,
-                environment));
+                environment,
+                workspaceAcquisitionAttempted: workspaceAcquisitionAttempted));
         }
     }
 
@@ -287,7 +292,8 @@ internal sealed class DoctorOperation(
         IReadOnlyList<string> diagnostics,
         long elapsedMilliseconds,
         DoctorEnvironmentProbeResult environment,
-        string? sourceRevision = null)
+        string? sourceRevision = null,
+        bool workspaceAcquisitionAttempted = false)
     {
         var limits = Definition.Product.Limits;
         var definitions = _capabilities.GetDefinitions();
@@ -329,6 +335,10 @@ internal sealed class DoctorOperation(
             _ => ["Repository build inputs were not evaluated without explicit trust."]
         };
 
+        IReadOnlyList<string> effects = workspaceAcquisitionAttempted
+            ? ["LocalStateRead", "RepositoryRead", "RepositoryCodeExecution"]
+            : ["LocalStateRead", "RepositoryRead"];
+
         return new RtResultEnvelope<DoctorResult>(
             "rt.result.v1",
             "doctor",
@@ -347,7 +357,7 @@ internal sealed class DoctorOperation(
             outcome == "TrustRequired"
                 ? [new RtNextAction("doctor", "Review the repository, then opt into one trusted evaluation.")]
                 : [],
-            new RtResultSafety(["LocalStateRead", "RepositoryRead"], false, false),
+            new RtResultSafety(effects, false, false),
             new RtTiming(elapsedMilliseconds),
             new RtPaging(candidates.Length, candidates.Length, false, ContinuationToken: null));
     }
