@@ -8,10 +8,8 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class SolutionWriterIntegration
 {
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task changed_documents_preserve_preview_inputs_and_apply_encoding(bool dryRun)
+    [Fact]
+    public async Task changed_documents_preview_without_writing()
     {
         const string before = "class Original { }";
         const string after = "class Updated { }";
@@ -26,25 +24,36 @@ public class SolutionWriterIntegration
             var updated = solution.WithDocumentText(document.Id, SourceText.From(after, Encoding.Unicode));
             var output = new RecordingSolutionWriteOutput();
 
-            await Core.SolutionWriter.ApplyChangesAsync(solution, updated, dryRun, output);
+            await Core.SolutionWriter.PreviewChangesAsync(solution, updated, output);
 
-            if (dryRun)
-            {
-                File.ReadAllBytes(path).ShouldBe(originalBytes);
-                output.DocumentDiffs.ShouldBe([(before, after, path)]);
-                output.Results.ShouldBeEmpty();
-            }
-            else
-            {
-                File.ReadAllBytes(path).ShouldBe(Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(after)));
-                output.DocumentDiffs.ShouldBeEmpty();
-                output.Results.ShouldContain($"Updated: {path}");
-            }
+            File.ReadAllBytes(path).ShouldBe(originalBytes);
+            output.DocumentDiffs.ShouldBe([(before, after, path)]);
+            output.Results.ShouldBeEmpty();
         }
     }
 
     [Fact]
-    public async Task writes_added_documents_to_new_files()
+    public async Task prepared_writer_applies_changed_documents_with_explicit_encoding()
+    {
+        const string before = "class Original { }";
+        const string after = "class Updated { }";
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", before);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var path = document.FilePath!;
+            var updated = solution.WithDocumentText(document.Id, SourceText.From(after, Encoding.Unicode));
+
+            await project.ApplySolutionAsync(solution, updated);
+
+            File.ReadAllBytes(path).ShouldBe(Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(after)));
+        }
+    }
+
+    [Fact]
+    public async Task prepared_writer_writes_added_documents_to_new_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -56,7 +65,6 @@ public class SolutionWriterIntegration
                                            """);
 
         var (workspace, sln) = project.Build();
-        var output = new RecordingSolutionWriteOutput();
         using (workspace)
         {
             var roslynProject = sln.Projects.First();
@@ -68,18 +76,16 @@ public class SolutionWriterIntegration
                     filePath: newFilePath,
                     loader: new NewClassTextLoader()));
 
-            await Core.SolutionWriter.ApplyChangesAsync(sln, newDoc, false, output);
+            await project.ApplySolutionAsync(sln, newDoc);
 
             Assert.True(File.Exists(newFilePath), $"Expected new file at {newFilePath}");
             var content = await File.ReadAllTextAsync(newFilePath);
             content.ShouldContain("class NewClass", Case.Sensitive);
-            output.Results.ShouldContain($"Created: {newFilePath}");
-            output.Results.ShouldContain("\nDone. 1 file(s) updated.");
         }
     }
 
     [Fact]
-    public async Task added_document_without_a_path_is_skipped_with_a_warning()
+    public async Task preview_skips_added_document_without_a_path_with_a_warning()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", "class Calculator { }");
@@ -94,10 +100,53 @@ public class SolutionWriterIntegration
                 "NoPath.cs",
                 loader: new NewClassTextLoader()));
 
-            await Core.SolutionWriter.ApplyChangesAsync(solution, withoutPath, dryRun: false, output);
+            await Core.SolutionWriter.PreviewChangesAsync(solution, withoutPath, output);
 
             output.Warnings.ShouldContain("Added document 'NoPath.cs' has no file path — skipped.");
             output.Results.ShouldContain("No changes.");
+        }
+    }
+
+    [Fact]
+    public async Task prepared_writer_rejects_added_document_without_a_path()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Calculator.cs", "class Calculator { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var projectId = solution.Projects.Single().Id;
+            var withoutPath = solution.AddDocument(DocumentInfo.Create(
+                DocumentId.CreateNewId(projectId),
+                "NoPath.cs",
+                loader: new NewClassTextLoader()));
+
+            await Should.ThrowAsync<ArgumentException>(() =>
+                project.ApplySolutionAsync(solution, withoutPath));
+
+            project.SourceExists("NoPath.cs").ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task prepared_writer_rejects_retargeted_document_without_writing_either_path()
+    {
+        const string before = "class Original { }";
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Original.cs", before);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var destination = Path.Combine(project.ProjectDir, "Moved.cs");
+            var changed = solution.WithDocumentFilePath(document.Id, destination)
+                .WithDocumentText(document.Id, SourceText.From("class Moved { }"));
+
+            await Should.ThrowAsync<FileNotFoundException>(() =>
+                project.ApplySolutionAsync(solution, changed));
+
+            File.ReadAllText(document.FilePath!).ShouldBe(before);
+            File.Exists(destination).ShouldBeFalse();
         }
     }
 
@@ -144,8 +193,8 @@ public class SolutionWriterIntegration
             Console.SetOut(sw);
             try
             {
-                await Core.SolutionWriter.ApplyChangesAsync(
-                    sln, newDoc, true, new ConsoleSolutionWriteOutput());
+                await Core.SolutionWriter.PreviewChangesAsync(
+                    sln, newDoc, new ConsoleSolutionWriteOutput());
             }
             finally
             {

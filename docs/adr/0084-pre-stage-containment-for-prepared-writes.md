@@ -35,17 +35,18 @@ the path being mutated.
   retain the existing UTF-8-without-BOM default. This closes one byte-preservation
   gap but does not settle newline or file-mode policy.
 - This is a path-string preflight, not a race-free effect broker. Another process
-  can replace a path component after the check. The internal legacy
-  `SolutionWriter.ApplyChangesAsync(false)` branch remains a direct writer used by
-  older tests; the production `SolutionChangeWriter` invokes it only for dry-run
-  reporting. An architecture test guards that production call shape. Neither
-  branch establishes unattended apply safety.
+  can replace a path component after the check. `SolutionWriter` now exposes
+  preview reporting only; `SolutionChangeWriter` apply and migrated
+  transformation test fixtures use the prepared writer. This does not establish
+  unattended apply safety. Preview still warns and skips a pathless
+  added document while prepared apply rejects it; that outcome needs a separate
+  contract repair before apply admission.
 - On systems where the trusted checkout is reached through a symlinked ancestor,
   the preflight rejects the alias path. Callers must use physical paths until a
   handle-based boundary can safely support aliases.
-- A later slice must close the direct writer bypass and use handle-relative,
-  no-follow operations or refuse apply where the physical boundary cannot be
-  proven. The preview mutation admission gate remains open.
+- A later slice must use handle-relative, no-follow operations or refuse apply
+  where the physical boundary cannot be proven. The preview mutation admission
+  gate remains open.
 
 ## Alternatives considered
 

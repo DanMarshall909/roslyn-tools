@@ -216,7 +216,7 @@ public sealed class McpDependencyInjectionTests
                 var text = File.ReadAllText(path);
                 return text.Contains("RtServiceProvider.Get", StringComparison.Ordinal)
                        || text.Contains("WorkspaceLoader.LoadAsync", StringComparison.Ordinal)
-                       || text.Contains("SolutionWriter.ApplyChangesAsync", StringComparison.Ordinal);
+                       || text.Contains("SolutionWriter.PreviewChangesAsync", StringComparison.Ordinal);
             })
             .Select(path => Path.GetRelativePath(repoRoot, path))
             .OrderBy(path => path, StringComparer.Ordinal)

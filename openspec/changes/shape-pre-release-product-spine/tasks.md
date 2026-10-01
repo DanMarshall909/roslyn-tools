@@ -60,7 +60,9 @@
     compiler mutation; reject added tasks and unsupported target changes.
   - [x] Preflight prepared changes against an authority-derived checkout root
     before staging, including extraction output and all affected path roles.
-    This does not close symlink-swap races or the legacy direct writer bypass.
+    This does not close symlink-swap races.
+  - [x] Remove the legacy `SolutionWriter` direct apply branch; route
+    transformation test fixtures through the prepared writer.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

@@ -170,7 +170,7 @@ internal sealed class SpectreRtConsole : IRtConsole
             return;
         }
 
-        // SolutionWriter emits "\nDone. N file(s) updated." — handle a leading newline.
+        // Preserve rendering for result messages with a leading newline.
         if (StartsWith(message, "\nDone. "))
         {
             _stdout.WriteLine();

@@ -48,7 +48,7 @@ public class Move
                 sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
             }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, false);
+            await project.ApplySolutionAsync(workspace.CurrentSolution, sln);
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
@@ -106,7 +106,7 @@ public class Move
                         sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
                 }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, false);
+            await project.ApplySolutionAsync(workspace.CurrentSolution, sln);
         }
 
         var modelsA = await project.ReadSourceAsync("ModelsA.cs");
@@ -151,7 +151,7 @@ public class Move
                 sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
             }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, true);
+            await SolutionWriter.PreviewChangesAsync(workspace.CurrentSolution, sln);
         }
 
         var afterContent = await project.ReadSourceAsync("Target.cs");

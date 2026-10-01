@@ -45,7 +45,7 @@ public class ExtractMethod
                 "DoWork",
                 7,
                 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -85,7 +85,7 @@ public class ExtractMethod
                 "Calculate",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -126,7 +126,7 @@ public class ExtractMethod
                 "ComputeSum",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -167,7 +167,7 @@ public class ExtractMethod
                 "ComputeResult",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -210,7 +210,7 @@ public class ExtractMethod
                 "Compute",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -251,7 +251,7 @@ public class ExtractMethod
                 "ComputeDoubled",
                 7,
                 7);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("MathUtil.cs");
@@ -293,7 +293,7 @@ public class ExtractMethod
                 "DoWork",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -341,7 +341,7 @@ public class ExtractMethod
                 7,
                 8,
                 "OtherMethod");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -385,7 +385,7 @@ public class ExtractMethod
                 7,
                 8,
                 insertBefore: "OtherMethod");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -426,7 +426,7 @@ public class ExtractMethod
                 "DoWork",
                 7,
                 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, true);
+            await SolutionWriter.PreviewChangesAsync(sln, newSln);
         }
 
         var afterContent = await project.ReadSourceAsync("Calculator.cs");
@@ -532,7 +532,7 @@ public class ExtractMethod
                 "DoWork",
                 7,
                 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var rawBytes = await File.ReadAllBytesAsync(FilePath(project, "Calculator.cs"));
@@ -647,7 +647,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -707,7 +707,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -756,7 +756,7 @@ public class ExtractMethod
                 7,
                 9,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -813,7 +813,7 @@ public class ExtractMethod
                 replaceDuplicates: true);
 
             // Dry-run: in-memory solution contains the changes but files are not written
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, true);
+            await SolutionWriter.PreviewChangesAsync(sln, newSln);
         }
 
         // Files on disk must be unchanged
@@ -871,7 +871,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         // A is correctly refactored
@@ -933,7 +933,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -996,7 +996,7 @@ public class ExtractMethod
                 7,
                 7,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1011,7 +1011,7 @@ public class ExtractMethod
     //  Regression: conditional-expression (ternary) body — must not silently
     //  exit 0 when the selected statements include a multi-line ternary.
     //  Shape mirrors AdminScrapingController.ParseAiImages.
-    //  Root cause (US-002): SolutionWriter.ApplyChangesAsync always exits 0,
+    //  Root cause (US-002): the legacy solution writer always exited 0,
     //  even when the change set is empty. The fix is a command-layer guard that
     //  exits 1 when MethodExtractor returns a solution with no changed documents.
     //  At the library level the extraction should succeed and produce changes.
@@ -1063,7 +1063,7 @@ public class ExtractMethod
                 .ToList();
             changedDocs.ShouldNotBeEmpty();
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Controller.cs");
@@ -1212,7 +1212,7 @@ public class ExtractMethod
                 8,
                 replaceDuplicates: true,
                 logger: new RecordingDiagnosticsLogger(warnings, summaries));
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1310,7 +1310,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1456,7 +1456,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -1528,7 +1528,7 @@ public class ExtractMethod
                 "ComputeAll",
                 7,
                 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -1578,7 +1578,7 @@ public class ExtractMethod
                 "ComputeParts",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
@@ -1619,7 +1619,7 @@ public class ExtractMethod
                 "ComputeMultiples",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
@@ -1677,7 +1677,7 @@ public class ExtractMethod
                 7,
                 8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -1731,7 +1731,7 @@ public class ExtractMethod
                 "ComputeResult",
                 8,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -1783,7 +1783,7 @@ public class ExtractMethod
                 "AddBoth",
                 9,
                 12);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Accumulator.cs");
@@ -1834,7 +1834,7 @@ public class ExtractMethod
                 "UpdateState",
                 9,
                 10);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Processor.cs");

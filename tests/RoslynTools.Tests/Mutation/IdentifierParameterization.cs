@@ -67,7 +67,7 @@ public class IdentifierParameterization
                 9,
                 10,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -143,7 +143,7 @@ public class IdentifierParameterization
                 10,
                 12,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -208,7 +208,7 @@ public class IdentifierParameterization
                 9,
                 10,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");

@@ -26,7 +26,7 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
     public Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun)
     {
         if (dryRun)
-            return SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun: true, _output);
+            return SolutionWriter.PreviewChangesAsync(originalSolution, newSolution, _output);
 
         var changeSet = new PreparedChangeSet(originalSolution, newSolution);
         if (!changeSet.HasChanges)

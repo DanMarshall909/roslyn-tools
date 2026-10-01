@@ -58,7 +58,7 @@ public class Rename : IClassFixture<RtServicesFixture>
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Item");
 
-            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
@@ -108,7 +108,7 @@ public class Rename : IClassFixture<RtServicesFixture>
                 false);
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Clean");
-            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var utilContent = await project.ReadSourceAsync("Util.cs");
@@ -146,7 +146,7 @@ public class Rename : IClassFixture<RtServicesFixture>
                 false);
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Bar");
-            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, true);
+            await RoslynTools.Core.SolutionWriter.PreviewChangesAsync(sln, newSln);
         }
 
         var afterContent = await project.ReadSourceAsync("Original.cs");

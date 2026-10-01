@@ -183,7 +183,7 @@ public sealed class AppRegistration
         var directUsages = serviceFiles
             .Where(path => !Path.GetFileName(path).Equals("SolutionChangeWriter.cs", StringComparison.Ordinal))
             .Where(path =>
-                File.ReadAllText(path).Contains("SolutionWriter.ApplyChangesAsync", StringComparison.Ordinal))
+                File.ReadAllText(path).Contains("SolutionWriter.PreviewChangesAsync", StringComparison.Ordinal))
             .Select(path => Path.GetRelativePath(repoRoot, path))
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();

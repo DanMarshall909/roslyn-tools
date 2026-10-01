@@ -73,7 +73,7 @@ public class GenericParameterization
                 10,
                 11,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -144,7 +144,7 @@ public class GenericParameterization
                 11,
                 12,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -217,7 +217,7 @@ public class GenericParameterization
                 11,
                 12,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");

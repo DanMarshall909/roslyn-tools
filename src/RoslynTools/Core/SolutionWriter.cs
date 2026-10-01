@@ -1,20 +1,18 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Handles writing and applying changes to a solution.
+/// Renders a solution change preview without writing files.
 /// </summary>
 internal static class SolutionWriter
 {
     /// <summary>
-    /// Applies changes to a solution asynchronously and reports progress to the optional sink.
+    /// Renders changed and added documents to the optional output sink.
     /// </summary>
-    internal static async Task ApplyChangesAsync(
+    internal static async Task PreviewChangesAsync(
         Solution originalSolution,
         Solution newSolution,
-        bool dryRun,
         ISolutionWriteOutput? output = null)
     {
         output ??= NullSolutionWriteOutput.Instance;
@@ -32,16 +30,7 @@ internal static class SolutionWriter
                 var oldText = await oldDoc.GetTextAsync();
                 var filePath = newDoc.FilePath!;
 
-                if (dryRun)
-                {
-                    output.DocumentDiff(oldText.ToString(), newText.ToString(), filePath);
-                }
-                else
-                {
-                    var encoding = newText.Encoding ?? Encoding.UTF8;
-                    File.WriteAllText(filePath, newText.ToString(), encoding);
-                    output.Result($"Updated: {filePath}");
-                }
+                output.DocumentDiff(oldText.ToString(), newText.ToString(), filePath);
 
                 fileCount++;
             }
@@ -58,22 +47,9 @@ internal static class SolutionWriter
                     continue;
                 }
 
-                if (dryRun)
-                {
-                    output.Diff($"\n+++ {filePath} (new file)");
-                    foreach (var line in newText.Lines)
-                        output.Diff($"+{line}");
-                }
-                else
-                {
-                    var dir = Path.GetDirectoryName(filePath)!;
-                    if (!Directory.Exists(dir))
-                        Directory.CreateDirectory(dir);
-
-                    var encoding = newText.Encoding ?? Encoding.UTF8;
-                    File.WriteAllText(filePath, newText.ToString(), encoding);
-                    output.Result($"Created: {filePath}");
-                }
+                output.Diff($"\n+++ {filePath} (new file)");
+                foreach (var line in newText.Lines)
+                    output.Diff($"+{line}");
 
                 fileCount++;
             }
@@ -81,9 +57,7 @@ internal static class SolutionWriter
 
         if (fileCount == 0)
             output.Result("No changes.");
-        else if (dryRun)
-            output.Diff($"\n[dry-run] {fileCount} file(s) would be modified.");
         else
-            output.Result($"\nDone. {fileCount} file(s) updated.");
+            output.Diff($"\n[dry-run] {fileCount} file(s) would be modified.");
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
@@ -12,9 +13,7 @@ namespace RoslynTools.Tests;
 ///     <see cref="AdhocWorkspace" /> directly with BCL metadata references from the
 ///     test host's TRUSTED_PLATFORM_ASSEMBLIES — skips <c>dotnet build</c> and
 ///     MSBuildWorkspace.OpenSolutionAsync entirely.
-///     Still writes source files to disk so commands that write through
-///     <see cref="RoslynTools.Core.SolutionWriter" /> (which uses File.WriteAllText on
-///     each document's FilePath) round-trip correctly and tests can verify via
+///     Still writes source files to disk so prepared mutations round-trip and tests can verify via
 ///     <see cref="ReadSourceAsync" />.
 /// </summary>
 public sealed class AdhocProjectBuilder : IDisposable
@@ -192,6 +191,17 @@ public sealed class AdhocProjectBuilder : IDisposable
     public Task<string> ReadSourceAsync(string relativePath)
     {
         return File.ReadAllTextAsync(Path.Combine(Directory, _default.Name, relativePath));
+    }
+
+    /// <summary>
+    ///     Apply a Roslyn solution delta through the production prepared writer, with
+    ///     this fixture directory as its explicit trusted root.
+    /// </summary>
+    internal Task ApplySolutionAsync(Solution originalSolution, Solution changedSolution)
+    {
+        var changeSet = new PreparedChangeSet(originalSolution, changedSolution);
+        return new PreparedChangeSetWriter(new PhysicalPreparedFileSystem(), Directory)
+            .ApplyAsync(changeSet);
     }
 
     /// <summary>

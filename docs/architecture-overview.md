@@ -559,9 +559,10 @@ concurrent component swap and rejects symlinked aliases to the checkout. The
 writer retains an explicit Roslyn `SourceText.Encoding` for changed and added
 documents; standalone prepared text writes still use UTF-8 without a BOM. Full
 encoding, newline, and file-mode policy remains a platform-hardening gate. The
-internal legacy direct `SolutionWriter` apply branch remains outside this
-prepared-writer boundary. Unattended apply still
-requires the physical effect broker and the other platform-hardening gates.
+internal `SolutionWriter` now renders previews only; `SolutionChangeWriter` apply
+and migrated transformation test fixtures use the prepared-writer boundary.
+Unattended apply still requires the physical effect broker and the other
+platform-hardening gates.
 
 Repository identity and mutation coordination span OS principals and hosts. An OS-
 or service-protected registry outside repository control maps checkout/Git-common-dir filesystem identity

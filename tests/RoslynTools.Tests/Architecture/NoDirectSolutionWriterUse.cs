@@ -6,14 +6,14 @@ namespace RoslynTools.Tests.Architecture;
 
 /// <summary>
 ///     Architectural lock (EP-008 / US-054): production code outside the
-///     <c>SolutionChangeWriter</c> adapter must not call <c>SolutionWriter.ApplyChangesAsync</c>
+///     <c>SolutionChangeWriter</c> adapter must not call <c>SolutionWriter.PreviewChangesAsync</c>
 ///     directly. The DI-registered <c>ISolutionChangeWriter</c> is the only sanctioned
 ///     production path so mutation tests can stub writes without disk I/O.
 /// </summary>
 public sealed class NoDirectSolutionWriterUse
 {
     [Fact]
-    public void production_code_does_not_call_static_solution_writer_apply_changes_async()
+    public void production_code_does_not_call_static_solution_writer_preview_directly()
     {
         var srcDir = LocateSrcDirectory();
         var violations = new List<string>();
@@ -36,7 +36,7 @@ public sealed class NoDirectSolutionWriterUse
 
             foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (!IsStaticSolutionWriterApplyChangesAsyncCall(invocation))
+                if (!IsStaticSolutionWriterPreviewChangesAsyncCall(invocation))
                     continue;
 
                 var containingType = invocation.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
@@ -50,31 +50,47 @@ public sealed class NoDirectSolutionWriterUse
 
         Assert.True(
             violations.Count == 0,
-            "Production code must call ISolutionChangeWriter, not the static SolutionWriter.ApplyChangesAsync, "
+            "Production code must call ISolutionChangeWriter, not the static SolutionWriter.PreviewChangesAsync, "
             + "so mutation tests can stub the writer and DI-managed writers can layer policy.\n\n"
             + "Offending sites:\n  " + string.Join("\n  ", violations));
     }
 
     [Fact]
-    public void solution_change_writer_uses_the_legacy_static_writer_only_for_dry_runs()
+    public void solution_change_writer_uses_the_static_writer_only_in_its_preview_branch()
     {
         var adapterPath = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core", "SolutionChangeWriter.cs");
         var root = CSharpSyntaxTree.ParseText(File.ReadAllText(adapterPath)).GetCompilationUnitRoot();
         var calls = root.DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .Where(IsStaticSolutionWriterApplyChangesAsyncCall);
+            .Where(IsStaticSolutionWriterPreviewChangesAsyncCall).ToArray();
 
-        foreach (var call in calls)
-            Assert.Contains(call.ArgumentList.Arguments, argument =>
-                argument.NameColon?.Name.Identifier.Text == "dryRun"
-                && argument.Expression.IsKind(SyntaxKind.TrueLiteralExpression));
+        Assert.Single(calls);
+        Assert.Contains(calls[0].Ancestors().OfType<IfStatementSyntax>(), statement =>
+            statement.Condition is IdentifierNameSyntax { Identifier.Text: "dryRun" });
     }
 
-    private static bool IsStaticSolutionWriterApplyChangesAsyncCall(InvocationExpressionSyntax invocation)
+    [Fact]
+    public void static_solution_writer_has_only_a_preview_method_and_no_filesystem_mutators()
+    {
+        var writerPath = Path.Combine(LocateSrcDirectory(), "RoslynTools", "Core", "SolutionWriter.cs");
+        var root = CSharpSyntaxTree.ParseText(File.ReadAllText(writerPath)).GetCompilationUnitRoot();
+        var writer = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Single(type => type.Identifier.Text == "SolutionWriter");
+        var method = Assert.Single(writer.Members.OfType<MethodDeclarationSyntax>());
+        Assert.Equal("PreviewChangesAsync", method.Identifier.Text);
+        Assert.Equal(3, method.ParameterList.Parameters.Count);
+        Assert.DoesNotContain(method.DescendantNodes().OfType<InvocationExpressionSyntax>(), invocation =>
+            invocation.Expression is MemberAccessExpressionSyntax
+            {
+                Expression: IdentifierNameSyntax { Identifier.Text: "File" or "Directory" }
+            });
+    }
+
+    private static bool IsStaticSolutionWriterPreviewChangesAsyncCall(InvocationExpressionSyntax invocation)
     {
         return invocation.Expression is MemberAccessExpressionSyntax
         {
             Expression: IdentifierNameSyntax { Identifier.Text: "SolutionWriter" },
-            Name.Identifier.Text: "ApplyChangesAsync"
+            Name.Identifier.Text: "PreviewChangesAsync"
         };
     }
 

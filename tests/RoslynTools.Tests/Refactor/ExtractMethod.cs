@@ -57,7 +57,7 @@ public class ExtractMethod
                 7,
                 7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         // Assert: Extraction succeeds (documents the bug exists)
@@ -122,7 +122,7 @@ public class ExtractMethod
                 9,
                 9);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
@@ -183,7 +183,7 @@ public class ExtractMethod
                 7,
                 7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         // Cross-file call site should be updated
@@ -257,7 +257,7 @@ public class ExtractMethod
                 7,
                 7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         // Cross-file call site should be updated (regression check)
@@ -304,7 +304,7 @@ public class ExtractMethod
         {
             var newSln = await MethodExtractor.ExtractAsync(
                 sln, FilePath(project, "ServiceA.cs"), "DoWork_Extracted", 7, 7);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
@@ -377,7 +377,7 @@ public class ExtractMethod
                 7,
                 replaceDuplicates: true);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         // All call sites with identical literals should reference the extracted method

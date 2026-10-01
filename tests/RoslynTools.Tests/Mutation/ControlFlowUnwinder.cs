@@ -144,7 +144,7 @@ public class ControlFlowUnwinder
                 "CheckFilePath",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -191,7 +191,7 @@ public class ControlFlowUnwinder
                 "IsInputBlank",
                 7,
                 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await project.ApplySolutionAsync(sln, newSln);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
