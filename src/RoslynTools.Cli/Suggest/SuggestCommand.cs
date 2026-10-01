@@ -138,9 +138,21 @@ internal static class SuggestCommand
     /// </summary>
     private static void RenderGitFallback(IGitClient? git, int top)
     {
-        IReadOnlyList<string> changed = [];
-        try { changed = git?.GetWorkingTreeChangedPaths() ?? []; }
-        catch { /* not a git repo or git unavailable */ }
+        if (git is null)
+            throw new InvalidOperationException(
+                "Git context is unavailable. Run in a Git repository with a commit or pass a query to rt suggest.");
+
+        IReadOnlyList<string> changed;
+        try
+        {
+            changed = git.GetWorkingTreeChangedPaths();
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException(
+                $"Git context is unavailable: {exception.Message} Run in a Git repository with a commit or pass a query to rt suggest.",
+                exception);
+        }
 
         var csFiles = changed
             .Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))

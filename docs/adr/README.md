@@ -126,7 +126,7 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0059](0059-host-configuration-hosting-ownership.md) | Host configuration belongs to shared Hosting | Accepted | 2026-09-28 |
 | [0060](0060-service-diagnostics-without-ambient-console.md) | Service diagnostics use injected logging and typed validation | Accepted | 2026-09-28 |
 | [0061](0061-host-owned-console-logger.md) | Console logger belongs to host composition | Accepted | 2026-09-28 |
-| [0062](0062-legacy-move-preview-result.md) | Legacy move preview returns data to its caller | Accepted | 2026-09-29 |
+| [0062](0062-legacy-move-preview-result.md) | Legacy move preview returns data to its caller | Superseded by ADR-0085 | 2026-09-29 |
 | [0063](0063-cli-owned-process-output.md) | CLI process output implementations belong to CLI | Accepted | 2026-09-29 |
 | [0064](0064-service-exit-status-is-host-owned.md) | Service outcomes do not set process exit status | Accepted | 2026-09-29 |
 | [0065](0065-cli-owned-format-renderers.md) | Format renderers belong to the CLI adapter | Accepted | 2026-09-29 |
@@ -149,3 +149,5 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0082](0082-maintainer-only-durable-prepare.md) | Keep durable Prepare on the maintainer surface | Accepted | 2026-10-01 |
 | [0083](0083-honest-unsupported-plan-suggestions.md) | Return honest unsupported outcomes for unavailable plan tasks | Accepted | 2026-10-01 |
 | [0084](0084-pre-stage-containment-for-prepared-writes.md) | Check prepared mutation paths before staging | Accepted | 2026-10-01 |
+| [0085](0085-retire-legacy-direct-write-move-paths.md) | Retire legacy direct-write move paths | Accepted | 2026-10-01 |
+| [0086](0086-fail-closed-on-git-change-acquisition.md) | Fail closed on Git change acquisition | Accepted | 2026-10-01 |

@@ -177,7 +177,8 @@ prepared change-set path; the former direct-write move helpers have been
 retired. The source ratchet also rejects `RtResultRenderer` calls in Services. See
 [ADR-0060](adr/0060-service-diagnostics-without-ambient-console.md),
 [ADR-0061](adr/0061-host-owned-console-logger.md), and
-[ADR-0062](adr/0062-legacy-move-preview-result.md).
+[ADR-0085](adr/0085-retire-legacy-direct-write-move-paths.md), which supersedes
+the transitional [ADR-0062](adr/0062-legacy-move-preview-result.md).
 CLI process output implementations (`RtResultRenderer`, `RtSerializer`, and
 `StructuredOutput`) now compile into the CLI adapter, with an assembly
 placement test; shared result and format contracts remain in Core. See
@@ -236,6 +237,10 @@ Semantic diff now requests directory-scoped git clients through a reusable
 factory contract; the concrete git process adapter and factory compile in
 shared Hosting for CLI and MCP. See
 [ADR-0076](adr/0076-host-owned-semantic-diff-git-client.md).
+Changed-path acquisition now fails when Git cannot establish a complete path
+set. Omitted-query CLI suggestions surface that failure on stderr with a
+nonzero exit; an explicit query remains independent of Git. See
+[ADR-0086](adr/0086-fail-closed-on-git-change-acquisition.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console

@@ -1,6 +1,6 @@
 # ADR-0062: Legacy move preview returns data to its caller
 
-- Status: Deprecated
+- Status: Accepted
 - Date: 2026-09-29
 - Related issue: [#53](https://github.com/DanMarshall909/roslyn-tools/issues/53)
 - Extends: [ADR-0060](0060-service-diagnostics-without-ambient-console.md)
@@ -25,8 +25,7 @@ with assertions on the returned data. Extend the source ratchet to reject
 ## Consequences
 
 - No service calls the ambient result renderer.
-- The legacy helper was retired on 2026-10-01 after its useful tests moved to
-  `MoveOperation` and the prepared change-set path. This ADR records the
-  transitional decision and is no longer a live service contract.
+- The legacy helper remains available to its internal tests while the typed
+  move operation is the supported cross-host path.
 - Core still contains transitional console and solution-writer output helpers;
   move or replace those before declaring #53 complete.

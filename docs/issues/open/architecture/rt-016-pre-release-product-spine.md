@@ -134,7 +134,13 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 - Omitted-query CLI suggestion now counts every changed C# path before applying
   `--top` to displayed outline calls. A temporary-Git regression covers 37
   changed C# files, three displayed calls, a non-C# change, and `--top 0`.
-  Semantic Git-context classification and MCP omitted-query parity remain open.
+  Git acquisition now fails explicitly for non-repositories, unborn `HEAD`,
+  failed changed-path commands, and process startup errors instead of claiming
+  a clean tree. The host Git adapter drains both output pipes and bounds error
+  text. Queried suggestions remain Git-independent (ADR-0086).
+  `git show` still maps every nonzero exit to an absent path; that semantic-diff
+  ambiguity, semantic Git-context classification, and MCP omitted-query parity
+  remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

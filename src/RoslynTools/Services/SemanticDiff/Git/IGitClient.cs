@@ -8,8 +8,10 @@ namespace RoslynTools.Services.SemanticDiff.Git;
 ///     selected by host composition, shells <c>git</c> and carries integration
 ///     coverage against a temporary repository.
 ///     <para>
-///         <b>Two error channels.</b> Repository / ref validation
-///         (<see cref="EnsureRepository" />, <see cref="EnsureRefExists" />) throws —
+///         <b>Two error channels.</b> Repository / ref validation and changed-path
+///         acquisition throw when git cannot establish a complete answer.
+///         Validation (<see cref="EnsureRepository" />, <see cref="EnsureRefExists" />)
+///         throws —
 ///         <see cref="InvalidOperationException" /> for "not a git repository" and
 ///         <see cref="ArgumentException" /> for "invalid git ref" — and those propagate
 ///         to the CLI's existing user-error handler (stderr + exit 1). Content reads
@@ -39,6 +41,7 @@ internal interface IGitClient
     ///     <c>git diff --no-renames --name-only &lt;from&gt; &lt;to&gt;</c>.
     ///     <c>--no-renames</c> is mandatory so a class moved A.cs→B.cs lists <i>both</i>
     ///     paths, enabling cross-file move detection downstream.
+    ///     Throws <see cref="InvalidOperationException" /> if git fails.
     /// </summary>
     IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef);
 
@@ -47,14 +50,15 @@ internal interface IGitClient
     ///     <c>git diff --no-renames --name-only HEAD</c> (tracked, modified/deleted) and
     ///     <c>git ls-files --others --exclude-standard</c> (untracked, not ignored), so a
     ///     new un-added file counts as changed.
+    ///     Throws <see cref="InvalidOperationException" /> if either git command
+    ///     fails or git cannot start; an empty list requires successful commands.
     /// </summary>
     IReadOnlyList<string> GetWorkingTreeChangedPaths();
 
     /// <summary>
     ///     Content of <paramref name="path" /> at <paramref name="reference" />
     ///     (<c>git show &lt;ref&gt;:&lt;path&gt;</c>). Returns <c>null</c> when the path did
-    ///     not exist at that ref (git exits nonzero) rather than throwing — only repository
-    ///     / ref validation is an error.
+    ///     not exist at that ref (git exits nonzero) rather than throwing.
     /// </summary>
     string? ReadFileAtRef(string reference, string path);
 

@@ -41,6 +41,21 @@ public sealed class GitClientIntegrationTests
     }
 
     [Fact]
+    public void changed_paths_between_refs_fail_when_a_ref_is_missing()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Gadget.cs", "class Gadget { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        var error = Should.Throw<InvalidOperationException>(
+            () => new GitClient(repo.Path).GetChangedPathsBetween("missing-ref", "HEAD"));
+
+        error.Message.ShouldContain("diff", Case.Insensitive);
+        error.Message.ShouldContain("missing-ref", Case.Sensitive);
+    }
+
+    [Fact]
     public void content_at_a_ref_where_the_path_did_not_exist_is_null_not_an_error()
     {
         using var repo = new TempRepo();
@@ -70,6 +85,70 @@ public sealed class GitClientIntegrationTests
         var client = new GitClient(repo.Path);
 
         client.GetWorkingTreeChangedPaths().ShouldContain("Untracked.cs");
+    }
+
+    [Fact]
+    public void working_tree_changes_fail_when_head_does_not_exist()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Untracked.cs", "class Untracked { }");
+
+        var error = Should.Throw<InvalidOperationException>(
+            () => new GitClient(repo.Path).GetWorkingTreeChangedPaths());
+
+        error.Message.ShouldContain("HEAD", Case.Sensitive);
+    }
+
+    [Fact]
+    public void working_tree_changes_report_a_git_process_start_failure()
+    {
+        var missingDirectory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"rt-git-missing-{Guid.NewGuid():N}");
+
+        var error = Should.Throw<InvalidOperationException>(
+            () => new GitClient(missingDirectory).GetWorkingTreeChangedPaths());
+
+        error.Message.ShouldContain("git", Case.Insensitive);
+        error.Message.ShouldContain(missingDirectory, Case.Sensitive);
+    }
+
+    [Fact]
+    public void changed_path_failure_drains_large_git_diagnostics()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"rt-git-stderr-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var executable = System.IO.Path.Combine(directory, "fake-git");
+            File.WriteAllText(executable, """
+                #!/bin/sh
+                ( sleep 10; kill -TERM "$$" 2>/dev/null ) >/dev/null 2>&1 &
+                watchdog=$!
+                i=0
+                while [ "$i" -lt 8192 ]; do
+                    printf '0123456789abcdef0123456789abcdef\n' >&2
+                    i=$((i + 1))
+                done
+                kill "$watchdog" 2>/dev/null
+                exit 9
+                """);
+            File.SetUnixFileMode(executable,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+            var error = Should.Throw<InvalidOperationException>(
+                () => new GitClient(directory, executable).GetWorkingTreeChangedPaths());
+
+            error.Message.ShouldContain("exit 9", Case.Sensitive);
+            error.Message.Length.ShouldBeLessThan(1024);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
