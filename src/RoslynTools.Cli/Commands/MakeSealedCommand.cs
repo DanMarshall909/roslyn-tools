@@ -33,6 +33,7 @@ internal sealed class MakeSealedCommand(
         cmd.AddAlias("ms");
         cmd.AddAll(typeOpt, dryRunOpt, applyOpt);
         binder.AddTo(cmd);
+        CommandOptionFactory.RejectConflictingApplyAndDryRun(cmd, dryRunOpt, applyOpt);
 
         cmd.SetHandler(async ctx =>
         {

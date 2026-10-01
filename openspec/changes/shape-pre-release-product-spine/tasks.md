@@ -52,6 +52,9 @@
   containment for extraction output, authoritative completeness for whole-solution
   edits, and exact revision-bound preview/selection checks. Keep CLI apply
   experimental and optional for the plan-only preview contract.
+  - [x] Reject an explicit `--dry-run` combined with `--apply` before invoking
+    `add-dependency`, `make-sealed`, or `remove-unused-usings`; keep each
+    command's apply-only and preview-only forms valid.
 
 ### Pre-freeze decision gate
 

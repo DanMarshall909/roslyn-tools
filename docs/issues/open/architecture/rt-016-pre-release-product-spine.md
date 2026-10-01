@@ -29,7 +29,7 @@ beginning and end of the agent workflow remain incomplete:
 orient -> discover -> understand -> assess impact -> plan -> verify
 ```
 
-Several current surface contracts are also misleading or incomplete:
+The pre-freeze audit found several misleading or incomplete surface contracts:
 
 - `suggest` misses parameter-edit and dependency-boundary workflows, sometimes
   ranking an internal coordination primitive as if it were a refactor plan;
@@ -37,7 +37,7 @@ Several current surface contracts are also misleading or incomplete:
   safe-delete conclusions;
 - mutation variants, including batch rename, signature changes, and project
   moves, need distinct plan evidence before preview admission;
-- contradictory dry-run/apply flags can still write for three commands, and two
+- contradictory dry-run/apply flags could still write for three commands, and two
   extraction output paths lack trusted-root containment at the common writer;
 - root help omits usable discovery entry points, while MCP output schemas are
   generic and some request properties are undocumented;
@@ -49,6 +49,11 @@ The existing `critical-platform-hardening` OpenSpec already owns repository trus
 workspace completeness, mutation containment and recovery, canonical operation
 parity, MCP conformance, resource bounds, and release engineering. Adding product
 surface work to its 134-task programme would obscure both scopes.
+
+The first source-audit safety repair rejects an explicit `--dry-run` together
+with `--apply` for `add-dependency`, `make-sealed`, and `remove-unused-usings`
+at argument parsing. Apply-only and preview-only forms remain valid. The other
+apply admission blockers in the OpenSpec remain open.
 
 ## Decision
 

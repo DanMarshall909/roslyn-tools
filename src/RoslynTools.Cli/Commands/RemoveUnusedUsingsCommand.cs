@@ -34,6 +34,7 @@ internal sealed class RemoveUnusedUsingsCommand(
             applyOpt
         };
         command.AddAlias("remove-unused-imports");
+        CommandOptionFactory.RejectConflictingApplyAndDryRun(command, dryRunOpt, applyOpt);
 
         command.SetHandler(async context =>
         {

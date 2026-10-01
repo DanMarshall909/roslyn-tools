@@ -32,6 +32,7 @@ internal sealed class AddDependencyCommand(
         var cmd = new Command("add-dependency", "Inject a constructor dependency into a class");
         cmd.AddAlias("ad");
         cmd.AddAll(typeOpt, depOpt, fieldOpt, solutionOpt, dryRunOpt, applyOpt);
+        CommandOptionFactory.RejectConflictingApplyAndDryRun(cmd, dryRunOpt, applyOpt);
 
         cmd.SetHandler(async context =>
         {

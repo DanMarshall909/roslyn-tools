@@ -40,6 +40,22 @@ internal static class CommandOptionFactory
             "Preview without writing (default; pass false to apply explicitly)");
     }
 
+    public static void RejectConflictingApplyAndDryRun(
+        Command command,
+        Option<bool> dryRunOption,
+        Option<bool> applyOption)
+    {
+        command.AddValidator(result =>
+        {
+            if (result.FindResultFor(dryRunOption) is { IsImplicit: false }
+                && result.GetValueForOption(dryRunOption)
+                && result.GetValueForOption(applyOption))
+            {
+                result.ErrorMessage = "--dry-run and --apply cannot both be enabled.";
+            }
+        });
+    }
+
     public static Option<bool> CreateIncludeTestsOption()
     {
         return new Option<bool>("--include-tests", "Include test projects in results");

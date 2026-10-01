@@ -59,7 +59,7 @@ for preview support.
 
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
-| `add-dependency` | `recipe inject-constructor-dependency` | Experimental | Constructor/API/DI consequences require impact and verify; reject `--apply --dry-run` ambiguity. |
+| `add-dependency` | `recipe inject-constructor-dependency` | Experimental | Constructor/API/DI consequences require impact and verify; explicit `--apply --dry-run` is rejected. |
 | `add-dynamic-dependency` | `recipe preserve-reflection-type` | Trusted experimental | Runtime/trimming semantics. |
 | `add-global-import` | `recipe imports --kind global` | Experimental | Consolidate import planners. |
 | `add-null-checks` | Standard code action or `recipe add-null-guards` | Experimental | Can change behaviour. |
@@ -79,7 +79,7 @@ for preview support.
 | `inline-method` | `recipe inline-method` | Experimental | Evaluation order and side-effect risk. |
 | `make-async` | `recipe async-propagation` | Experimental | Direct callers are insufficient for general propagation. |
 | `make-instance` | `recipe change-method-staticness --to instance` | Experimental | May leave unresolved call sites. |
-| `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally; current contradictory dry-run/apply flags can apply. |
+| `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally; explicit `--apply --dry-run` is rejected. |
 | `make-static` | `recipe change-method-staticness --to static` | Experimental | Requires state and dispatch analysis. |
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
 | `move` | `prepare-move-symbol` | Preview plan-only | Review namespace, project, physical-file, and automatic consumer project-reference effects with explicit manifests. |
@@ -90,7 +90,7 @@ for preview support.
 | `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically; preserve typed argument filters. |
 | `replace-datetime` | `recipe use-time-provider` | Experimental | Framework and constructor-injection assumptions. |
 | `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic; argument filters and possible matched-argument removal need explicit review. |
-| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application; reject contradictory dry-run/apply flags. |
+| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application; explicit `--apply --dry-run` is rejected. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` if admitted | Experimental/high risk | Require complete workspace, explicit external/dynamic-use limitations, a review protocol, and refusal conditions; a loaded solution cannot prove all use absent. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |
