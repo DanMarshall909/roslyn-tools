@@ -22,4 +22,6 @@ internal sealed record SuggestResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? MissingCapability = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    SuggestWorkflow? Workflow = null);
+    SuggestWorkflow? Workflow = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? UnsupportedReason = null);

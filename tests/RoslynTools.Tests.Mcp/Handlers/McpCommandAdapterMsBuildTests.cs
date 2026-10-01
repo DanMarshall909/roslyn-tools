@@ -9,6 +9,7 @@ using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticDiff;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
@@ -342,6 +343,32 @@ public sealed class McpCommandAdapterMsBuildTests
 
         resolved.TrustPath.ShouldBe(requestedDirectory);
         resolved.Directory.ShouldBe(requestedDirectory);
+    }
+
+    [Fact]
+    public void semantic_diff_directory_is_an_explicit_workspace_target()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"rt-semantic-target-{Guid.NewGuid():N}");
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { directory }));
+        var request = new SemanticDiffOperationRequest(Directory: directory);
+
+        var resolved = McpCommandAdapter.ResolveWorkspaceTarget(arguments.RootElement, request).Unwrap();
+
+        resolved.TrustPath.ShouldBe(directory);
+        resolved.Directory.ShouldBe(directory);
+    }
+
+    [Fact]
+    public void semantic_diff_relative_directory_cannot_bind_to_the_server_working_directory()
+    {
+        using var arguments = JsonDocument.Parse("{\"directory\":\"relative\"}");
+        var request = new SemanticDiffOperationRequest(Directory: "relative");
+
+        var resolved = McpCommandAdapter.ResolveWorkspaceTarget(arguments.RootElement, request);
+
+        resolved.IsErr.ShouldBeTrue();
+        resolved.Match(_ => throw new InvalidOperationException(), error => error.Kind)
+            .ShouldBe(RtErrorKind.InvalidInput);
     }
 
     [Fact]

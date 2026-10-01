@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using RoslynTools.Core;
 
@@ -35,8 +34,7 @@ internal sealed class GitClient : IGitClient
             ?? throw new ArgumentNullException(nameof(gitExecutable));
         _repositoryRoot = new Lazy<string>(ReadRepositoryRoot);
         _containedWorkingTreeReadsAvailable = containedWorkingTreeReadsAvailable
-            ?? (OperatingSystem.IsLinux()
-                && RuntimeInformation.ProcessArchitecture == Architecture.X64);
+            ?? WorkingTreeReadCapability.IsAvailable;
     }
 
     public void EnsureRepository()

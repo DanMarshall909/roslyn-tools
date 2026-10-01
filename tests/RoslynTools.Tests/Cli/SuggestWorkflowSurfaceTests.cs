@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -45,5 +46,37 @@ public sealed class SuggestWorkflowSurfaceTests
             $"rt inspect relationships implementations IRtCommand --solution {Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx")} --json");
         result.Stdout.ShouldContain("Partial");
         result.Stdout.ShouldNotContain("extract-interface");
+    }
+
+    [Fact]
+    public async Task working_tree_review_has_an_invokable_or_explicitly_unsupported_cli_route()
+    {
+        var json = await RtCliHost.RunAsync(
+            "suggest \"review my working tree C# changes\" --solution RoslynTools.slnx --json");
+        var text = await RtCliHost.RunAsync(
+            "suggest \"review my working tree C# changes\" --solution RoslynTools.slnx --llm");
+
+        json.ExitCode.ShouldBe(0);
+        text.ExitCode.ShouldBe(0);
+        using var document = JsonDocument.Parse(json.Stdout);
+        var response = document.RootElement;
+        response.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        if (!WorkingTreeReadCapability.IsAvailable)
+        {
+            response.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+            response.GetProperty("MissingCapability").GetString().ShouldBe("semantic-diff-working-tree");
+            text.Stdout.ShouldContain("Git refs or two .cs files");
+            return;
+        }
+
+        response.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
+        var step = response.GetProperty("Workflow").GetProperty("Steps")[0];
+        step.GetProperty("CliInvocation").GetString().ShouldBe(
+            $"rt analyze semantic-diff --directory {RtCliHost.RepoRoot} --json");
+        step.GetProperty("McpTool").GetString().ShouldBe("semantic_diff");
+        step.GetProperty("McpArguments").GetProperty("directory").GetString()
+            .ShouldBe(RtCliHost.RepoRoot);
+        text.Stdout.ShouldContain("semantic-diff --directory");
+        text.Stdout.ShouldContain("Stop:");
     }
 }

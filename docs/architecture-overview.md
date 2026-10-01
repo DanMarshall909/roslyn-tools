@@ -255,6 +255,10 @@ The path-based fallback on other platforms has been retired: Git-backed
 working-tree semantic diff now returns an explicit unsupported error there,
 while ref-vs-ref and direct two-file comparison remain available. See
 [ADR-0089](adr/0089-honest-working-tree-read-platform-support.md).
+Task-aware `suggest` uses that same platform capability for explicit C#
+working-tree review. Supported hosts receive an invokable semantic-diff step;
+other hosts receive a typed unsupported outcome with ref-vs-ref and two-file
+alternatives. See [ADR-0090](adr/0090-route-working-tree-review-with-platform-admission.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console

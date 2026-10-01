@@ -308,6 +308,18 @@ forcing an irrelevant command match.
 - **AND** names the missing capability
 - **AND** does not substitute an unrelated command merely to return a result
 
+#### Scenario: explicit C# working-tree review has a platform-limited reader
+
+- **WHEN** the user asks to review uncommitted C# changes on Linux x64
+- **THEN** `suggest` returns an invokable `semantic-diff` CLI step
+- **AND** includes an MCP step when an absolute solution path identifies a target directory
+- **AND** does not execute either step during suggestion
+- **WHEN** the same task is requested on a platform without the contained reader
+- **THEN** `suggest` returns `Unsupported` with `semantic-diff-working-tree`
+- **AND** names ref-vs-ref and two-file comparison as alternatives without emitting a working-tree call
+- **WHEN** the user requests unstaged-only changes or a non-HEAD working-tree baseline
+- **THEN** `suggest` reports the missing mode without emitting a broader comparison
+
 ### Requirement: selected mutations prepare immutable revision-bound plans
 
 Preview mutation capabilities SHALL produce an immutable plan containing plan ID,

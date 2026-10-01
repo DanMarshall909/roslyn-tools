@@ -147,8 +147,19 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   Linux x64 now uses handle-relative no-follow reads and regular-file checks;
   other platforms now return an explicit unsupported result for Git-backed
   working-tree content while ref-vs-ref and direct two-file modes remain
-  available (ADR-0089). Task-aware discovery still needs to communicate this
-  mode-specific platform limit.
+  available (ADR-0089). Explicit C# working-tree review now routes through
+  the shared suggestion service to one semantic-diff step on Linux x64, with
+  CLI/MCP arguments when a target is known. Other hosts receive a typed
+  unsupported outcome and cross-platform alternatives (ADR-0090). Broader
+  Git-context classification and workflow routing remain open. The workflow
+  distinguishes HEAD-versus-current-files from unstaged-only requests and
+  rejects non-HEAD working-tree baselines because path enumeration still uses
+  HEAD. A later semantic-diff fix must enumerate the baseline-to-HEAD changes
+  as well before advertising `--from` alone as complete. For the captured
+  `review my working tree C# changes` query with no solution argument,
+  source-built suggestion output fell from 2,417 to 625 JSON stdout bytes
+  and from 995 to 360 text stdout bytes. This measures one response, not an
+  end-to-end workflow or token budget.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

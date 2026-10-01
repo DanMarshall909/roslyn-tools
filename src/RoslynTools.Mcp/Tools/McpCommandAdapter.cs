@@ -255,7 +255,7 @@ internal sealed class McpCommandAdapter(
                 $"Repository evaluation is not trusted for '{context.TrustPath}'.",
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["solution"] = context.TrustPath,
+                    [context.TargetArgument] = context.TrustPath,
                     ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
                 })));
         }
@@ -302,6 +302,18 @@ internal sealed class McpCommandAdapter(
                 return Result<WorkspaceTarget, RtError>.Ok(new WorkspaceTarget(
                     fullSolution,
                     DirectoryForSolution(fullSolution)));
+            }
+
+            if (request is SemanticDiffOperationRequest { Files: null or [], Directory: { } directory })
+            {
+                if (!Path.IsPathFullyQualified(directory))
+                    return InvalidWorkspaceTarget();
+
+                var fullDirectory = Path.GetFullPath(directory);
+                return Result<WorkspaceTarget, RtError>.Ok(new WorkspaceTarget(
+                    fullDirectory,
+                    fullDirectory,
+                    "directory"));
             }
 
             var requestedTarget = TryGetSolution(arguments);
@@ -353,7 +365,10 @@ internal sealed class McpCommandAdapter(
         || descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
         || descriptor.Effects.HasFlag(CommandEffects.RepositoryCodeExecution);
 
-    internal sealed record WorkspaceTarget(string TrustPath, string Directory);
+    internal sealed record WorkspaceTarget(
+        string TrustPath,
+        string Directory,
+        string TargetArgument = "solution");
 
     private static ToolResult ToToolResult(
         DaemonRpcResponse response,

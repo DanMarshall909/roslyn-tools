@@ -327,7 +327,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   regular-file access and a bounded FIFO regression.
 - [x] Provide equivalent working-tree read containment or honest unsupported
   outcomes on other platforms before declaring complete read effects.
-- [ ] Make task-aware discovery report working-tree semantic-diff availability
+- [x] Make task-aware discovery report working-tree semantic-diff availability
   by platform and preserve ref-vs-ref/two-file routes on unsupported hosts.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.

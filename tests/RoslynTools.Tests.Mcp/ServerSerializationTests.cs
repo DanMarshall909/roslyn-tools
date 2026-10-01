@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
+using RoslynTools.Services.SemanticDiff.Git;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp;
@@ -296,6 +298,123 @@ public class ServerSerializationTests
         step.GetProperty("mcpArguments").GetProperty("solution").GetString().ShouldBe(solutionPath);
         using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
         JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task suggest_working_tree_review_projects_platform_admission_in_structured_content()
+    {
+        var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query = "review my working tree C# changes", solution = solutionPath }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        if (WorkingTreeReadCapability.IsAvailable)
+        {
+            structured.GetProperty("outcome").GetString().ShouldBe("Recommendations");
+            var step = structured.GetProperty("workflow").GetProperty("steps")[0];
+            step.GetProperty("mcpTool").GetString().ShouldBe("semantic_diff");
+            step.GetProperty("mcpArguments").GetProperty("directory").GetString()
+                .ShouldBe(FindRepoRoot());
+        }
+        else
+        {
+            structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+            structured.GetProperty("missingCapability").GetString()
+                .ShouldBe("semantic-diff-working-tree");
+            structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        }
+
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task suggested_working_tree_mcp_step_reaches_persistent_trust_admission()
+    {
+        if (!WorkingTreeReadCapability.IsAvailable)
+            return;
+
+        var directory = Path.Combine(Path.GetTempPath(), $"rt-suggest-semantic-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var repository = Path.Combine(directory, "repository");
+            Directory.CreateDirectory(repository);
+            File.WriteAllText(Path.Combine(repository, "Demo.slnx"), "<Solution />");
+            var sourcePath = Path.Combine(repository, "Thing.cs");
+            File.WriteAllText(sourcePath, "class Thing {}\n");
+            RunGit(repository, "init", "--quiet");
+            RunGit(repository, "config", "user.email", "tests@roslyn-tools.local");
+            RunGit(repository, "config", "user.name", "Roslyn Tools Tests");
+            RunGit(repository, "add", "Demo.slnx", "Thing.cs");
+            RunGit(repository, "commit", "--quiet", "-m", "Initial");
+            File.WriteAllText(sourcePath, "class Thing { public int Value { get; } }\n");
+
+            var host = new McpHostOptions(
+                trustRegistry: new RepositoryTrustRegistry(Path.Combine(directory, "trust.json")));
+            var solutionPath = Path.Combine(repository, "Demo.slnx");
+            var suggestRequest = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 2,
+                @params = new
+                {
+                    name = "suggest_command",
+                    arguments = new { query = "review my working tree C# changes", solution = solutionPath }
+                }
+            });
+            var suggestOutput = await RunSingleRequestAsync(suggestRequest, host);
+            using var suggestion = JsonDocument.Parse(suggestOutput);
+            var step = suggestion.RootElement.GetProperty("result").GetProperty("structuredContent")
+                .GetProperty("workflow").GetProperty("steps")[0];
+            var semanticRequest = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 3,
+                @params = new
+                {
+                    name = step.GetProperty("mcpTool").GetString(),
+                    arguments = step.GetProperty("mcpArguments").Clone()
+                }
+            });
+
+            var semanticOutput = await RunSingleRequestAsync(semanticRequest, host);
+            using var semantic = JsonDocument.Parse(semanticOutput);
+            var result = semantic.RootElement.GetProperty("result");
+            result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+            using var error = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
+            var context = error.RootElement.GetProperty("context");
+            context.GetProperty("directory").GetString().ShouldBe(repository);
+            context.TryGetProperty("solution", out _).ShouldBeFalse();
+
+            var trustedOutput = await RunSingleRequestAsync(semanticRequest,
+                new McpHostOptions(trustedRepositoryRoot: repository));
+            using var trusted = JsonDocument.Parse(trustedOutput);
+            var trustedResult = trusted.RootElement.GetProperty("result");
+            trustedResult.GetProperty("isError").GetBoolean().ShouldBeFalse();
+            trustedResult.TryGetProperty("structuredContent", out _).ShouldBeTrue();
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
@@ -704,5 +823,28 @@ public class ServerSerializationTests
                 return directory.FullName;
 
         throw new InvalidOperationException("Could not locate RoslynTools.slnx.");
+    }
+
+    private static void RunGit(string directory, params string[] arguments)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo("git")
+            {
+                WorkingDirectory = directory,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            }
+        };
+        foreach (var argument in arguments)
+            process.StartInfo.ArgumentList.Add(argument);
+        process.Start();
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"git {string.Join(' ', arguments)} failed ({process.ExitCode}): {stderr}{stdout}");
     }
 }

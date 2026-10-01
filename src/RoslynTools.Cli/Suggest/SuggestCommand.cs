@@ -77,7 +77,9 @@ internal static class SuggestCommand
         if (response.Outcome == SuggestOutcome.Unsupported)
         {
             RtConsole.WriteLine(RtOutputContext.Result,
-                $"Unsupported: {response.MissingCapability} is not available yet.");
+                response.UnsupportedReason is { } reason
+                    ? $"Unsupported: {response.MissingCapability}. {reason}"
+                    : $"Unsupported: {response.MissingCapability} is not available yet.");
             return;
         }
 

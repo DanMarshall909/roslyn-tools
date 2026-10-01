@@ -47,7 +47,8 @@ internal static class HostCommandMetadata
         + "it ignores comments and whitespace, treats a declaration moved to another file as "
         + "unchanged, and pairs a pure rename into a single Renamed entry. No --solution: it parses sources directly, so it "
         + "works on an un-built or partially-broken tree. Two modes: with no file arguments it "
-        + "diffs git versions (default: working tree vs HEAD; --from/--to select others); with "
+        + "diffs git versions (default: working tree vs HEAD; use --from and --to together "
+        + "for a non-HEAD baseline); with "
         + "exactly two .cs file paths it diffs those files on disc, which needs no git repository. "
         + "Default output is a git-diff-style text report; --json emits a stable array with one "
         + "object per surfaced declaration: { fqn, kind, status (Added|Removed|Changed|Renamed|"
@@ -56,9 +57,9 @@ internal static class HostCommandMetadata
         + "semantic_diff handler (which shares the serializer).",
         Examples:
         [
-            "rt analyze semantic-diff",
             "rt analyze semantic-diff --from HEAD~1 --to HEAD",
-            "rt analyze sdiff --from main",
+            "rt analyze semantic-diff",
+            "rt analyze sdiff --from main --to HEAD",
             "rt analyze semantic-diff --from v1.0 --to v1.1 --ignore-accessibility",
             "rt analyze semantic-diff --no-detect-renames",
             "rt analyze semantic-diff --from HEAD~1 --to HEAD --json",
@@ -69,7 +70,9 @@ internal static class HostCommandMetadata
         [
             "Rename pairing is greedy within a container: two trivially identical bodies in the same "
             + "type/namespace can pair arbitrarily (deterministic by FQN order), and a rename combined "
-            + "with a body change stays Added + Removed."
+            + "with a body change stays Added + Removed.",
+            "With --from and no --to, working-tree changed-path discovery is still HEAD-relative; "
+            + "use both refs for complete non-HEAD comparisons. Default HEAD comparison includes staged changes."
         ],
         // Text (the git-diff report) and Json (the delta array). The shared renderer selects
         // between them from the global --json flag; both projections live on SemanticDiffOutput.

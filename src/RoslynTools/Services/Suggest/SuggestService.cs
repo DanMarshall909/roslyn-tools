@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using RoslynTools.Core;
+using RoslynTools.Services.SemanticDiff.Git;
 
 namespace RoslynTools.Services.Suggest;
 
@@ -20,10 +21,16 @@ namespace RoslynTools.Services.Suggest;
 internal sealed class SuggestService : IRtService
 {
     private readonly ICommandCatalog _catalog;
+    private readonly bool _workingTreeReadsAvailable;
 
-    public SuggestService(ICommandCatalog catalog)
+    public SuggestService(ICommandCatalog catalog) : this(catalog, WorkingTreeReadCapability.IsAvailable)
+    {
+    }
+
+    internal SuggestService(ICommandCatalog catalog, bool workingTreeReadsAvailable)
     {
         _catalog = catalog;
+        _workingTreeReadsAvailable = workingTreeReadsAvailable;
     }
 
     /// <summary>
@@ -40,6 +47,9 @@ internal sealed class SuggestService : IRtService
         if (ImplementationSearchSymbol(request.Query) is { } symbol)
             return SuggestImplementations(symbol, request.Solution);
 
+        if (IsWorkingTreeReview(request.Query))
+            return SuggestWorkingTreeReview(request.Query, request.Solution);
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -53,6 +63,74 @@ internal sealed class SuggestService : IRtService
             results,
             related,
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private SuggestResponse SuggestWorkingTreeReview(string query, string? solution)
+    {
+        const string capability = "semantic-diff-working-tree";
+        if (!_workingTreeReadsAvailable)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, capability,
+                UnsupportedReason: "Working-tree C# semantic diff requires Linux x64; compare two Git refs or two .cs files instead.");
+        if (Regex.IsMatch(query, @"\bunstaged\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-unstaged",
+                UnsupportedReason: "The current semantic diff compares HEAD with the working tree and includes staged changes; an unstaged-only comparison is unavailable.");
+        if (HasExplicitWorkingTreeBaseline(query))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-working-tree-baseline",
+                UnsupportedReason: "Working-tree changed-path discovery is HEAD-relative even with --from; a non-HEAD baseline can omit changes. Compare two Git refs or two .cs files instead.");
+        if (_catalog.All.All(info => info.Name != "semantic-diff"))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, capability,
+                UnsupportedReason: "The semantic-diff command is unavailable in this command catalogue.");
+
+        var hasMcpTarget = !string.IsNullOrWhiteSpace(solution) && Path.IsPathFullyQualified(solution);
+        var directory = hasMcpTarget ? Path.GetDirectoryName(solution!) : null;
+        IReadOnlyDictionary<string, string>? arguments = directory is not null
+            ? new Dictionary<string, string>(StringComparer.Ordinal) { ["directory"] = directory }
+            : null;
+        var cli = "rt analyze semantic-diff"
+                  + (directory is null ? "" : $" --directory {QuoteCliArgument(directory)}")
+                  + " --json";
+        var step = new SuggestWorkflowStep(
+            cli,
+            arguments is null ? null : "semantic_diff",
+            arguments,
+            "Review surfaced C# declaration changes between HEAD and current files, including staged changes.",
+            "Stop on a Git or content-read error; an empty result covers surfaced declarations only and does not prove unchanged behavior.",
+            arguments is null ? "MCP requires an absolute solution path; call suggest_command again with one." : null);
+        return new SuggestResponse([], [], SuggestOutcome.Recommendations,
+            Workflow: new SuggestWorkflow([step]));
+    }
+
+    private static bool IsWorkingTreeReview(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        return Regex.IsMatch(query, @"\b(?:working[ -]tree|uncommitted|unstaged)\b", options)
+               && Regex.IsMatch(query, @"(?:C#|\bCSharp\b)", options)
+               && Regex.IsMatch(query, @"\b(?:review|inspect|analy[sz]e|compare|diff)\b", options)
+               && !Regex.IsMatch(query, @"^\s*(?:please\s+)?(?:apply|refactor|edit|rewrite|modify|commit|stage|rename)\b", options);
+    }
+
+    private static bool HasExplicitWorkingTreeBaseline(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string comparator = @"(?:\b(?:against|since|from|versus|compared\s+(?:with|to)|relative\s+to)\b|\bvs\b\.?)";
+        foreach (Match comparative in Regex.Matches(query, comparator, options))
+        {
+            var tail = query[(comparative.Index + comparative.Length)..];
+            if (comparative.Value.Equals("from", StringComparison.OrdinalIgnoreCase)
+                && Regex.IsMatch(tail,
+                    @"^\s+(?:(?:my|the|our|your|this)\s+)?working[ -]tree\b", options))
+                continue;
+            var target = Regex.Match(tail,
+                @"^\s+(?<ref>[A-Za-z0-9][A-Za-z0-9._~^/-]*)", options);
+            if (!target.Success
+                || !target.Groups["ref"].Value.Equals("HEAD", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private SuggestResponse SuggestImplementations(string symbol, string? solution)

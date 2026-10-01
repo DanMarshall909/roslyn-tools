@@ -315,4 +315,123 @@ public sealed class SuggestServiceTests
         response.Results[0].Name.ShouldBe("extract-interface");
         payload.TryGetProperty("Workflow", out _).ShouldBeFalse();
     }
+
+    [Theory]
+    [InlineData("review my working tree C# changes")]
+    [InlineData("semantic diff my uncommitted C# changes")]
+    [InlineData("review my working tree C# changes before commit")]
+    [InlineData("review my working tree C# changes before I stage them")]
+    [InlineData("review C# changes from my working tree")]
+    [InlineData("compare my uncommitted C# changes against HEAD")]
+    [InlineData("review my working tree C# changes since HEAD")]
+    [InlineData("review my working tree C# changes vs. HEAD")]
+    public void working_tree_review_returns_one_invokable_semantic_diff_step(string query)
+    {
+        var solution = Path.GetFullPath("RoslynTools.slnx");
+        var directory = Path.GetDirectoryName(solution)!;
+        var service = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true);
+
+        var response = service.Suggest(new SuggestRequest(query, Solution: solution));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.ShouldBeEmpty();
+        var step = response.Workflow!.Steps.Single();
+        step.CliInvocation.ShouldBe($"rt analyze semantic-diff --directory {directory} --json");
+        step.McpTool.ShouldBe("semantic_diff");
+        step.McpArguments!["directory"].ShouldBe(directory);
+        step.StopCondition.ShouldContain("error");
+    }
+
+    [Fact]
+    public void working_tree_review_without_solution_keeps_cli_step_and_marks_mcp_unavailable()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest("review my working tree C# changes"));
+
+        var step = response.Workflow!.Steps.Single();
+        step.CliInvocation.ShouldBe("rt analyze semantic-diff --json");
+        step.McpTool.ShouldBeNull();
+        step.McpArguments.ShouldBeNull();
+        step.McpUnavailableReason!.ShouldContain("absolute solution path");
+    }
+
+    [Fact]
+    public void unsupported_working_tree_review_does_not_emit_a_call()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: false)
+            .Suggest(new SuggestRequest("review my working tree C# changes"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("semantic-diff-working-tree");
+        response.UnsupportedReason!.ShouldContain("Linux x64");
+        response.UnsupportedReason!.ShouldContain("Git refs");
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("compare my uncommitted C# changes against main")]
+    [InlineData("review semantic C# working tree changes since v1.0")]
+    [InlineData("review my working tree C# changes from HEAD~1")]
+    [InlineData("review my working tree C# changes compared with main")]
+    [InlineData("review my working tree C# changes versus main")]
+    [InlineData("review my working tree C# changes relative to main")]
+    [InlineData("review my working tree C# changes vs. main")]
+    [InlineData("review my working tree C# changes from HEAD versus main")]
+    [InlineData("review my working tree C# changes against my branch")]
+    [InlineData("review my working tree C# changes from my branch")]
+    [InlineData("review C# changes from my working tree against 'main'")]
+    [InlineData("review C# changes from my working tree against \"main\"")]
+    public void explicit_working_tree_baseline_is_unsupported_until_changed_paths_are_baseline_aware(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("semantic-diff-working-tree-baseline");
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Fact]
+    public void unstaged_only_review_is_unsupported_because_default_includes_staged_changes()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest("review unstaged C# changes"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("semantic-diff-unstaged");
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Fact]
+    public void absent_semantic_diff_command_cannot_be_suggested_as_a_workflow()
+    {
+        var response = new SuggestService(new FakeCatalog(), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest("review my working tree C# changes"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("semantic-diff-working-tree");
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("compare C# changes between two Git refs")]
+    [InlineData("semantic diff old.cs and new.cs")]
+    [InlineData("apply my uncommitted C# changes")]
+    [InlineData("review uncommitted semantic changes in Java")]
+    public void other_semantic_or_mutation_intents_do_not_trigger_working_tree_route(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: false)
+            .Suggest(new SuggestRequest(query));
+
+        response.Workflow.ShouldBeNull();
+        response.Outcome.ShouldNotBe(SuggestOutcome.Unsupported);
+    }
 }
