@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
@@ -199,6 +200,152 @@ public sealed class GitClientIntegrationTests
         var (before, after) = new GitSemanticDiffSourceProvider(client).Load(null, null);
         before.Select(source => source.Path).ShouldBe([tracked]);
         after.Select(source => source.Path).ShouldBe([tracked, untracked]);
+    }
+
+    [Fact]
+    public void untracked_symlink_to_outside_content_fails_instead_of_reading_it()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Present.cs", "class Present { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var outside = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"rt-outside-{Guid.NewGuid():N}.cs");
+        File.WriteAllText(outside, "class PrivateOutsideContent { }");
+        try
+        {
+            File.CreateSymbolicLink(System.IO.Path.Combine(repo.Path, "Leak.cs"), outside);
+            var client = new GitClient(repo.Path);
+            client.GetWorkingTreeChangedPaths().ShouldContain("Leak.cs");
+
+            var error = Should.Throw<GitContentReadException>(
+                () => new GitSemanticDiffSourceProvider(client).Load(null, null));
+            error.Reference.ShouldBe("WORKTREE");
+            error.Path.ShouldBe("Leak.cs");
+            error.Message.ShouldNotContain("PrivateOutsideContent");
+        }
+        finally
+        {
+            File.Delete(outside);
+        }
+    }
+
+    [Fact]
+    public void working_tree_read_rejects_parent_traversal_and_rooted_paths()
+    {
+        using var repo = new TempRepo();
+        var client = new GitClient(repo.Path);
+
+        Should.Throw<GitContentReadException>(() => client.ReadWorkingTreeFile("../Outside.cs"));
+        Should.Throw<GitContentReadException>(() => client.ReadWorkingTreeFile(repo.Path));
+    }
+
+    [Fact]
+    public void working_tree_read_rejects_a_parent_symlink_and_a_dangling_link()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repo = new TempRepo();
+        var outside = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), $"rt-outside-dir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(System.IO.Path.Combine(outside, "Secret.cs"), "class Secret { }");
+        try
+        {
+            Directory.CreateSymbolicLink(System.IO.Path.Combine(repo.Path, "Linked"), outside);
+            File.CreateSymbolicLink(System.IO.Path.Combine(repo.Path, "Dangling.cs"),
+                System.IO.Path.Combine(outside, "Absent.cs"));
+            var client = new GitClient(repo.Path);
+
+            var parentError = Should.Throw<GitContentReadException>(
+                () => client.ReadWorkingTreeFile("Linked/Secret.cs"));
+            parentError.Path.ShouldBe("Linked/Secret.cs");
+            Should.Throw<GitContentReadException>(
+                () => client.ReadWorkingTreeFile("Dangling.cs"));
+        }
+        finally
+        {
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void a_deleted_tracked_working_tree_file_is_a_proven_absence()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Deleted.cs", "class Deleted { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        File.Delete(System.IO.Path.Combine(repo.Path, "Deleted.cs"));
+
+        var (before, after) = new GitSemanticDiffSourceProvider(new GitClient(repo.Path))
+            .Load(null, null);
+
+        before.Select(source => source.Path).ShouldBe(["Deleted.cs"]);
+        after.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void an_unreadable_working_tree_file_fails_instead_of_appearing_deleted()
+    {
+        if (OperatingSystem.IsWindows() || string.Equals(Environment.UserName, "root", StringComparison.Ordinal))
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Restricted.cs", "class Restricted { int Value = 1; }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        repo.Write("Restricted.cs", "class Restricted { int Value = 2; }");
+        var file = System.IO.Path.Combine(repo.Path, "Restricted.cs");
+        var originalMode = File.GetUnixFileMode(file);
+        try
+        {
+            File.SetUnixFileMode(file, UnixFileMode.None);
+            var error = Should.Throw<GitContentReadException>(
+                () => new GitSemanticDiffSourceProvider(new GitClient(repo.Path)).Load(null, null));
+            error.Reference.ShouldBe("WORKTREE");
+            error.Path.ShouldBe("Restricted.cs");
+        }
+        finally
+        {
+            File.SetUnixFileMode(file, originalMode);
+        }
+    }
+
+    [Fact]
+    public async Task a_tracked_file_replaced_by_a_fifo_fails_without_blocking_the_reader()
+    {
+        if (!OperatingSystem.IsLinux()
+            || RuntimeInformation.ProcessArchitecture != System.Runtime.InteropServices.Architecture.X64)
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Pipe.cs", "class Pipe { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var file = System.IO.Path.Combine(repo.Path, "Pipe.cs");
+        File.Delete(file);
+        var start = new ProcessStartInfo("mkfifo")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        start.ArgumentList.Add(file);
+        using var process = Process.Start(start)
+            ?? throw new InvalidOperationException("Could not start mkfifo");
+        process.WaitForExit();
+        process.ExitCode.ShouldBe(0);
+
+        var client = new GitClient(repo.Path);
+        client.GetWorkingTreeChangedPaths().ShouldContain("Pipe.cs");
+        var read = Task.Run(() => client.ReadWorkingTreeFile("Pipe.cs"));
+        var error = await Should.ThrowAsync<GitContentReadException>(
+            async () => await read.WaitAsync(TimeSpan.FromSeconds(2)));
+        error.Path.ShouldBe("Pipe.cs");
     }
 
     [Fact]

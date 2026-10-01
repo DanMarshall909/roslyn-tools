@@ -142,6 +142,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   absent, and returns a typed external-tool error for failed content reads
   (ADR-0087). Semantic Git-context classification and MCP omitted-query parity
   remain open.
+  Working-tree content preflight now rejects symlink traversal and access
+  failures instead of reading outside content or claiming deletion (ADR-0088).
+  Linux x64 now uses handle-relative no-follow reads and regular-file checks;
+  equivalent behavior or honest unsupported results remain needed on other
+  platforms before cross-platform read effects can be declared complete.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

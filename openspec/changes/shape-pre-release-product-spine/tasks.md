@@ -321,6 +321,12 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   acquired; preserve clean, tracked/untracked, and explicit-query behavior.
 - [x] Distinguish an absent path at a valid Git ref from other `git show`
   failures before relying on semantic-diff absence in discovery workflows.
+- [x] Reject stable working-tree symlinks, traversal, and unreadable files
+  during semantic-diff content acquisition; preserve deletion semantics.
+- [x] Close Linux x64 working-tree read races with handle-relative, no-follow
+  regular-file access and a bounded FIFO regression.
+- [ ] Provide equivalent working-tree read containment or honest unsupported
+  outcomes on other platforms before declaring complete read effects.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.
 

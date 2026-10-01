@@ -1,6 +1,6 @@
 namespace RoslynTools.Services.SemanticDiff.Git;
 
-/// <summary>A Git object read failed without proof that the path was absent.</summary>
+/// <summary>A Git or working-tree content read failed without proof of absence.</summary>
 internal sealed class GitContentReadException : InvalidOperationException
 {
     internal GitContentReadException()

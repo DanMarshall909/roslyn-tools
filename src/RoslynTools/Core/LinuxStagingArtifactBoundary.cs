@@ -181,6 +181,74 @@ internal static class LinuxStagingHandles
     internal static SafeFileHandle OpenAbsoluteDirectory(string path)
         => TryOpenAbsoluteDirectory(path) ?? throw NativeError("openat", Missing);
 
+    /// <summary>
+    ///     Opens a regular file beneath a held directory without following symbolic
+    ///     links or crossing mount points. Only a missing path returns null.
+    /// </summary>
+    internal static SafeFileHandle? TryOpenContainedReadOnlyFile(
+        string rootPath,
+        IReadOnlyList<string> components)
+    {
+        if (components.Count == 0)
+            throw new InvalidOperationException("A relative file path is required.");
+        if (components.Any(component => component.Length == 0
+            || component is "." or ".." || component.Contains('/') || component.Contains('\0')))
+            throw new InvalidOperationException("A normalized relative file path is required.");
+
+        using var root = OpenAbsoluteDirectory(rootPath);
+        var rootMount = Identity(root).MountId;
+        var directory = root;
+        try
+        {
+            for (var index = 0; index < components.Count - 1; index++)
+            {
+                var next = TryOpenAt(directory, components[index],
+                    ReadOnly | Directory | NoFollow | CloseOnExec);
+                if (next is null)
+                    return null;
+                try
+                {
+                    var identity = Identity(next);
+                    if ((identity.Mode & 0xf000) != 0x4000 || identity.MountId != rootMount)
+                        throw new InvalidOperationException(
+                            "The working-tree path crosses a mount or non-directory component.");
+                }
+                catch
+                {
+                    next.Dispose();
+                    throw;
+                }
+
+                if (!ReferenceEquals(directory, root))
+                    directory.Dispose();
+                directory = next;
+            }
+
+            var file = TryOpenAt(directory, components[^1],
+                ReadOnly | NonBlocking | NoFollow | CloseOnExec);
+            if (file is null)
+                return null;
+            try
+            {
+                var identity = Identity(file);
+                if ((identity.Mode & 0xf000) != 0x8000 || identity.MountId != rootMount)
+                    throw new InvalidOperationException(
+                        "The working-tree path is not a regular file on the repository mount.");
+                return file;
+            }
+            catch
+            {
+                file.Dispose();
+                throw;
+            }
+        }
+        finally
+        {
+            if (!ReferenceEquals(directory, root))
+                directory.Dispose();
+        }
+    }
+
     internal static SafeFileHandle? TryOpenAbsoluteDirectory(
         string path,
         IStagingArtifactDurability? durability = null)

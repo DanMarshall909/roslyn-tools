@@ -67,8 +67,9 @@ internal interface IGitClient
 
     /// <summary>
     ///     Content of <paramref name="path" /> from the working tree (a filesystem read,
-    ///     resolved against the repository root). Returns <c>null</c> when the
-    ///     file is absent.
+    ///     resolved against the repository root). Returns <c>null</c> only for an
+    ///     observed missing path. Rejects traversal, symlink/reparse components,
+    ///     and unreadable files with <see cref="GitContentReadException" />.
     /// </summary>
     string? ReadWorkingTreeFile(string path);
 }
