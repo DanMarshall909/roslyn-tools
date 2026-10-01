@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynTools.Core;
@@ -28,7 +29,8 @@ internal interface IPreparedFileSystem
 
     string ReadAllText(string path);
 
-    Task WriteAllTextAsync(string path, string content, CancellationToken cancellationToken);
+    Task WriteAllTextAsync(
+        string path, string content, Encoding? encoding, CancellationToken cancellationToken);
 }
 
 /// <summary>Physical filesystem implementation used by the prepared mutation boundary.</summary>
@@ -61,8 +63,11 @@ internal sealed class PhysicalPreparedFileSystem : IPreparedFileSystem
     Task IPreparedFileSystem.WriteAllTextAsync(
         string path,
         string content,
+        Encoding? encoding,
         CancellationToken cancellationToken) =>
-        File.WriteAllTextAsync(path, content, cancellationToken);
+        encoding is null
+            ? File.WriteAllTextAsync(path, content, cancellationToken)
+            : File.WriteAllTextAsync(path, content, encoding, cancellationToken);
 }
 
 /// <summary>
@@ -84,7 +89,8 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
     ///     Requires a trusted repository root and checks every affected path before staging.
     ///     It then stages and commits without observing cancellation mid-commit. A failed
     ///     commit restores affected files from backup; failed restoration retains named
-    ///     recovery evidence. Path checks do not exclude concurrent filesystem swaps.
+    ///     recovery evidence. Roslyn document writes retain their explicit SourceText
+    ///     encoding. Path checks do not exclude concurrent filesystem swaps.
     /// </summary>
     /// <param name="changeSet">The validated, non-replayable mutation description.</param>
     /// <param name="cancellationToken">Cancellation observed before commit starts.</param>
@@ -281,21 +287,25 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
                 {
                     var original = changeSet.OriginalSolution.GetDocument(documentId)!;
                     var changed = changeSet.ChangedSolution.GetDocument(documentId)!;
+                    var changedText = await changed.GetTextAsync(cancellationToken);
                     writes.Add(new PlannedWrite(
                         RequirePath(changed),
-                        (await changed.GetTextAsync(cancellationToken)).ToString(),
+                        changedText.ToString(),
                         MustExist: true,
-                        (await original.GetTextAsync(cancellationToken)).ToString()));
+                        (await original.GetTextAsync(cancellationToken)).ToString(),
+                        changedText.Encoding));
                 }
 
                 foreach (var documentId in projectChange.GetAddedDocuments())
                 {
                     var document = changeSet.ChangedSolution.GetDocument(documentId)!;
+                    var documentText = await document.GetTextAsync(cancellationToken);
                     writes.Add(new PlannedWrite(
                         RequirePath(document),
-                        (await document.GetTextAsync(cancellationToken)).ToString(),
+                        documentText.ToString(),
                         MustExist: false,
-                        ExpectedContent: null));
+                        ExpectedContent: null,
+                        documentText.Encoding));
                 }
 
                 foreach (var documentId in projectChange.GetRemovedDocuments())
@@ -438,6 +448,7 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
             await _fileSystem.WriteAllTextAsync(
                 stagePath,
                 write.Content,
+                write.Encoding,
                 cancellationToken);
             stagedWrites.Add(new StagedWrite(write.Path, stagePath));
         }
@@ -451,6 +462,7 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
         await _fileSystem.WriteAllTextAsync(
             Path.Combine(recoveryDirectory, "affected-paths.txt"),
             manifest,
+            null,
             cancellationToken);
     }
 
@@ -598,7 +610,8 @@ internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
         string Path,
         string Content,
         bool MustExist,
-        string? ExpectedContent);
+        string? ExpectedContent,
+        Encoding? Encoding = null);
 
     private sealed record PlannedDeletion(string Path, string? ExpectedContent);
 

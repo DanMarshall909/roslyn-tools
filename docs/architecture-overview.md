@@ -551,6 +551,9 @@ and existing symlink/reparse-point components; extraction output uses this same
 boundary. [ADR-0084](adr/0084-pre-stage-containment-for-prepared-writes.md)
 records this preflight and its limits. The path-string check does not prevent a
 concurrent component swap and rejects symlinked aliases to the checkout. The
+writer retains an explicit Roslyn `SourceText.Encoding` for changed and added
+documents; standalone prepared text writes still use UTF-8 without a BOM. Full
+encoding, newline, and file-mode policy remains a platform-hardening gate. The
 internal legacy direct `SolutionWriter` apply branch remains outside this
 prepared-writer boundary. Unattended apply still
 requires the physical effect broker and the other platform-hardening gates.

@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
@@ -254,6 +255,70 @@ public sealed class PreparedChangeSetContractTests
             File.Exists(sourcePath).ShouldBeFalse();
             (await File.ReadAllTextAsync(destinationPath)).ShouldBe("class Before;");
             (await File.ReadAllTextAsync(textPath)).ShouldBe("after");
+            (await File.ReadAllBytesAsync(textPath)).ShouldBe(Encoding.UTF8.GetBytes("after"));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_preserves_encoding_of_a_changed_roslyn_document()
+    {
+        var directory = CreatePhysicalTempDirectory("rt-encoding-");
+        try
+        {
+            const string before = "class Before { }";
+            const string after = "class After { }";
+            var path = Path.Combine(directory.FullName, "Changed.cs");
+            await File.WriteAllTextAsync(path, before, Encoding.Unicode);
+            using var workspace = new AdhocWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var documentId = DocumentId.CreateNewId(projectId);
+            var original = workspace.CurrentSolution
+                .AddProject(ProjectInfo.Create(projectId, VersionStamp.Create(),
+                    "Encoded", "Encoded", LanguageNames.CSharp))
+                .AddDocument(documentId, "Changed.cs", SourceText.From(before, Encoding.Unicode),
+                    filePath: path);
+            var changed = original.WithDocumentText(documentId,
+                SourceText.From(after, Encoding.Unicode));
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
+
+            await writer.ApplyAsync(new PreparedChangeSet(original, changed));
+
+            (await File.ReadAllBytesAsync(path)).ShouldBe(
+                Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(after)));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_preserves_encoding_of_an_added_roslyn_document()
+    {
+        var directory = CreatePhysicalTempDirectory("rt-encoding-");
+        try
+        {
+            const string content = "class Added { }";
+            var path = Path.Combine(directory.FullName, "Added.cs");
+            using var workspace = new AdhocWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var documentId = DocumentId.CreateNewId(projectId);
+            var original = workspace.CurrentSolution.AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), "Encoded", "Encoded", LanguageNames.CSharp));
+            var changed = original.AddDocument(documentId, "Added.cs",
+                SourceText.From(content, Encoding.BigEndianUnicode), filePath: path);
+            var writer = new PreparedChangeSetWriter(
+                new PhysicalPreparedFileSystem(), directory.FullName);
+
+            await writer.ApplyAsync(new PreparedChangeSet(original, changed));
+
+            (await File.ReadAllBytesAsync(path)).ShouldBe(
+                Encoding.BigEndianUnicode.GetPreamble().Concat(Encoding.BigEndianUnicode.GetBytes(content)));
         }
         finally
         {
@@ -720,8 +785,9 @@ public sealed class PreparedChangeSetContractTests
         public Task WriteAllTextAsync(
             string path,
             string content,
+            Encoding? encoding,
             CancellationToken cancellationToken) =>
-            inner.WriteAllTextAsync(path, content, cancellationToken);
+            inner.WriteAllTextAsync(path, content, encoding, cancellationToken);
     }
 
     private sealed class CollectingConsole : IRtConsole

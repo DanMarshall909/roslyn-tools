@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
@@ -1158,8 +1159,9 @@ public sealed class MoveSliceServiceTests
         public Task WriteAllTextAsync(
             string path,
             string content,
+            Encoding? encoding,
             CancellationToken cancellationToken) =>
-            inner.WriteAllTextAsync(path, content, cancellationToken);
+            inner.WriteAllTextAsync(path, content, encoding, cancellationToken);
 
         private static bool PathEquals(string left, string right) => string.Equals(
             Path.GetFullPath(left),

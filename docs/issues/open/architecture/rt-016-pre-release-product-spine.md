@@ -118,6 +118,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   per-call byte comparison, not a complete workflow or token budget.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
+  Staged changed and added Roslyn documents now retain explicit source-text
+  encoding and preamble; standalone prepared text writes keep their existing
+  UTF-8-without-BOM default.
   Direct legacy writer apply and path-swap races remain open; this does not
   satisfy the optional apply admission gate.
 

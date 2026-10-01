@@ -30,6 +30,10 @@ the path being mutated.
 - Known outside paths and symlinked output directories are rejected before any
   stage file or destination directory is created. The two extraction operations
   use this common writer and have direct outside-output tests.
+- The staged write for a changed or added Roslyn document retains an explicit
+  `SourceText.Encoding`, including its preamble. Standalone prepared text writes
+  retain the existing UTF-8-without-BOM default. This closes one byte-preservation
+  gap but does not settle newline or file-mode policy.
 - This is a path-string preflight, not a race-free effect broker. Another process
   can replace a path component after the check. The internal legacy
   `SolutionWriter.ApplyChangesAsync(false)` branch remains a direct writer used by
