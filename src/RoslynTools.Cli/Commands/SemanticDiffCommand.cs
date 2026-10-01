@@ -33,7 +33,7 @@ internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRt
             "Git ref for the 'before' side. Omit to default to HEAD.");
         var toOpt = new Option<string?>(
             "--to",
-            "Git ref for the 'after' side. Omit to compare against the working tree.");
+            "Git ref for the 'after' side. Omit to compare against the working tree on Linux x64.");
         var ignoreAccessibilityOpt = new Option<bool>(
             "--ignore-accessibility",
             "Treat declarations that differ only in accessibility modifiers as unchanged.");
@@ -54,7 +54,7 @@ internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRt
 
         var cmd = new Command(
             "semantic-diff",
-            "Semantic C# diff between two git versions or two files on disc (ignores comments/whitespace, detects moves and renames)");
+            "Semantic C# diff between two git versions or two files on disc; working-tree mode requires Linux x64");
         cmd.AddAlias("sdiff");
         cmd.Add(filesArg);
         cmd.Add(fromOpt);

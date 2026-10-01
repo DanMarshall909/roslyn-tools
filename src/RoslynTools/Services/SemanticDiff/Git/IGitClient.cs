@@ -38,6 +38,12 @@ internal interface IGitClient
     void EnsureRefExists(string reference);
 
     /// <summary>
+    ///     Fail before working-tree path discovery when a repository-contained content
+    ///     read boundary is unavailable. Ref-vs-ref mode does not call this method.
+    /// </summary>
+    void EnsureWorkingTreeContentSupported();
+
+    /// <summary>
     ///     Paths changed between two refs:
     ///     <c>git diff --no-renames --name-only -z &lt;from&gt; &lt;to&gt;</c>.
     ///     <c>--no-renames</c> is mandatory so a class moved A.cs→B.cs lists <i>both</i>
@@ -68,8 +74,10 @@ internal interface IGitClient
     /// <summary>
     ///     Content of <paramref name="path" /> from the working tree (a filesystem read,
     ///     resolved against the repository root). Returns <c>null</c> only for an
-    ///     observed missing path. Rejects traversal, symlink/reparse components,
-    ///     and unreadable files with <see cref="GitContentReadException" />.
+    ///     observed missing path on a platform with a contained read boundary.
+    ///     Rejects traversal, symlinks, mount crossings, nonregular and unreadable
+    ///     files with <see cref="GitContentReadException" />. On unsupported platforms,
+    ///     throws the same contextual exception without reading working-tree content.
     /// </summary>
     string? ReadWorkingTreeFile(string path);
 }

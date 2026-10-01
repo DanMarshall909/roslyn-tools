@@ -153,3 +153,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0086](0086-fail-closed-on-git-change-acquisition.md) | Fail closed on Git change acquisition | Accepted | 2026-10-01 |
 | [0087](0087-prove-git-content-absence-before-semantic-diff.md) | Prove Git content absence before semantic diff | Accepted | 2026-10-01 |
 | [0088](0088-bound-working-tree-content-reads.md) | Bound working-tree content reads | Accepted | 2026-10-01 |
+| [0089](0089-honest-working-tree-read-platform-support.md) | Report unsupported working-tree read platforms | Accepted | 2026-10-01 |

@@ -225,6 +225,10 @@ public sealed class GitSemanticDiffSourceProviderTests
                 throw new InvalidOperationException("not a git repository: <fake>");
         }
 
+        public void EnsureWorkingTreeContentSupported()
+        {
+        }
+
         public void EnsureRefExists(string reference)
         {
             if (InvalidRefs.Contains(reference))

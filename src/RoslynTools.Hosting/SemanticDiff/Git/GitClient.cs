@@ -18,18 +18,25 @@ internal sealed class GitClient : IGitClient
     private readonly string _workingDirectory;
     private readonly string _gitExecutable;
     private readonly Lazy<string> _repositoryRoot;
+    private readonly bool _containedWorkingTreeReadsAvailable;
 
     public GitClient(string workingDirectory) : this(workingDirectory, "git")
     {
     }
 
-    internal GitClient(string workingDirectory, string gitExecutable)
+    internal GitClient(
+        string workingDirectory,
+        string gitExecutable,
+        bool? containedWorkingTreeReadsAvailable = null)
     {
         _workingDirectory = workingDirectory
             ?? throw new ArgumentNullException(nameof(workingDirectory));
         _gitExecutable = gitExecutable
             ?? throw new ArgumentNullException(nameof(gitExecutable));
         _repositoryRoot = new Lazy<string>(ReadRepositoryRoot);
+        _containedWorkingTreeReadsAvailable = containedWorkingTreeReadsAvailable
+            ?? (OperatingSystem.IsLinux()
+                && RuntimeInformation.ProcessArchitecture == Architecture.X64);
     }
 
     public void EnsureRepository()
@@ -43,6 +50,16 @@ internal sealed class GitClient : IGitClient
         ArgumentException.ThrowIfNullOrEmpty(reference);
         if (Run("rev-parse", "--verify", $"{reference}^{{commit}}").ExitCode != 0)
             throw new ArgumentException($"invalid git ref: {reference}");
+    }
+
+    public void EnsureWorkingTreeContentSupported()
+    {
+        if (_containedWorkingTreeReadsAvailable)
+            return;
+        const string message = "Repository-contained working-tree semantic diff is unsupported on this platform; "
+            + "compare two Git refs or two files instead.";
+        throw new GitContentReadException("WORKTREE", string.Empty, message,
+            new PlatformNotSupportedException(message));
     }
 
     public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef)
@@ -99,6 +116,7 @@ internal sealed class GitClient : IGitClient
 
     public string? ReadWorkingTreeFile(string path)
     {
+        EnsureWorkingTreeContentSupported();
         try
         {
             if (string.IsNullOrEmpty(path) || Path.IsPathRooted(path) || path.Contains('\0'))
@@ -108,54 +126,13 @@ internal sealed class GitClient : IGitClient
             if (components.Any(component => component is "" or "." or ".."))
                 throw new InvalidOperationException("The working-tree path contains an invalid component.");
 
-            var root = _repositoryRoot.Value;
-            if (OperatingSystem.IsLinux()
-                && RuntimeInformation.ProcessArchitecture == Architecture.X64)
-            {
-                using var handle = LinuxStagingHandles.TryOpenContainedReadOnlyFile(root, components);
-                if (handle is null)
-                    return null;
-                using var stream = new FileStream(handle, FileAccess.Read);
-                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-                return reader.ReadToEnd();
-            }
-
-            var rootAttributes = File.GetAttributes(root);
-            if ((rootAttributes & (FileAttributes.Directory | FileAttributes.ReparsePoint))
-                != FileAttributes.Directory)
-                throw new InvalidOperationException(
-                    $"The repository root is not a non-symlink directory: '{root}'.");
-            var current = root;
-            for (var index = 0; index < components.Length; index++)
-            {
-                current = Path.Combine(current, components[index]);
-                FileAttributes attributes;
-                try
-                {
-                    attributes = File.GetAttributes(current);
-                }
-                catch (FileNotFoundException)
-                {
-                    return null;
-                }
-                catch (DirectoryNotFoundException)
-                {
-                    return null;
-                }
-
-                if ((attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new InvalidOperationException(
-                        $"Working-tree path traverses a symbolic link or reparse point at '{current}'.");
-                var isDirectory = (attributes & FileAttributes.Directory) != 0;
-                if (index < components.Length - 1 && !isDirectory)
-                    throw new InvalidOperationException(
-                        $"Working-tree path has a non-directory parent at '{current}'.");
-                if (index == components.Length - 1 && isDirectory)
-                    throw new InvalidOperationException(
-                        $"Working-tree path names a directory at '{current}'.");
-            }
-
-            return File.ReadAllText(current);
+            using var handle = LinuxStagingHandles.TryOpenContainedReadOnlyFile(
+                _repositoryRoot.Value, components);
+            if (handle is null)
+                return null;
+            using var stream = new FileStream(handle, FileAccess.Read);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return reader.ReadToEnd();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or ArgumentException or InvalidOperationException or NotSupportedException)

@@ -50,6 +50,8 @@ internal sealed class GitSemanticDiffSourceProvider : IRtService
         _git.EnsureRefExists(from);
         if (toRef is not null)
             _git.EnsureRefExists(toRef);
+        else
+            _git.EnsureWorkingTreeContentSupported();
 
         var changedPaths = toRef is null
             ? _git.GetWorkingTreeChangedPaths()

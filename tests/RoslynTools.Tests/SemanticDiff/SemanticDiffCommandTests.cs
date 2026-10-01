@@ -54,6 +54,25 @@ public sealed class SemanticDiffCommandTests
     }
 
     [Fact]
+    public async Task unavailable_working_tree_mode_reports_a_typed_error_for_a_clean_tree()
+    {
+        var git = new RecordingGitClient { UnsupportedWorkingTree = true };
+
+        var (exit, stdout, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "--json"], git);
+
+        exit.ShouldBe(1);
+        stderr.ShouldBeEmpty();
+        using var document = JsonDocument.Parse(stdout);
+        document.RootElement.GetProperty("kind").GetString().ShouldBe("ExternalToolFailure");
+        (document.RootElement.GetProperty("message").GetString() ?? string.Empty)
+            .ShouldContain("unsupported", Case.Insensitive);
+        var context = document.RootElement.GetProperty("context");
+        context.GetProperty("reference").GetString().ShouldBe("WORKTREE");
+        context.TryGetProperty("path", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task semantic_diff_with_a_changed_method_writes_a_git_style_diff_to_stdout()
     {
         var git = new RecordingGitClient
@@ -483,6 +502,8 @@ public sealed class SemanticDiffCommandTests
     {
         public bool ThrowNotARepository { get; init; }
 
+        public bool UnsupportedWorkingTree { get; init; }
+
         public HashSet<string> InvalidRefs { get; } = new(StringComparer.Ordinal);
 
         public IReadOnlyList<string> WorkingTreeChangedPaths { get; init; } = [];
@@ -505,6 +526,14 @@ public sealed class SemanticDiffCommandTests
         {
             if (ThrowNotARepository)
                 throw new InvalidOperationException("not a git repository: <fake>");
+        }
+
+        public void EnsureWorkingTreeContentSupported()
+        {
+            if (UnsupportedWorkingTree)
+                throw new GitContentReadException("WORKTREE", string.Empty,
+                    "working-tree semantic diff is unsupported",
+                    new PlatformNotSupportedException());
         }
 
         public void EnsureRefExists(string reference)

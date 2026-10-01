@@ -77,6 +77,17 @@ public sealed class SemanticDiffHandlerTests
     }
 
     [Fact]
+    public async Task unavailable_working_tree_mode_returns_an_error_for_a_clean_tree()
+    {
+        var git = new RecordingGitClient { UnsupportedWorkingTree = true };
+
+        var result = await InvokeAsync(git, EmptyArgs());
+
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("unsupported", Case.Insensitive);
+    }
+
+    [Fact]
     public async Task handler_json_is_byte_identical_to_the_cli_json_for_the_same_diff()
     {
         var git = new RecordingGitClient
@@ -308,6 +319,8 @@ public sealed class SemanticDiffHandlerTests
     {
         public bool ThrowNotARepository { get; init; }
 
+        public bool UnsupportedWorkingTree { get; init; }
+
         public HashSet<string> InvalidRefs { get; } = new(StringComparer.Ordinal);
 
         public IReadOnlyList<string> WorkingTreeChangedPaths { get; init; } = [];
@@ -320,6 +333,14 @@ public sealed class SemanticDiffHandlerTests
         {
             if (ThrowNotARepository)
                 throw new InvalidOperationException("not a git repository: <fake>");
+        }
+
+        public void EnsureWorkingTreeContentSupported()
+        {
+            if (UnsupportedWorkingTree)
+                throw new GitContentReadException("WORKTREE", string.Empty,
+                    "working-tree semantic diff is unsupported",
+                    new PlatformNotSupportedException());
         }
 
         public void EnsureRefExists(string reference)

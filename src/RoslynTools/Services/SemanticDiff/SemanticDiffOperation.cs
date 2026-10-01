@@ -35,7 +35,7 @@ internal sealed class SemanticDiffOperation(
 
     public override ApplicationCommandDefinition Definition { get; } = new(
         new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
-            WhenToUse: "Use this instead of git diff when you need a semantic C# diff between two git versions or two files on disc.", Examples: [],
+            WhenToUse: "Use this instead of git diff for semantic C# changes. Working-tree mode requires Linux x64; ref-vs-ref and two-file modes work on other platforms.", Examples: [],
             SupportedFormats: [Core.Output.OutputFormat.Text, Core.Output.OutputFormat.Json]),
         typeof(SemanticDiffOperationRequest), typeof(SemanticDiffOperationResult), true,
         CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, []);
@@ -55,12 +55,14 @@ internal sealed class SemanticDiffOperation(
         }
         catch (GitContentReadException exception)
         {
+            var context = new Dictionary<string, string>
+            {
+                ["reference"] = exception.Reference,
+            };
+            if (!string.IsNullOrEmpty(exception.Path))
+                context["path"] = exception.Path;
             return Task.FromResult(Result<SemanticDiffOperationResult, RtError>.Err(
-                RtError.ExternalToolFailure(exception.Message, new Dictionary<string, string>
-                {
-                    ["reference"] = exception.Reference,
-                    ["path"] = exception.Path,
-                })));
+                RtError.ExternalToolFailure(exception.Message, context)));
         }
         var result = _engine.Compare(new SemanticDiffRequest(
             before,

@@ -349,6 +349,50 @@ public sealed class GitClientIntegrationTests
     }
 
     [Fact]
+    public void a_platform_without_contained_reads_reports_unsupported_only_for_working_tree_content()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Version.cs", "class VersionOne { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var first = repo.Head();
+        repo.Write("Version.cs", "class VersionTwo { }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
+
+        var client = new GitClient(repo.Path, "git", containedWorkingTreeReadsAvailable: false);
+        var error = Should.Throw<GitContentReadException>(
+            () => client.ReadWorkingTreeFile("Version.cs"));
+        error.Reference.ShouldBe("WORKTREE");
+        error.Message.ShouldContain("unsupported", Case.Insensitive);
+
+        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(first, repo.Head());
+        before.Single().Text.ShouldContain("VersionOne");
+        after.Single().Text.ShouldContain("VersionTwo");
+    }
+
+    [Fact]
+    public void unsupported_working_tree_mode_fails_even_when_no_csharp_path_needs_reading()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Version.cs", "class Version { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var provider = new GitSemanticDiffSourceProvider(
+            new GitClient(repo.Path, "git", containedWorkingTreeReadsAvailable: false));
+
+        var cleanError = Should.Throw<GitContentReadException>(
+            () => provider.Load(null, null));
+        cleanError.Reference.ShouldBe("WORKTREE");
+        cleanError.Message.ShouldContain("unsupported", Case.Insensitive);
+
+        repo.Write("Notes.txt", "Only a non-C# file changed.");
+        var nonCSharpError = Should.Throw<GitContentReadException>(
+            () => provider.Load(null, null));
+        nonCSharpError.Reference.ShouldBe("WORKTREE");
+    }
+
+    [Fact]
     public void an_untracked_cs_file_is_reported_as_a_working_tree_change()
     {
         using var repo = new TempRepo();

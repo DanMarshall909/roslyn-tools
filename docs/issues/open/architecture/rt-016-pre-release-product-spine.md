@@ -145,8 +145,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   Working-tree content preflight now rejects symlink traversal and access
   failures instead of reading outside content or claiming deletion (ADR-0088).
   Linux x64 now uses handle-relative no-follow reads and regular-file checks;
-  equivalent behavior or honest unsupported results remain needed on other
-  platforms before cross-platform read effects can be declared complete.
+  other platforms now return an explicit unsupported result for Git-backed
+  working-tree content while ref-vs-ref and direct two-file modes remain
+  available (ADR-0089). Task-aware discovery still needs to communicate this
+  mode-specific platform limit.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

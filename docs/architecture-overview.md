@@ -246,12 +246,15 @@ Git content read. Hosting proves literal tree membership before reading, and
 the shared operation returns a typed external-tool error with ref and path
 context on failure. See
 [ADR-0087](adr/0087-prove-git-content-absence-before-semantic-diff.md).
-Working-tree semantic diff now rejects traversal and unreadable files; only
-observed missing paths mean deletion. On Linux x64, handle-relative no-follow
+On Linux x64, working-tree semantic diff rejects traversal and unreadable files;
+only observed missing paths mean deletion. Handle-relative no-follow
 opens verify a regular file on the repository mount before reading, closing
-symlink-swap and FIFO risks for that path. Other platforms retain path-based
-preflight, so cross-platform read effects are not yet complete. See
+symlink-swap and FIFO risks for that path. See
 [ADR-0088](adr/0088-bound-working-tree-content-reads.md).
+The path-based fallback on other platforms has been retired: Git-backed
+working-tree semantic diff now returns an explicit unsupported error there,
+while ref-vs-ref and direct two-file comparison remain available. See
+[ADR-0089](adr/0089-honest-working-tree-read-platform-support.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console
