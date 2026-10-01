@@ -52,6 +52,12 @@
     mode's selected directory to the active trust scope before any Git read.
     Admit MCP file mode only after an explicit verified-root request and
     contained reader meet the untrusted-read contract (ADR-0100).
+  - [x] Reject every `InProcess` application port at the direct daemon RPC
+    boundary before request deserialization, trust/SDK admission, or invocation;
+    a trusted solution must not make semantic-diff file or Git mode callable
+    through the daemon pipe. Keep eligible `DaemonPreferred` read-only ports
+    working and return the structured `command_not_found` error for rejected
+    ports.
 - [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
   contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
   containment for extraction output, authoritative completeness for whole-solution

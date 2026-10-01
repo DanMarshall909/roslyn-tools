@@ -479,6 +479,11 @@ The persistent daemon boundary follows the same ordering: it resolves the effect
 request target, proves current registry trust, and only then allows its SDK-context
 guard to inspect that target. Malformed or untrusted targets return `TrustRequired`
 without SDK inspection; invocation-scoped trusted CLI execution remains in-process.
+The direct daemon RPC dispatcher first admits only `DaemonPreferred` ports. An
+`InProcess` port returns structured `command_not_found` before argument
+deserialization, target admission, SDK inspection, or invocation, even when a
+caller supplies a trusted solution. This enforces ADR-0008's placement rule at
+the receiver as well as in CLI/MCP routing.
 
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified
@@ -491,6 +496,8 @@ results, diagnostics, logs, or caches.
 MCP `semantic_diff` two-file requests currently stop with `Unsupported` because
 its direct file provider does not satisfy that boundary; absolute paths or
 startup trust alone do not provide containment (ADR-0100).
+Direct daemon RPC cannot invoke that `InProcess` port either, so a trusted
+solution cannot mask outside file paths or a different Git directory.
 
 Each workspace request declares a semantic-input manifest: requested projects and
 transitive references; selected target frameworks, configurations, and compilation
@@ -990,6 +997,9 @@ explicitly local. The daemon's legacy envelope accepts only exact `ping` and
 `stop` controls; other argument arrays receive an error and cannot enter CLI
 parsing or execution. The stop client retains old wire fields solely to stop an
 older orphan daemon. The receiver logs request length rather than payload content.
+The typed dispatcher itself accepts only read-only `DaemonPreferred` ports;
+legacy compatibility ports and other `InProcess` ports are unavailable through
+this transport even when registered in the daemon process.
 See [ADR-0054](adr/0054-cli-typed-daemon-dispatch-only.md) and
 [ADR-0055](adr/0055-daemon-legacy-control-only.md).
 

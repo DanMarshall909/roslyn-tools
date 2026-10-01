@@ -385,11 +385,11 @@ internal sealed class DaemonCommandDispatcher
             return Failure(request, DaemonRpcErrorCodes.CommandNotFound,
                 $"Command '{request.CommandName}' does not have a typed application port.");
 
-        if (port.Definition.Safety.Effect == CommandEffect.Mutation)
+        if (port.Definition.ExecutionPlacement != CommandExecutionPlacement.DaemonPreferred)
             return Failure(
                 request,
                 DaemonRpcErrorCodes.CommandNotFound,
-                $"Mutation command '{request.CommandName}' is in-process only during safety hardening.");
+                $"Command '{request.CommandName}' is in-process only and unavailable through daemon RPC.");
 
         object? typedRequest;
         try
@@ -471,10 +471,7 @@ internal sealed class DaemonCommandDispatcher
                         result.Error,
                         result.LegacyErrorPayload);
 
-            var suggestedTools = port is ILegacyCommandApplicationPort
-                ? DaemonOwnedCommands.SuggestedToolsFor(port.Definition.Name)
-                : port.Definition.SuggestedTools;
-            var execution = new CommandExecutionResult(result.Value, suggestedTools);
+            var execution = new CommandExecutionResult(result.Value, port.Definition.SuggestedTools);
             return new DaemonRpcResponse(
                 DaemonRpcProtocol.CurrentVersion,
                 request.RequestId,

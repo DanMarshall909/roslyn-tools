@@ -175,8 +175,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   trusted host, because the direct file provider lacks the required contained
   reader (ADR-0100). Git-mode MCP now checks the selected directory against
   the active trust scope even under startup-scoped trust, before Git reads;
-  a verified-root file request and contained reader remain open. Explicit C#
-  working-tree review now routes through
+  a verified-root file request and contained reader remain open.
+  Direct daemon RPC now rejects every `InProcess` port before parsing or trust/SDK
+  admission, closing a separate trusted-solution bypass of MCP file and Git
+  mode guards. Eligible daemon-preferred read-only ports retain typed execution.
+  Explicit C# working-tree review now routes through
   the shared suggestion service to one semantic-diff step on Linux x64, with
   CLI/MCP arguments when a target is known. Other hosts receive a typed
   unsupported outcome and cross-platform alternatives (ADR-0090). Broader

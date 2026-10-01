@@ -59,6 +59,55 @@ public sealed class DaemonCommandDispatcherTests
         response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandNotFound);
     }
 
+    [Theory]
+    [InlineData("files")]
+    [InlineData("git")]
+    [InlineData("malformed")]
+    public async Task Execute_rejects_in_process_ports_before_request_or_workspace_admission(
+        string requestMode)
+    {
+        var repositoryRoot = FindRepoRoot();
+        using var trust = new TemporaryTrustRegistry("in-process-port");
+        trust.Registry.Add(repositoryRoot).IsOk.ShouldBeTrue();
+        var port = new EchoPort("semantic-diff", CommandExecutionPlacement.InProcess);
+        var compatibility = new FixedSdkContextGuard(error: null);
+        var dispatcher = new DaemonCommandDispatcher([port], trust.Registry, compatibility);
+        var solution = Path.Combine(repositoryRoot, "RoslynTools.slnx");
+        var outsideFile = Path.Combine(Path.GetTempPath(), "outside.cs");
+        var arguments = requestMode switch
+        {
+            "files" => JsonSerializer.SerializeToElement(new
+            {
+                value = "hello",
+                solution,
+                files = new[] { outsideFile, outsideFile }
+            }),
+            "git" => JsonSerializer.SerializeToElement(new
+            {
+                value = "hello",
+                solution,
+                directory = Path.GetTempPath(),
+                @from = "HEAD~1",
+                to = "HEAD"
+            }),
+            _ => JsonSerializer.SerializeToElement("not an object")
+        };
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            $"request-in-process-{requestMode}",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "semantic_diff",
+            arguments,
+            repositoryRoot));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandNotFound);
+        port.InvocationCount.ShouldBe(0);
+        compatibility.CheckedDirectory.ShouldBeNull();
+    }
+
     [Fact]
     public async Task Execute_rejects_incompatible_protocol_versions_before_dispatch()
     {
@@ -506,7 +555,7 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Legacy_ports_preserve_catalogued_follow_on_tools_until_they_migrate()
+    public async Task Legacy_ports_are_unavailable_through_daemon_rpc()
     {
         var dispatcher = new DaemonCommandDispatcher(
             [new LegacyEchoPort("make-sealed")]);
@@ -519,10 +568,9 @@ public sealed class DaemonCommandDispatcherTests
             MakeSealedCommandDefinition.Name,
             payload.RootElement.Clone()));
 
-        response.Error.ShouldBeNull();
-        response.Result!.Value.GetProperty("suggestedTools").GetArrayLength().ShouldBe(2);
-        response.Result.Value.GetProperty("suggestedTools")[0]
-            .GetProperty("toolName").GetString().ShouldBe("describe");
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandNotFound);
     }
 
     [Fact]
@@ -579,12 +627,14 @@ public sealed class DaemonCommandDispatcherTests
                 RepositoryTrustContext.IsExplicitlyTrustedFor(request.Path))));
     }
 
-    private sealed class EchoPort(string commandName = "echo")
+    private sealed class EchoPort(
+        string commandName = "echo",
+        CommandExecutionPlacement placement = CommandExecutionPlacement.DaemonPreferred)
         : CommandApplicationPort<EchoRequest, EchoResponse>
     {
         public int InvocationCount { get; private set; }
 
-        public override ApplicationCommandDefinition Definition { get; } = CreateDefinition(commandName);
+        public override ApplicationCommandDefinition Definition { get; } = CreateDefinition(commandName, placement);
 
         public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
             EchoRequest request,
@@ -706,7 +756,9 @@ public sealed class DaemonCommandDispatcherTests
             Task.FromResult(new EchoResponse(request.Value.ToUpperInvariant()));
     }
 
-    private static ApplicationCommandDefinition CreateDefinition(string commandName) => new(
+    private static ApplicationCommandDefinition CreateDefinition(
+        string commandName,
+        CommandExecutionPlacement placement = CommandExecutionPlacement.DaemonPreferred) => new(
         new RtCommandInfo(
             commandName,
             false,
@@ -718,7 +770,7 @@ public sealed class DaemonCommandDispatcherTests
         typeof(EchoResponse),
         mcpVisible: false,
         CommandSafety.ReadOnly,
-        CommandExecutionPlacement.InProcess,
+        placement,
         commandName.Replace('-', '_') is "outline" or "add_dependency"
             ? [
                 new CommandFollowOn("describe", "Inspect the result."),

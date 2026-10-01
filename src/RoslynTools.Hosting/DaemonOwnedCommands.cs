@@ -133,11 +133,4 @@ internal static class DaemonOwnedCommands
 
     internal static bool Contains(string commandName) =>
         All.Any(command => string.Equals(command.Name, commandName, StringComparison.Ordinal));
-
-    internal static IReadOnlyList<CommandFollowOn> SuggestedToolsFor(string commandName)
-    {
-        return All.FirstOrDefault(command =>
-            string.Equals(command.Name, commandName, StringComparison.Ordinal))
-            ?.SuggestedTools ?? [];
-    }
 }

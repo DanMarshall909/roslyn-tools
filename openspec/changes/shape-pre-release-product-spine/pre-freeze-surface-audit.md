@@ -91,6 +91,12 @@ now gives every MCP file-mode request a typed `Unsupported` result before
 daemon forwarding, MSBuild registration, or file reading. Git mode now checks
 the selected directory against the active trust scope before creating its Git
 client, including when the MCP host was started for a different repository.
+The separate direct daemon RPC audit found that the receiver did not enforce
+application-port placement: a trusted `solution` could dispatch the in-process
+semantic-diff port with unrelated file paths or a different Git directory. The
+dispatcher now returns `command_not_found` for every `InProcess` port before
+deserialization or workspace admission; focused RPC tests cover both modes and
+malformed arguments. Eligible `DaemonPreferred` read-only ports still execute.
 
 A source/operation cross-check of all 25 read/analyze/CI entries found five
 envelope-backed results with explicit provenance (`doctor`, `search-symbols`,
