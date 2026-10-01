@@ -24,7 +24,7 @@ internal sealed class ComplexityCommand(
     {
         var flags = RtCommandFlagBinder.Create()
             .WithSolution("Path to .sln/.slnx")
-            .WithTop("Return only top N results (0 = all)");
+            .WithTop("Return top N methods and their full type/namespace rollups (0 = all)");
         var thresholdOpt = new Option<int>("--threshold", () => 0,
             "Minimum metric value to include a method (0 = include all)");
         var sortOpt =

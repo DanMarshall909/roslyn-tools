@@ -1,5 +1,7 @@
+using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Core.Output.Renderers;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -245,6 +247,9 @@ public class Complexity : IClassFixture<RtServicesFixture>
             var typeRollup = Assert.Single(report.TypeRollups);
             typeRollup.Type.ShouldBe("MyNs.C");
             typeRollup.MethodCount.ShouldBe(2);
+            report.RollupScope.ShouldBe("all");
+            report.MatchingMethodCount.ShouldBe(0);
+            report.TotalTypeRollupCount.ShouldBe(1);
         }
     }
 
@@ -310,6 +315,69 @@ public class Complexity : IClassFixture<RtServicesFixture>
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, top: 2);
             report.Methods.Count.ShouldBe(2);
+        }
+    }
+
+    [Fact]
+    public async Task top_returns_full_rollups_only_for_returned_method_context()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Hotspots.cs", """
+            namespace First
+            {
+                public class A
+                {
+                    public void Hot(bool a, bool b, bool c, bool d)
+                    {
+                        if (a) { }
+                        if (b) { }
+                        if (c) { }
+                        if (d) { }
+                    }
+                    public void Cool() { }
+                }
+            }
+            namespace Second
+            {
+                public class B
+                {
+                    public void M0() { }
+                    public void M1() { }
+                    public void M2() { }
+                    public void M3() { }
+                    public void M4() { }
+                    public void M5() { }
+                    public void M6() { }
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var top = await ComplexityAnalyzer.AnalyzeAsync(solution, top: 1);
+            Assert.Single(top.Methods).Method.ShouldEndWith("First.A.Hot");
+            var type = Assert.Single(top.TypeRollups);
+            type.Type.ShouldBe("First.A");
+            type.MethodCount.ShouldBe(2);
+            type.CyclomaticTotal.ShouldBe(6);
+            var ns = Assert.Single(top.NamespaceRollups);
+            ns.Namespace.ShouldBe("First");
+            ns.MethodCount.ShouldBe(2);
+
+            var all = await ComplexityAnalyzer.AnalyzeAsync(solution);
+            all.TypeRollups.Count.ShouldBe(2);
+            all.TypeRollups.Single(item => item.Type == "Second.B")
+                .CyclomaticTotal.ShouldBe(7);
+            all.NamespaceRollups.Count.ShouldBe(2);
+            all.RollupScope.ShouldBe("all");
+            all.MatchingMethodCount.ShouldBe(9);
+
+            using var topJson = JsonDocument.Parse(JsonSerializer.Serialize(top));
+            topJson.RootElement.GetProperty("RollupScope").GetString()
+                .ShouldBe("returnedMethods");
+            topJson.RootElement.GetProperty("MatchingMethodCount").GetInt32().ShouldBe(9);
+            topJson.RootElement.GetProperty("TotalTypeRollupCount").GetInt32().ShouldBe(2);
+            topJson.RootElement.GetProperty("TotalNamespaceRollupCount").GetInt32().ShouldBe(2);
         }
     }
 
@@ -440,6 +508,32 @@ public class Complexity : IClassFixture<RtServicesFixture>
         ComplexityCommand.Info.Category.ShouldBe("analyze");
         ComplexityCommand.Info.JsonOutput.ShouldBeTrue();
         ComplexityCommand.Info.Mutates.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void rendered_complexity_result_discloses_rollup_scope_and_totals()
+    {
+        var result = new RoslynTools.Services.ComplexityResult
+        {
+            RollupScope = "returnedMethods",
+            MatchingMethodCount = 13,
+            TotalTypeRollupCount = 7,
+            TotalNamespaceRollupCount = 3
+        };
+        var projected = StaticAnalyzerResultAdapters.Complexity(result);
+
+        using var jsonWriter = new StringWriter();
+        JsonRenderer.Write(projected, jsonWriter);
+        using var json = JsonDocument.Parse(jsonWriter.ToString());
+        json.RootElement.GetProperty("rollupScope").GetString().ShouldBe("returnedMethods");
+        json.RootElement.GetProperty("matchingMethodCount").GetInt32().ShouldBe(13);
+        json.RootElement.GetProperty("totalTypeRollupCount").GetInt32().ShouldBe(7);
+        json.RootElement.GetProperty("totalNamespaceRollupCount").GetInt32().ShouldBe(3);
+
+        using var textWriter = new StringWriter();
+        projected.RenderText(textWriter);
+        textWriter.ToString().ShouldContain(
+            "Methods: 0/13; type rollups: 0/7; namespace rollups: 0/3; scope: returnedMethods");
     }
 
     // ── CLI input validation ────────────────────────────────────────────────

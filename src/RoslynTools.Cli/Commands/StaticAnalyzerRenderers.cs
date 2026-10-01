@@ -9,6 +9,10 @@ internal static class StaticAnalyzerResultAdapters
     internal static CliResults.ComplexityResult Complexity(
         ServiceResults.ComplexityResult value) => new()
         {
+            RollupScope = value.RollupScope,
+            MatchingMethodCount = value.MatchingMethodCount,
+            TotalTypeRollupCount = value.TotalTypeRollupCount,
+            TotalNamespaceRollupCount = value.TotalNamespaceRollupCount,
             Methods = value.Methods.Select(method => new CliResults.MethodComplexityItem
             {
                 Method = method.Method,

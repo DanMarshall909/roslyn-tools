@@ -72,6 +72,10 @@ internal sealed class ComplexityOperation(IWorkspaceSessionFactory sessions)
 
     private static ComplexityResult Map(ComplexityReport report) => new()
     {
+        RollupScope = report.RollupScope,
+        MatchingMethodCount = report.MatchingMethodCount,
+        TotalTypeRollupCount = report.TotalTypeRollupCount,
+        TotalNamespaceRollupCount = report.TotalNamespaceRollupCount,
         Methods = report.Methods.Select(method => new MethodComplexityItem
         {
             Method = method.Method,
@@ -359,7 +363,7 @@ internal static class ComplexityCommandDefinition
         "analyze",
         Aliases: ["cx"],
         WhenToUse:
-        "Use this instead of Read when measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to limit output.",
+        "Use this instead of Read when measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to return selected methods with their full type and namespace aggregates. Use --top 0 for every rollup.",
         Examples:
         [
             "rt analyze complexity --solution RoslynTools.slnx",

@@ -311,6 +311,14 @@ check as inconclusive; no Flo worktree was reset or cleaned.
 | `dependency-graph --type RoslynTools.Commands.RenameCommand --depth 1 --json` | Exit 0, 1,272 bytes in 13.5 s; returned a focused legacy `nodes`/`edges` result. |
 | `complexity --top 5 --json` | Exit 0, 286,429 bytes in 14.46 s: five methods plus 1,108 type and 49 namespace rollups. `--top` limits methods, not the complete response. |
 
+The later complexity slice ([ADR-0098](../../../docs/adr/0098-scope-complexity-top-rollups.md))
+measured a new pre-change source-built baseline of 288,729 bytes with 1,117
+type rollups. After scoping rollups to the five returned methods' four types
+and one namespace and adding explicit scope/total fields, the response was
+3,289 bytes (98.9% less). `--top 0` still returned all 6,929 methods, 1,117
+type rollups, and 49 namespace rollups. This is a per-call byte comparison on
+this checkout; it does not measure token use or a whole workflow.
+
 A later shared-resolver ambiguity slice ([ADR-0095](../../../docs/adr/0095-bound-shared-symbol-ambiguity.md))
 measured the same source-built `relationships callers ExecuteAsync --include-tests
 --json` route at 85,921 stdout bytes before the change and 4,150 after it

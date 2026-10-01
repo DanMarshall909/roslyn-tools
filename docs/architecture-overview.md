@@ -556,6 +556,11 @@ Member-signature overload ambiguity shares the byte limits while retaining its
 distinct message prefix and complete listed signatures
 ([ADR-0097](adr/0097-bound-member-overload-ambiguity.md)).
 
+For `complexity --top N`, type and namespace rollups retain their full-solution
+aggregate values but are listed only for returned methods. The response reports
+the rollup scope and full counts; `--top 0` returns every rollup
+([ADR-0098](adr/0098-scope-complexity-top-rollups.md)).
+
 Every structured operation response carries, where applicable:
 
 - schema version and request ID;

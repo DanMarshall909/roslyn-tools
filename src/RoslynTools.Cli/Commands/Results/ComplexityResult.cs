@@ -123,6 +123,18 @@ internal sealed record NamespaceRollupItem : IRtOutput
 /// </summary>
 internal sealed record ComplexityResult : IRtOutput
 {
+    [OutputField(OutputLevel.Default, "rollupScope")]
+    public required string RollupScope { get; init; }
+
+    [OutputField(OutputLevel.Default, "matchingMethodCount")]
+    public required int MatchingMethodCount { get; init; }
+
+    [OutputField(OutputLevel.Default, "totalTypeRollupCount")]
+    public required int TotalTypeRollupCount { get; init; }
+
+    [OutputField(OutputLevel.Default, "totalNamespaceRollupCount")]
+    public required int TotalNamespaceRollupCount { get; init; }
+
     [OutputField(OutputLevel.Default, "methods")]
     public IReadOnlyList<MethodComplexityItem> Methods { get; init; } = [];
 
@@ -134,6 +146,10 @@ internal sealed record ComplexityResult : IRtOutput
 
     public void RenderText(TextWriter writer)
     {
+        writer.WriteLine($"Methods: {Methods.Count}/{MatchingMethodCount}; "
+                         + $"type rollups: {TypeRollups.Count}/{TotalTypeRollupCount}; "
+                         + $"namespace rollups: {NamespaceRollups.Count}/{TotalNamespaceRollupCount}; "
+                         + $"scope: {RollupScope}");
         if (Methods.Count == 0)
         {
             writer.WriteLine("No methods found.");

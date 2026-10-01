@@ -36,6 +36,10 @@ internal sealed record NamespaceRollupItem
 
 internal sealed record ComplexityResult
 {
+    public required string RollupScope { get; init; }
+    public required int MatchingMethodCount { get; init; }
+    public required int TotalTypeRollupCount { get; init; }
+    public required int TotalNamespaceRollupCount { get; init; }
     public IReadOnlyList<MethodComplexityItem> Methods { get; init; } = [];
     public IReadOnlyList<TypeRollupItem> TypeRollups { get; init; } = [];
     public IReadOnlyList<NamespaceRollupItem> NamespaceRollups { get; init; } = [];

@@ -24,8 +24,12 @@ Use the dependency and complexity commands to find areas that deserve attention:
 ```powershell
 rt analyze dependency-graph --solution MyApp.slnx --trust-repository --json
 rt analyze circular-deps --solution MyApp.slnx --trust-repository --json
-rt analyze complexity --solution MyApp.slnx --trust-repository --json
+rt analyze complexity --solution MyApp.slnx --top 20 --trust-repository --json
 ```
+
+`complexity --top N` returns the N highest-ranked methods and the full
+aggregates for their types and namespaces. The response reports its rollup
+scope and the total counts; use `--top 0` when you need every rollup.
 
 The commands keep primary results on stdout and diagnostics on stderr, making structured output suitable for pipelines.
 

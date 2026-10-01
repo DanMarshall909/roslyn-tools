@@ -114,6 +114,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- Standalone `complexity --top 5 --json` now scopes full-value rollups to the
+  returned methods and reports scope/total counts (ADR-0098). On a source-built
+  run, stdout fell from 288,729 to 3,289 bytes with five methods, four type
+  rollups, and one namespace rollup. This is a per-call byte measurement;
+  complexity's `check` rule and broader finding-model migration remain open.
 - Shared `SymbolCandidateService` ambiguity now reports bounded complete
   identities, total/displayed counts, truncation, and a filtered
   `search-symbols` route (ADR-0095). A source-built `relationships callers

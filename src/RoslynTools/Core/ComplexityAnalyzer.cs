@@ -47,7 +47,11 @@ internal record NamespaceComplexityRollup(
 internal record ComplexityReport(
     IReadOnlyList<MethodComplexity> Methods,
     IReadOnlyList<TypeComplexityRollup> TypeRollups,
-    IReadOnlyList<NamespaceComplexityRollup> NamespaceRollups);
+    IReadOnlyList<NamespaceComplexityRollup> NamespaceRollups,
+    string RollupScope,
+    int MatchingMethodCount,
+    int TotalTypeRollupCount,
+    int TotalNamespaceRollupCount);
 
 /// <summary>
 /// ComplexityAnalyzer
@@ -107,14 +111,26 @@ internal static class ComplexityAnalyzer
             _ => filtered.OrderByDescending(m => m.Cyclomatic).ThenBy(m => m.Method)
         };
 
-        // Top truncation
+        var matchingMethods = filtered.ToList();
+        var methods = top > 0 ? matchingMethods.Take(top).ToList() : matchingMethods;
+        var totalTypeRollupCount = typeRollups.Count;
+        var totalNamespaceRollupCount = nsRollups.Count;
         if (top > 0)
-            filtered = filtered.Take(top);
+        {
+            var selectedTypes = methods.Select(method => method.Type).ToHashSet(StringComparer.Ordinal);
+            var selectedNamespaces = methods.Select(method => method.Namespace).ToHashSet(StringComparer.Ordinal);
+            typeRollups = typeRollups.Where(rollup => selectedTypes.Contains(rollup.Type)).ToList();
+            nsRollups = nsRollups.Where(rollup => selectedNamespaces.Contains(rollup.Namespace)).ToList();
+        }
 
         return new ComplexityReport(
-            filtered.ToList(),
+            methods,
             typeRollups,
-            nsRollups);
+            nsRollups,
+            top > 0 ? "returnedMethods" : "all",
+            matchingMethods.Count,
+            totalTypeRollupCount,
+            totalNamespaceRollupCount);
     }
 
     private static bool IsGeneratedFile(string filePath)
