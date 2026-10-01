@@ -41,6 +41,11 @@
 - [ ] Revise `surface-disposition.md` after the task-corpus results, including
   the plan-only whitelist and control-plane/lifecycle audience; obtain a final
   reviewed disposition before declaring the preview surface frozen.
+- [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
+  contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
+  containment for extraction output, authoritative completeness for whole-solution
+  edits, and exact revision-bound preview/selection checks. Keep CLI apply
+  experimental and optional for the plan-only preview contract.
 
 ### Pre-freeze decision gate
 

@@ -14,8 +14,8 @@ for preview support.
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
 | `analyze-interface` | `impact --kind interface` / relationship member usage | Preview | Consolidate after the shared resolver. |
-| `check-architecture` | `check --rule architecture.*` | Preview -> Stable | First config-driven architecture finding family; consolidate into the shared check envelope. |
-| `circular-deps` | `check --rule architecture.circular-dependency` | Preview -> Stable | Consolidate into common findings. |
+| `check-architecture` | `check --rule architecture.*` | Preview -> Stable | First config-driven architecture finding family; carry authoritative input-set completeness in the shared check envelope before claiming a whole-solution pass. |
+| `circular-deps` | `check --rule architecture.circular-dependency` | Preview -> Stable | Consolidate into common findings; current namespace edges come from textual `using` directives, so state that evidence limit. |
 | `complexity` | `check --rule maintainability.complexity` | Preview -> Stable | First finding-envelope pilot. |
 | `debug` | Separate trace-development tool | Removed | Unrelated to C# semantic tooling. |
 | `dependency-graph` | `dependency-graph` | Stable candidate | Keep distinct graph result. |
@@ -34,7 +34,7 @@ for preview support.
 
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
-| `check` | `ci check` | Preview | Enforce checked-in architecture and complexity rules through one typed result and failing CLI exit status. |
+| `check` | `ci check` | Preview | Enforce checked-in architecture and complexity rules with one typed result and failing exit status; carry input-set completeness before a clean pass is proof. |
 
 ## Inspect commands
 
@@ -58,7 +58,7 @@ for preview support.
 
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
-| `add-dependency` | `recipe inject-constructor-dependency` | Experimental | Constructor/API/DI consequences require impact and verify. |
+| `add-dependency` | `recipe inject-constructor-dependency` | Experimental | Constructor/API/DI consequences require impact and verify; reject `--apply --dry-run` ambiguity. |
 | `add-dynamic-dependency` | `recipe preserve-reflection-type` | Trusted experimental | Runtime/trimming semantics. |
 | `add-global-import` | `recipe imports --kind global` | Experimental | Consolidate import planners. |
 | `add-null-checks` | Standard code action or `recipe add-null-guards` | Experimental | Can change behaviour. |
@@ -69,8 +69,8 @@ for preview support.
 | `convert-console-logging` | `recipe migrate-console-logging` | Experimental | Framework and injection assumptions. |
 | `convert-static-class` | Rebuild later as staged recipe | Removed until complete | Advertised interface/DI stages are skipped. |
 | `convert-to-record` | `recipe convert-to-record` | Experimental | Equality, serialization, and ABI risk. |
-| `extract-class` | `recipe extract-class` | Experimental | State, coupling, DI, and multi-file risk. |
-| `extract-interface` | `prepare-extract-interface` if admitted | Conditional preview plan-only | Require demand and interface-impact fixtures before promising it. |
+| `extract-class` | `recipe extract-class` | Experimental | State, coupling, DI, multi-file effects, and output-path containment require review. |
+| `extract-interface` | `prepare-extract-interface` if admitted | Conditional preview plan-only | Require demand, interface-impact fixtures, and output-path containment before promising it. |
 | `extract-method` | `prepare-extract-method` if admitted | Conditional preview plan-only | Require demand and control-flow fixtures before promising it. |
 | `extract-string-constant` | Standard code action | Remove from ordinary discovery | Low-value top-level command; retain an internal engine only for a proved caller. |
 | `fix-namespace` | Standard code action or move recipe | Remove from ordinary discovery | Physical-path and reference effects belong in a complete move workflow. |
@@ -78,18 +78,18 @@ for preview support.
 | `inline-method` | `recipe inline-method` | Experimental | Evaluation order and side-effect risk. |
 | `make-async` | `recipe async-propagation` | Experimental | Direct callers are insufficient for general propagation. |
 | `make-instance` | `recipe change-method-staticness --to instance` | Experimental | May leave unresolved call sites. |
-| `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally. |
+| `make-sealed` | Standard code action | Remove from ordinary discovery | External derivation cannot be proven locally; current contradictory dry-run/apply flags can apply. |
 | `make-static` | `recipe change-method-staticness --to static` | Experimental | Requires state and dispatch analysis. |
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
-| `move` | `prepare-move-symbol` | Preview plan-only | Review namespace, project, and physical-file variants with explicit changed-file and reference manifests. |
+| `move` | `prepare-move-symbol` | Preview plan-only | Review namespace, project, physical-file, and automatic consumer project-reference effects with explicit manifests. |
 | `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Group move discovery but keep the static-method contract distinct from a slice transaction. |
 | `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project-reference/friend-assembly edits and justifications, and one transactional apply. |
 | `narrow-dependency` | `recipe segregate-interface` | Experimental | DI follow-up and consumer partitioning. |
-| `rename` | `prepare-rename` | Preview plan-only | First single-symbol change-plan pilot; batch CSV and selective related edits require separate evidence. |
+| `rename` | `prepare-rename` | Preview plan-only | First single-symbol change-plan pilot; batch CSV, exact-set related-edit selection, file collisions, and stale plans require separate evidence. |
 | `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically; preserve typed argument filters. |
 | `replace-datetime` | `recipe use-time-provider` | Experimental | Framework and constructor-injection assumptions. |
 | `replace-new` | Symbol-bound rewrite recipe engine | Experimental | Current matching must become semantic; argument filters and possible matched-argument removal need explicit review. |
-| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application. |
+| `remove-unused-usings` | `recipe imports --remove-unused` | Experimental | Keep compiler-confirmed detection and review-by-default application; reject contradictory dry-run/apply flags. |
 | `replace-xunit-asserts` | `recipe migrate-xunit-to-shouldly` | Experimental | Framework-specific. |
 | `delete-unreferenced` | `prepare-delete-unreferenced` if admitted | Experimental/high risk | Require complete workspace, explicit external/dynamic-use limitations, a review protocol, and refusal conditions; a loaded solution cannot prove all use absent. |
 | `transform-parameters` | `recipe introduce-parameter-object` | Experimental | Signature, call-site, and public API risk. |

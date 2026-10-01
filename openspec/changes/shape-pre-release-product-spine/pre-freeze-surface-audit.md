@@ -79,6 +79,33 @@ their help or implementations acknowledge incomplete follow-up or semantic
 risks. Confirm individual request/result schemas and actual effect boundaries
 before final admission; one command-level flag cannot describe every mode.
 
+A source/operation cross-check of all 25 read/analyze/CI entries found five
+envelope-backed results with explicit provenance (`doctor`, `search-symbols`,
+`outline`, `relationships`, `find-unused`), two trusted semantic results with
+source revision but a narrower bare shape (`describe`, `source`), and fifteen
+legacy bare results after compatibility workspace loading (`analyze-interface`,
+`check`, `check-architecture`, `circular-deps`, `complexity`, `dependency-graph`,
+`find-duplicates`, `find-magic-strings`, `find-pattern`, `find-undocumented`,
+`language-features`, `list-imports`, `list-smells`, `solid`,
+`static-class-inventory`). The remaining `config`, `semantic-diff`, and
+`solid-review` use local-config, direct parse/Git, and optional provider paths
+respectively. This explains why matching advertised metadata does not mean
+matching result semantics.
+
+In particular, `check` and `check-architecture` advertise CompleteSemantic,
+yet their current compatibility workspace path does not carry the authoritative
+input-set completeness assessment into their results. `find-unused` does assess
+completeness and suppress deletion suggestions when absence proof fails. The
+check gap is a static contract finding, not proof that a current run falsely
+passes; final admission needs a healthy/partial fixture and an explicit
+completeness-bearing result. The parse-only two-file `semantic-diff`,
+installation-only `doctor`, and preview-only `solid-review` paths also confirm
+that effects/trust/workspace claims need mode-level projection.
+`circular-deps` builds namespace edges from textual `using` directives, so its
+cycle findings are syntax-derived. The architecture test that would ratchet
+category marker contracts is currently skipped; turn it back on before relying
+on category labels for generated discovery.
+
 ## MCP projection cross-check
 
 A direct `initialize`/paged `tools/list` session against the source-built MCP
@@ -195,6 +222,36 @@ static” ranked `make-instance` ahead of `make-static`. A request to apply an
 already reviewed immutable plan ranked `prepare-operation`, `trust`, and
 `convert-to-record`, although no immutable plan lifecycle exists yet.
 
+An eight-query read-workflow corpus used exact external-language tasks rather
+than catalogue `whenToUse` text. Each row is one source-built
+`suggest "<task>" --top 3 --json` call; bytes are stdout.
+
+| Exact task | Actual top three | Bytes | Useful first route? |
+|---|---|---:|---|
+| Understand the members of WorkspaceLoader before editing it | `outline`, `extract-interface`, `dependency-graph` | 3,706 | Yes for outline; later suggestions are unrelated. |
+| Find every implementation of IRtCommand before changing the interface | `extract-interface`, `analyze-interface`, `implement-interface` | 2,742 | No; misses `relationships implementations` and suggests mutations. |
+| Find NuGet package dependencies in the core layer | `find-pattern`, `find-undocumented`, `find-duplicates` | 6,127 | No package-inventory route or honest unsupported outcome. |
+| Find unused methods that might be invoked by reflection | `find-unused`, `remove-unused-usings`, `find-pattern` | 4,130 | Candidate inspection first; reflection limitation must remain visible. |
+| Assess the semantic effect of the last commit | `semantic-diff`, `prepare-operation`, `check-architecture` | 4,058 | Semantic diff first; internal primitive should not follow. |
+| Find static imports used across the solution | `list-imports`, `add-static-import`, `make-static` | 2,898 | Inventory first; two mutators are irrelevant. |
+| Find violations of configured project layering rules | `solid`, `check`, `find-pattern` | 2,530 | No; misses `check-architecture`. |
+| Find baseline deltas for architecture violations | `check-architecture`, `solid`, `check` | 2,528 | Architecture command first, but baseline comparison is incomplete. |
+
+Direct safe calls tested whether some intended routes actually answer their
+task. `outline src/RoslynTools/Core/WorkspaceLoader.cs --summary --json`
+returned `Partial` with four summaries (the requested type and three synthetic
+`ValueTuple` entries), 20,391 bytes in 22.15 s. `relationships implementations
+IRtCommand --kind type --limit 5 --json` returned five real implementers,
+`Partial`, and a limit-reached note without revision-safe continuation: 21,734
+bytes in 22.31 s. `find-unused --scope methods --json` returned low-confidence
+candidates with no deletion suggestions on the same Partial workspace: 29,656
+bytes in 44.16 s. `semantic-diff --from HEAD~1 --to HEAD --json` returned `[]`
+for a docs-only commit in 0.44 s/2 bytes without a status or scope envelope.
+`list-imports --kind static --json` returned `{"imports":[]}` in 12.88 s/20
+bytes without completeness evidence. The checked-in architecture configuration
+defines project-reference layers, not package-inventory rules, so its current
+route cannot answer the NuGet inventory request.
+
 | Invoked task route on this repository | Actual outcome and cost |
 |---|---|
 | `doctor --installation-only --json` using source-built CLI | Failed installation check, 2,767 stdout bytes in 0.65 s: CLI/build host/SDK healthy, but the source-built MCP launcher and handshake unhealthy. Workspace was correctly `NotRequested`, trust `NotRequired`. This is useful installation evidence, not a semantic-workspace failure. |
@@ -213,6 +270,8 @@ adding explicit item/byte limits and bounded ambiguity choices.
 ## Mutation workflow and schema variants
 
 The 34 refactor catalogue entries do not map one-to-one to mutation contracts.
+All 33 repository refactors ultimately use the prepared change-set path;
+`trust` instead changes user-scoped local authorization.
 Twenty-seven expose `--dry-run` without a separate `--apply`, five expose both,
 and the parent `change-signature` and `trust` entries expose neither. The four
 `change-signature` child grammars (`rename-param`, `reorder`, `add-param`,
@@ -234,6 +293,45 @@ qualifiers beyond the requested new import. Solution-wide defaults for
 `remove-unused-usings`, `replace-datetime`, and `replace-xunit-asserts` need
 scope bounds before a plan is approved. `migrate-to-ioptions` explicitly leaves
 read-site follow-up and remains an incomplete experimental recipe.
+
+A source-level effect review found four pre-freeze safety blockers, none of
+which was exercised by applying a refactor:
+
+1. `add-dependency`, `make-sealed`, and `remove-unused-usings` accept both
+   `--apply` and `--dry-run`, yet `--apply --dry-run` can still choose apply in
+   their current binders. Reject contradictory flags or make dry-run dominate.
+   `convert-console-logging` and `replace-xunit-asserts` do make dry-run win,
+   but their MCP request default `DryRun=true` changes what `apply:true` alone means
+   relative to CLI. One shared mode contract is needed.
+2. `extract-class --output-dir` and `extract-interface --output-dir` pass an
+   arbitrary destination through to the prepared change writer without an
+   affected-path containment check. The writer checks content/existence, while
+   these extraction paths rely on trust for the selected solution without
+   checking each generated output path. A central canonical-path boundary,
+   including symlinked ancestors and
+   a check near commit, is required before apply-capable admission. This is a
+   statically traced path, not an executed outside-repository write.
+3. Except for `delete-unreferenced`, refactor operations generally use a
+   compatibility workspace load that does not carry authoritative input-set
+   completeness. Rename, move, and move-slice therefore need either complete
+   acquisition evidence or an explicit reviewed partial-scope contract before
+   whole-solution mutation claims. The deletion operation already refuses
+   when its absence evidence is incomplete.
+4. Preview and apply prepare separately: the dry-run identifies affected paths
+   without an immutable plan hash or repository revision. The writer checks
+   changed-document content during an apply invocation, but move-only source
+   checks establish existence rather than source-content identity. A reviewed
+   preview therefore cannot authorize a later exact apply yet.
+
+Two more effect details belong in plan evidence. Global `--decisions <file>` can
+write pending YAML on an unresolved ambiguity even during a refactor dry-run;
+previews must disclose and check that explicit path. `move --to-project`
+automatically inserts consumer `ProjectReference` entries, whereas `move-slice`
+requires explicit project-reference authorization and justification. Rename's
+requested `--related-edit` IDs are reported as selected even if stale IDs match
+no current candidate; a target-file collision can instead warn and skip a
+requested file rename. Exact-set validation and revision-bound plans should
+precede any apply path.
 
 | Operation | Observed result |
 |---|---|
@@ -298,7 +396,7 @@ standalone command.
 
 | Order | Work | Evidence needed before promotion |
 |---:|---|---|
-| 1 | Correct workspace completeness, trust/effect claims, and unsafe discovery. Hide `prepare-operation`, keep external/source-transmission modes explicit, and bound ambiguous candidate responses. | Healthy, partial, untrusted, and ambiguous fixtures show truthful outcomes through CLI and MCP; no unsupported workflow is suggested as runnable. |
+| 1 | Correct workspace completeness, trust/effect claims, and unsafe discovery. Reject contradictory dry-run/apply flags, enforce affected-path containment, hide `prepare-operation`, keep external/source-transmission modes explicit, and bound ambiguous candidate responses. | Healthy, partial, untrusted, ambiguous, and out-of-root-path fixtures show truthful outcomes through CLI and MCP; no unsupported workflow is suggested as runnable. |
 | 2 | Make discovery task-aware: route navigation, parameter edits, dependency boundaries, diagnostics, and transactional moves through executable steps; expose `prime`/`suggest` clearly; return typed unsupported outcomes. | A repository task corpus records top-one/top-three ranking, valid arguments, completion, calls, elapsed time, and bytes, including failure cases. |
 | 3 | Admit one reviewable rename plan/verify contract, then validate signature and move variants separately. Evaluate any experimental direct CLI apply separately. Build diagnostics delta and impact evidence to support plans. | Exact file/project/reference manifest, content/revision preconditions, typed verification, stale-plan refusal, and clean-commit previews per admitted variant; apply checks only for an implemented optional apply path. |
 | 4 | Consolidate findings into `check`, descriptive results into `inventory`, clone/example matching into structural search, and import/rewrite recipes behind typed variants. Retire duplicate public names only after routes are equivalent. | Parity fixtures retain each distinct request/result and CI enforcement behavior; callers can still reach the useful engines. |

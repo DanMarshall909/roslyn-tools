@@ -37,6 +37,8 @@ Several current surface contracts are also misleading or incomplete:
   safe-delete conclusions;
 - mutation variants, including batch rename, signature changes, and project
   moves, need distinct plan evidence before preview admission;
+- contradictory dry-run/apply flags can still write for three commands, and two
+  extraction output paths lack trusted-root containment at the common writer;
 - root help omits usable discovery entry points, while MCP output schemas are
   generic and some request properties are undocumented;
 - `convert-static-class`, the mixed `add-test` mode, feedback commands, daemon
