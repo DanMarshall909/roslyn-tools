@@ -319,6 +319,14 @@ and one namespace and adding explicit scope/total fields, the response was
 type rollups, and 49 namespace rollups. This is a per-call byte comparison on
 this checkout; it does not measure token use or a whole workflow.
 
+A source-built `complexity --top 5 --llm` call subsequently exposed an output
+contract gap: exit 0 and zero output because the global flag was accepted while
+the command only declared Text and JSON. The shared CLI guard in
+[ADR-0099](../../../docs/adr/0099-reject-unsupported-cli-output-formats.md)
+now rejects an unsupported explicit format before workspace loading and names
+the declared alternatives. Commands with no format declaration remain outside
+that guard.
+
 A later shared-resolver ambiguity slice ([ADR-0095](../../../docs/adr/0095-bound-shared-symbol-ambiguity.md))
 measured the same source-built `relationships callers ExecuteAsync --include-tests
 --json` route at 85,921 stdout bytes before the change and 4,150 after it

@@ -561,6 +561,12 @@ aggregate values but are listed only for returned methods. The response reports
 the rollup scope and full counts; `--top 0` returns every rollup
 ([ADR-0098](adr/0098-scope-complexity-top-rollups.md)).
 
+The CLI checks an explicitly selected output format against the selected
+command's declared supported formats before invoking a handler. Unsupported
+requests fail with a nonzero exit and name the available formats rather than
+silently emitting an empty or different representation
+([ADR-0099](adr/0099-reject-unsupported-cli-output-formats.md)).
+
 Every structured operation response carries, where applicable:
 
 - schema version and request ID;

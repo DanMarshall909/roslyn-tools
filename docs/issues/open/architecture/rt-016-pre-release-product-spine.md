@@ -114,6 +114,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- CLI output-format flags now fail early when a selected public command's
+  declared formats do not include the requested effective format (ADR-0099).
+  Source-built `complexity --llm` had exited 0 with no output; grouped, root,
+  alias, and second-command subprocess cases now require a named exit-1 error
+  before workspace loading. Undeclared refactor formats remain to inventory.
 - Standalone `complexity --top 5 --json` now scopes full-value rollups to the
   returned methods and reports scope/total counts (ADR-0098). On a source-built
   run, stdout fell from 288,729 to 3,289 bytes with five methods, four type

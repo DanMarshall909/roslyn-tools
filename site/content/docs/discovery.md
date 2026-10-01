@@ -40,6 +40,9 @@ rt dump-help --yaml
 ```
 
 The catalogue includes names, categories, examples, options, maturity, effects, and supported formats. It is generated from the same definitions used by the CLI and MCP host.
+Check a command's `Output` line in `--help` before choosing a format flag.
+An unsupported explicit format exits with an error that lists the supported
+formats before the command loads a solution.
 
 ## Use command groups
 

@@ -373,6 +373,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Bound standalone `complexity --top N` rollup output to returned methods'
   types and namespaces, preserving full aggregate values and reporting scope
   and total counts. Keep `--top 0` and the unlimited `check` path complete.
+- [x] Reject explicit CLI output formats absent from a public command's
+  declared supported formats before workspace loading; preserve multi-flag
+  precedence and report a nonzero, actionable error.
 - [ ] Split `list-smells`, `solid`, circular dependencies, magic strings,
   documentation, and unused candidates into concrete rule IDs.
 - [ ] Preserve language features, imports, and static types as descriptive inventory

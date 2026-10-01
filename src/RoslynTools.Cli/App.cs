@@ -261,12 +261,15 @@ internal static class App
             kv => kv.Key,
             kv => new Command(kv.Key, kv.Value),
             StringComparer.Ordinal);
+        var commandInfoByInstance = new Dictionary<Command, RtCommandInfo>();
 
         foreach (var (build, info) in CatalogCommands)
         {
             if (info.Placement == CommandPlacement.RootOnly)
             {
-                root.AddCommand(build());
+                var rootOnlyCommand = build();
+                root.AddCommand(rootOnlyCommand);
+                commandInfoByInstance.Add(rootOnlyCommand, info);
                 continue;
             }
 
@@ -276,10 +279,17 @@ internal static class App
                     + string.Join(", ", groups.Keys) + ".");
 
             // Always available under the category group: `rt <group> <name>`.
-            group.AddCommand(build());
+            var groupedCommand = build();
+            group.AddCommand(groupedCommand);
+            commandInfoByInstance.Add(groupedCommand, info);
 
             // Also expose at root as a shortcut when the name doesn't collide with a group name.
-            if (!groups.ContainsKey(info.Name)) root.AddCommand(build());
+            if (!groups.ContainsKey(info.Name))
+            {
+                var rootCommand = build();
+                root.AddCommand(rootCommand);
+                commandInfoByInstance.Add(rootCommand, info);
+            }
         }
 
         foreach (var group in groups.Values) root.AddCommand(group);
@@ -362,10 +372,6 @@ internal static class App
             }, MiddlewareOrder.Configuration)
             .AddMiddleware(async (context, next) =>
             {
-                using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
-                    ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
-                    : RepositoryTrustContext.UsePersistentTrust(
-                        services.GetRequiredService<RepositoryTrustRegistry>());
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
@@ -375,6 +381,38 @@ internal static class App
                     : json ? OutputFormat.Json
                     : llm ? OutputFormat.Llm
                     : OutputFormat.Text;
+                var selectedFlag = md ? "--markdown"
+                    : yaml ? "--yaml"
+                    : json ? "--json"
+                    : llm ? "--llm"
+                    : null;
+                RtCommandInfo? selectedCommandInfo = null;
+                for (CommandResult? commandResult = context.ParseResult.CommandResult;
+                     commandResult is not null;
+                     commandResult = commandResult.Parent as CommandResult)
+                {
+                    if (commandInfoByInstance.TryGetValue(commandResult.Command, out selectedCommandInfo))
+                        break;
+                }
+
+                if (context.ParseResult.Errors.Count == 0
+                    && selectedFlag is not null
+                    && selectedCommandInfo?.SupportedFormats is { Length: > 0 } supportedFormats
+                    && !supportedFormats.Contains(RtContext.Format))
+                {
+                    RtLog.Error(
+                        "Command '{Command}' does not support {Flag}. Supported formats: {Formats}.",
+                        selectedCommandInfo.Name,
+                        selectedFlag,
+                        string.Join(", ", supportedFormats.Select(format => format.ToString().ToLowerInvariant())));
+                    context.ExitCode = 1;
+                    return;
+                }
+
+                using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
+                    ? RepositoryTrustContext.UseExplicitTrust(ResolveTrustedRepositoryRoot(context))
+                    : RepositoryTrustContext.UsePersistentTrust(
+                        services.GetRequiredService<RepositoryTrustRegistry>());
                 RtContext.RelaxJson = context.ParseResult.GetValueForOption(relaxJsonOpt);
                 RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
                 RtContext.FullWorkspaceEvidence = context.ParseResult.GetValueForOption(fullWorkspaceEvidenceOpt);
@@ -439,9 +477,9 @@ internal static class App
         RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
-        var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
-        var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
-        var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
+        var llmOpt = new Option<bool>("--llm", "Emit compact output when this command supports LLM format");
+        var markdownOpt = new Option<bool>("--markdown", "Emit Markdown when this command supports it");
+        var yamlOpt = new Option<bool>("--yaml", "Emit YAML when this command supports it");
         var relaxJsonOpt = new Option<bool>("--relax-json",
             "Emit raw non-ASCII and HTML-sensitive characters in JSON output "
             + "(JavaScriptEncoder.UnsafeRelaxedJsonEscaping). Default off keeps output strict-deserialiser safe.");
