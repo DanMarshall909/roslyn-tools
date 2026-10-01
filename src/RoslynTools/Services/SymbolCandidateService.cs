@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
@@ -44,6 +46,11 @@ internal interface ISymbolCandidateService
 /// </summary>
 internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtService
 {
+    private const int MaximumAmbiguityCandidates = 12;
+    private const int MaximumAmbiguityContextBytes = 4_096;
+    private const int MaximumAmbiguityDisplayBytes = 1_024;
+    private const int MaximumAmbiguityQueryBytes = 256;
+
     public async Task<IReadOnlyList<ResolvedSymbolCandidate>> SearchAsync(
         Solution solution,
         SymbolCandidateQuery query,
@@ -152,22 +159,79 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         if (candidates.Count == 1)
             return Result<ISymbol, RtError>.Ok(candidates[0].Symbol);
 
+        return Result<ISymbol, RtError>.Err(CreateAmbiguityError(identityOrName, candidates));
+    }
+
+    private static RtError CreateAmbiguityError(
+        string identityOrName,
+        IReadOnlyList<ResolvedSymbolCandidate> candidates)
+    {
+        var listed = new List<string>();
+        var displayed = new List<string>();
+        var contextBytes = 0;
+        var displayBytes = 0;
+        foreach (var match in candidates)
+        {
+            if (listed.Count == MaximumAmbiguityCandidates)
+                break;
+
+            var candidate = match.Candidate;
+            var contextLine = $"{candidate.SymbolId} | {candidate.Fqn} | {candidate.Project}";
+            var displayLine = $"{candidate.Fqn} [{candidate.Project}]";
+            var nextContextBytes = contextBytes + Encoding.UTF8.GetByteCount(contextLine)
+                                   + (listed.Count == 0 ? 0 : 1);
+            var nextDisplayBytes = displayBytes + Encoding.UTF8.GetByteCount(displayLine)
+                                   + (displayed.Count == 0 ? 0 : 2);
+            if (nextContextBytes > MaximumAmbiguityContextBytes
+                || nextDisplayBytes > MaximumAmbiguityDisplayBytes)
+                break;
+
+            listed.Add(contextLine);
+            displayed.Add(displayLine);
+            contextBytes = nextContextBytes;
+            displayBytes = nextDisplayBytes;
+        }
+
+        var query = LimitUtf8(identityOrName, MaximumAmbiguityQueryBytes);
+        var truncated = listed.Count < candidates.Count;
+        var candidateCount = candidates.Count.ToString(CultureInfo.InvariantCulture);
+        var displayedCount = listed.Count.ToString(CultureInfo.InvariantCulture);
         var context = new Dictionary<string, string>
         {
-            ["symbol"] = identityOrName,
-            ["candidates"] = string.Join(
-                Environment.NewLine,
-                candidates.Select(candidate =>
-                    $"{candidate.Candidate.SymbolId} | {candidate.Candidate.Fqn} | {candidate.Candidate.Project}")),
-            ["disambiguateWith"] = "stable symbol identity, project, namespace, kind, generic arity, or signature"
+            ["symbol"] = query,
+            ["symbolTruncated"] = query == identityOrName ? "false" : "true",
+            ["candidateCount"] = candidateCount,
+            ["displayedCandidateCount"] = displayedCount,
+            ["candidatesTruncated"] = truncated ? "true" : "false",
+            ["candidates"] = string.Join('\n', listed),
+            ["disambiguateWith"] = "Use search-symbols with filters, then pass a stable symbol identity."
         };
-        var displayCandidates = string.Join(
-            ", ",
-            candidates.Select(candidate =>
-                $"{candidate.Candidate.Fqn} [{candidate.Candidate.Project}]"));
-        return Result<ISymbol, RtError>.Err(RtError.AmbiguousMatch(
-            $"Multiple symbols match '{identityOrName}': {displayCandidates}.",
-            context));
+        var summary = displayed.Count == 0
+            ? "No candidate fits within the response budget"
+            : string.Join(", ", displayed);
+        var message = $"Multiple symbols match '{query}' ({candidateCount} candidates; "
+                      + $"showing {displayedCount}): {summary}. "
+                      + "Use search-symbols with filters to narrow the candidates, then pass a stable symbol identity.";
+        return RtError.AmbiguousMatch(message, context);
+    }
+
+    private static string LimitUtf8(string value, int maximumBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(value) <= maximumBytes)
+            return value;
+
+        const char ellipsis = '…';
+        var remaining = maximumBytes - Encoding.UTF8.GetByteCount(ellipsis.ToString());
+        var builder = new StringBuilder();
+        foreach (var rune in value.EnumerateRunes())
+        {
+            if (rune.Utf8SequenceLength > remaining)
+                break;
+            builder.Append(rune.ToString());
+            remaining -= rune.Utf8SequenceLength;
+        }
+
+        return builder.Append(ellipsis).ToString();
     }
 
     private static IEnumerable<ISymbol> EnumerateSourceSymbols(

@@ -311,6 +311,14 @@ check as inconclusive; no Flo worktree was reset or cleaned.
 | `dependency-graph --type RoslynTools.Commands.RenameCommand --depth 1 --json` | Exit 0, 1,272 bytes in 13.5 s; returned a focused legacy `nodes`/`edges` result. |
 | `complexity --top 5 --json` | Exit 0, 286,429 bytes in 14.46 s: five methods plus 1,108 type and 49 namespace rollups. `--top` limits methods, not the complete response. |
 
+A later shared-resolver ambiguity slice ([ADR-0095](../../../docs/adr/0095-bound-shared-symbol-ambiguity.md))
+measured the same source-built `relationships callers ExecuteAsync --include-tests
+--json` route at 85,921 stdout bytes before the change and 4,150 after it
+(95.2% less). The after response reported 130 total matches and six complete
+displayed identities with truncation. These are per-call byte counts on this
+checkout, not an end-to-end token measure. Legacy `SymbolLocator` errors remain
+outside this bound.
+
 These are one-run observations on the current source-built checkout, not
 benchmark distributions; concurrent workspace activity may affect times. The
 three largest responses show that bounding the *whole result* matters more than

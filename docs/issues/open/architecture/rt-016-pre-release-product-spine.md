@@ -114,6 +114,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- Shared `SymbolCandidateService` ambiguity now reports bounded complete
+  identities, total/displayed counts, truncation, and a filtered
+  `search-symbols` route (ADR-0095). A source-built `relationships callers
+  ExecuteAsync` error fell from 85,921 to 4,150 JSON stdout bytes for 130
+  matches; legacy `SymbolLocator` ambiguity and wider search paging remain open.
 - Root CLI help now shows invocable `prime`, `suggest`, and compact `dump-help`
   entry points. `dump-help --help` exposes its own options. The generated
   catalogue remains at 59 product commands and was regenerated with no diff;

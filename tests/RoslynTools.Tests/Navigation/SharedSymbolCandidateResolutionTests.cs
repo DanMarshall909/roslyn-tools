@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
@@ -42,6 +44,9 @@ public sealed class SharedSymbolCandidateResolutionTests
         ambiguity.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
         ambiguity.Context!["candidates"].ShouldContain("Production");
         ambiguity.Context["candidates"].ShouldContain("ConsumerTests");
+        ambiguity.Context["candidateCount"].ShouldBe("2");
+        ambiguity.Context["displayedCandidateCount"].ShouldBe("2");
+        ambiguity.Context["candidatesTruncated"].ShouldBe("false");
 
         var matches = await candidates.SearchAsync(
             solution,
@@ -63,6 +68,74 @@ public sealed class SharedSymbolCandidateResolutionTests
         var declaration = source.Unwrap().Declarations.ShouldHaveSingleItem();
         declaration.FilePath.ShouldContain("ConsumerTests");
         declaration.Text.ShouldContain("Fixture");
+    }
+
+    [Fact]
+    public async Task many_ambiguous_symbols_return_bounded_candidates_and_a_full_search_route()
+    {
+        using var builder = new AdhocProjectBuilder("Production");
+        builder.AddSource("Workers.cs", string.Join(Environment.NewLine,
+            Enumerable.Range(0, 80).Select(index =>
+                $"namespace N{index:D3} {{ public sealed class Worker {{ public void ExecuteAsync() {{ }} }} }}")));
+        var (workspace, solution) = builder.Build();
+        using (workspace)
+        {
+            var resolver = new SymbolCandidateService();
+            var result = await resolver.ResolveAsync(solution, "ExecuteAsync", "method");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Context!["candidateCount"].ShouldBe("80");
+            var displayed = int.Parse(error.Context["displayedCandidateCount"],
+                CultureInfo.InvariantCulture);
+            displayed.ShouldBeInRange(1, 12);
+            error.Context["candidatesTruncated"].ShouldBe("true");
+            var listed = error.Context["candidates"].Split('\n');
+            listed.Length.ShouldBe(displayed);
+            error.Context["candidates"].ShouldContain("N000.Worker.ExecuteAsync()");
+            error.Context["candidates"].ShouldNotContain("N079.Worker.ExecuteAsync()");
+            error.Context["disambiguateWith"].ShouldContain("search-symbols");
+            error.Message.ShouldContain("search-symbols");
+            error.Message.ShouldContain("with filters");
+            error.Message.ShouldNotContain("full candidate set");
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
+            Encoding.UTF8.GetByteCount(error.Context["candidates"])
+                .ShouldBeLessThanOrEqualTo(4_096);
+
+            var firstIdentity = listed[0].Split(" | ", StringSplitOptions.None)[0];
+            var selected = await resolver.ResolveAsync(solution, firstIdentity, "method");
+            selected.Unwrap().ToDisplayString().ShouldContain("N000.Worker.ExecuteAsync()");
+        }
+    }
+
+    [Fact]
+    public async Task unusually_long_ambiguous_names_still_produce_a_bounded_error()
+    {
+        var name = "Find" + new string('Ω', 800);
+        using var builder = new AdhocProjectBuilder("Production");
+        builder.AddSource("Workers.cs",
+            $"namespace First {{ public sealed class Worker {{ public void {name}() {{ }} }} }} "
+            + $"namespace Second {{ public sealed class Worker {{ public void {name}() {{ }} }} }}");
+        var (workspace, solution) = builder.Build();
+        using (workspace)
+        {
+            var result = await new SymbolCandidateService()
+                .ResolveAsync(solution, name, "method");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Context!["candidateCount"].ShouldBe("2");
+            error.Context["displayedCandidateCount"].ShouldBe("0");
+            error.Context["candidatesTruncated"].ShouldBe("true");
+            error.Context["symbolTruncated"].ShouldBe("true");
+            error.Context["symbol"].ShouldNotContain('�');
+            error.Message.ShouldContain("search-symbols");
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
+            Encoding.UTF8.GetByteCount(error.Context["candidates"])
+                .ShouldBeLessThanOrEqualTo(4_096);
+        }
     }
 
     private sealed class FixedSessionFactory(Workspace workspace, Solution solution) : IWorkspaceSessionFactory

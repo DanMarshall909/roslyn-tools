@@ -545,6 +545,13 @@ Two types serve different layers:
 
 Expected failures are typed and total. Host adapters project them through shared presenters. Raw exception text, stack traces, and host-specific error ladders are not the application contract.
 
+The shared symbol-candidate resolver bounds ambiguous-match messages and
+candidate context by count and UTF-8 bytes. It reports total and displayed
+counts plus truncation, keeps each displayed stable identity complete, and
+directs callers to narrow a `search-symbols` query before retrying. This
+applies to consumers of `SymbolCandidateService`; legacy `SymbolLocator`
+ambiguity paths still need the same treatment ([ADR-0095](adr/0095-bound-shared-symbol-ambiguity.md)).
+
 Every structured operation response carries, where applicable:
 
 - schema version and request ID;

@@ -277,6 +277,10 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   remove command-specific silent selection and opaque not-found ladders.
 - [ ] Add ambiguity, overload, generic, nested, partial, test/production duplicate,
   stale identity, and multi-solution fixtures.
+- [x] Bound ambiguity responses from the shared symbol-candidate resolver by
+  count and UTF-8 bytes while retaining complete listed identities, total and
+  truncation metadata, and a filtered `search-symbols` disambiguation route.
+  Legacy `SymbolLocator` ambiguity paths remain separate work.
 
 ### 3.2 Symbol search
 
