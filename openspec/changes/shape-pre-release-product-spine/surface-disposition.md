@@ -1,11 +1,12 @@
 # Current command disposition for `0.1-preview`
 
-This is a provisional target classification, not the final product-surface freeze or a
+This is the reviewed **recommended destination** after the two-repository task
+corpus, not the final product-surface freeze or a
 claim that any current implementation already passes the shared provenance,
 structured-output, cancellation, resource, parity, and packaging gates. The
 [pre-freeze audit](pre-freeze-surface-audit.md) reviews the live 60-entry catalogue
-for user usefulness first and agent output cost second. Its representative task
-corpus and final disposition gate remain open. Thin compatibility wrappers may
+for user usefulness first and agent output cost second. Scenario-level admission
+and the final preview whitelist remain open. Thin compatibility wrappers may
 exist temporarily during migration, but only the destination contract is eligible
 for preview support.
 
@@ -16,7 +17,7 @@ for preview support.
 | `analyze-interface` | `impact --kind interface` / relationship member usage | Preview | Consolidate after the shared resolver. |
 | `check-architecture` | `check --rule architecture.*` | Preview -> Stable | First config-driven architecture finding family; carry authoritative input-set completeness in the shared check envelope before claiming a whole-solution pass. |
 | `circular-deps` | `check --rule architecture.circular-dependency` | Preview -> Stable | Consolidate into common findings; current namespace edges come from textual `using` directives, so state that evidence limit. |
-| `complexity` | `check --rule maintainability.complexity` | Preview -> Stable | First finding-envelope pilot. |
+| `complexity` | `check --rule maintainability.complexity` | Preview -> Stable | First finding-envelope pilot; bound the complete response, including type and namespace rollups. |
 | `debug` | Separate trace-development tool | Removed | Unrelated to C# semantic tooling. |
 | `dependency-graph` | `dependency-graph` | Stable candidate | Keep distinct graph result. |
 | `find-duplicates` | `structural-search --mode duplicates` | Preview | Consolidate with pattern search. |
@@ -49,10 +50,10 @@ for preview support.
 | `find-refs` | `relationships references` | Removed from public surface | Retain a temporary internal wrapper while the canonical relationship contract settles. |
 | `find-undocumented` | `check --rule documentation.missing` | Experimental -> Preview | Consolidate; accessibility is rule configuration. |
 | `find-unused` | `check --rule usage.unreferenced-candidate` | Preview/high risk | Never imply whole-world proof; no plan from partial workspaces. |
-| `outline` | `outline` | Stable candidate | Keep core orientation primitive. |
-| `relationships` | `relationships` | Preview | One bounded typed surface for references, callers, and implementations; extend modes here. |
-| `search-symbols` | `search-symbols` | Preview | Add deterministic typed candidate discovery before focused inspection. |
-| `source` | `source` | Stable candidate | Keep focused-source primitive with byte bounds. |
+| `outline` | `outline` | Stable candidate | Keep core orientation primitive; remove synthetic tuple summaries and bound provenance bytes. |
+| `relationships` | `relationships` | Preview | One typed surface for references, callers, and implementations; bound ambiguity, add revision-safe continuation, and extend modes here. |
+| `search-symbols` | `search-symbols` | Preview | Keep deterministic typed candidates; bound complete output including repeated workspace evidence. |
+| `source` | `source` | Stable candidate | Keep focused-source primitive with byte bounds and common completeness/provenance result. |
 
 ## Refactor commands
 
@@ -99,7 +100,7 @@ for preview support.
 
 | Current capability | Destination | Decision |
 |---|---|---|
-| `suggest_command` | `suggest` workflow guidance | Rebuild from catalogue, Git, and semantic context; reconcile MCP required query with CLI's optional Git-context query and label this primary discovery route deliberately. |
+| `suggest_command` | `suggest` workflow guidance | Rebuild from catalogue, Git, and semantic context with read-intent and unsupported-job routing; reconcile MCP required query with CLI's optional Git-context query and label this primary discovery route deliberately. |
 | `feedback_add` | Maintainer/dogfood CLI | Keep out of normal MCP; internal descriptor already marks LocalStateWrite, so verify CLI help and runtime projection. |
 | `feedback_list` | Maintainer CLI | May expose local paths, traces, and samples; add paging/limits before a 206-item list can consume 520 KB. |
 | `feedback_process` | Maintainer CLI | Internal descriptor marks local read/write; verify CLI help and runtime projection. |

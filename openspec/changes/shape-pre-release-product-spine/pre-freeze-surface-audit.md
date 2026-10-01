@@ -21,7 +21,10 @@ The audit used `rt prime`, root and per-command help, `dump-help --compact` and
 `--json`, `suggest` with supported and missing workflow requests, live CLI
 inspection and a clean-commit rename dry-run, and spawned MCP discovery. The
 existing [disposition matrix](surface-disposition.md) supplies a destination for
-every command; the recommendations below challenge it where live use warrants.
+every command. The [per-command ledger](per-command-evidence-ledger.md) records
+individual evidence boundaries, and the generated
+[machine census](command-census.jsonl) captures the compact CLI/MCP metadata.
+The recommendations below challenge the matrix where live use warrants.
 They are judgments from representative agent workflows, not usage telemetry or
 proof that every implementation already meets its destination contract.
 
@@ -252,6 +255,53 @@ bytes without completeness evidence. The checked-in architecture configuration
 defines project-reference layers, not package-inventory rules, so its current
 route cannot answer the NuGet inventory request.
 
+### Second-repository read workflow: Flo
+
+The source-built `rt` was run from the already trusted
+`/home/dan/code/Flo` checkout at
+`1a787eed47d59fe9d99c60ede7f5d367d0f36758` without changing trust,
+using read-only calls against `Flo.sln`. Its primary worktree was heavily dirty
+throughout, so this is a workflow sample rather than a clean-status mutation
+check. Flo's agent
+guidance was read first.
+
+| Read route | Result usefulness and completeness | Seconds | Stdout bytes |
+|---|---|---:|---:|
+| Outline `CycleEngine.cs --summary` | One requested type summary; `Partial` workspace. The task data was 109 bytes inside the response. | 11.23 | 20,328 |
+| Search `CycleEngine --kind NamedType --limit 5` | One candidate; `Partial`. | 10.44 | 20,713 |
+| Describe `CycleEngine --kind type` | Nine useful signatures; bare output has no completeness field. | 9.62 | 2,611 |
+| Relationships `implementations ICodexClient --limit 10` | Three implementations; `Partial`. | 10.35 | 21,501 |
+| Complexity `--top 5 --threshold 10` | Five methods plus 83 type and 16 namespace rollups; bare output has no completeness field. | 7.24 | 25,605 |
+| Dependency graph `CycleEngine --depth 1` | Fourteen nodes and thirteen edges; bare output has no completeness field. | 7.54 | 1,307 |
+
+For the outline, 14,471 bytes were workspace evidence and `--llm` reduced
+20,328 bytes to 20,327. Typed reads reported three failed workspace inputs
+among 1,993, so the `Partial` state must constrain absence conclusions.
+Eight Flo-language suggestion probes cost 26,281 bytes in 5.9 seconds total:
+project/package dependencies ranked duplicates first, diagnostics comparison
+ranked mutators, and move-impact wording ranked `move` ahead of analysis.
+Implementation lookup, architecture boundaries, and duplicate-code requests
+had useful first routes. Each `suggest "<query>" --top 3 --json` call exited 0
+without stderr:
+
+| Exact Flo task query | Top three | Bytes |
+|---|---|---:|
+| Find project and package dependencies across Flo solution layers | `find-duplicates`, `check-architecture`, `find-undocumented` | 2,900 |
+| Find callers and implementations of ICodexClient before changing it | `relationships`, `find-pattern`, `find-duplicates` | 5,805 |
+| Assess impact of moving CycleEngine to another project | `move`, `check-architecture`, `add-global-import` | 2,626 |
+| Inspect CycleEngine structure without reading its source file | `source`, `outline`, `find-pattern` | 4,027 |
+| Compare compiler diagnostics before and after current changes | `remove-unused-usings`, `convert-console-logging`, `replace-xunit-asserts` | 3,093 |
+| Check architecture boundaries between Application and Infrastructure | `check-architecture`, `check`, `add-null-checks` | 2,220 |
+| Find repeated code in the Application layer | `find-duplicates`, `find-magic-strings`, `find-unused` | 2,766 |
+| Find source of an ambiguous ExecuteAsync symbol | `source`, `search-symbols`, `find-pattern` | 2,844 |
+
+Flo HEAD and its seven-worktree list were unchanged across the calls. Its
+primary status had one additional modified source path at the end,
+`src/Flo/Application/Cycles/CycleTestSourcePolicy.cs`, amid concurrent dirty
+work. No refactor or edit call was run, but the status change cannot be
+attributed to `rt` or another actor from this evidence. Treat the side-effect
+check as inconclusive; no Flo worktree was reset or cleaned.
+
 | Invoked task route on this repository | Actual outcome and cost |
 |---|---|
 | `doctor --installation-only --json` using source-built CLI | Failed installation check, 2,767 stdout bytes in 0.65 s: CLI/build host/SDK healthy, but the source-built MCP launcher and handshake unhealthy. Workspace was correctly `NotRequested`, trust `NotRequired`. This is useful installation evidence, not a semantic-workspace failure. |
@@ -381,6 +431,25 @@ startup arguments, protocol `2025-06-18`, and the current user's trust profile.
 The 60-tool count is profile-specific, not a fresh-install claim. MCP
 `suggest_command` received `Assess impact and prepare a safe rename plan` with
 `top: 3`.
+
+## Reviewed analysis conclusion
+
+The per-command ledger, generated host census, source review, and two-repository
+task corpus support the destinations in `surface-disposition.md` as the current
+product recommendation. Keep the orient/find/understand route and distinct
+semantic-diff/graph results; consolidate overlapping findings, inventories,
+structural search, imports, and rewrite recipes without erasing typed variants;
+remove low-value code actions and internal coordination from ordinary discovery.
+Only reviewable plan/verify operations should be candidates for the preview
+mutation surface, beginning with a single-symbol rename plan. Usefulness,
+correctness, and safe reachability decide these moves; response size and call
+count then guide bounded renderers and paging.
+
+This completes a decision review of the *current known* surface, not runtime
+certification of every mode. The final preview whitelist remains conditional on
+the focused effect, trust, completeness, schema, and plan fixtures below. New
+ancillary controls also need an authoritative inventory instead of the present
+known-route list.
 
 ## Missing jobs and final-freeze gate
 

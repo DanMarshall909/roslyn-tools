@@ -31,16 +31,22 @@
 - [x] Measure representative per-call response bytes using `rt` itself,
   including CLI/MCP and `--llm`; prioritize task usefulness and safety before
   token savings. Full workflow calls and elapsed times remain in the task corpus.
-- [ ] Check each CLI and MCP operation's actual effects, trust/completeness,
-  audience, request/result schema, and per-command evidence against the
-  provisional destination. Resolve every mismatch before final ratification.
-- [ ] Execute a task corpus in representative repositories for the supported,
-  missing, ambiguous, partial-workspace, and unsafe workflows in the audit.
-  Record expected versus actual suggestion rank, invocable arguments, output
-  usefulness, calls, bytes, elapsed time, and failure semantics.
-- [ ] Revise `surface-disposition.md` after the task-corpus results, including
-  the plan-only whitelist and control-plane/lifecycle audience; obtain a final
-  reviewed disposition before declaring the preview surface frozen.
+- [x] Cross-check all 60 CLI entries, 60 MCP tools, and 11 ancillary controls
+  against advertised effects, trust/workspace, audience, schema, limits, and
+  destination in the generated `command-census.jsonl` and individual
+  `per-command-evidence-ledger.md`. Trace operation paths for high-risk claims;
+  label catalogue, source, live-route, and design evidence separately.
+- [x] Execute a task-language and safe-read corpus in roslyn-tools and the
+  already-trusted Flo checkout. Record actual suggestion ranks, invocable
+  arguments, output usefulness, calls, bytes, elapsed time, Partial and
+  unsupported outcomes, and the Flo worktree status attribution limit.
+- [x] Revise `surface-disposition.md` after this corpus with one reviewed
+  recommended destination for every current command and the control-plane
+  routes, ranking usefulness before response cost.
+- [ ] Validate mode-level *actual* effects, trust/completeness, request/result
+  schema, and failure semantics with focused fixtures; resolve mismatches before
+  final ratification of the plan-only preview whitelist. The static evidence
+  ledger is not a runtime proof for every variant.
 - [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
   contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
   containment for extraction output, authoritative completeness for whole-solution
@@ -58,8 +64,12 @@
 
 ### 0.1 Command census and disposition
 
-- [ ] Generate a machine-readable census of all CLI, MCP, daemon, feedback, and
-  maintainer operations from the authoritative descriptor catalogue.
+- [x] Generate a machine-readable census of the current 60 CLI catalogue
+  entries, 60 MCP tools, and 11 known ancillary CLI routes from source-built
+  descriptor/help surfaces; verify exact regeneration in the same reviewed
+  trust profile with `scripts/generate-command-census.py --check`.
+- [ ] Derive or validate the ancillary-route inventory from one authoritative
+  registry so new maintainer, feedback, or daemon verbs cannot evade the census.
 - [ ] Record for every operation its maturity, effects (including repository-code or
   external execution), default mode, conditional mutability, idempotency, host
   exposure, structured output, trust/workspace requirements, cost, resource limits,

@@ -63,13 +63,15 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Acceptance criteria
 
-- [ ] Before final surface freeze, review the live CLI/MCP catalogue against
+- [x] Before final surface freeze, review the live CLI/MCP catalogue against
       representative user and agent jobs. Record every command's usefulness,
       overlap, safety, audience, and disposition, then measure calls/output cost
       without sacrificing completeness evidence. The interim command-admission
       guard is not final ratification; see the
-      [pre-freeze audit](../../../../openspec/changes/shape-pre-release-product-spine/pre-freeze-surface-audit.md).
-- [ ] Every current command has one recorded `Stable candidate | Preview |
+      [pre-freeze audit](../../../../openspec/changes/shape-pre-release-product-spine/pre-freeze-surface-audit.md),
+      [per-command ledger](../../../../openspec/changes/shape-pre-release-product-spine/per-command-evidence-ledger.md),
+      and [generated census](../../../../openspec/changes/shape-pre-release-product-spine/command-census.jsonl).
+- [x] Every current command has one recorded `Stable candidate | Preview |
       Experimental recipe | Maintainer-only | Remove | Consolidate` disposition.
 - [ ] New standalone command registration is frozen until the product spine is
       implemented and the command-admission gate requires maturity, safety,
