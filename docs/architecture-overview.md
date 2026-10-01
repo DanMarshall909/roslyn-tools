@@ -241,6 +241,11 @@ Changed-path acquisition now fails when Git cannot establish a complete path
 set. Omitted-query CLI suggestions surface that failure on stderr with a
 nonzero exit; an explicit query remains independent of Git. See
 [ADR-0086](adr/0086-fail-closed-on-git-change-acquisition.md).
+Semantic diff now distinguishes a path absent at a valid ref from a failed
+Git content read. Hosting proves literal tree membership before reading, and
+the shared operation returns a typed external-tool error with ref and path
+context on failure. See
+[ADR-0087](adr/0087-prove-git-content-absence-before-semantic-diff.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console

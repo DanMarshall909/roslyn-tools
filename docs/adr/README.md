@@ -151,3 +151,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0084](0084-pre-stage-containment-for-prepared-writes.md) | Check prepared mutation paths before staging | Accepted | 2026-10-01 |
 | [0085](0085-retire-legacy-direct-write-move-paths.md) | Retire legacy direct-write move paths | Accepted | 2026-10-01 |
 | [0086](0086-fail-closed-on-git-change-acquisition.md) | Fail closed on Git change acquisition | Accepted | 2026-10-01 |
+| [0087](0087-prove-git-content-absence-before-semantic-diff.md) | Prove Git content absence before semantic diff | Accepted | 2026-10-01 |

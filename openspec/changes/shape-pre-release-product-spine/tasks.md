@@ -319,7 +319,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   displayed regression fixture.
 - [x] Fail omitted-query CLI Git-context discovery when changed paths cannot be
   acquired; preserve clean, tracked/untracked, and explicit-query behavior.
-- [ ] Distinguish an absent path at a valid Git ref from other `git show`
+- [x] Distinguish an absent path at a valid Git ref from other `git show`
   failures before relying on semantic-diff absence in discovery workflows.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.

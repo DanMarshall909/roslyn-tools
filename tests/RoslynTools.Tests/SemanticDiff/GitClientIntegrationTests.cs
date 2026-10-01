@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using Shouldly;
 
@@ -67,8 +68,137 @@ public sealed class GitClientIntegrationTests
 
         var client = new GitClient(repo.Path);
 
-        // Brand.cs never existed at the first commit — git show exits nonzero → null.
+        // Brand.cs never existed at the first commit; the tree lookup proves absence.
         client.ReadFileAtRef(first, "Brand.cs").ShouldBeNull();
+    }
+
+    [Fact]
+    public void content_at_an_invalid_ref_is_a_failure_not_an_absent_file()
+    {
+        using var repo = new TempRepo();
+        repo.Write("Present.cs", "class Present { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        var error = Should.Throw<GitContentReadException>(
+            () => new GitClient(repo.Path).ReadFileAtRef("missing-ref", "Present.cs"));
+
+        error.Reference.ShouldBe("missing-ref");
+        error.Path.ShouldBe("Present.cs");
+        error.Message.ShouldContain("missing-ref", Case.Sensitive);
+        error.Message.ShouldContain("Present.cs", Case.Sensitive);
+    }
+
+    [Fact]
+    public void content_with_a_tree_entry_but_a_missing_blob_is_a_failure_not_an_absent_file()
+    {
+        using var repo = new TempRepo();
+        repo.Git("config", "gc.auto", "0");
+        repo.Write("Broken.cs", "class Broken { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var reference = repo.Head();
+        var blob = repo.Git("rev-parse", $"{reference}:Broken.cs").Trim();
+        var objectPath = System.IO.Path.Combine(repo.Path, ".git", "objects", blob[..2], blob[2..]);
+        File.Exists(objectPath).ShouldBeTrue();
+        File.Delete(objectPath);
+
+        var error = Should.Throw<GitContentReadException>(
+            () => new GitClient(repo.Path).ReadFileAtRef(reference, "Broken.cs"));
+
+        error.Reference.ShouldBe(reference);
+        error.Path.ShouldBe("Broken.cs");
+        error.Message.ShouldContain(reference, Case.Sensitive);
+        error.Message.ShouldContain("Broken.cs", Case.Sensitive);
+    }
+
+    [Fact]
+    public void an_absent_literal_path_is_not_confused_with_a_similar_filename()
+    {
+        using var repo = new TempRepo();
+        repo.Write("A1.cs", "class A1 { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        new GitClient(repo.Path).ReadFileAtRef(repo.Head(), "A[1].cs").ShouldBeNull();
+    }
+
+    [Fact]
+    public void a_present_path_with_pathspec_characters_returns_its_content()
+    {
+        using var repo = new TempRepo();
+        repo.Write("A[1].cs", "class LiteralName { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        new GitClient(repo.Path).ReadFileAtRef(repo.Head(), "A[1].cs")
+            .ShouldBe("class LiteralName { }");
+    }
+
+    [Fact]
+    public void source_provider_preserves_added_and_removed_files_from_a_nested_working_directory()
+    {
+        using var repo = new TempRepo();
+        repo.Write("sub/Removed.cs", "class Removed { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var first = repo.Head();
+
+        File.Delete(System.IO.Path.Combine(repo.Path, "sub", "Removed.cs"));
+        repo.Write("sub/Added.cs", "class Added { }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
+
+        var provider = new GitSemanticDiffSourceProvider(
+            new GitClient(System.IO.Path.Combine(repo.Path, "sub")));
+        var (before, after) = provider.Load(first, repo.Head());
+
+        before.Select(source => source.Path).ShouldBe(["sub/Removed.cs"]);
+        after.Select(source => source.Path).ShouldBe(["sub/Added.cs"]);
+    }
+
+    [Fact]
+    public void source_provider_reads_nested_working_tree_changes_from_the_repository_root()
+    {
+        using var repo = new TempRepo();
+        repo.Write("sub/Changed.cs", "class Changed { int Value = 1; }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        repo.Write("sub/Changed.cs", "class Changed { int Value = 2; }");
+        repo.Write("sub/Added.cs", "class Added { }");
+
+        var provider = new GitSemanticDiffSourceProvider(
+            new GitClient(System.IO.Path.Combine(repo.Path, "sub")));
+        var (before, after) = provider.Load(null, null);
+
+        before.Select(source => source.Path).ShouldBe(["sub/Changed.cs"]);
+        after.Select(source => source.Path).ShouldBe(["sub/Changed.cs", "sub/Added.cs"]);
+        after[0].Text.ShouldContain("Value = 2");
+        after[1].Text.ShouldContain("class Added");
+    }
+
+    [Fact]
+    public void changed_paths_preserve_literal_names_with_control_characters()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var repo = new TempRepo();
+        var tracked = "Odd\tName.cs";
+        var untracked = "New\nName.cs";
+        repo.Write(tracked, "class Odd { int Value = 1; }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+
+        repo.Write(tracked, "class Odd { int Value = 2; }");
+        repo.Write(untracked, "class New { }");
+        var client = new GitClient(repo.Path);
+
+        client.GetWorkingTreeChangedPaths().ShouldBe([tracked, untracked]);
+        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(null, null);
+        before.Select(source => source.Path).ShouldBe([tracked]);
+        after.Select(source => source.Path).ShouldBe([tracked, untracked]);
     }
 
     [Fact]

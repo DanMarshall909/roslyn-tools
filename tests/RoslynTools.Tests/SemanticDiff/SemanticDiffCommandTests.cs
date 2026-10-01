@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoslynTools;
+using RoslynTools.Core;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using Shouldly;
@@ -18,6 +19,40 @@ namespace RoslynTools.Tests.SemanticDiff;
 /// </summary>
 public sealed class SemanticDiffCommandTests
 {
+    [Fact]
+    public async Task git_content_read_failure_is_a_typed_error_in_the_shared_operation_and_cli()
+    {
+        var git = new RecordingGitClient
+        {
+            WorkingTreeChangedPaths = ["Broken.cs"],
+            ReadFailure = new GitContentReadException(
+                "HEAD", "Broken.cs", "git show HEAD:Broken.cs failed",
+                new InvalidOperationException("object unavailable")),
+        };
+        var sc = new ServiceCollection();
+        RoslynTools.Bootstrap.RegisterServices(sc);
+        sc.Replace(ServiceDescriptor.Singleton<IGitClient>(git));
+        using var services = sc.BuildServiceProvider();
+        var result = await services.GetRequiredService<SemanticDiffOperation>()
+            .ExecuteAsync(new SemanticDiffOperationRequest());
+
+        var error = result.Match(
+            _ => throw new ShouldAssertException("Expected Git read failure"),
+            value => value);
+        error.Kind.ShouldBe(RtErrorKind.ExternalToolFailure);
+        error.Context.ShouldNotBeNull()["reference"].ShouldBe("HEAD");
+        error.Context["path"].ShouldBe("Broken.cs");
+
+        var (exit, stdout, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "--json"], git);
+        exit.ShouldBe(1);
+        stderr.ShouldBeEmpty();
+        using var document = JsonDocument.Parse(stdout);
+        document.RootElement.GetProperty("kind").GetString().ShouldBe("ExternalToolFailure");
+        document.RootElement.GetProperty("context").GetProperty("path").GetString()
+            .ShouldBe("Broken.cs");
+    }
+
     [Fact]
     public async Task semantic_diff_with_a_changed_method_writes_a_git_style_diff_to_stdout()
     {
@@ -442,7 +477,7 @@ public sealed class SemanticDiffCommandTests
     ///     the working tree was read, and which ref-pairs were diffed — so a command test can
     ///     assert that <c>--from</c>/<c>--to</c> map straight through to the provider's Load.
     ///     Mirrors the real client's two error channels: validation throws, content reads
-    ///     return null for an absent key.
+    ///     return null for an absent key or throw for an unreadable object.
     /// </summary>
     private sealed class RecordingGitClient : IGitClient
     {
@@ -455,6 +490,8 @@ public sealed class SemanticDiffCommandTests
         public Dictionary<(string From, string To), IReadOnlyList<string>> ChangedPathsBetween { get; } = new();
 
         public Dictionary<string, string> FilesAtRef { get; } = new(StringComparer.Ordinal);
+
+        public GitContentReadException? ReadFailure { get; init; }
 
         public Dictionary<string, string> WorkingTreeFiles { get; } = new(StringComparer.Ordinal);
 
@@ -485,8 +522,12 @@ public sealed class SemanticDiffCommandTests
 
         public IReadOnlyList<string> GetWorkingTreeChangedPaths() => WorkingTreeChangedPaths;
 
-        public string? ReadFileAtRef(string reference, string path) =>
-            FilesAtRef.TryGetValue($"{reference}:{path}", out var text) ? text : null;
+        public string? ReadFileAtRef(string reference, string path)
+        {
+            if (ReadFailure is not null)
+                throw ReadFailure;
+            return FilesAtRef.TryGetValue($"{reference}:{path}", out var text) ? text : null;
+        }
 
         public string? ReadWorkingTreeFile(string path)
         {

@@ -47,7 +47,21 @@ internal sealed class SemanticDiffOperation(
         cancellationToken.ThrowIfCancellationRequested();
         var files = request.Files ?? [];
         var twoFileMode = files.Length == 2;
-        var (before, after) = LoadSources(request, files);
+        IReadOnlyList<SemanticDiffSource> before;
+        IReadOnlyList<SemanticDiffSource> after;
+        try
+        {
+            (before, after) = LoadSources(request, files);
+        }
+        catch (GitContentReadException exception)
+        {
+            return Task.FromResult(Result<SemanticDiffOperationResult, RtError>.Err(
+                RtError.ExternalToolFailure(exception.Message, new Dictionary<string, string>
+                {
+                    ["reference"] = exception.Reference,
+                    ["path"] = exception.Path,
+                })));
+        }
         var result = _engine.Compare(new SemanticDiffRequest(
             before,
             after,

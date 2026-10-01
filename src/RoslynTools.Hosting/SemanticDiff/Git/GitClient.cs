@@ -8,12 +8,14 @@ namespace RoslynTools.Services.SemanticDiff.Git;
 ///     The real <see cref="IGitClient" />: shells the <c>git</c> CLI via
 ///     <see cref="Process" />, scoped to a single working directory chosen at
 ///     construction. Repository / ref validation throws; content reads return
-///     <c>null</c> for an absent path (see <see cref="IGitClient" /> for the contract).
+///     <c>null</c> for a proven absent path and throw on Git failure
+///     (see <see cref="IGitClient" /> for the contract).
 /// </summary>
 internal sealed class GitClient : IGitClient
 {
     private readonly string _workingDirectory;
     private readonly string _gitExecutable;
+    private readonly Lazy<string> _repositoryRoot;
 
     public GitClient(string workingDirectory) : this(workingDirectory, "git")
     {
@@ -25,6 +27,7 @@ internal sealed class GitClient : IGitClient
             ?? throw new ArgumentNullException(nameof(workingDirectory));
         _gitExecutable = gitExecutable
             ?? throw new ArgumentNullException(nameof(gitExecutable));
+        _repositoryRoot = new Lazy<string>(ReadRepositoryRoot);
     }
 
     public void EnsureRepository()
@@ -42,19 +45,19 @@ internal sealed class GitClient : IGitClient
 
     public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef)
     {
-        var result = Run("diff", "--no-renames", "--name-only", fromRef, toRef);
-        EnsureSuccess(result, $"diff --no-renames --name-only {fromRef} {toRef}");
-        return SplitLines(result.StdOut);
+        var result = Run("diff", "--no-renames", "--name-only", "-z", fromRef, toRef);
+        EnsureSuccess(result, $"diff --no-renames --name-only -z {fromRef} {toRef}");
+        return SplitPaths(result.StdOut);
     }
 
     public IReadOnlyList<string> GetWorkingTreeChangedPaths()
     {
-        var trackedResult = Run("diff", "--no-renames", "--name-only", "HEAD");
-        EnsureSuccess(trackedResult, "diff --no-renames --name-only HEAD");
-        var untrackedResult = Run("ls-files", "--others", "--exclude-standard");
-        EnsureSuccess(untrackedResult, "ls-files --others --exclude-standard");
-        var tracked = SplitLines(trackedResult.StdOut);
-        var untracked = SplitLines(untrackedResult.StdOut);
+        var trackedResult = Run("diff", "--no-renames", "--name-only", "-z", "HEAD");
+        EnsureSuccess(trackedResult, "diff --no-renames --name-only -z HEAD");
+        var untrackedResult = Run("ls-files", "--others", "--exclude-standard", "--full-name", "-z");
+        EnsureSuccess(untrackedResult, "ls-files --others --exclude-standard --full-name -z");
+        var tracked = SplitPaths(trackedResult.StdOut);
+        var untracked = SplitPaths(untrackedResult.StdOut);
 
         // Dedup while preserving discovery order (tracked first, then untracked).
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -68,23 +71,49 @@ internal sealed class GitClient : IGitClient
 
     public string? ReadFileAtRef(string reference, string path)
     {
-        var result = Run("show", $"{reference}:{path}");
-        // A nonzero exit means the path did not exist at that ref — return null, do not
-        // throw: only repository / ref validation is an error.
-        return result.ExitCode == 0 ? result.StdOut : null;
+        try
+        {
+            // Git show can return nonzero for either an absent path or an unreadable
+            // object, and can even return success with empty output for an unmatched
+            // pathspec. Establish exact membership before reading the content.
+            // The changed-path APIs return root-relative names.
+            var tree = Run(
+                "ls-tree", "-r", "-z", "--name-only", "--full-tree",
+                reference, "--", $":(literal){path}");
+            EnsureSuccess(tree, $"ls-tree {reference} -- {path}");
+            if (!tree.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries)
+                .Contains(path, StringComparer.Ordinal))
+                return null;
+
+            var content = Run("show", $"{reference}:{path}");
+            EnsureSuccess(content, $"show {reference}:{path}");
+            return content.StdOut;
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new GitContentReadException(reference, path, exception.Message, exception);
+        }
     }
 
     public string? ReadWorkingTreeFile(string path)
     {
-        var full = Path.Combine(_workingDirectory, path);
+        var full = Path.Combine(_repositoryRoot.Value, path);
         return File.Exists(full) ? File.ReadAllText(full) : null;
     }
 
-    private static List<string> SplitLines(string text) =>
-        text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(static l => l.TrimEnd('\r'))
-            .Where(static l => l.Length > 0)
-            .ToList();
+    private static List<string> SplitPaths(string text) =>
+        text.Split('\0', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+    private string ReadRepositoryRoot()
+    {
+        var result = Run("rev-parse", "--show-toplevel");
+        EnsureSuccess(result, "rev-parse --show-toplevel");
+        var root = result.StdOut.TrimEnd('\r', '\n');
+        if (root.Length == 0)
+            throw new InvalidOperationException(
+                $"git rev-parse --show-toplevel returned no repository root in '{_workingDirectory}'");
+        return root;
+    }
 
     private void EnsureSuccess((int ExitCode, string StdOut, string StdErr) result, string command)
     {

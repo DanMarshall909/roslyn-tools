@@ -15,9 +15,10 @@ namespace RoslynTools.Services.SemanticDiff.Git;
 ///         <see cref="InvalidOperationException" /> for "not a git repository" and
 ///         <see cref="ArgumentException" /> for "invalid git ref" — and those propagate
 ///         to the CLI's existing user-error handler (stderr + exit 1). Content reads
-///         (<see cref="ReadFileAtRef" />, <see cref="ReadWorkingTreeFile" />) never throw
-///         for an absent path: they return <c>null</c>, which is what lets a file that
-///         exists on only one side classify correctly downstream.
+///         return <c>null</c> for a proven absent path, which lets a file that exists
+///         on only one side classify correctly downstream. A failed Git content read
+///         throws <see cref="GitContentReadException" />; the shared operation returns
+///         it as a typed external-tool error to either host.
 ///     </para>
 /// </summary>
 internal interface IGitClient
@@ -38,7 +39,7 @@ internal interface IGitClient
 
     /// <summary>
     ///     Paths changed between two refs:
-    ///     <c>git diff --no-renames --name-only &lt;from&gt; &lt;to&gt;</c>.
+    ///     <c>git diff --no-renames --name-only -z &lt;from&gt; &lt;to&gt;</c>.
     ///     <c>--no-renames</c> is mandatory so a class moved A.cs→B.cs lists <i>both</i>
     ///     paths, enabling cross-file move detection downstream.
     ///     Throws <see cref="InvalidOperationException" /> if git fails.
@@ -47,9 +48,10 @@ internal interface IGitClient
 
     /// <summary>
     ///     Paths changed in the working tree relative to <c>HEAD</c>: the union of
-    ///     <c>git diff --no-renames --name-only HEAD</c> (tracked, modified/deleted) and
-    ///     <c>git ls-files --others --exclude-standard</c> (untracked, not ignored), so a
-    ///     new un-added file counts as changed.
+    ///     <c>git diff --no-renames --name-only -z HEAD</c> (tracked, modified/deleted)
+    ///     and <c>git ls-files --others --exclude-standard --full-name -z</c>
+    ///     (untracked, not ignored), so a new un-added file counts as changed.
+    ///     Both lists preserve literal repository-root-relative paths.
     ///     Throws <see cref="InvalidOperationException" /> if either git command
     ///     fails or git cannot start; an empty list requires successful commands.
     /// </summary>
@@ -57,14 +59,15 @@ internal interface IGitClient
 
     /// <summary>
     ///     Content of <paramref name="path" /> at <paramref name="reference" />
-    ///     (<c>git show &lt;ref&gt;:&lt;path&gt;</c>). Returns <c>null</c> when the path did
-    ///     not exist at that ref (git exits nonzero) rather than throwing.
+    ///     (<c>git show &lt;ref&gt;:&lt;path&gt;</c>). Returns <c>null</c> only after a successful
+    ///     literal tree lookup proves the path absent. Throws
+    ///     <see cref="GitContentReadException" /> if the lookup or content read fails.
     /// </summary>
     string? ReadFileAtRef(string reference, string path);
 
     /// <summary>
     ///     Content of <paramref name="path" /> from the working tree (a filesystem read,
-    ///     resolved against the client's working directory). Returns <c>null</c> when the
+    ///     resolved against the repository root). Returns <c>null</c> when the
     ///     file is absent.
     /// </summary>
     string? ReadWorkingTreeFile(string path);

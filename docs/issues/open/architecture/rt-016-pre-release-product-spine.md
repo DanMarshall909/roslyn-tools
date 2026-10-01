@@ -138,8 +138,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   failed changed-path commands, and process startup errors instead of claiming
   a clean tree. The host Git adapter drains both output pipes and bounds error
   text. Queried suggestions remain Git-independent (ADR-0086).
-  `git show` still maps every nonzero exit to an absent path; that semantic-diff
-  ambiguity, semantic Git-context classification, and MCP omitted-query parity
+  Semantic diff now proves literal tree membership before treating a path as
+  absent, and returns a typed external-tool error for failed content reads
+  (ADR-0087). Semantic Git-context classification and MCP omitted-query parity
   remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
