@@ -186,6 +186,145 @@ public sealed class MoveOperationTests
         GetError(result).Message.ShouldContain("destination", Case.Insensitive);
     }
 
+    [Fact]
+    public async Task type_file_move_preview_preserves_disk_and_apply_relocates_rewritten_source()
+    {
+        using var project = new AdhocProjectBuilder("SampleProject")
+            .AddSource("Foo/Movable.cs", "namespace SampleProject.Foo; public class Movable { }");
+        var (previewWorkspace, previewSolution) = project.Build();
+        var sourcePath = Path.Combine(project.ProjectDir, "Foo", "Movable.cs");
+        var destinationPath = Path.Combine(project.ProjectDir, "Bar", "Movable.cs");
+        var originalBytes = await File.ReadAllBytesAsync(sourcePath);
+        var request = new MoveRequest(
+            MoveMode.TypeToNamespace,
+            Type: "SampleProject.Foo.Movable",
+            ToNamespace: "SampleProject.Bar",
+            MoveFile: true,
+            DryRun: true);
+
+        var preview = (await CreatePhysicalMoveOperation(
+            previewWorkspace,
+            previewSolution,
+            project.Directory).ExecuteAsync(request)).Unwrap();
+
+        preview.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        preview.AffectedPaths.ShouldContain(sourcePath);
+        preview.AffectedPaths.ShouldContain(destinationPath);
+        (await File.ReadAllBytesAsync(sourcePath)).SequenceEqual(originalBytes).ShouldBeTrue();
+        File.Exists(destinationPath).ShouldBeFalse();
+
+        var (applyWorkspace, applySolution) = project.Build();
+        var applied = (await CreatePhysicalMoveOperation(
+            applyWorkspace,
+            applySolution,
+            project.Directory).ExecuteAsync(request with { DryRun = false })).Unwrap();
+
+        applied.Status.ShouldBe(MutationExecutionStatus.Applied);
+        File.Exists(sourcePath).ShouldBeFalse();
+        (await File.ReadAllTextAsync(destinationPath))
+            .ShouldContain("namespace SampleProject.Bar;", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task namespace_file_move_preview_preserves_disk_and_apply_relocates_rewritten_source()
+    {
+        using var project = new AdhocProjectBuilder("Sample")
+            .AddSource(
+                "Features/Orders/Order.cs",
+                "namespace Sample.Features.Orders; public class Order { }")
+            .AddSource(
+                "Consumer.cs",
+                "using Sample.Features.Orders; class Consumer { Order Value = new(); }");
+        var (previewWorkspace, previewSolution) = project.Build();
+        var sourcePath = Path.Combine(project.ProjectDir, "Features", "Orders", "Order.cs");
+        var destinationPath = Path.Combine(project.ProjectDir, "Domain", "Orders", "Order.cs");
+        var consumerPath = Path.Combine(project.ProjectDir, "Consumer.cs");
+        var originalSource = await File.ReadAllBytesAsync(sourcePath);
+        var originalConsumer = await File.ReadAllBytesAsync(consumerPath);
+        var request = new MoveRequest(
+            MoveMode.NamespaceToNamespace,
+            Namespace: "Sample.Features.Orders",
+            ToNamespace: "Sample.Domain.Orders",
+            MoveFile: true,
+            DryRun: true);
+
+        var preview = (await CreatePhysicalMoveOperation(
+            previewWorkspace,
+            previewSolution,
+            project.Directory).ExecuteAsync(request)).Unwrap();
+
+        preview.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        preview.AffectedPaths.ShouldContain(sourcePath);
+        preview.AffectedPaths.ShouldContain(destinationPath);
+        preview.AffectedPaths.ShouldContain(consumerPath);
+        (await File.ReadAllBytesAsync(sourcePath)).SequenceEqual(originalSource).ShouldBeTrue();
+        (await File.ReadAllBytesAsync(consumerPath)).SequenceEqual(originalConsumer).ShouldBeTrue();
+        File.Exists(destinationPath).ShouldBeFalse();
+
+        var (applyWorkspace, applySolution) = project.Build();
+        var applied = (await CreatePhysicalMoveOperation(
+            applyWorkspace,
+            applySolution,
+            project.Directory).ExecuteAsync(request with { DryRun = false })).Unwrap();
+
+        applied.Status.ShouldBe(MutationExecutionStatus.Applied);
+        File.Exists(sourcePath).ShouldBeFalse();
+        (await File.ReadAllTextAsync(destinationPath))
+            .ShouldContain("namespace Sample.Domain.Orders;", Case.Sensitive);
+        (await File.ReadAllTextAsync(consumerPath))
+            .ShouldContain("using Sample.Domain.Orders;", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task namespace_file_move_rejects_existing_destination_without_writing()
+    {
+        using var project = new AdhocProjectBuilder("Sample")
+            .AddSource(
+                "Features/Orders/Order.cs",
+                "namespace Sample.Features.Orders; public class Order { }")
+            .AddSource(
+                "Domain/Orders/Order.cs",
+                "namespace Sample.Domain.Orders; public class Existing { }");
+        var (_, solution) = project.Build();
+        var sourcePath = Path.Combine(project.ProjectDir, "Features", "Orders", "Order.cs");
+        var destinationPath = Path.Combine(project.ProjectDir, "Domain", "Orders", "Order.cs");
+        var originalSource = await File.ReadAllBytesAsync(sourcePath);
+        var originalDestination = await File.ReadAllBytesAsync(destinationPath);
+
+        var result = await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "Sample.Features.Orders",
+                "Sample.Domain.Orders",
+                MoveFiles: true));
+
+        GetError(result).Message.ShouldContain("destination", Case.Insensitive);
+        (await File.ReadAllBytesAsync(sourcePath)).SequenceEqual(originalSource).ShouldBeTrue();
+        (await File.ReadAllBytesAsync(destinationPath)).SequenceEqual(originalDestination).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task namespace_file_move_rejects_source_outside_its_namespace_folder_without_writing()
+    {
+        using var project = new AdhocProjectBuilder("Sample")
+            .AddSource("Other/Order.cs", "namespace Sample.Features.Orders; public class Order { }");
+        var (_, solution) = project.Build();
+        var sourcePath = Path.Combine(project.ProjectDir, "Other", "Order.cs");
+        var destinationPath = Path.Combine(project.ProjectDir, "Domain", "Orders", "Order.cs");
+        var originalBytes = await File.ReadAllBytesAsync(sourcePath);
+
+        var result = await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "Sample.Features.Orders",
+                "Sample.Domain.Orders",
+                MoveFiles: true));
+
+        GetError(result).Message.ShouldContain("not under namespace directory", Case.Insensitive);
+        (await File.ReadAllBytesAsync(sourcePath)).SequenceEqual(originalBytes).ShouldBeTrue();
+        File.Exists(destinationPath).ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData("WageClaim.Calculation.Domain")]
     [InlineData("WageClaims.Domain")]

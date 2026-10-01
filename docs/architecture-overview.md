@@ -172,9 +172,9 @@ Services use injected logging for diagnostics and typed errors for invalid
 input; a source test rejects direct `RtConsole` and `RtLog` calls in service
 code. Host composition owns the console logger; standalone service constructors
 use silent defaults and the source test rejects concrete console logger creation
-in Services. The remaining legacy cross-project move helper returns preview
-lines to its caller instead of rendering them directly; the source ratchet also
-rejects `RtResultRenderer` calls in Services. See
+in Services. Move previews and applications use the typed `MoveOperation` and
+prepared change-set path; the former direct-write move helpers have been
+retired. The source ratchet also rejects `RtResultRenderer` calls in Services. See
 [ADR-0060](adr/0060-service-diagnostics-without-ambient-console.md),
 [ADR-0061](adr/0061-host-owned-console-logger.md), and
 [ADR-0062](adr/0062-legacy-move-preview-result.md).

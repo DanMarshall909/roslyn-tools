@@ -29,16 +29,11 @@ public class MoveIntegration
             .AddSource("Helper.cs", helperSource)
             .AddSource("Target.cs", targetSource);
 
-        var (workspace, solution) = project.Build();
-        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
-
-        await new MoveService().ExecuteSingleTypeMoveAsync(
-            workspace,
+        var (_, solution) = project.Build();
+        var preparation = (await new MoveService().PrepareAsync(
             solution,
-            "Foo.Target",
-            "Bar",
-            false,
-            false);
+            new TypeToNamespaceMove("Foo.Target", "Bar", MoveFile: false))).Unwrap();
+        await project.ApplySolutionAsync(solution, preparation.Solution);
 
         var movedSource = await project.ReadSourceAsync("Target.cs");
 
@@ -70,49 +65,15 @@ public class MoveIntegration
             .AddSource("Target.cs", targetSource)
             .AddSource("Consumer.cs", consumerSource);
 
-        var (workspace, solution) = project.Build();
-        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
-
-        await new MoveService().ExecuteSingleTypeMoveAsync(
-            workspace,
+        var (_, solution) = project.Build();
+        var preparation = (await new MoveService().PrepareAsync(
             solution,
-            "Foo.Target",
-            "Bar",
-            false,
-            false);
+            new TypeToNamespaceMove("Foo.Target", "Bar", MoveFile: false))).Unwrap();
+        await project.ApplySolutionAsync(solution, preparation.Solution);
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 
         consumerAfter.ShouldContain("using Bar;", Case.Sensitive);
-    }
-
-    [Fact]
-    public async Task handles_single_type_move_with_move_file_relocates_source_file_to_match_target_namespace()
-    {
-        const string source = """
-                              namespace SampleProject.Foo;
-                              public class Movable
-                              {
-                                  public void Run() { }
-                              }
-                              """;
-
-        using var project = new AdhocProjectBuilder("SampleProject")
-            .AddSource("Foo/Movable.cs", source);
-
-        var (workspace, solution) = project.Build();
-        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
-
-        await new MoveService().ExecuteSingleTypeMoveAsync(
-            workspace,
-            solution,
-            "SampleProject.Foo.Movable",
-            "SampleProject.Bar",
-            true,
-            false);
-
-        Assert.False(project.SourceExists("Foo/Movable.cs"), "old folder should not contain the file");
-        Assert.True(project.SourceExists("Bar/Movable.cs"), "file should be relocated to new folder");
     }
 
     [Fact]
@@ -137,16 +98,11 @@ public class MoveIntegration
             .AddSource("MovedFile.cs", movedFileSource)
             .AddSource("Consumer.cs", consumerSource);
 
-        var (workspace, solution) = project.Build();
-        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
-
-        await new MoveService().ExecuteSingleTypeMoveAsync(
-            workspace,
+        var (_, solution) = project.Build();
+        var preparation = (await new MoveService().PrepareAsync(
             solution,
-            "Foo.Target",
-            "Bar",
-            false,
-            false);
+            new TypeToNamespaceMove("Foo.Target", "Bar", MoveFile: false))).Unwrap();
+        await project.ApplySolutionAsync(solution, preparation.Solution);
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 
@@ -175,16 +131,11 @@ public class MoveIntegration
             .AddSource("Target.cs", targetSource)
             .AddSource("Consumer.cs", consumerSource);
 
-        var (workspace, solution) = project.Build();
-        using var trust = RepositoryTrustContext.UseExplicitTrust(project.Directory);
-
-        await new MoveService().ExecuteSingleTypeMoveAsync(
-            workspace,
+        var (_, solution) = project.Build();
+        var preparation = (await new MoveService().PrepareAsync(
             solution,
-            "Foo.Target",
-            "Bar",
-            false,
-            false);
+            new TypeToNamespaceMove("Foo.Target", "Bar", MoveFile: false))).Unwrap();
+        await project.ApplySolutionAsync(solution, preparation.Solution);
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 

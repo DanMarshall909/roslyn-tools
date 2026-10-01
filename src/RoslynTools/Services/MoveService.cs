@@ -4,8 +4,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -17,22 +15,11 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveService : IRtService
 {
-    private readonly ILogger<MoveService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
-    public MoveService()
-        : this(NullLogger<MoveService>.Instance, new SolutionChangeWriter())
-    {
-    }
-
-    public MoveService(ILogger<MoveService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null)
+    public MoveService(ISymbolResolutionService? symbols = null)
     {
         _symbols = symbols ?? new SymbolResolutionService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
     }
     // ──────────────────────────────────────────────────────────────
     //  Entry points
@@ -845,213 +832,8 @@ internal class MoveService : IRtService
         : StringComparer.Ordinal;
 
     /// <summary>
-    /// Moves a namespace between projects
+    /// Rewrites a type's containing namespace declaration.
     /// </summary>
-    internal async Task ExecuteNamespaceMoveAsync(
-        Workspace workspace,
-        Solution solution,
-        string sourceNamespace,
-        string targetNamespace,
-        bool moveFile,
-        bool dryRun)
-    {
-        var originalSolution = workspace.CurrentSolution;
-
-        var (updated, declarationFiles, projectDir, rootNamespace, changedFiles) =
-            await ScanSolutionForNamespaceAsync(solution, sourceNamespace, targetNamespace);
-
-        if (changedFiles == 0)
-        {
-            _logger.RtInfo("No types found in namespace '{SourceNamespace}'.", sourceNamespace);
-            return;
-        }
-
-        _logger.RtInfo(
-            "Rewriting '{SourceNamespace}' -> '{TargetNamespace}': {DeclarationFileCount} declaration file(s), {ChangedFileCount} total file(s) changed.",
-            sourceNamespace,
-            targetNamespace,
-            declarationFiles.Count,
-            changedFiles);
-
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
-
-        ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile,
-            dryRun);
-    }
-
-    /// <summary>
-    /// Moves a single type between projects
-    /// </summary>
-    internal async Task ExecuteSingleTypeMoveAsync(
-        Workspace workspace,
-        Solution sln,
-        string fqn,
-        string targetNamespace,
-        bool moveFile,
-        bool dryRun)
-    {
-        var sym = await _symbols.FindTypeByFqnAsync(sln, fqn);
-        var oldNamespace = sym.ContainingNamespace.ToDisplayString();
-
-        _logger.RtInfo("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(),
-            oldNamespace, targetNamespace);
-
-        var (declarationFiles, projectDir, rootNamespace) = CollectDeclarationPaths(sln, sym);
-
-        // Capture references BEFORE the rewrite. After RewriteAllDeclarationsAsync, consumer
-        // references that resolved through `using <oldNamespace>;` become unbound, and
-        // SymbolFinder against the post-rewrite compilation can no longer find them.
-        // Co-located types in the same file move with the namespace declaration, so capture
-        // references to all of them — not just the named target.
-        var movedTypes = await CollectCoLocatedTypesAsync(sln, (INamedTypeSymbol)sym);
-        var references = (await Task.WhenAll(movedTypes.Select(t => SymbolFinder.FindReferencesAsync(t, sln))))
-            .SelectMany(r => r)
-            .ToList();
-
-        sln = await RewriteAllDeclarationsAsync(sln, sym, targetNamespace);
-
-        sln = await ApplyReferenceUsingsAsync(sln, references, oldNamespace, targetNamespace);
-
-        await _solutionChangeWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun);
-
-        if (moveFile && projectDir != null && rootNamespace != null)
-            MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);
-        else if (!moveFile)
-            _logger.RtInfo(
-                "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    //  Namespace-move helpers
-    // ──────────────────────────────────────────────────────────────
-
-    private async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int
-            ChangedFiles)>
-        ScanSolutionForNamespaceAsync(Solution solution, string sourceNamespace, string targetNamespace)
-    {
-        var declarationFiles = new List<string>();
-        string? projectDir = null;
-        string? rootNamespace = null;
-        var changedFiles = 0;
-
-        foreach (var project in solution.Projects)
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
-
-                var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
-                if (!result.Changed) continue;
-
-                solution = result.Solution;
-                changedFiles++;
-
-                if (result.IsDeclarationFile)
-                {
-                    declarationFiles.Add(doc.FilePath);
-                    if (projectDir == null)
-                        (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
-                }
-            }
-
-        return (solution, declarationFiles, projectDir, rootNamespace, changedFiles);
-    }
-
-    private async Task<DocumentRewriteResult> RewriteDocumentNamespaceAsync(
-        Solution solution,
-        Document doc,
-        string sourceNamespace,
-        string targetNamespace)
-    {
-        var root = await doc.GetSyntaxRootAsync();
-        if (root == null) return new DocumentRewriteResult(false, solution, false, null);
-
-        var rewriter = new NamespaceMoveRewriter(sourceNamespace, targetNamespace);
-        var newRoot = rewriter.Visit(root);
-
-        if (!rewriter.Changed) return new DocumentRewriteResult(false, solution, false, null);
-
-        solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
-
-        var meta = rewriter.IsDeclarationFile ? ResolveProjectMeta(doc.Project) : ((string?, string?)?)null;
-        return new DocumentRewriteResult(true, solution, rewriter.IsDeclarationFile, meta);
-    }
-
-    private (string? ProjectDir, string? RootNamespace) ResolveProjectMeta(Project project)
-    {
-        var dir = Path.GetDirectoryName(project.FilePath);
-        var ns = project.DefaultNamespace;
-        if (string.IsNullOrEmpty(ns))
-            ns = Path.GetFileNameWithoutExtension(project.FilePath ?? "");
-        return (dir, ns);
-    }
-
-    private void ApplyFileMoveOrNote(
-        List<string> declarationFiles,
-        string? projectDir,
-        string? rootNamespace,
-        string sourceNamespace,
-        string targetNamespace,
-        bool moveFile,
-        bool dryRun)
-    {
-        if (moveFile && projectDir != null && rootNamespace != null)
-            MoveSourceFiles(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, dryRun);
-        else if (!moveFile && declarationFiles.Count > 0)
-            _logger.RtInfo(
-                "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    //  Single-type helpers
-    // ──────────────────────────────────────────────────────────────
-
-    private async Task<List<INamedTypeSymbol>> CollectCoLocatedTypesAsync(
-        Solution sln, INamedTypeSymbol primary)
-    {
-        var trees = primary.DeclaringSyntaxReferences
-            .Select(r => r.SyntaxTree)
-            .ToHashSet();
-
-        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { primary };
-        var result = new List<INamedTypeSymbol> { primary };
-
-        foreach (var tree in trees)
-        {
-            var doc = sln.GetDocument(tree);
-            if (doc == null) continue;
-
-            var semanticModel = await doc.GetSemanticModelAsync();
-            if (semanticModel == null) continue;
-
-            var root = await tree.GetRootAsync();
-            foreach (var typeDecl in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
-                if (semanticModel.GetDeclaredSymbol(typeDecl) is INamedTypeSymbol named && seen.Add(named))
-                    result.Add(named);
-        }
-
-        return result;
-    }
-
-    private (List<string> Paths, string? ProjectDir, string? RootNamespace) CollectDeclarationPaths(
-        Solution sln, ISymbol symbol)
-    {
-        var paths = new List<string>();
-        string? projectDir = null;
-        string? rootNamespace = null;
-
-        foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
-        {
-            var doc = sln.GetDocument(syntaxRef.SyntaxTree);
-            if (doc?.FilePath == null) continue;
-
-            paths.Add(doc.FilePath);
-            if (projectDir == null)
-                (projectDir, rootNamespace) = ResolveProjectMeta(doc.Project);
-        }
-
-        return (paths, projectDir, rootNamespace);
-    }
-
     private async Task<Solution> RewriteAllDeclarationsAsync(
         Solution solution,
         ISymbol symbol,
@@ -1275,57 +1057,6 @@ internal class MoveService : IRtService
     // ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Moves source files from one directory to another within a solution.
-    /// </summary>
-    internal void MoveSourceFiles(
-        List<string> filePaths,
-        string projectDir,
-        string rootNamespace,
-        string oldNamespace,
-        string targetNamespace,
-        bool dryRun)
-    {
-        var oldRelDir = NamespaceToRelativeDir(oldNamespace, rootNamespace, projectDir);
-        var newRelDir = NamespaceToRelativeDir(targetNamespace, rootNamespace, projectDir);
-
-        foreach (var filePath in filePaths)
-        {
-            var fileRelPath = Path.GetRelativePath(projectDir, filePath);
-
-            if (!fileRelPath.StartsWith(oldRelDir, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.RtInfo(
-                    "WARNING: '{FileRelativePath}' does not start with '{OldRelativeDirectory}' -- file not moved.",
-                    fileRelPath, oldRelDir);
-                continue;
-            }
-
-            var remainder = fileRelPath[oldRelDir.Length..];
-            var newRelPath = newRelDir + remainder;
-            var newFilePath = Path.Combine(projectDir, newRelPath);
-
-            if (dryRun)
-            {
-                _logger.RtInfo("[dry-run] Would move: {SourcePath} -> {TargetPath}", filePath, newFilePath);
-                continue;
-            }
-
-            if (File.Exists(newFilePath))
-            {
-                _logger.RtInfo("WARNING: Target already exists: {TargetPath} -- file not moved.", newFilePath);
-                continue;
-            }
-
-            var newDir = Path.GetDirectoryName(newFilePath)!;
-            if (!Directory.Exists(newDir))
-                Directory.CreateDirectory(newDir);
-
-            File.Move(filePath, newFilePath);
-            _logger.RtInfo("Moved: {SourcePath} -> {TargetPath}", filePath, newFilePath);
-        }
-    }
-
-    /// <summary>
     /// Converts a namespace to its relative path within the solution.
     /// </summary>
     internal string NamespaceToRelativeDir(
@@ -1359,10 +1090,4 @@ internal class MoveService : IRtService
 
         return ns.Replace('.', Path.DirectorySeparatorChar);
     }
-
-    private record DocumentRewriteResult(
-        bool Changed,
-        Solution Solution,
-        bool IsDeclarationFile,
-        (string? ProjectDir, string? RootNamespace)? ProjectMeta);
 }

@@ -78,6 +78,9 @@
   - [x] Retire the test-only direct-write cross-project move helper and its
     project-file save path after migrating target lookup, namespace rewrite,
     SDK-glob, same-project, and option-validation coverage to the current path.
+  - [x] Retire test-only single-type and namespace direct-write move entrypoints;
+    prove physical type and namespace file-move preview/apply, collisions, and
+    source-folder validation on the prepared path.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

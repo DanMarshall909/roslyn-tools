@@ -201,7 +201,7 @@ public sealed class HostDependencyRatchetTests
             typeof(AddDependencyService), typeof(FindCallersService),
             typeof(FindDuplicatesService), typeof(ImportDirectiveService),
             typeof(InlineMethodService), typeof(MakeStaticService),
-            typeof(MoveService), typeof(RemoveParamService),
+            typeof(RemoveParamService),
             typeof(ReplaceTypeService), typeof(TransformParametersService)
         ];
         foreach (var serviceType in loggedServices)

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -28,32 +28,22 @@ public sealed class NamespaceMoves
                                          }
                                          """);
 
-        var (workspace, solution) = project.Build();
-        using (workspace)
-        {
-            var writer = new CapturingSolutionChangeWriter();
-            var service = new MoveService(NullLogger<MoveService>.Instance, writer);
+        var (_, solution) = project.Build();
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove("Sample.Legacy", "Sample.Domain", MoveFiles: false))).Unwrap();
 
-            await service.ExecuteNamespaceMoveAsync(
-                workspace,
-                solution,
-                "Sample.Legacy",
-                "Sample.Domain",
-                false,
-                false);
+        var widgetText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "Widget.cs");
+        var consumerText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "Consumer.cs");
 
-            var widgetText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Widget.cs");
-            var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
-
-            widgetText.ShouldContain("namespace Sample.Domain;", Case.Sensitive);
-            consumerText.ShouldContain("using Sample.Domain;", Case.Sensitive);
-            consumerText.ShouldContain("public Sample.Domain.Widget Build() => new Sample.Domain.Widget();", Case.Sensitive);
-            writer.DryRun.ShouldBe(false);
-        }
+        widgetText.ShouldContain("namespace Sample.Domain;", Case.Sensitive);
+        consumerText.ShouldContain("using Sample.Domain;", Case.Sensitive);
+        consumerText.ShouldContain("public Sample.Domain.Widget Build() => new Sample.Domain.Widget();", Case.Sensitive);
+        preparation.ToChangeSet(solution).HasChanges.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task leave_the_solution_unchanged_when_no_namespace_matches()
+    public async Task report_not_found_without_changing_the_solution_when_no_namespace_matches()
     {
         using var project = new AdhocProjectBuilder("Sample");
         project.AddSource("Widget.cs", """
@@ -64,21 +54,17 @@ public sealed class NamespaceMoves
                                        }
                                        """);
 
-        var (workspace, solution) = project.Build();
-        using (workspace)
-        {
-            var writer = new CapturingSolutionChangeWriter();
-            var service = new MoveService(NullLogger<MoveService>.Instance, writer);
+        var (_, solution) = project.Build();
+        var result = await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove("Sample.Missing", "Sample.Domain", MoveFiles: false));
 
-            await service.ExecuteNamespaceMoveAsync(
-                workspace,
-                solution,
-                "Sample.Missing",
-                "Sample.Domain",
-                false,
-                false);
-
-            writer.Solution.ShouldBeNull();
-        }
+        var error = result.Match(
+            _ => throw new ShouldAssertException("Expected a not-found result."),
+            failure => failure);
+        error.Kind.ShouldBe(RtErrorKind.NotFound);
+        error.Message.ShouldContain("Sample.Missing", Case.Sensitive);
+        (await project.ReadSourceAsync("Widget.cs"))
+            .ShouldContain("namespace Sample.Current;", Case.Sensitive);
     }
 }

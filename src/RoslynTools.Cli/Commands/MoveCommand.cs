@@ -28,7 +28,7 @@ internal sealed class MoveCommand(
             "Target project for a type-to-project move");
         var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default)");
         var moveFileOpt = new Option<bool>("--move-file",
-            "Move declaration files for namespace modes; cannot be combined with --to-project");
+            "Move declaration files to the target namespace folder for type or namespace moves; cannot be combined with --to-project");
 
         var command = new Command(
             "move",

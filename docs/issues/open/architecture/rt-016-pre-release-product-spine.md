@@ -158,9 +158,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   paths, and sibling-prefix source rejection. The obsolete test-only
   `ExecuteCrossProjectMoveAsync` path and its direct project-file save helper
   have been removed; meaningful behavior checks now target `PrepareAsync` and
-  `MoveOperation`. The remaining legacy `MoveSourceFiles` path still calls
-  `File.Move` from test-only methods and must be retired before any apply
-  admission claim.
+  `MoveOperation`. The test-only `MoveSourceFiles`, single-type, and namespace
+  direct-write entrypoints are now retired after their useful behavior checks
+  moved to prepared preview/apply tests. `MoveService` no longer calls `File.Move`
+  or holds a solution writer; broader apply admission still depends on the
+  remaining platform gates.
 
 ## Dependencies and reconciliation
 
