@@ -310,6 +310,22 @@ source-built JSON stdout changed from 2,705 to 409 bytes. This is one
 suggestion-response measurement; the impact operation and end-to-end workflow
 remain open.
 
+Explicit references to one complete named C# symbol now produce one populated
+`relationships references` read workflow through CLI and MCP; MCP requires an
+absolute solution path. Exact `type`, `method`, `field`, `property`, and `event`
+kind cues are carried to the read step. Constructor, namespace, parameter,
+member, and specific type-subtype cues stay on general discovery because the
+resolver cannot select their requested subjects exactly. The source-built
+`Find all references to WorkspaceLoader` suggestion was 881 JSON stdout bytes.
+Its exact suggested CLI call succeeded
+but returned a `Partial`, truncated page of 100 out of 289 references without a
+continuation token (60,774 JSON stdout bytes). The workflow therefore stops
+short of an exhaustive claim. These are per-call response measurements, not
+end-to-end token savings. Generic, ambiguous, project/package-reference,
+qualified-scope, unsupported-kind, and proposed-impact requests retain their
+previous routes; the specialized step does not silently discard filters it
+cannot express.
+
 ### Second-repository read workflow: Flo
 
 The source-built `rt` was run from the already trusted

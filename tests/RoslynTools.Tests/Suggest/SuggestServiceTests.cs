@@ -284,7 +284,8 @@ public sealed class SuggestServiceTests
             "Show references to the method named Plan before I review it"));
 
         response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
-        response.Results.Single().Name.ShouldBe("relationships");
+        response.Workflow.ShouldNotBeNull().Steps.Single().CliInvocation
+            .ShouldBe("rt inspect relationships references Plan --kind method --json");
     }
 
     [Fact]
@@ -363,7 +364,6 @@ public sealed class SuggestServiceTests
     [InlineData("Move CycleEngine to another project", "move")]
     [InlineData("Delete IRtCommand", "delete-unreferenced")]
     [InlineData("Show dependencies of CycleEngine", "dependency-graph")]
-    [InlineData("Find references to CycleEngine", "relationships")]
     [InlineData("Find violations of configured project layering rules", "check-architecture")]
     [InlineData("Analyze project impact", "dependency-graph")]
     public void requests_without_proposed_change_impact_keep_their_existing_route(
@@ -430,9 +430,7 @@ public sealed class SuggestServiceTests
     [InlineData("Show symbol dependencies of WorkspaceLoader", "dependency-graph")]
     [InlineData("Add a project dependency from Core to Hosting", "add-dependency")]
     [InlineData("Extract an interface for a constructor-injected dependency", "extract-interface")]
-    [InlineData("Find references to Package", "relationships")]
     [InlineData("Show dependencies of Package", "dependency-graph")]
-    [InlineData("Find references to PackageReference", "relationships")]
     public void supported_dependency_queries_keep_their_existing_catalogue_route(
         string query,
         string expectedCommand)
@@ -483,7 +481,6 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
-    [InlineData("Find references to Diagnostic", "relationships")]
     [InlineData("Compare C# declarations before and after this change", "semantic-diff")]
     [InlineData("Compare C# declarations before and after fixing compiler warnings", "semantic-diff")]
     [InlineData("Find baseline deltas for architecture violations", "check-architecture")]
@@ -551,6 +548,164 @@ public sealed class SuggestServiceTests
         stopCondition.ShouldNotBeNull();
         stopCondition.ShouldContain("Partial");
         stopCondition.ShouldContain("truncated");
+    }
+
+    [Theory]
+    [InlineData("Find all references to WorkspaceLoader", "WorkspaceLoader", null)]
+    [InlineData("Find references to CycleEngine", "CycleEngine", null)]
+    [InlineData("Find references to Package", "Package", null)]
+    [InlineData("Find references to Diagnostic", "Diagnostic", null)]
+    [InlineData("Show references to the method named Plan before I review it", "Plan", "method")]
+    [InlineData("List every reference to RoslynTools.Core.IRtCommand", "RoslynTools.Core.IRtCommand", null)]
+    [InlineData("Find references to PackageReference", "PackageReference", null)]
+    [InlineData("Find references to WorkspaceLoader.", "WorkspaceLoader", null)]
+    [InlineData("Find references to WorkspaceLoader?", "WorkspaceLoader", null)]
+    [InlineData("Find references to WorkspaceLoader, please", "WorkspaceLoader", null)]
+    [InlineData("Please find references to WorkspaceLoader", "WorkspaceLoader", null)]
+    [InlineData("I need to find references to WorkspaceLoader", "WorkspaceLoader", null)]
+    [InlineData("Find references to RoslynTools.Services.Suggest.SuggestService._catalog", "RoslynTools.Services.Suggest.SuggestService._catalog", null)]
+    [InlineData("Find references to the symbol named _catalog", "_catalog", null)]
+    [InlineData("Find references to the type named WorkspaceLoader", "WorkspaceLoader", "type")]
+    [InlineData("Find references to the field named _catalog", "_catalog", "field")]
+    [InlineData("Find references to a field named _catalog", "_catalog", "field")]
+    [InlineData("Find references to the property named Current", "Current", "property")]
+    [InlineData("Find references to the event named Changed", "Changed", "event")]
+    [InlineData("Find references to _catalog", "_catalog", null)]
+    [InlineData("Find references to the method named executeAsync", "executeAsync", "method")]
+    [InlineData("Find references to executeAsync", "executeAsync", null)]
+    public void named_reference_search_returns_one_invokable_read_workflow(string query, string symbol, string? kind)
+    {
+        var catalog = new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"),
+            Info("rename", category: "refactor", whenToUse: "Rename a symbol"));
+        var solutionPath = Path.GetFullPath("RoslynTools.slnx");
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            query, Top: 3, Solution: solutionPath));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        var step = response.Workflow.ShouldNotBeNull().Steps.Single();
+        step.CliInvocation.ShouldBe(
+            $"rt inspect relationships references {symbol}"
+            + (kind is null ? "" : $" --kind {kind}")
+            + $" --solution {solutionPath} --json");
+        step.McpTool.ShouldBe("relationships");
+        step.McpArguments.ShouldNotBeNull()["symbol"].ShouldBe(symbol);
+        step.McpArguments["mode"].ShouldBe("References");
+        step.McpArguments["solution"].ShouldBe(solutionPath);
+        if (kind is null)
+            step.McpArguments.ShouldNotContainKey("kind");
+        else
+            step.McpArguments["kind"].ShouldBe(kind);
+        step.StopCondition.ShouldContain("Partial");
+        step.StopCondition.ShouldContain("truncated");
+        step.StopCondition.ShouldContain("ambiguous");
+        step.StopCondition.ShouldContain("external consumers");
+    }
+
+    [Fact]
+    public void reference_intent_is_unsupported_when_the_read_route_is_absent()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("rename", category: "refactor", whenToUse: "Rename a symbol")))
+            .Suggest(new SuggestRequest("Find all references to WorkspaceLoader"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("relationships-references");
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("RoslynTools.slnx")]
+    public void reference_search_without_absolute_solution_keeps_cli_route_only(string? solution)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships")))
+            .Suggest(new SuggestRequest("Find references to WorkspaceLoader", Solution: solution));
+
+        var step = response.Workflow.ShouldNotBeNull().Steps.Single();
+        step.CliInvocation.ShouldBe("rt inspect relationships references WorkspaceLoader"
+                                    + (solution is null ? "" : " --solution RoslynTools.slnx") + " --json");
+        step.McpTool.ShouldBeNull();
+        step.McpArguments.ShouldBeNull();
+        step.McpUnavailableReason.ShouldNotBeNull().ShouldContain("absolute solution path");
+    }
+
+    [Theory]
+    [InlineData("Find all references")]
+    [InlineData("Find references to the interface")]
+    [InlineData("Find references to the field")]
+    [InlineData("Find references to the property")]
+    [InlineData("Find references to the event")]
+    [InlineData("Find references to the record")]
+    [InlineData("Find references to the parameter")]
+    [InlineData("Find references to the constructor named WorkspaceLoader")]
+    [InlineData("Find references to the namespace named RoslynTools")]
+    [InlineData("Find references to the parameter named cancellationToken")]
+    [InlineData("Find references to the class named WorkspaceLoader")]
+    [InlineData("Find references to the interface named IRtCommand")]
+    [InlineData("Find references to the record named Request")]
+    [InlineData("Find references to the struct named Span")]
+    [InlineData("Find references to the enum named Mode")]
+    [InlineData("Find references to the delegate named Handler")]
+    [InlineData("Find references to the member named WorkspaceLoader")]
+    [InlineData("Find references to package")]
+    [InlineData("Find references to project")]
+    [InlineData("Find references to WorkspaceLoader<T>")]
+    [InlineData("Find references to a named C# symbol before changing it")]
+    [InlineData("Find references to C++ code")]
+    [InlineData("Find references to Run(int)")]
+    [InlineData("Find references to Run (int)")]
+    [InlineData("Find references to global::WorkspaceLoader")]
+    [InlineData("Find references to WorkspaceLoader[]")]
+    [InlineData("Find references to WorkspaceLoader and CycleEngine")]
+    [InlineData("Find references to WorkspaceLoader, CycleEngine")]
+    [InlineData("Find project references to Core")]
+    [InlineData("Find references to Core project")]
+    [InlineData("Find references to the Core project")]
+    [InlineData("Find references to Foo package")]
+    [InlineData("Find references to WorkspaceLoader in project Core")]
+    [InlineData("Find references to WorkspaceLoader in Core project")]
+    [InlineData("Find references to WorkspaceLoader only in tests")]
+    [InlineData("Find references to WorkspaceLoader excluding tests")]
+    [InlineData("Find references to WorkspaceLoader including tests")]
+    [InlineData("Find references to WorkspaceLoader with kind type")]
+    [InlineData("Find references to WorkspaceLoader with callers")]
+    [InlineData("Find references to WorkspaceLoader --kind type")]
+    [InlineData("Find references to WorkspaceLoader --limit 5")]
+    [InlineData("Find references to WorkspaceLoader --solution Other.slnx")]
+    [InlineData("Find references to WorkspaceLoader in Other.slnx")]
+    [InlineData("Find references to WorkspaceLoader from main")]
+    [InlineData("In project Core, find references to WorkspaceLoader")]
+    [InlineData("Only in tests, find references to WorkspaceLoader")]
+    [InlineData("With kind type, find references to WorkspaceLoader")]
+    [InlineData("--limit 5 find references to WorkspaceLoader")]
+    [InlineData("For tests, find references to WorkspaceLoader")]
+    [InlineData("Find references to WorkspaceLoader before I review it limited to 5")]
+    [InlineData("Find references to WorkspaceLoader before I review it for tests")]
+    public void reference_queries_outside_the_one_symbol_workflow_keep_catalogue_discovery(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships")))
+            .Suggest(new SuggestRequest(query));
+
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Fact]
+    public void change_impact_guard_takes_precedence_over_reference_workflow()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships")))
+            .Suggest(new SuggestRequest(
+                "What breaks if I move WorkspaceLoader? Find references to WorkspaceLoader"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("change-impact");
+        response.Workflow.ShouldBeNull();
     }
 
     [Fact]

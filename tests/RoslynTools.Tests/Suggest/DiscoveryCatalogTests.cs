@@ -76,6 +76,21 @@ public sealed class DiscoveryCatalogTests
     }
 
     [Fact]
+    public void named_reference_search_uses_the_real_read_route()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        var response = provider.GetRequiredService<SuggestService>().Suggest(new SuggestRequest(
+            "Find all references to WorkspaceLoader", 3, Path.GetFullPath("RoslynTools.slnx")));
+
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldNotBeNull().Steps.Single().McpTool.ShouldBe("relationships");
+        response.Workflow.Steps.Single().McpArguments.ShouldNotBeNull()["mode"].ShouldBe("References");
+    }
+
+    [Fact]
     public async Task advertised_feedback_examples_parse_on_the_real_cli_without_execution()
     {
         foreach (var example in HostCommandMetadata.Feedback.Examples)

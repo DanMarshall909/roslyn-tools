@@ -62,6 +62,9 @@ internal sealed class SuggestService : IRtService
         if (ImplementationSearchSymbol(request.Query) is { } symbol)
             return SuggestImplementations(symbol, request.Solution);
 
+        if (ReferenceSearchTarget(request.Query) is { } referenceTarget)
+            return SuggestReferences(referenceTarget.Symbol, referenceTarget.Kind, request.Solution);
+
         if (IsWorkingTreeReview(request.Query))
             return SuggestWorkingTreeReview(request.Query, request.Solution);
 
@@ -292,6 +295,38 @@ internal sealed class SuggestService : IRtService
             Workflow: new SuggestWorkflow([step]));
     }
 
+    private SuggestResponse SuggestReferences(string symbol, string? kind, string? solution)
+    {
+        if (_catalog.All.All(info => info.Name != "relationships"))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "relationships-references");
+
+        var cli = $"rt inspect relationships references {symbol}"
+                  + (kind is null ? "" : $" --kind {kind}")
+                  + (string.IsNullOrWhiteSpace(solution) ? "" : $" --solution {QuoteCliArgument(solution)}")
+                  + " --json";
+        var hasMcpSolution = !string.IsNullOrWhiteSpace(solution)
+                             && Path.IsPathFullyQualified(solution);
+        Dictionary<string, string>? arguments = hasMcpSolution
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["symbol"] = symbol,
+                ["mode"] = "References",
+                ["solution"] = solution!
+            }
+            : null;
+        if (kind is not null)
+            arguments?.Add("kind", kind);
+        var step = new SuggestWorkflowStep(
+            cli,
+            hasMcpSolution ? "relationships" : null,
+            arguments,
+            "Read semantic references of the named symbol before editing it.",
+            "Stop on an unresolved or ambiguous symbol, trust or workspace error. Inspect outcome and truncation; Partial or truncated results cannot prove every reference, and source references cannot exclude reflection, generated code, or external consumers.",
+            hasMcpSolution ? null : "MCP requires an absolute solution path; call suggest_command again with one.");
+        return new SuggestResponse([], [], SuggestOutcome.Recommendations,
+            Workflow: new SuggestWorkflow([step]));
+    }
+
     private static string? ImplementationSearchSymbol(string query)
     {
         const RegexOptions options = RegexOptions.IgnoreCase
@@ -311,6 +346,38 @@ internal sealed class SuggestService : IRtService
         var symbol = match.Groups["symbol"].Value;
         var leafName = symbol[(symbol.LastIndexOf('.') + 1)..];
         return char.IsUpper(leafName[0]) ? symbol : null;
+    }
+
+    private static (string Symbol, string? Kind)? ReferenceSearchTarget(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var match = Regex.Match(query,
+            @"\b(?:find|show|list)\s+(?:(?:all|every|the)\s+)?references?\s+(?:to|of)\s+(?:(?:the|an?)\s+)?(?:(?<kind>method|field|property|event|type|symbol)\s+)?(?:(?<explicitName>named|called)\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
+            options);
+        if (!match.Success)
+            return null;
+        var prefix = query[..match.Index].Trim();
+        if (!Regex.IsMatch(prefix,
+                @"^(?:please|can you|could you|I need to|I'd like to)?$", options))
+            return null;
+        var next = match.Index + match.Length;
+        var tail = query[next..].Trim();
+        if (!Regex.IsMatch(tail,
+                @"^(?:[.!?]?|,\s*please[.!?]?|before\s+(?:(?:I|we|you)\s+)?(?:review|edit|change|modify|rename|move|refactor|delete|reviewing|editing|changing|modifying|renaming|moving|refactoring|deleting)(?:\s+(?:it|the\s+(?:symbol|type|method|interface)))?[.!?]?)$",
+                options))
+            return null;
+        var symbol = match.Groups["symbol"].Value;
+        var leafName = symbol[(symbol.LastIndexOf('.') + 1)..];
+        var kind = match.Groups["kind"].Value.ToLowerInvariant();
+        return char.IsUpper(leafName[0])
+               || leafName[0] == '_'
+               || leafName.Any(char.IsUpper)
+               || symbol.Contains('.', StringComparison.Ordinal)
+               || match.Groups["explicitName"].Success
+            ? (symbol, kind is "" or "symbol" ? null : kind)
+            : null;
     }
 
     private static string QuoteCliArgument(string value)

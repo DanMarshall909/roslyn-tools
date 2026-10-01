@@ -214,6 +214,18 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   does not infer safety from missing source edges. A source-built CycleEngine
   suggestion fell from 2,705 to 409 JSON stdout bytes; the impact operation
   and end-to-end workflow remain open.
+- Explicit named-symbol reference requests now suggest one populated
+  `relationships references` read step in CLI and MCP (MCP needs an absolute
+  solution path). Supported `type`, `method`, `field`, `property`, and `event`
+  kind cues are preserved; constructor, namespace, parameter, member, and
+  specific type-subtype cues retain general discovery. The source-built
+  WorkspaceLoader suggestion emitted 881 JSON stdout bytes. The exact CLI step
+  returned `Partial`, 100 of 289 references,
+  truncated with no continuation token and 60,774 JSON stdout bytes, so the
+  workflow does not claim an exhaustive result. Requests with unsupported
+  scope or option qualifiers remain on general discovery rather than receiving
+  an unqualified call. General workflow routing and revision-safe relationship
+  paging remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

@@ -346,6 +346,16 @@ forcing an irrelevant command match.
 - **AND** the response does not claim that missing source edges prove no reflection, generated-code, or external-consumer impact
 - **AND** direct move, dependency, reference, configured architecture, plan-verification, and compiler-diagnostic-delta requests retain their existing routes
 
+#### Scenario: references to one named symbol are requested
+
+- **WHEN** the user explicitly asks to find, show, or list references to one complete named C# symbol without a kind cue or with a supported `type`, `method`, `field`, `property`, or `event` cue
+- **THEN** CLI and MCP `suggest` return one invokable `relationships references` read step with the selected symbol, supported kind, and solution
+- **AND** the MCP step is populated only when an absolute solution path is supplied
+- **AND** the stop condition treats ambiguous, `Partial`, or truncated results as incomplete and does not infer that reflection, generated code, or external consumers are absent
+- **AND** requests with project, file, test, kind, limit, revision, or solution qualifiers that the step cannot represent do not receive the unqualified workflow
+- **AND** constructor, namespace, parameter, member, and C# type-subtype cues that the resolver cannot select exactly retain general discovery rather than silently changing the requested subject
+- **AND** unspecified, generic, multi-symbol, project/package-reference, and proposed-change impact requests retain their earlier discovery routes
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

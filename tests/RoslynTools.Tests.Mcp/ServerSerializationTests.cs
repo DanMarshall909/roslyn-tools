@@ -405,6 +405,53 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("Find all references to WorkspaceLoader", "WorkspaceLoader", null)]
+    [InlineData("Find references to RoslynTools.Services.Suggest.SuggestService._catalog", "RoslynTools.Services.Suggest.SuggestService._catalog", null)]
+    [InlineData("Find references to the field named _catalog", "_catalog", "field")]
+    [InlineData("Find references to the method named Plan", "Plan", "method")]
+    public async Task suggest_named_reference_search_returns_one_typed_read_step(string query, string symbol, string? kind)
+    {
+        var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new
+                {
+                    query,
+                    top = 3,
+                    solution = solutionPath
+                }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.GetProperty("related").GetArrayLength().ShouldBe(0);
+        var step = structured.GetProperty("workflow").GetProperty("steps")[0];
+        step.GetProperty("mcpTool").GetString().ShouldBe("relationships");
+        var arguments = step.GetProperty("mcpArguments");
+        arguments.GetProperty("symbol").GetString().ShouldBe(symbol);
+        arguments.GetProperty("mode").GetString().ShouldBe("References");
+        arguments.GetProperty("solution").GetString().ShouldBe(solutionPath);
+        if (kind is null)
+            arguments.TryGetProperty("kind", out _).ShouldBeFalse();
+        else
+            arguments.GetProperty("kind").GetString().ShouldBe(kind);
+        step.GetProperty("stopCondition").GetString()!.ShouldContain("Partial");
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
     [Fact]
     public async Task suggest_configured_architecture_check_returns_an_invokable_mcp_step()
     {

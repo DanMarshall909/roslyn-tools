@@ -48,6 +48,58 @@ public sealed class SuggestWorkflowSurfaceTests
         result.Stdout.ShouldNotContain("extract-interface");
     }
 
+    [Theory]
+    [InlineData("Find all references to WorkspaceLoader", "WorkspaceLoader", null)]
+    [InlineData("Find references to RoslynTools.Services.Suggest.SuggestService._catalog", "RoslynTools.Services.Suggest.SuggestService._catalog", null)]
+    [InlineData("Find references to the field named _catalog", "_catalog", "field")]
+    [InlineData("Find references to the method named Plan", "Plan", "method")]
+    public async Task named_reference_search_has_one_cli_and_mcp_read_step(string query, string symbol, string? kind)
+    {
+        var json = await RtCliHost.RunAsync(
+            $"suggest \"{query}\" --solution RoslynTools.slnx --top 3 --json");
+        var text = await RtCliHost.RunAsync(
+            $"suggest \"{query}\" --solution RoslynTools.slnx --top 3 --llm");
+
+        json.ExitCode.ShouldBe(0, json.Stderr);
+        text.ExitCode.ShouldBe(0, text.Stderr);
+        using var payload = JsonDocument.Parse(json.Stdout);
+        var response = payload.RootElement;
+        response.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
+        response.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        response.GetProperty("Related").GetArrayLength().ShouldBe(0);
+        var step = response.GetProperty("Workflow").GetProperty("Steps")[0];
+        var solution = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
+        var invocation = $"rt inspect relationships references {symbol}"
+                         + (kind is null ? "" : $" --kind {kind}")
+                         + $" --solution {solution} --json";
+        step.GetProperty("CliInvocation").GetString().ShouldBe(invocation);
+        step.GetProperty("McpTool").GetString().ShouldBe("relationships");
+        step.GetProperty("McpArguments").GetProperty("symbol").GetString().ShouldBe(symbol);
+        step.GetProperty("McpArguments").GetProperty("mode").GetString().ShouldBe("References");
+        step.GetProperty("McpArguments").GetProperty("solution").GetString().ShouldBe(solution);
+        if (kind is null)
+            step.GetProperty("McpArguments").TryGetProperty("kind", out _).ShouldBeFalse();
+        else
+            step.GetProperty("McpArguments").GetProperty("kind").GetString().ShouldBe(kind);
+        step.GetProperty("StopCondition").GetString()!.ShouldContain("truncated");
+        text.Stdout.ShouldContain(invocation);
+        text.Stdout.ShouldContain("Partial");
+        text.Stdout.ShouldNotContain("find-pattern");
+    }
+
+    [Theory]
+    [InlineData("Find references to the constructor named WorkspaceLoader")]
+    [InlineData("Find references to the namespace named RoslynTools")]
+    public async Task unsupported_reference_kind_keeps_catalogue_discovery(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --solution RoslynTools.slnx --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
     [Fact]
     public async Task configured_architecture_check_has_a_populated_cli_and_mcp_route()
     {

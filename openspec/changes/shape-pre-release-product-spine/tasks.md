@@ -356,6 +356,13 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Report explicit proposed symbol/project change-impact requests as named
   `Unsupported` in CLI and MCP until an impact operation exists; preserve direct
   mutation and read requests. This does not complete the Milestone 4 impact tasks.
+- [x] Route explicit references to one complete named C# symbol through one
+  `relationships references` read workflow in CLI and MCP, with an absolute
+  solution requirement for MCP and a Partial/truncation stop condition; preserve
+  exact supported `type`, `method`, `field`, `property`, and `event` kind cues;
+  do not drop unrepresented scope or option qualifiers; preserve generic,
+  ambiguous, unsupported-kind, project/package-reference, and proposed-impact
+  routes.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and
