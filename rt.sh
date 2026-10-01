@@ -36,6 +36,16 @@ needs_build() {
     return 1
 }
 
+REBUILD_LOCK_HELD=0
+release_rebuild_lock() {
+    [ "$REBUILD_LOCK_HELD" -eq 1 ] || return 0
+    # dotnet build can leave a compiler server holding an inherited fd 9.
+    # Explicitly unlock the shared file description before launching rt.
+    flock -u 9
+    exec 9>&-
+    REBUILD_LOCK_HELD=0
+}
+
 if needs_build; then
     # Serialise concurrent rebuilds across parallel rt invocations.
     # Mirrors rt.ps1's named-mutex strategy (commit 0ad69f3) so the two
@@ -49,7 +59,7 @@ if needs_build; then
             echo 'rt: timed out waiting for rebuild lock' >&2
             exit 1
         fi
-        # fd 9 is released automatically when the script exits.
+        REBUILD_LOCK_HELD=1
     else
         echo 'rt: flock not available; concurrent invocations may race' >&2
     fi
@@ -58,9 +68,11 @@ if needs_build; then
     if ! dotnet build "$PROJ" -c Release --nologo -v quiet 1>&2; then
         echo 'rt: build failed' >&2
         write_build_status broken
+        release_rebuild_lock
         exit 1
     fi
     command -v dotnet-suggest &>/dev/null && [ -x "$EXE" ] && dotnet-suggest register --command-path "$EXE" 2>/dev/null || true
+    release_rebuild_lock
 fi
 write_build_status ok
 

@@ -50,4 +50,5 @@ printf '%s\n' '{}' > "$isolation_root/self-check/global.json"
 (cd "$isolation_root/self-check" && dotnet --version >/dev/null) ||
     fail "neutral self-check global.json does not shadow an ambient ancestor SDK request"
 
+"$repo_root/tests/rt-wrapper-lock.test.sh"
 echo "distribution-test: OK" >&2
