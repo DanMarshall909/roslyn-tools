@@ -55,6 +55,13 @@ with `--apply` for `add-dependency`, `make-sealed`, and `remove-unused-usings`
 at argument parsing. Apply-only and preview-only forms remain valid. The other
 apply admission blockers in the OpenSpec remain open.
 
+The workspace input fingerprint now recognizes the repository's structurally
+checked diagnostic-only dependency validation target and still hashes it. A
+fixture with the target reports `Complete`; adding an unrecognized task remains
+nonreusable. The full roslyn-tools checkout still reports `Partial`: authored
+CLI tool targets, off-solution build inputs, and a test SDK target with compiler
+input effects need separate attribution and proof before a complete claim.
+
 ## Decision
 
 Create one dependent OpenSpec change:

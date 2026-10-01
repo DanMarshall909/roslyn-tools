@@ -55,6 +55,12 @@
   - [x] Reject an explicit `--dry-run` combined with `--apply` before invoking
     `add-dependency`, `make-sealed`, or `remove-unused-usings`; keep each
     command's apply-only and preview-only forms valid.
+  - [x] Keep the repository's structurally checked diagnostic-only dependency
+    validation target in the hashed input set without treating it as an unknown
+    compiler mutation; reject added tasks and unsupported target changes.
+  - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
+    tool targets, off-solution build files, and test SDK targets that change
+    compiler inputs; prove or scope each before claiming completeness.
 
 ### Pre-freeze decision gate
 

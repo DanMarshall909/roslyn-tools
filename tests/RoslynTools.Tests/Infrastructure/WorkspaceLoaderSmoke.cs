@@ -79,6 +79,28 @@ public class WorkspaceLoaderSmoke
     }
 
     [Fact]
+    public async Task trusted_production_load_with_dependency_guard_is_complete()
+    {
+        using var fixture = new WorkspaceLoaderTestProject();
+        var solution = fixture.AddSolution("", "Guarded", "RoslynTools");
+        await PinSdkAsync(fixture, "RoslynTools");
+        File.Copy(
+            Path.Combine(RtCliHost.RepoRoot, "Directory.Build.targets"),
+            Path.Combine(fixture.RootDir, "Directory.Build.targets"));
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.RootDir);
+        using var loader = new WorkspaceLoader();
+
+        var loaded = await loader.LoadWorkspaceResultAsync(solution.SolutionPath, CancellationToken.None);
+
+        loaded.Completeness.State.ShouldBe(
+            WorkspaceCompletenessState.Complete,
+            string.Join(Environment.NewLine, loaded.Completeness.Diagnostics));
+        loaded.Completeness.Acquisition.ShouldNotBeNull().Outcomes.ShouldContain(outcome =>
+            outcome.InputId == "workspace:input-set"
+            && outcome.State == SemanticInputState.Resolved);
+    }
+
+    [Fact]
     public async Task missing_evaluated_project_reference_keeps_production_load_partial()
     {
         using var fixture = new WorkspaceLoaderTestProject();

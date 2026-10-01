@@ -1970,6 +1970,7 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
             var paths = new HashSet<string>(PathComparer);
             var reusable = HasOnlySupportedSdkDeclarations(document)
                            && !HasUnprovenInitialTargets(document);
+            var diagnosticGuard = IsKnownDiagnosticOnlyDependencyGuard(document, buildInput);
             var nuGetPackageRoot = ResolveNuGetPackageRoot(
                 document,
                 buildInput,
@@ -1995,7 +1996,8 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
                     reusable = false;
                 }
 
-                if (IsUnsupportedTargetTask(element))
+                if (IsUnsupportedTargetTask(element)
+                    && element.Parent != diagnosticGuard)
                     reusable = false;
 
                 if (IsArtifactsOutputCustomization(element)
@@ -2004,8 +2006,10 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
                     || IsSdkQualifiedImport(element)
                     || IsLegacySdkExtensionCustomization(element)
                     || IsUnprovenTargetFrameworkAssignment(element)
-                    || IsTaskImplementationOrSchedulingCustomization(element)
-                    || IsUnprovenAuthoredTaskSchedulingCustomization(element))
+                    || (IsTaskImplementationOrSchedulingCustomization(element)
+                        && element != diagnosticGuard)
+                    || (IsUnprovenAuthoredTaskSchedulingCustomization(element)
+                        && element != diagnosticGuard))
                 {
                     reusable = false;
                 }
@@ -2097,6 +2101,71 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
                 exception);
         }
     }
+
+    private static XElement? IsKnownDiagnosticOnlyDependencyGuard(
+        XDocument document,
+        string buildInput)
+    {
+        if (!Path.GetFileName(buildInput).Equals("Directory.Build.targets", StringComparison.OrdinalIgnoreCase)
+            || document.Root is not { } root
+            || !HasName(root, "Project")
+            || root.Attributes().Any()
+            || root.Elements().Count() != 1)
+        {
+            return null;
+        }
+
+        var target = root.Elements().Single();
+        if (!HasName(target, "Target")
+            || !HasOnlyAttributes(target, "Name", "BeforeTargets", "Condition")
+            || GetAttributeValue(target, "Name") != "ValidateReusableDependencies"
+            || GetAttributeValue(target, "BeforeTargets") != "CollectPackageReferences;ResolveReferences"
+            || GetAttributeValue(target, "Condition") !=
+                "'$(MSBuildProjectName)' == 'RoslynTools' Or '$(MSBuildProjectName)' == 'RoslynTools.Hosting'")
+        {
+            return null;
+        }
+
+        var children = target.Elements().ToArray();
+        if (children.Length != 3
+            || !HasName(children[0], "ItemGroup")
+            || children[0].Attributes().Any()
+            || !IsDiagnosticGuardItem(children[0].Elements().ElementAtOrDefault(0),
+                "_ForbiddenReusablePackage", "@(PackageReference)")
+            || !IsDiagnosticGuardItem(children[0].Elements().ElementAtOrDefault(1),
+                "_ForbiddenReusableProject", "@(ProjectReference)")
+            || children[0].Elements().Count() != 2
+            || !IsDiagnosticGuardError(children[1], "RTDEP001", "_ForbiddenReusablePackage")
+            || !IsDiagnosticGuardError(children[2], "RTDEP002", "_ForbiddenReusableProject")
+            || target.DescendantNodes().OfType<XText>().Any(text =>
+                !string.IsNullOrWhiteSpace(text.Value)))
+        {
+            return null;
+        }
+
+        return target;
+    }
+
+    private static bool IsDiagnosticGuardItem(XElement? element, string name, string source) =>
+        element is not null
+        && HasName(element, name)
+        && HasOnlyAttributes(element, "Include", "Condition")
+        && GetAttributeValue(element, "Include") == source
+        && !string.IsNullOrWhiteSpace(GetAttributeValue(element, "Condition"))
+        && !element.HasElements;
+
+    private static bool IsDiagnosticGuardError(XElement element, string code, string itemName) =>
+        HasName(element, "Error")
+        && HasOnlyAttributes(element, "Code", "Condition", "Text")
+        && GetAttributeValue(element, "Code") == code
+        && GetAttributeValue(element, "Condition") == $"'@({itemName})' != ''"
+        && !string.IsNullOrWhiteSpace(GetAttributeValue(element, "Text"))
+        && !element.HasElements;
+
+    private static bool HasOnlyAttributes(XElement element, params string[] names) =>
+        element.Name.NamespaceName.Length == 0
+        && element.Attributes().Count() == names.Length
+        && names.All(name => element.Attribute(name) is not null);
 
     private static DeclaredBuildInputs ReadConditionInputs(
         string? condition,

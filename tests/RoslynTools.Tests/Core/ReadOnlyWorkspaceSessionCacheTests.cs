@@ -2633,6 +2633,39 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
     }
 
     [Fact]
+    public async Task diagnostic_only_repository_dependency_guard_keeps_input_set_reusable()
+    {
+        using var root = new TemporaryDirectory();
+        var solutionPath = root.CreateSolution("App.slnx");
+        File.WriteAllText(solutionPath, "<Solution><Project Path=\"App.csproj\" /></Solution>");
+        File.WriteAllText(
+            System.IO.Path.Combine(root.Path, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        var fingerprint = (IWorkspaceInputFingerprint)new WorkspaceInputFingerprint(
+            new StubEnvironmentIdentity());
+        var identity = new TrustedWorkspaceIdentity(solutionPath, "repository", root.Path);
+
+        var withoutGuard = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+        var guardPath = System.IO.Path.Combine(root.Path, "Directory.Build.targets");
+        File.Copy(System.IO.Path.Combine(RtCliHost.RepoRoot, "Directory.Build.targets"), guardPath);
+        var withGuard = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        withoutGuard.Reusable.ShouldBeTrue();
+        withGuard.Reusable.ShouldBeTrue();
+        withGuard.Value.ShouldNotBe(withoutGuard.Value);
+
+        File.WriteAllText(
+            guardPath,
+            File.ReadAllText(guardPath).Replace(
+                "</Target>",
+                "<Exec Command=\"echo unsafe\" /></Target>",
+                StringComparison.Ordinal));
+        var withExtraTask = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
+
+        withExtraTask.Reusable.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task authored_source_link_task_assembly_override_is_not_claimed_reusable()
     {
         using var root = new TemporaryDirectory();
