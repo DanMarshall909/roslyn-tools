@@ -66,6 +66,9 @@ declared projects and retaining the `Partial` state (ADR-0081).
 Normal Debug builds no longer run CLI formatting, command-reference, or
 user-profile skill deployment hooks (ADR-0093). This removes observed build
 effects, not the need to prove every remaining input before upgrading `Partial`.
+Linux CI now checks separate plain restore, Debug build, and test phases against
+authored checkout files and a disposable profile (ADR-0094). The gate is build
+side-effect evidence; it does not prove the full workspace input set complete.
 
 ## Decision
 

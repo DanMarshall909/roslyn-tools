@@ -1348,6 +1348,12 @@ A normal restore/build/test SHALL NOT modify tracked source or documentation, fo
 - **THEN** the Git working tree remains unchanged
 - **AND THEN** no file outside declared build-output/temp directories is created or modified
 
+#### Scenario: a normal restore, build, or test writes outside its declared outputs
+
+- **WHEN** one phase rewrites an authored checkout file or deploys into the user profile
+- **THEN** the build-purity gate fails and names the phase, path, and change
+- **AND THEN** a nonzero command exit does not hide earlier writes
+
 ### Requirement: release identity and installation claims are verifiable
 
 Assembly, NuGet, MCP server manifest, archive, and release versions SHALL derive from one release source. Documentation SHALL advertise only installation paths that the release pipeline actually publishes. Install, upgrade, rollback, and uninstall SHALL preserve unowned files and recover from interrupted replacement.

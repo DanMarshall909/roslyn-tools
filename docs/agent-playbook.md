@@ -88,6 +88,19 @@ prepare/apply operations have their own reviewed-plan protocol.
 If a new race appears, capture it in a parallel xUnit regression test before
 fixing it.
 
+## Build purity
+
+Run `node scripts/check-build-purity.mjs` when changing build targets or the
+restore/build/test workflow. It snapshots authored checkout files, including
+ignored `docs/COMMANDS.md`, and a disposable user profile around separate plain
+restore, Debug build, and test phases. The detector self-tests are
+`node --test tests/build-purity.test.mjs`. Normal `bin`/`obj` and other declared
+output directories, the SDK's CRL cache, and a disposable NuGet/cache/temp area
+are exempt; the gate
+rejects tracked files placed under those exempt directories. The current CI job
+provides Linux evidence. Windows special-folder isolation and full OS matrix
+coverage remain P1.8 work.
+
 ## Command Metadata Contract
 
 Every CLI command class ending in `Command` must implement `IRtCommand`.

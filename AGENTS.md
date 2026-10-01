@@ -159,6 +159,17 @@ On macOS or Linux:
 ./scripts/check-local.sh
 ```
 
+Verify that plain restore, Debug build, and test leave authored checkout files
+and a disposable user profile unchanged outside declared output/cache paths:
+
+```sh
+node --test tests/build-purity.test.mjs
+node scripts/check-build-purity.mjs
+```
+
+CI runs this purity gate on Linux. Windows and macOS filesystem coverage is
+tracked separately in platform hardening P1.8.
+
 Use `scripts/doctor.ps1` or `scripts/doctor.sh` for a quick clone sanity check.
 
 ## Lint and formatting

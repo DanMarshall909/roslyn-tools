@@ -155,7 +155,7 @@ below is complete until its failure, recovery, and cross-host acceptance tests p
 
 - [x] Remove formatting, generated-document writes, and user-profile skill deployment from normal Debug build targets.
 - [ ] Provide explicit `format`, `generate-docs`, `deploy-skill`, `dogfood`, and `mutation-test` scripts/targets with predictable inputs and outputs.
-- [ ] Add a clean-tree build test that fails if restore/build/test modifies the checkout or user profile.
+- [x] Add a clean-tree build test that fails if restore/build/test modifies authored checkout files or the user profile outside declared outputs/caches. Linux CI snapshots authored files and a disposable profile around each phase; Windows and macOS matrix evidence remains P1.8.
 - [ ] Make generated files reproducible and verify them in CI without rewriting them.
 - [ ] Remove committed debug logs and move durable project status from overlapping `tasks/`, `ralph/`, issues, and OpenSpecs into one authoritative workflow.
 

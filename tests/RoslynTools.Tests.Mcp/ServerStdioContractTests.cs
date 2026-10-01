@@ -260,7 +260,7 @@ public sealed class ServerStdioContractTests
     public async Task spawned_server_pages_the_complete_tool_catalogue_with_valid_schemas(
         string protocolVersion)
     {
-        using var process = StartServer();
+        using var process = StartServer("--trust-repository", FindRepoRoot());
         var stderr = process.StandardError.ReadToEndAsync();
         var modern = protocolVersion == "2026-07-28";
         var metadata = new Dictionary<string, object>
@@ -597,7 +597,7 @@ public sealed class ServerStdioContractTests
         }
     }
 
-    private static Process StartServer(string? option = null)
+    private static Process StartServer(params string[] options)
     {
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -608,7 +608,7 @@ public sealed class ServerStdioContractTests
             UseShellExecute = false
         };
         startInfo.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "RoslynTools.Mcp.dll"));
-        if (option is not null)
+        foreach (var option in options)
             startInfo.ArgumentList.Add(option);
         return Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start the MCP server process.");
