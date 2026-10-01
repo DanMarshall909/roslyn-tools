@@ -19,9 +19,15 @@ public sealed class MoveOperationTests
             Type: "Old.Widget",
             Namespace: "Old",
             ToNamespace: "New"));
+        var projectWithMoveFile = MoveRequestClassifier.Classify(new MoveRequest(
+            MoveMode.TypeToProject,
+            Type: "Old.Widget",
+            ToProject: "Target",
+            MoveFile: true));
 
         GetError(namespaceToProject).Kind.ShouldBe(RtErrorKind.InvalidInput);
         GetError(mixedSources).Message.ShouldContain("forbids type", Case.Insensitive);
+        GetError(projectWithMoveFile).Message.ShouldContain("forbids namespace and move-file", Case.Insensitive);
     }
 
     [Fact]
@@ -39,6 +45,21 @@ public sealed class MoveOperationTests
         preparation.Result.TargetNamespace.ShouldBe("App.New");
         var text = await preparation.Solution.Projects.Single().Documents.Single().GetTextAsync();
         text.ToString().ShouldContain("namespace App.New;", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task same_project_without_a_namespace_change_is_a_no_op()
+    {
+        using var project = new AdhocProjectBuilder("App")
+            .AddSource("Widget.cs", "namespace App.Models; public class Widget { }");
+        var (_, solution) = project.Build();
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Models.Widget", "App", TargetNamespace: null))).Unwrap();
+
+        preparation.ToChangeSet(solution).HasChanges.ShouldBeFalse();
+        preparation.Diagnostics.Single().Message.ShouldContain("identical", Case.Insensitive);
     }
 
     [Fact]
@@ -316,7 +337,77 @@ public sealed class MoveOperationTests
     }
 
     [Fact]
-    public async Task cross_project_dry_run_preserves_files_and_apply_moves_source_with_project_edits()
+    public async Task cross_project_target_lookup_is_case_insensitive_and_missing_target_is_typed()
+    {
+        using var project = new AdhocProjectBuilder("Source")
+            .AddSource("Widget.cs", "namespace App; public class Widget { }");
+        project.AddProject("Target");
+        var (_, solution) = project.Build();
+        foreach (var candidate in solution.Projects)
+            await File.WriteAllTextAsync(candidate.FilePath!, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+        var matched = (await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Widget", "target", TargetNamespace: null))).Unwrap();
+        var missing = await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Widget", "NotHere", TargetNamespace: null));
+
+        matched.Result.TargetProject.ShouldBe("Target");
+        GetError(missing).Kind.ShouldBe(RtErrorKind.NotFound);
+        GetError(missing).Message.ShouldContain("NotHere", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task cross_project_move_rewrites_requested_namespace_and_consumer_using()
+    {
+        using var project = new AdhocProjectBuilder("Source")
+            .AddSource("Models/Widget.cs", "namespace App.Models; public class Widget { }");
+        project.AddProject("Target");
+        project.AddProject("Consumer")
+            .AddSource("Consumer.cs", "using App.Models; class Consumer { Widget Value = new(); }")
+            .ReferenceProject("Source");
+        var (_, solution) = project.Build();
+        foreach (var candidate in solution.Projects)
+            await File.WriteAllTextAsync(candidate.FilePath!, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Models.Widget", "Target", "Domain.Models"))).Unwrap();
+        var moved = preparation.Solution.Projects.Single(candidate => candidate.Name == "Source")
+            .Documents.Single();
+        var consumer = preparation.Solution.Projects.Single(candidate => candidate.Name == "Consumer")
+            .Documents.Single();
+
+        (await moved.GetTextAsync()).ToString().ShouldContain("namespace Domain.Models;", Case.Sensitive);
+        (await consumer.GetTextAsync()).ToString().ShouldContain("using Domain.Models;", Case.Sensitive);
+        preparation.Result.FileMoves.ShouldHaveSingleItem();
+        preparation.ProjectFileEdits.ShouldContain(edit => edit.Path == consumer.Project.FilePath);
+    }
+
+    [Fact]
+    public async Task cross_project_move_leaves_sdk_glob_project_files_unedited()
+    {
+        using var project = new AdhocProjectBuilder("Source")
+            .AddSource("Widget.cs", "namespace App; public class Widget { }");
+        project.AddProject("Target");
+        var (_, solution) = project.Build();
+        foreach (var candidate in solution.Projects)
+            await File.WriteAllTextAsync(candidate.FilePath!, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Widget", "Target", TargetNamespace: null))).Unwrap();
+
+        preparation.ProjectFileEdits.ShouldBeEmpty();
+        preparation.Result.FileMoves.ShouldHaveSingleItem();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Domain.Models")]
+    public async Task cross_project_dry_run_preserves_files_and_apply_moves_source_with_project_edits(
+        string? targetNamespace)
     {
         using var project = new AdhocProjectBuilder("Source")
             .AddSource("Models/Widget.cs", "namespace App.Models; public class Widget { }");
@@ -344,6 +435,7 @@ public sealed class MoveOperationTests
             MoveMode.TypeToProject,
             Type: "App.Models.Widget",
             ToProject: "Target",
+            ToNamespace: targetNamespace,
             DryRun: true);
         var previewOperation = CreatePhysicalMoveOperation(previewWorkspace, previewSolution, project.Directory);
 
@@ -371,7 +463,18 @@ public sealed class MoveOperationTests
         applied.Status.ShouldBe(MutationExecutionStatus.Applied);
         File.Exists(sourcePath).ShouldBeFalse();
         File.Exists(destinationPath).ShouldBeTrue();
-        (await File.ReadAllBytesAsync(destinationPath)).SequenceEqual(originalSource).ShouldBeTrue();
+        var movedText = await File.ReadAllTextAsync(destinationPath);
+        var consumerText = await File.ReadAllTextAsync(consumerProject.Documents.Single().FilePath!);
+        if (targetNamespace is null)
+        {
+            (await File.ReadAllBytesAsync(destinationPath)).SequenceEqual(originalSource).ShouldBeTrue();
+            consumerText.ShouldContain("using App.Models;", Case.Sensitive);
+        }
+        else
+        {
+            movedText.ShouldContain("namespace Domain.Models;", Case.Sensitive);
+            consumerText.ShouldContain("using Domain.Models;", Case.Sensitive);
+        }
         (await File.ReadAllTextAsync(sourceProject.FilePath!)).ShouldNotContain("Compile Include", Case.Sensitive);
         (await File.ReadAllTextAsync(targetProject.FilePath!))
             .ShouldContain("Compile Include=\"Models/Widget.cs\"", Case.Sensitive);

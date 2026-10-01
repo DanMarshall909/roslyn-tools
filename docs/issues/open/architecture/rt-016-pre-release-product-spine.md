@@ -155,9 +155,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   exhaustive admission claim.
   The current TypeToProject operation now has disk-level coverage proving
   dry-run byte preservation, prepared apply across source/project/reference
-  paths, and sibling-prefix source rejection. Older cross-project move helpers
-  remain test-only callers of direct `File.Move` and project-file save effects;
-  retire them before any apply admission claim.
+  paths, and sibling-prefix source rejection. The obsolete test-only
+  `ExecuteCrossProjectMoveAsync` path and its direct project-file save helper
+  have been removed; meaningful behavior checks now target `PrepareAsync` and
+  `MoveOperation`. The remaining legacy `MoveSourceFiles` path still calls
+  `File.Move` from test-only methods and must be retired before any apply
+  admission claim.
 
 ## Dependencies and reconciliation
 

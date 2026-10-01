@@ -880,94 +880,6 @@ internal class MoveService : IRtService
     }
 
     /// <summary>
-    /// Moves code between cross-project solutions
-    /// </summary>
-    internal async Task<IReadOnlyList<string>> ExecuteCrossProjectMoveAsync(
-        Workspace workspace,
-        Solution solution,
-        string fqn,
-        string targetProjectName,
-        string? targetNamespace,
-        bool dryRun)
-    {
-        var previewLines = new List<string>();
-        var targetProject = solution.Projects.FirstOrDefault(p =>
-            string.Equals(p.Name, targetProjectName, StringComparison.OrdinalIgnoreCase));
-
-        if (targetProject == null)
-            throw new InvalidOperationException(
-                $"Project '{targetProjectName}' not found in the solution. " +
-                $"Available projects: {string.Join(", ", solution.Projects.Select(p => p.Name))}");
-
-        var sym = await _symbols.FindTypeByFqnAsync(solution, fqn);
-        var (declarationFiles, sourceProjectDir, _) = CollectDeclarationPaths(solution, sym);
-
-        // Same-project no-op
-        var sourceProject = solution.GetDocument(sym.DeclaringSyntaxReferences.First().SyntaxTree)?.Project;
-        if (sourceProject != null &&
-            string.Equals(sourceProject.Name, targetProjectName, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.RtInfo("nothing to move");
-            return previewLines;
-        }
-
-        if (sourceProjectDir != null)
-            foreach (var filePath in declarationFiles)
-                if (!filePath.StartsWith(sourceProjectDir, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException(
-                        $"Source file for '{sym.Name}' is at '{filePath}', which is outside the source " +
-                        $"project directory '{sourceProjectDir}'. Cannot determine destination path.");
-
-        var targetProjectDir = Path.GetDirectoryName(targetProject.FilePath);
-        if (targetProjectDir == null)
-            throw new InvalidOperationException(
-                $"Cannot determine directory for target project '{targetProjectName}'.");
-
-        if (targetNamespace != null)
-        {
-            // Rewrite namespace + consumer usings using existing pipeline
-            var rewritten = await RewriteAllDeclarationsAsync(solution, sym, targetNamespace);
-            var movedTypes = await CollectCoLocatedTypesAsync(rewritten, (INamedTypeSymbol)sym);
-            var references = (await Task.WhenAll(movedTypes.Select(t => SymbolFinder.FindReferencesAsync(t, solution))))
-                .SelectMany(r => r).ToList();
-            rewritten = await ApplyReferenceUsingsAsync(rewritten, references,
-                sym.ContainingNamespace.ToDisplayString(), targetNamespace);
-            await _solutionChangeWriter.ApplyChangesAsync(workspace.CurrentSolution, rewritten, dryRun);
-        }
-
-        // Physically move each declaration file to the mirrored path under target project dir
-        var sourceProjectFilePath = solution.Projects
-            .FirstOrDefault(p => p.Documents.Any(d => declarationFiles.Contains(d.FilePath ?? "")))
-            ?.FilePath;
-
-        foreach (var filePath in declarationFiles)
-        {
-            if (sourceProjectDir == null) continue;
-
-            var relPath = Path.GetRelativePath(sourceProjectDir, filePath);
-            var destPath = Path.Combine(targetProjectDir, relPath);
-
-            if (dryRun)
-            {
-                previewLines.Add($"source: {filePath}");
-                previewLines.Add($"destination: {destPath}");
-                previewLines.AddRange(RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, true));
-                continue;
-            }
-
-            var destDir = Path.GetDirectoryName(destPath)!;
-            if (!Directory.Exists(destDir))
-                Directory.CreateDirectory(destDir);
-
-            File.Move(filePath, destPath, false);
-            _logger.RtInfo("Moved '{Source}' -> '{Destination}'", filePath, destPath);
-            RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, false);
-        }
-
-        return previewLines;
-    }
-
-    /// <summary>
     /// Moves a single type between projects
     /// </summary>
     internal async Task ExecuteSingleTypeMoveAsync(
@@ -1411,42 +1323,6 @@ internal class MoveService : IRtService
             File.Move(filePath, newFilePath);
             _logger.RtInfo("Moved: {SourcePath} -> {TargetPath}", filePath, newFilePath);
         }
-    }
-
-    private static string[] RemoveCompileIncludeFromCsproj(string? csprojPath, string relPath, bool dryRun)
-    {
-        if (csprojPath == null || !File.Exists(csprojPath)) return [];
-
-        var xml = File.ReadAllText(csprojPath);
-
-        // Normalise to forward slashes for comparison
-        var normalised = relPath.Replace('\\', '/');
-
-        var doc = System.Xml.Linq.XDocument.Parse(xml, System.Xml.Linq.LoadOptions.PreserveWhitespace);
-        var toRemove = doc.Descendants("Compile")
-            .Where(e =>
-            {
-                var include = (string?)e.Attribute("Include") ?? "";
-                return string.Equals(include.Replace('\\', '/'), normalised, StringComparison.OrdinalIgnoreCase);
-            })
-            .ToList();
-
-        if (toRemove.Count == 0) return [];
-
-        if (dryRun)
-            return toRemove.Select(el => $"compile-remove: {el}").ToArray();
-
-        foreach (var el in toRemove)
-        {
-            var parent = el.Parent;
-            el.Remove();
-            // Drop empty ItemGroup
-            if (parent?.IsEmpty == true && parent.Name.LocalName == "ItemGroup")
-                parent.Remove();
-        }
-
-        doc.Save(csprojPath);
-        return [];
     }
 
     /// <summary>

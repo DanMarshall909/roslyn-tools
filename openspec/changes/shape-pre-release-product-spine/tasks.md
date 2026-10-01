@@ -75,6 +75,9 @@
   - [x] Exercise the current TypeToProject prepared path with a dry-run that
     preserves source and project-file bytes, an applied source/project/reference
     move, and a sibling-prefix source rejection before any write.
+  - [x] Retire the test-only direct-write cross-project move helper and its
+    project-file save path after migrating target lookup, namespace rewrite,
+    SDK-glob, same-project, and option-validation coverage to the current path.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.
