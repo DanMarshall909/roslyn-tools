@@ -10,6 +10,33 @@ namespace RoslynTools.Tests.Navigation;
 public sealed class DoctorOperationTests
 {
     [Fact]
+    public void doctor_product_describes_installation_and_workspace_modes()
+    {
+        var product = DoctorCommandDefinition.Definition.Product;
+
+        product.Effects.ShouldBe(CommandEffects.LocalStateRead
+                                 | CommandEffects.RepositoryRead
+                                 | CommandEffects.RepositoryCodeExecution);
+        product.Prerequisites.ShouldBe([".NET SDK", "Loadable C# solution"]);
+        product.Modes.ShouldNotBeNull();
+        product.Modes.Count.ShouldBe(2);
+
+        var installation = product.Modes.Single(mode => mode.Name == "installation");
+        installation.Selector.ShouldBe(new CommandModeSelector("installationOnly", true, false));
+        installation.Effects.ShouldBe(CommandEffects.LocalStateRead | CommandEffects.RepositoryRead);
+        installation.TrustRequirement.ShouldBe(TrustRequirement.None);
+        installation.WorkspaceRequirement.ShouldBe(WorkspaceRequirement.None);
+        installation.Prerequisites.ShouldBeEmpty();
+
+        var workspace = product.Modes.Single(mode => mode.Name == "workspace");
+        workspace.Selector.ShouldBe(new CommandModeSelector("installationOnly", false, true));
+        workspace.Effects.ShouldBe(product.Effects);
+        workspace.TrustRequirement.ShouldBe(TrustRequirement.ExplicitTrustedRepository);
+        workspace.WorkspaceRequirement.ShouldBe(WorkspaceRequirement.Semantic);
+        workspace.Prerequisites.ShouldBe([".NET SDK", "Loadable C# solution"]);
+    }
+
+    [Fact]
     public async Task installation_only_requires_every_installation_probe_without_loading_a_workspace()
     {
         var sessions = new CountingSessionFactory();

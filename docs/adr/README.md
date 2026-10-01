@@ -154,3 +154,15 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0087](0087-prove-git-content-absence-before-semantic-diff.md) | Prove Git content absence before semantic diff | Accepted | 2026-10-01 |
 | [0088](0088-bound-working-tree-content-reads.md) | Bound working-tree content reads | Accepted | 2026-10-01 |
 | [0089](0089-honest-working-tree-read-platform-support.md) | Report unsupported working-tree read platforms | Accepted | 2026-10-01 |
+| [0090](0090-route-working-tree-review-with-platform-admission.md) | Route working-tree review with platform admission | Accepted | 2026-10-01 |
+| [0091](0091-exact-baseline-semantic-diff.md) | Discover semantic-diff paths from the actual baseline | Accepted | 2026-10-01 |
+| [0092](0092-route-unambiguous-working-tree-baselines.md) | Route unambiguous working-tree baselines through suggestion | Accepted | 2026-10-01 |
+| [0093](0093-remove-implicit-debug-build-writes.md) | Remove implicit source and profile writes from Debug builds | Accepted | 2026-10-01 |
+| [0094](0094-verify-normal-build-purity.md) | Verify normal restore, build, and test purity | Accepted | 2026-10-01 |
+| [0095](0095-bound-shared-symbol-ambiguity.md) | Bound shared symbol ambiguity responses | Accepted | 2026-10-01 |
+| [0096](0096-bound-legacy-symbol-ambiguity.md) | Bound legacy symbol ambiguity errors | Accepted | 2026-10-01 |
+| [0097](0097-bound-member-overload-ambiguity.md) | Bound member overload ambiguity errors | Accepted | 2026-10-01 |
+| [0098](0098-scope-complexity-top-rollups.md) | Scope complexity rollups to top methods | Accepted | 2026-10-01 |
+| [0099](0099-reject-unsupported-cli-output-formats.md) | Reject unsupported explicit CLI output formats | Accepted | 2026-10-01 |
+| [0100](0100-refuse-uncontained-mcp-semantic-diff-files.md) | Refuse uncontained MCP semantic-diff file reads | Accepted | 2026-10-01 |
+| [0101](0101-doctor-mode-discovery-metadata.md) | Describe doctor modes in one product contract | Accepted | 2026-10-02 |

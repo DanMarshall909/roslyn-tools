@@ -64,10 +64,7 @@ internal static class CommandSurfaceBuilder
 
     private static CommandProductDescriptor Describe(CommandProductMetadata product) => new(
         product.Maturity.ToString(),
-        Enum.GetValues<CommandEffects>()
-            .Where(effect => effect != CommandEffects.None && product.Effects.HasFlag(effect))
-            .Select(effect => effect.ToString())
-            .ToArray(),
+        CommandProductMetadata.EffectNames(product.Effects),
         product.ConditionallyMutable,
         product.Idempotency.ToString(),
         product.Audience.ToString(),
@@ -79,7 +76,8 @@ internal static class CommandSurfaceBuilder
         product.Limits.DefaultTimeoutMilliseconds,
         product.Limits.MaximumItems,
         product.Limits.MaximumOutputBytes,
-        product.Limitations);
+        product.Limitations,
+        product.Modes?.Select(mode => mode.ToDescriptor()).ToArray());
 
     private static OptionDescriptor Describe(Option option) => new(
         option.Name,

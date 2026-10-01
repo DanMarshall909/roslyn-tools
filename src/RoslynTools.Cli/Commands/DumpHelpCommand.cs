@@ -266,6 +266,25 @@ internal static class DumpHelpCommand
         sb.AppendLine(info.WhenToUse);
         sb.AppendLine();
 
+        if (product?.Modes is { Count: > 0 } modes)
+        {
+            sb.AppendLine("**Modes:**");
+            sb.AppendLine();
+            foreach (var mode in modes)
+            {
+                var defaultLabel = mode.Selector.IsDefault ? " (default)" : "";
+                var prerequisites = mode.Prerequisites.Count == 0
+                    ? "none"
+                    : string.Join(", ", mode.Prerequisites);
+                var selector = $"{mode.Selector.RequestProperty}={mode.Selector.Value.ToString().ToLowerInvariant()}";
+                var effects = string.Join(", ", CommandProductMetadata.EffectNames(mode.Effects));
+                sb.AppendLineF(
+                    $"- **{mode.Name}** (`{selector}`){defaultLabel}: {mode.Description} Effects: {effects}. Trust: {mode.TrustRequirement}. Workspace: {mode.WorkspaceRequirement}. Prerequisites: {prerequisites}.");
+            }
+
+            sb.AppendLine();
+        }
+
         if (info.Examples.Length > 0)
         {
             sb.AppendLine("**Examples:**");

@@ -2,6 +2,7 @@ using System.CommandLine;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandSurface;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests;
@@ -128,6 +129,30 @@ public sealed class CommandSurfaceBuilderTests
         cmd.Mutates.ShouldBeFalse();
         cmd.Product.Effects.ShouldContain(nameof(CommandEffects.LocalStateWrite));
         cmd.Product.Effects.ShouldNotContain(nameof(CommandEffects.RepositoryWrite));
+    }
+
+    [Fact]
+    public void build_projects_doctor_modes_from_the_product_definition()
+    {
+        var definition = DoctorCommandDefinition.Definition;
+        var info = definition.Info;
+        var cmd = CommandSurfaceBuilder.Build(
+            [(new Command("doctor"), info)],
+            Groups,
+            [],
+            new Dictionary<string, CommandProductMetadata> { [info.Name] = definition.Product })
+            .Commands.Single();
+
+        cmd.Product.Modes.ShouldNotBeNull();
+        cmd.Product.Modes.Select(mode => mode.Name).ShouldBe(["installation", "workspace"]);
+        cmd.Product.Modes[0].Selector.RequestProperty.ShouldBe("installationOnly");
+        cmd.Product.Modes[0].Selector.Value.ShouldBeTrue();
+        cmd.Product.Modes[0].Selector.IsDefault.ShouldBeFalse();
+        cmd.Product.Modes[0].TrustRequirement.ShouldBe("None");
+        cmd.Product.Modes[0].WorkspaceRequirement.ShouldBe("None");
+        cmd.Product.Modes[0].Effects.ShouldNotContain(nameof(CommandEffects.RepositoryCodeExecution));
+        cmd.Product.Modes[1].Selector.IsDefault.ShouldBeTrue();
+        cmd.Product.Modes[1].Effects.ShouldContain(nameof(CommandEffects.RepositoryCodeExecution));
     }
 
     [Fact]

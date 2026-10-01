@@ -203,6 +203,32 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task doctor_discovery_describes_both_modes_and_still_requires_directory()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
+
+        using var document = JsonDocument.Parse(output);
+        var doctor = document.RootElement.GetProperty("result").GetProperty("tools")
+            .EnumerateArray().Single(tool => tool.GetProperty("name").GetString() == "doctor");
+        doctor.GetProperty("inputSchema").GetProperty("required")
+            .EnumerateArray().Select(value => value.GetString()).ShouldContain("directory");
+        var modes = doctor.GetProperty("_meta").GetProperty("rt/modes").EnumerateArray().ToArray();
+        modes.Length.ShouldBe(2);
+        modes[0].GetProperty("name").GetString().ShouldBe("installation");
+        modes[0].GetProperty("selector").GetProperty("requestProperty").GetString()
+            .ShouldBe("installationOnly");
+        modes[0].GetProperty("selector").GetProperty("value").GetBoolean().ShouldBeTrue();
+        modes[0].GetProperty("trustRequirement").GetString().ShouldBe("None");
+        modes[0].GetProperty("effects").EnumerateArray()
+            .Select(value => value.GetString()).ShouldNotContain("RepositoryCodeExecution");
+        modes[1].GetProperty("name").GetString().ShouldBe("workspace");
+        modes[1].GetProperty("selector").GetProperty("isDefault").GetBoolean().ShouldBeTrue();
+        modes[1].GetProperty("effects").EnumerateArray()
+            .Select(value => value.GetString()).ShouldContain("RepositoryCodeExecution");
+    }
+
+    [Fact]
     public async Task relationship_wrappers_are_consolidated_out_of_normal_discovery()
     {
         var output = await RunSingleRequestAsync(

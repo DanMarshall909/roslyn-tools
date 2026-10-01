@@ -293,8 +293,13 @@ doctor requests without registering MSBuild, so a self-contained installation ca
 diagnose an absent SDK rather than failing before the doctor operation runs.
 Doctor result safety includes `RepositoryCodeExecution` once a trusted workspace
 acquisition starts, including when acquisition fails after it begins. Installation-only,
-trust-required, and SDK-bootstrap failure results omit that effect. The broader
-command definition still needs separate mode-specific discovery metadata.
+trust-required, and SDK-bootstrap failure results omit that effect. The command
+definition advertises installation and workspace modes through one host-neutral
+product record. Installation mode requires no repository trust or workspace;
+the default workspace mode may execute repository build inputs after explicit
+trust. Command-level effects conservatively cover both modes. CLI `dump-help`
+and MCP `tools/list` project the same selectors and profiles; see
+[ADR-0101](adr/0101-doctor-mode-discovery-metadata.md).
 
 MSBuild instance identity, exact-selection values, and compatibility errors are
 shared in the reusable assembly for CLI, daemon, and MCP hosts. The daemon SDK

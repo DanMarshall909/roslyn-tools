@@ -166,6 +166,9 @@ def mcp_contract(tool, annotations, cli_product=None):
                   "defaultTimeoutMilliseconds", "maximumItems", "maximumOutputBytes")
     parity = cli_product is not None and all(
         projected.get(key) == cli_product.get(key) for key in comparable)
+    mode_parity = cli_product is None or projected.get("modes") == cli_product.get("modes")
+    if not mode_parity:
+        raise RuntimeError(f"CLI/MCP mode metadata differs for {tool['name']}")
     return {
         "name": tool["name"],
         "required": schema.get("required", []),
@@ -177,6 +180,7 @@ def mcp_contract(tool, annotations, cli_product=None):
         } else "other",
         "annotationProfile": annotations[annotation_json],
         "title": tool["annotations"].get("title"),
+        **({"modeProfilesMatchCli": True} if cli_product is not None and cli_product.get("modes") else {}),
         **({"sevenProjectedFieldsMatchCliProfile": True} if parity else {"metadata": projected}),
     }
 

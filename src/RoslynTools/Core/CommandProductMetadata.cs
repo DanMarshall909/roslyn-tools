@@ -46,6 +46,39 @@ internal sealed record CommandResourceLimits(
     int MaximumItems,
     int MaximumOutputBytes);
 
+internal sealed record CommandModeSelector(string RequestProperty, bool Value, bool IsDefault);
+
+internal sealed record CommandProductMode(
+    string Name,
+    string Description,
+    CommandModeSelector Selector,
+    CommandEffects Effects,
+    TrustRequirement TrustRequirement,
+    WorkspaceRequirement WorkspaceRequirement,
+    IReadOnlyList<string> Prerequisites,
+    string Example)
+{
+    internal CommandModeDescriptor ToDescriptor() => new(
+        Name,
+        Description,
+        Selector,
+        CommandProductMetadata.EffectNames(Effects),
+        TrustRequirement.ToString(),
+        WorkspaceRequirement.ToString(),
+        Prerequisites,
+        Example);
+}
+
+internal sealed record CommandModeDescriptor(
+    string Name,
+    string Description,
+    CommandModeSelector Selector,
+    IReadOnlyList<string> Effects,
+    string TrustRequirement,
+    string WorkspaceRequirement,
+    IReadOnlyList<string> Prerequisites,
+    string Example);
+
 /// <summary>
 ///     Host-neutral product metadata projected into discovery, schemas, help, doctor,
 ///     suggestions, and generated documentation.
@@ -65,6 +98,14 @@ internal sealed record CommandProductMetadata(
     IReadOnlyList<string> Limitations,
     IReadOnlyList<string> Examples)
 {
+    internal IReadOnlyList<CommandProductMode>? Modes { get; init; }
+
+    internal static string[] EffectNames(CommandEffects effects) =>
+        Enum.GetValues<CommandEffects>()
+            .Where(effect => effect != CommandEffects.None && effects.HasFlag(effect))
+            .Select(effect => effect.ToString())
+            .ToArray();
+
     internal static CommandProductMetadata FromLegacy(
         RtCommandInfo info,
         CommandSafety safety,

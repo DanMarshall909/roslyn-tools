@@ -200,7 +200,33 @@
         "defaultTimeoutMilliseconds": { "type": "integer", "minimum": 1 },
         "maximumItems": { "type": "integer", "minimum": 1 },
         "maximumOutputBytes": { "type": "integer", "minimum": 1 },
-        "limitations": { "type": "array", "items": { "type": "string" } }
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "modes": { "type": "array", "items": { "$ref": "#/$defs/mode" } }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "selector", "effects", "trustRequirement", "workspaceRequirement", "prerequisites", "example"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "selector": { "$ref": "#/$defs/modeSelector" },
+        "effects": { "type": "array", "items": { "type": "string" } },
+        "trustRequirement": { "type": "string" },
+        "workspaceRequirement": { "type": "string" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "example": { "type": "string" }
+      }
+    },
+    "modeSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestProperty", "value", "isDefault"],
+      "properties": {
+        "requestProperty": { "type": "string" },
+        "value": { "type": "boolean" },
+        "isDefault": { "type": "boolean" }
       }
     },
     "option": {

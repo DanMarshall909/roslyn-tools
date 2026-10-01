@@ -163,6 +163,12 @@ CLI help, generated documentation, MCP annotations/schema, `doctor`, and `sugges
 project from the same value. Conditional effects such as an explicit apply flag are
 represented in request validation and response safety state rather than being hidden
 by a single static read-only annotation.
+Mode-dependent commands may also publish mode profiles with a canonical request
+selector, default state, effects, trust and workspace requirements, prerequisites,
+and an example. `doctor` uses this for installation-only and trusted-workspace
+checks while its command-level effects remain the conservative union. CLI and MCP
+project these profiles from the same definition; result safety records effects
+actually reached.
 
 ## Shared result envelope
 

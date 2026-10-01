@@ -380,8 +380,9 @@ internal static class DoctorCommandDefinition
         false,
         true,
         "inspect",
-        "Use this when starting work in a repository to verify launcher, runtime, solution selection, trust, workspace readiness, capability maturity, and resource limits without silently evaluating unreviewed build inputs.",
+        "Use this when checking whether the rt CLI and MCP host are installed and the .NET SDK works without trusting a repository or loading a solution; select --installation-only. Use the default workspace mode when starting work in a repository to verify solution selection, trust, workspace readiness, capability maturity, and resource limits.",
         [
+            "rt inspect doctor --installation-only --json",
             "rt inspect doctor --directory C:\\code\\app",
             "rt inspect doctor --directory C:\\code\\app --solution App.slnx --trust-repository --json"
         ],
@@ -398,5 +399,30 @@ internal static class DoctorCommandDefinition
         product: CommandProductMetadata.FromLegacy(
             Info,
             CommandSafety.ReadOnly,
-            maturity: CapabilityMaturity.StableCandidate));
+            effects: CommandEffects.LocalStateRead | CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution,
+            maturity: CapabilityMaturity.StableCandidate) with
+        {
+            Prerequisites = [".NET SDK", "Loadable C# solution"],
+            Modes =
+            [
+                new CommandProductMode(
+                    "installation",
+                    "Check launchers, build host, SDK, and MCP protocol without loading a solution.",
+                    new CommandModeSelector("installationOnly", true, false),
+                    CommandEffects.LocalStateRead | CommandEffects.RepositoryRead,
+                    TrustRequirement.None,
+                    WorkspaceRequirement.None,
+                    [],
+                    "rt inspect doctor --installation-only --json"),
+                new CommandProductMode(
+                    "workspace",
+                    "Check installation and load a selected solution after explicit repository trust.",
+                    new CommandModeSelector("installationOnly", false, true),
+                    CommandEffects.LocalStateRead | CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution,
+                    TrustRequirement.ExplicitTrustedRepository,
+                    WorkspaceRequirement.Semantic,
+                    [".NET SDK", "Loadable C# solution"],
+                    "rt inspect doctor --directory C:\\code\\app --solution App.slnx --trust-repository --json")
+            ]
+        });
 }

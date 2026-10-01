@@ -46,6 +46,13 @@ public sealed class CommandSurfaceSchemaTests
             typeof(CommandProductDescriptor));
 
     [Fact]
+    public void schema_mode_definitions_match_mode_descriptors()
+    {
+        AssertObjectMatchesRecord(Schema["$defs"]!["mode"]!.AsObject(), typeof(CommandModeDescriptor));
+        AssertObjectMatchesRecord(Schema["$defs"]!["modeSelector"]!.AsObject(), typeof(CommandModeSelector));
+    }
+
+    [Fact]
     public void schema_argument_def_matches_argument_descriptor()
         => AssertObjectMatchesRecord(Schema["$defs"]!["argument"]!.AsObject(), typeof(ArgumentDescriptor));
 

@@ -48,7 +48,8 @@ internal sealed record CommandProductDescriptor(
     int DefaultTimeoutMilliseconds,
     int MaximumItems,
     int MaximumOutputBytes,
-    IReadOnlyList<string> Limitations);
+    IReadOnlyList<string> Limitations,
+    IReadOnlyList<CommandModeDescriptor>? Modes = null);
 
 /// <summary>
 ///     A single CLI option (flag) — its canonical name, all aliases (with prefixes,

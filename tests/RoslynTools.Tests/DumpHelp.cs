@@ -190,6 +190,34 @@ public sealed class DumpHelp
     }
 
     [Fact]
+    public void builds_doctor_section_describes_mode_requirements()
+    {
+        var sb = new StringBuilder();
+
+        DumpHelpCommand.BuildCommandSection(
+            sb,
+            new Command("doctor"),
+            DoctorCommandDefinition.Info,
+            DoctorCommandDefinition.Definition.Product);
+
+        var markdown = sb.ToString();
+        markdown.ShouldContain("Use this when checking whether the rt CLI and MCP host are installed");
+        markdown.ShouldContain("**Modes:**");
+        markdown.ShouldContain("`installationOnly=true`");
+        markdown.ShouldContain("Trust: None");
+        markdown.ShouldContain("Prerequisites: none");
+        markdown.ShouldContain("`installationOnly=false`) (default)");
+        markdown.ShouldContain("RepositoryCodeExecution");
+        var installation = markdown.Split('\n').Single(line => line.Contains("**installation**", StringComparison.Ordinal));
+        var workspace = markdown.Split('\n').Single(line => line.Contains("**workspace**", StringComparison.Ordinal));
+        installation.ShouldNotContain("(default)");
+        installation.ShouldContain("`installationOnly=true`):");
+        installation.ShouldContain("Effects: RepositoryRead, LocalStateRead.");
+        installation.ShouldContain("Workspace: None");
+        workspace.ShouldContain("Prerequisites: .NET SDK, Loadable C# solution.");
+    }
+
+    [Fact]
     public void builds_command_section_emits_description_in_italics()
     {
         var sb = new StringBuilder();

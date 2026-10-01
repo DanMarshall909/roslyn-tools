@@ -217,6 +217,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   cost, cancellation, default timeout, item/output limits, limitations, and examples.
 - [ ] Generate CLI help, MCP annotations/schema, `doctor`, `suggest`, and documentation
   metadata from the same definition.
+  - [x] Describe doctor installation and trusted-workspace modes in one product
+    definition, project each mode's selector, effects, trust, workspace, and
+    prerequisites into CLI and MCP discovery, and verify census parity.
 - [ ] Normalize request naming and option semantics across CLI and MCP; eliminate mixed
   `dry-run`, `dryRun`, and adapter-specific aliases from canonical contracts.
 - [ ] Replace multiple output booleans with one canonical format choice; remove the

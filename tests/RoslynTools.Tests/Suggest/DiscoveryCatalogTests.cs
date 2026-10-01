@@ -30,6 +30,21 @@ public sealed class DiscoveryCatalogTests
     }
 
     [Fact]
+    public void installation_preflight_selects_doctor_and_its_safe_example()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        var response = provider.GetRequiredService<SuggestService>().Suggest(new SuggestRequest(
+            "check whether rt CLI and MCP are installed and SDK works without trusting repository or loading solution",
+            Top: 3));
+
+        response.Results[0].Name.ShouldBe("doctor");
+        response.Results[0].PrimaryExample.ShouldBe("rt inspect doctor --installation-only --json");
+    }
+
+    [Fact]
     public void implementation_search_uses_the_real_read_route_before_interface_mutators()
     {
         var services = new ServiceCollection();

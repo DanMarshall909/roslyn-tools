@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
@@ -12,6 +13,7 @@ internal sealed class ToolSchemaBuilder(
     ApplicationCommandCatalog descriptors,
     McpHostOptions hostOptions)
 {
+    private static readonly JsonSerializerOptions ModeJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ApplicationCommandCatalog _descriptors = descriptors;
     private readonly McpHostOptions _hostOptions = hostOptions;
 
@@ -32,6 +34,24 @@ internal sealed class ToolSchemaBuilder(
         var external = descriptor.Effects.HasFlag(CommandEffects.ExternalRead)
                        || descriptor.Effects.HasFlag(CommandEffects.ExternalWrite);
 
+        var metadata = new Dictionary<string, object>
+        {
+            ["rt/maturity"] = (product?.Maturity ?? CapabilityMaturity.Experimental).ToString(),
+            ["rt/effects"] = CommandProductMetadata.EffectNames(descriptor.Effects),
+            ["rt/audience"] = descriptor.Audience.ToString(),
+            ["rt/workspaceRequirement"] =
+                (product?.WorkspaceRequirement ?? WorkspaceRequirement.Semantic).ToString(),
+            ["rt/defaultTimeoutMilliseconds"] =
+                product?.Limits.DefaultTimeoutMilliseconds ?? 30_000,
+            ["rt/maximumItems"] = product?.Limits.MaximumItems ?? 100,
+            ["rt/maximumOutputBytes"] = product?.Limits.MaximumOutputBytes ?? 1_048_576,
+            ["rt/cliExamples"] = descriptor.Definition?.Info.Examples ?? []
+        };
+        if (product?.Modes is { Count: > 0 } modes)
+            metadata["rt/modes"] = JsonSerializer.SerializeToElement(
+                modes.Select(mode => mode.ToDescriptor()).ToArray(),
+                ModeJsonOptions);
+
         return new ToolDefinition(
             descriptor.ToolName,
             descriptor.WhenToUse,
@@ -49,22 +69,7 @@ internal sealed class ToolSchemaBuilder(
                 destructiveHint: writes,
                 idempotentHint: product?.Idempotency == CommandIdempotency.Idempotent || !writes,
                 openWorldHint: external),
-            new Dictionary<string, object>
-            {
-                ["rt/maturity"] = (product?.Maturity ?? CapabilityMaturity.Experimental).ToString(),
-                ["rt/effects"] = Enum.GetValues<CommandEffects>()
-                    .Where(effect => effect != CommandEffects.None && descriptor.Effects.HasFlag(effect))
-                    .Select(effect => effect.ToString())
-                    .ToArray(),
-                ["rt/audience"] = descriptor.Audience.ToString(),
-                ["rt/workspaceRequirement"] =
-                    (product?.WorkspaceRequirement ?? WorkspaceRequirement.Semantic).ToString(),
-                ["rt/defaultTimeoutMilliseconds"] =
-                    product?.Limits.DefaultTimeoutMilliseconds ?? 30_000,
-                ["rt/maximumItems"] = product?.Limits.MaximumItems ?? 100,
-                ["rt/maximumOutputBytes"] = product?.Limits.MaximumOutputBytes ?? 1_048_576,
-                ["rt/cliExamples"] = descriptor.Definition?.Info.Examples ?? []
-            });
+            metadata);
     }
 
     private static Dictionary<string, object> BuildInputSchema(ApplicationCommandInput input)
