@@ -315,6 +315,13 @@ forcing an irrelevant command match.
 - **AND** do not recommend symbol dependency graphs or source extraction commands as if they completed that task
 - **AND** ordinary symbol dependency, project dependency, and interface extraction requests retain their existing routes
 
+#### Scenario: compiler diagnostic delta is requested before the comparison route exists
+
+- **WHEN** the user asks to compare compiler or analyzer diagnostics across revisions
+- **THEN** CLI and MCP `suggest` return `Unsupported` with `compiler-diagnostic-delta` and a manual next step to build and compare explicit revisions
+- **AND** no source mutation is recommended as a substitute
+- **AND** current diagnostic, C# declaration comparison, architecture baseline, and diagnostic-fix requests are not reclassified by this guard
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

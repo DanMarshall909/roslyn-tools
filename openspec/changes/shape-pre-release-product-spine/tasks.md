@@ -343,6 +343,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Return named `Unsupported` outcomes with manual next steps for NuGet
   package inventory and wholesale non-Microsoft dependency extraction from
   core layers; preserve ordinary symbol and project dependency suggestions.
+- [x] Return a named `Unsupported` outcome for compiler/analyzer diagnostic
+  deltas until a comparison route exists; preserve current diagnostic, source
+  diff, architecture-baseline, and diagnostic-fix queries.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

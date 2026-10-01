@@ -261,6 +261,85 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
+    [InlineData("Compare compiler diagnostics before and after this change")]
+    [InlineData("Compare compiler errors against the previous build")]
+    [InlineData("Which analyzer warnings were introduced since HEAD?")]
+    [InlineData("Find the delta in CS8618 diagnostics since main")]
+    [InlineData("Which compiler warnings were introduced by this change?")]
+    [InlineData("What analyzer diagnostics appeared in the current branch relative to main?")]
+    [InlineData("Compare compiler diagnostics between two Git branches")]
+    [InlineData("Compare analyzer warnings between release/1.0 and release/1.1")]
+    [InlineData("Compare compiler diagnostics against HEAD")]
+    [InlineData("Compare compiler diagnostics between HEAD and main")]
+    [InlineData("Compare compiler diagnostics from main to HEAD")]
+    [InlineData("What compiler warnings did this change introduce?")]
+    [InlineData("Compare compiler diagnostics before and after the fix")]
+    [InlineData("Compare compiler diagnostics before and after C# declaration changes")]
+    [InlineData("What did the fix introduce in compiler diagnostics since main?")]
+    [InlineData("Compare compiler diagnostics before and after we fix compiler warnings")]
+    [InlineData("After changing C# declarations, compare compiler diagnostics before and after")]
+    [InlineData("After we fix compiler warnings, compare compiler diagnostics before and after")]
+    [InlineData("Compare compiler diagnostics between feature/foo and main")]
+    public void unavailable_diagnostic_delta_does_not_recommend_a_mutator(string query)
+    {
+        var catalog = new FakeCatalog(
+            Info("change-signature", category: "refactor", whenToUse: "Change a method signature"),
+            Info("rename", category: "refactor", whenToUse: "Rename a symbol"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("compiler-diagnostic-delta");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNullOrWhiteSpace();
+        response.UnsupportedReason.ShouldContain("revisions");
+    }
+
+    [Theory]
+    [InlineData("Find references to Diagnostic", "relationships")]
+    [InlineData("Compare C# declarations before and after this change", "semantic-diff")]
+    [InlineData("Compare C# declarations before and after fixing compiler warnings", "semantic-diff")]
+    [InlineData("Find baseline deltas for architecture violations", "check-architecture")]
+    [InlineData("Change a method signature to fix CS8618", "change-signature")]
+    [InlineData("Fix compiler warning regressions since main", "doctor")]
+    [InlineData("How do I fix compiler warnings introduced by this change?", "doctor")]
+    [InlineData("Can you fix compiler warnings introduced by this change?", "doctor")]
+    [InlineData("Please help me fix compiler warnings introduced by this change", "doctor")]
+    [InlineData("How can I fix the current compiler diagnostics since main?", "doctor")]
+    [InlineData("Fix all compiler warnings introduced since main", "doctor")]
+    [InlineData("Compare compiler warnings between ProjectA and ProjectB", "doctor")]
+    [InlineData("Compare compiler warnings in main and test projects", "doctor")]
+    [InlineData("Compare compiler warnings against main project", "doctor")]
+    [InlineData("Compare compiler diagnostics between .NET versions 9 and 10", "doctor")]
+    [InlineData("Review C# declarations before and after fixing compiler warnings", "semantic-diff")]
+    [InlineData("How did C# declarations change before and after fixing compiler warnings?", "semantic-diff")]
+    [InlineData("How do I fix an introduced CS8618 warning?", "doctor")]
+    [InlineData("Show current compiler warnings", "doctor")]
+    [InlineData("Show compiler errors after this build", "doctor")]
+    public void other_diagnostic_and_comparison_queries_are_not_reclassified_as_deltas(
+        string query,
+        string expectedCommand)
+    {
+        var response = new SuggestService(new FakeCatalog(Info(expectedCommand, whenToUse: query)))
+            .Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe(expectedCommand);
+    }
+
+    [Fact]
+    public void plan_verification_takes_precedence_over_diagnostic_delta_detection()
+    {
+        var response = new SuggestService(new FakeCatalog()).Suggest(new SuggestRequest(
+            "Verify a prepared plan's compiler diagnostic delta before applying"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("verify-plan");
+    }
+
+    [Theory]
     [InlineData("Find every implementation of IRtCommand before changing the interface")]
     [InlineData("Show all implementers of IRtCommand")]
     public void implementation_search_returns_one_invokable_read_workflow(string query)

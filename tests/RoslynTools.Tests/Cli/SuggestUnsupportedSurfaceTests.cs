@@ -7,6 +7,27 @@ namespace RoslynTools.Tests.Cli;
 public sealed class SuggestUnsupportedSurfaceTests
 {
     [Fact]
+    public async Task compiler_diagnostic_delta_has_honest_json_and_text_outcomes()
+    {
+        var json = await RtCliHost.RunAsync(
+            "suggest \"Compare compiler diagnostics before and after this change\" --top 3 --json");
+        var text = await RtCliHost.RunAsync(
+            "suggest \"Compare compiler diagnostics before and after this change\" --top 3 --llm");
+
+        json.ExitCode.ShouldBe(0, json.Stderr);
+        using var payload = JsonDocument.Parse(json.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString()
+            .ShouldBe("compiler-diagnostic-delta");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.GetProperty("UnsupportedReason").GetString()!
+            .ShouldContain("revisions");
+        text.ExitCode.ShouldBe(0, text.Stderr);
+        text.Stdout.ShouldContain("Unsupported: compiler-diagnostic-delta.");
+        text.Stdout.ShouldContain("revisions");
+    }
+
+    [Fact]
     public async Task package_inventory_and_core_extraction_have_honest_json_and_text_outcomes()
     {
         var inventory = await RtCliHost.RunAsync(

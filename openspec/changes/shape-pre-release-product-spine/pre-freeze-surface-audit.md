@@ -286,6 +286,11 @@ above remain the pre-fix baseline; symbol and project dependency queries keep
 their existing recommendation path. This closes the misleading-suggestion
 case, not the missing inventory or extraction capability.
 
+A subsequent discovery slice gives explicit compiler/analyzer diagnostic
+comparison requests a named `Unsupported` outcome with a manual two-revision
+build comparison. The original mutator ranking in the task corpus remains
+the baseline; the diagnostic-delta command itself is still future work.
+
 ### Second-repository read workflow: Flo
 
 The source-built `rt` was run from the already trusted

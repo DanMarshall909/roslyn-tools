@@ -323,6 +323,27 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task suggest_reports_missing_diagnostic_delta_in_both_mcp_content_forms()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"tools/call","id":2,"params":{"name":"suggest_command","arguments":{"query":"Compare compiler diagnostics before and after this change","top":3}}}
+            """);
+
+        using var doc = JsonDocument.Parse(output);
+        var result = doc.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("compiler-diagnostic-delta");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.GetProperty("unsupportedReason").GetString()!.ShouldContain("revisions");
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        using var payload = JsonDocument.Parse(text!);
+        JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task suggest_implementation_search_returns_typed_read_workflow_in_both_content_forms()
     {
         var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");

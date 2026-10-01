@@ -44,6 +44,11 @@ internal sealed class SuggestService : IRtService
         if (UnavailablePlanCapability(request.Query) is { } missingCapability)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, missingCapability);
 
+        if (IsDiagnosticDeltaRequest(request.Query))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported,
+                "compiler-diagnostic-delta",
+                UnsupportedReason: "rt cannot compare compiler or analyzer diagnostics between revisions yet. Build each explicit revision with the same SDK and analyzer configuration, capture diagnostic output, and compare identities, severities, and locations; semantic-diff compares C# declarations only.");
+
         if (UnsupportedDependencyRequest(request.Query) is { } unsupportedDependency)
             return unsupportedDependency;
 
@@ -281,6 +286,61 @@ internal sealed class SuggestService : IRtService
                 UnsupportedReason: "rt has no NuGet package inventory. Inspect PackageReference and Directory.Packages.props, then use the installed .NET SDK package listing for affected projects; dependency-graph covers C# symbols only.");
 
         return null;
+    }
+
+    private static bool IsDiagnosticDeltaRequest(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var diagnosticKind = Regex.Match(query,
+            @"\b(?:compiler|analy[sz]er)\s+(?:diagnostics?|errors?|warnings?)\b|\bCS[0-9]{4}\b",
+            options);
+        var sourceComparison = Regex.Match(query,
+            @"\b(?:C#|CSharp|source|code)\s+(?:declarations?|symbols?)\b|^\s*(?:please\s+)?(?:compare|diff|review)\s+(?:C#|CSharp|source|code|declarations?|symbols?)(?:\b|\s)",
+            options);
+        var repairVerb = Regex.Match(query, @"\b(?:fix|repair|resolve|suppress)\b", options);
+        var comparisonVerb = Regex.Match(query, @"\b(?:compare|diff)\b", options);
+        var repairIsNoun = repairVerb.Success && Regex.IsMatch(query[..repairVerb.Index],
+            @"\b(?:a|an|the|this|that|code)\s+$", options);
+        var repairRequest = repairVerb.Success
+                            && !repairIsNoun
+                            && (!comparisonVerb.Success || repairVerb.Index < comparisonVerb.Index);
+        var explicitDiagnosticComparison = Regex.IsMatch(query,
+            @"\b(?:compare|diff)\s+(?:(?:the|all|current|new)\s+)*(?:(?:compiler|analy[sz]er)\s+(?:diagnostics?|errors?|warnings?)|CS[0-9]{4})\b",
+            options);
+        if (!diagnosticKind.Success
+            || !explicitDiagnosticComparison
+            && (sourceComparison.Success && sourceComparison.Index < diagnosticKind.Index
+                || repairRequest
+                || Regex.IsMatch(query,
+                    @"^\s*(?:please\s+)?(?:edit|change|apply|refactor)\b",
+                    options)))
+            return false;
+
+        var beforeAndAfter = Regex.IsMatch(query, @"\bbefore\b", options)
+                             && Regex.IsMatch(query, @"\bafter\b", options);
+        const string revisionRef = @"(?:HEAD|main|(?:release|feature|hotfix|bugfix)/[\w.-]+)";
+        var againstBranch = Regex.IsMatch(query, $@"\bagainst\s+{revisionRef}\b", options)
+                            && !Regex.IsMatch(query,
+                                @"\bagainst\s+main\s+(?:project|application|assembly)\b",
+                                options);
+        var pairedRevisions = Regex.IsMatch(query,
+            $@"\bbetween\s+{revisionRef}\s+and\s+{revisionRef}\b|\bfrom\s+{revisionRef}\s+to\s+{revisionRef}\b",
+            options);
+        var revisionCue = againstBranch
+                          || pairedRevisions
+                          || Regex.IsMatch(query, @"\b(?:since|relative\s+to|(?:Git\s+)?(?:branches?|revisions?|commits?))\b", options)
+                          || Regex.IsMatch(query,
+                              @"\b(?:previous|prior|last)\s+(?:build|commit|revision|branch)\b|\b(?:current|this|last|previous)\s+(?:change|commit|branch|revision)\b|\b(?:after|before)\s+(?:this\s+)?(?:change|commit|revision)\b",
+                              options)
+                          || Regex.Count(query,
+                              @"\b(?:release|feature|hotfix|bugfix)/[\w.-]+\b",
+                              options) >= 2;
+        var deltaIntent = Regex.IsMatch(query,
+            @"\b(?:compare|comparison|diff|difference|delta|introduc(?:e|ed|ing)|appeared|removed|resolved|regressions?|since)\b",
+            options);
+        return beforeAndAfter || revisionCue && deltaIntent;
     }
 
     private static SuggestResult ToResult(ScoredCommand s) => new(
