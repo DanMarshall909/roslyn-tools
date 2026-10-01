@@ -264,6 +264,10 @@ discovery and content reads. Working-tree path discovery diffs directly from
 that baseline through the index and current tracked files, then adds untracked
 files; `--no-relative` preserves repository-root paths from nested directories.
 See [ADR-0091](adr/0091-exact-baseline-semantic-diff.md).
+For explicit C# working-tree review, task-aware `suggest` now carries one
+unambiguous baseline ref into both CLI `--from` and MCP `from` arguments.
+Ambiguous wording remains typed unsupported. See
+[ADR-0092](adr/0092-route-unambiguous-working-tree-baselines.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console

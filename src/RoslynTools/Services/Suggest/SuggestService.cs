@@ -73,27 +73,32 @@ internal sealed class SuggestService : IRtService
                 UnsupportedReason: "Working-tree C# semantic diff requires Linux x64; compare two Git refs or two .cs files instead.");
         if (Regex.IsMatch(query, @"\bunstaged\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-unstaged",
-                UnsupportedReason: "The current semantic diff compares HEAD with the working tree and includes staged changes; an unstaged-only comparison is unavailable.");
-        if (HasExplicitWorkingTreeBaseline(query))
+                UnsupportedReason: "Semantic diff compares a Git baseline with current files and includes staged changes; an unstaged-only comparison is unavailable.");
+        if (!TryGetWorkingTreeBaseline(query, out var baseline))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-working-tree-baseline",
-                UnsupportedReason: "This suggestion route cannot safely infer an explicit baseline from the request. Run semantic-diff --from <ref> directly, or compare two Git refs.");
+                UnsupportedReason: "The request has an ambiguous or unsupported baseline. Run semantic-diff --from <ref> directly after choosing one Git ref.");
         if (_catalog.All.All(info => info.Name != "semantic-diff"))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, capability,
                 UnsupportedReason: "The semantic-diff command is unavailable in this command catalogue.");
 
         var hasMcpTarget = !string.IsNullOrWhiteSpace(solution) && Path.IsPathFullyQualified(solution);
         var directory = hasMcpTarget ? Path.GetDirectoryName(solution!) : null;
-        IReadOnlyDictionary<string, string>? arguments = directory is not null
+        Dictionary<string, string>? arguments = directory is not null
             ? new Dictionary<string, string>(StringComparer.Ordinal) { ["directory"] = directory }
             : null;
+        if (arguments is not null && baseline is not null)
+            arguments["from"] = baseline;
         var cli = "rt analyze semantic-diff"
                   + (directory is null ? "" : $" --directory {QuoteCliArgument(directory)}")
+                  + (baseline is null ? "" : $" --from {QuoteCliArgument(baseline)}")
                   + " --json";
         var step = new SuggestWorkflowStep(
             cli,
             arguments is null ? null : "semantic_diff",
             arguments,
-            "Review surfaced C# declaration changes between HEAD and current files, including staged changes.",
+            baseline is null
+                ? "Review surfaced C# declaration changes between HEAD and current files, including staged changes."
+                : $"Review surfaced C# declaration changes since {baseline}, including committed, staged, unstaged, and untracked files.",
             "Stop on a Git or content-read error; an empty result covers surfaced declarations only and does not prove unchanged behavior.",
             arguments is null ? "MCP requires an absolute solution path; call suggest_command again with one." : null);
         return new SuggestResponse([], [], SuggestOutcome.Recommendations,
@@ -111,12 +116,14 @@ internal sealed class SuggestService : IRtService
                && !Regex.IsMatch(query, @"^\s*(?:please\s+)?(?:apply|refactor|edit|rewrite|modify|commit|stage|rename)\b", options);
     }
 
-    private static bool HasExplicitWorkingTreeBaseline(string query)
+    private static bool TryGetWorkingTreeBaseline(string query, out string? baseline)
     {
+        baseline = null;
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
         const string comparator = @"(?:\b(?:against|since|from|versus|compared\s+(?:with|to)|relative\s+to)\b|\bvs\b\.?)";
+        var found = false;
         foreach (Match comparative in Regex.Matches(query, comparator, options))
         {
             var tail = query[(comparative.Index + comparative.Length)..];
@@ -124,13 +131,26 @@ internal sealed class SuggestService : IRtService
                 && Regex.IsMatch(tail,
                     @"^\s+(?:(?:my|the|our|your|this)\s+)?working[ -]tree\b", options))
                 continue;
+            if (found)
+                return false;
             var target = Regex.Match(tail,
                 @"^\s+(?<ref>[A-Za-z0-9][A-Za-z0-9._~^/-]*)", options);
-            if (!target.Success
-                || !target.Groups["ref"].Value.Equals("HEAD", StringComparison.OrdinalIgnoreCase))
-                return true;
+            if (!target.Success)
+                return false;
+            var reference = target.Groups["ref"].Value;
+            if (reference.EndsWith('.') && !reference.EndsWith("..", StringComparison.Ordinal))
+                reference = reference[..^1];
+            var remainder = tail[(target.Groups["ref"].Index + target.Groups["ref"].Length)..];
+            if (reference.Contains("..", StringComparison.Ordinal)
+                || Regex.IsMatch(reference, @"^(?:my|the|our|your|this)$", options)
+                || !Regex.IsMatch(remainder, @"^\s*[!?]?\s*$", options))
+                return false;
+            baseline = reference.Equals("HEAD", StringComparison.Ordinal)
+                ? null
+                : reference;
+            found = true;
         }
-        return false;
+        return true;
     }
 
     private SuggestResponse SuggestImplementations(string symbol, string? solution)

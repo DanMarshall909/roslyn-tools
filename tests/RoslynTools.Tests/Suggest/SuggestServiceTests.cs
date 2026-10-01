@@ -373,19 +373,65 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
-    [InlineData("compare my uncommitted C# changes against main")]
-    [InlineData("review semantic C# working tree changes since v1.0")]
-    [InlineData("review my working tree C# changes from HEAD~1")]
-    [InlineData("review my working tree C# changes compared with main")]
-    [InlineData("review my working tree C# changes versus main")]
-    [InlineData("review my working tree C# changes relative to main")]
-    [InlineData("review my working tree C# changes vs. main")]
+    [InlineData("compare my uncommitted C# changes against main", "main", "main")]
+    [InlineData("review semantic C# working tree changes since v1.0", "v1.0", "v1.0")]
+    [InlineData("review my working tree C# changes since main.", "main", "main")]
+    [InlineData("review my working tree C# changes from HEAD~1", "HEAD~1", "'HEAD~1'")]
+    [InlineData("review my working tree C# changes compared with main", "main", "main")]
+    [InlineData("review my working tree C# changes versus main", "main", "main")]
+    [InlineData("review my working tree C# changes relative to main", "main", "main")]
+    [InlineData("review my working tree C# changes vs. main", "main", "main")]
+    [InlineData("review my working tree C# changes against head", "head", "head")]
+    [InlineData("review my working tree C# changes against Head", "Head", "Head")]
+    public void explicit_simple_working_tree_baseline_routes_to_cli_and_mcp(
+        string query, string reference, string cliReference)
+    {
+        var solution = Path.GetFullPath("RoslynTools.slnx");
+        var directory = Path.GetDirectoryName(solution)!;
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest(query, Solution: solution));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        var step = response.Workflow!.Steps.Single();
+        step.CliInvocation.ShouldBe(
+            $"rt analyze semantic-diff --directory {directory} --from {cliReference} --json");
+        step.McpTool.ShouldBe("semantic_diff");
+        step.McpArguments!["directory"].ShouldBe(directory);
+        step.McpArguments["from"].ShouldBe(reference);
+        step.Reason.ShouldContain(reference);
+        step.StopCondition.ShouldContain("error");
+    }
+
+    [Fact]
+    public void explicit_baseline_without_solution_has_cli_route_and_honest_mcp_limit()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
+            .Suggest(new SuggestRequest("review my working tree C# changes against main"));
+
+        var step = response.Workflow!.Steps.Single();
+        step.CliInvocation.ShouldBe("rt analyze semantic-diff --from main --json");
+        step.McpTool.ShouldBeNull();
+        step.McpArguments.ShouldBeNull();
+        step.McpUnavailableReason!.ShouldContain("absolute solution path");
+    }
+
+    [Theory]
     [InlineData("review my working tree C# changes from HEAD versus main")]
     [InlineData("review my working tree C# changes against my branch")]
     [InlineData("review my working tree C# changes from my branch")]
     [InlineData("review C# changes from my working tree against 'main'")]
     [InlineData("review C# changes from my working tree against \"main\"")]
-    public void explicit_working_tree_baseline_is_unsupported_until_suggestion_can_parse_it(string query)
+    [InlineData("review my working tree C# changes against main branch")]
+    [InlineData("review my working tree C# changes against MY branch")]
+    [InlineData("review my working tree C# changes against HEAD~1..HEAD")]
+    [InlineData("review my working tree C# changes against HEAD@{1}")]
+    [InlineData("review my working tree C# changes against main:Widget.cs")]
+    [InlineData("review my working tree C# changes against main versus main")]
+    [InlineData("review my working tree C# changes since --cached")]
+    [InlineData("review my working tree C# changes since")]
+    public void ambiguous_working_tree_baseline_is_unsupported(string query)
     {
         var response = new SuggestService(new FakeCatalog(
             Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
@@ -398,12 +444,14 @@ public sealed class SuggestServiceTests
         response.Workflow.ShouldBeNull();
     }
 
-    [Fact]
-    public void unstaged_only_review_is_unsupported_because_default_includes_staged_changes()
+    [Theory]
+    [InlineData("review unstaged C# changes")]
+    [InlineData("review unstaged C# changes since main")]
+    public void unstaged_only_review_is_unsupported_because_default_includes_staged_changes(string query)
     {
         var response = new SuggestService(new FakeCatalog(
             Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
-            .Suggest(new SuggestRequest("review unstaged C# changes"));
+            .Suggest(new SuggestRequest(query));
 
         response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
         response.MissingCapability.ShouldBe("semantic-diff-unstaged");

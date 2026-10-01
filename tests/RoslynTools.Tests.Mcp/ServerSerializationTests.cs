@@ -363,6 +363,8 @@ public class ServerSerializationTests
             RunGit(repository, "add", "Demo.slnx", "Thing.cs");
             RunGit(repository, "commit", "--quiet", "-m", "Initial");
             File.WriteAllText(sourcePath, "class Thing { public int Value { get; } }\n");
+            RunGit(repository, "add", "Thing.cs");
+            RunGit(repository, "commit", "--quiet", "-m", "Add property");
 
             var host = new McpHostOptions(
                 trustRegistry: new RepositoryTrustRegistry(Path.Combine(directory, "trust.json")));
@@ -375,13 +377,14 @@ public class ServerSerializationTests
                 @params = new
                 {
                     name = "suggest_command",
-                    arguments = new { query = "review my working tree C# changes", solution = solutionPath }
+                    arguments = new { query = "review my working tree C# changes since HEAD~1", solution = solutionPath }
                 }
             });
             var suggestOutput = await RunSingleRequestAsync(suggestRequest, host);
             using var suggestion = JsonDocument.Parse(suggestOutput);
             var step = suggestion.RootElement.GetProperty("result").GetProperty("structuredContent")
                 .GetProperty("workflow").GetProperty("steps")[0];
+            step.GetProperty("mcpArguments").GetProperty("from").GetString().ShouldBe("HEAD~1");
             var semanticRequest = JsonSerializer.Serialize(new
             {
                 jsonrpc = "2.0",
@@ -410,6 +413,11 @@ public class ServerSerializationTests
             var trustedResult = trusted.RootElement.GetProperty("result");
             trustedResult.GetProperty("isError").GetBoolean().ShouldBeFalse();
             trustedResult.TryGetProperty("structuredContent", out _).ShouldBeTrue();
+            using var deltas = JsonDocument.Parse(trustedResult.GetProperty("content")[0]
+                .GetProperty("text").GetString()!);
+            deltas.RootElement.EnumerateArray()
+                .ShouldContain(delta => delta.GetProperty("fqn").GetString() == "Thing.Value"
+                    && delta.GetProperty("status").GetString() == "Added");
         }
         finally
         {

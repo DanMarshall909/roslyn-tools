@@ -332,7 +332,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Discover Git-backed semantic-diff working-tree paths from the selected
   baseline, pin refs before path and content reads, and retain root-relative
   literal paths from nested directories.
-- [ ] Route safely parsed explicit working-tree baselines through task-aware
+- [x] Route safely parsed explicit working-tree baselines through task-aware
   CLI/MCP suggestion; keep ambiguous requests unsupported.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.

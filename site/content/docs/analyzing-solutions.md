@@ -47,7 +47,9 @@ Heuristic findings are prompts for investigation, not compiler errors. Preserve 
 `semantic-diff` compares C# structure while ignoring formatting-only noise:
 
 ```powershell
-rt analyze semantic-diff --from HEAD~1 --to HEAD --solution MyApp.slnx --trust-repository --json
+rt analyze semantic-diff --from HEAD~1 --to HEAD --json
 ```
 
 Use it alongside Git rather than as a replacement for the textual diff. The semantic view explains what declarations changed; Git remains the source of the exact patch.
+
+On Linux x64, omit `--to` to compare a Git baseline with current files, including staged and untracked changes. From outside the repository, pass `--directory <repo>`. To discover a matching CLI or MCP call, run `rt suggest "review my working tree C# changes since HEAD~1" --solution MyApp.slnx --json`.

@@ -319,8 +319,10 @@ forcing an irrelevant command match.
 - **AND** names ref-vs-ref and two-file comparison as alternatives without emitting a working-tree call
 - **WHEN** the user requests unstaged-only changes
 - **THEN** `suggest` reports the missing mode without emitting a broader comparison
-- **WHEN** the user requests an explicit non-HEAD working-tree baseline
-- **THEN** `suggest` reports that it cannot infer the ref safely and points to `semantic-diff --from <ref>` without emitting a HEAD comparison
+- **WHEN** the user requests one unambiguous non-HEAD working-tree baseline
+- **THEN** `suggest` carries that ref to CLI `--from` and MCP `from` when a target directory is known
+- **WHEN** the baseline is ambiguous, partial, or conflicting
+- **THEN** `suggest` reports `Unsupported` and points to `semantic-diff --from <ref>` without emitting a HEAD comparison
 
 ### Requirement: selected mutations prepare immutable revision-bound plans
 

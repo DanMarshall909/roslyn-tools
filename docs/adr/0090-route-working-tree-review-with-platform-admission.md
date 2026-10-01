@@ -34,6 +34,8 @@ The non-HEAD path limitation was removed by [ADR-0091](0091-exact-baseline-seman
 `semantic-diff --from <ref>` now compares that ref with the working tree.
 Task-aware suggestion still returns `Unsupported` for explicit baselines until
 it can parse them safely, and points callers to the direct command.
+That routing limitation was narrowed by [ADR-0092](0092-route-unambiguous-working-tree-baselines.md):
+one unambiguous ref now becomes `--from` in the suggested workflow.
 
 The Git client and suggestion service use one platform capability predicate.
 On unsupported hosts, or if the command is absent from the catalogue, the
