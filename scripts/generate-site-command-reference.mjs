@@ -27,9 +27,6 @@ const build = spawnSync(
     '--nologo',
     '--verbosity',
     'quiet',
-    '-p:GenerateCommandsMd=false',
-    '-p:FormatChanged=false',
-    '-p:DeployRtSkill=false',
   ],
   { cwd: root, stdio: 'inherit' },
 );

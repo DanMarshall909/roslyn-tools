@@ -11,7 +11,7 @@ namespace RoslynTools.Tests.Architecture;
 ///     implement EXACTLY ONE of <see cref="IInspectCommand" />, <see cref="IAnalyzeCommand" />,
 ///     or <see cref="IRefactorCommand" />. Mirrors the startup-time check in
 ///     <c>App.cs</c> static ctor — the test runs in CI, the static ctor runs at every CLI
-///     invocation and at post-build <c>docs/COMMANDS.md</c> generation.
+///     invocation and during explicit <c>docs/COMMANDS.md</c> generation.
 /// </summary>
 public sealed class CategoryInterfaceCoverage
 {

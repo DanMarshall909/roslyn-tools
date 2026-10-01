@@ -25,7 +25,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 echo "check-local: build" >&2
-dotnet build "$solution" -v minimal -p:FormatChanged=false -p:DeployRtSkill=false -p:GenerateCommandsMd=false
+dotnet build "$solution" -v minimal
 
 test_target="$test_project"
 [ "$full" -eq 1 ] && test_target="$solution"

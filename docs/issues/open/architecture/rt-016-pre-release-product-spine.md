@@ -63,6 +63,9 @@ CLI tool targets, off-solution build inputs, and a test SDK target with compiler
 input effects need separate proof before a complete claim. Input-set failure
 detail now gives a bounded list of known non-reusable build files, prioritizing
 declared projects and retaining the `Partial` state (ADR-0081).
+Normal Debug builds no longer run CLI formatting, command-reference, or
+user-profile skill deployment hooks (ADR-0093). This removes observed build
+effects, not the need to prove every remaining input before upgrading `Partial`.
 
 ## Decision
 

@@ -18,7 +18,7 @@ if (-not $repoRoot) {
 Push-Location $repoRoot
 try {
     Write-Host "check-local: build" -ForegroundColor DarkGray
-    dotnet build $Solution -v minimal -p:FormatChanged=false -p:DeployRtSkill=false -p:GenerateCommandsMd=false
+    dotnet build $Solution -v minimal
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     $testTarget = if ($Full) { $Solution } else { $TestProject }

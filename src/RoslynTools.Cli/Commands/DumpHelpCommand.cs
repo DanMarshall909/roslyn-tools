@@ -11,7 +11,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 ///     Displays the full command reference by walking the registry in <see cref="App" />.
 ///     When stdout is a terminal: coloured, categorised output.
-///     When stdout is redirected (e.g. the post-build MSBuild target): Markdown suitable for <c>docs/COMMANDS.md</c>.
+///     When stdout is redirected (e.g. explicit command-reference generation): Markdown suitable for <c>docs/COMMANDS.md</c>.
 ///     Listed in the root help's short discovery section while the full catalogue
 ///     remains limited to product commands.
 /// </summary>
@@ -54,7 +54,7 @@ internal static class DumpHelpCommand
                     RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot, products)));
                     break;
                 default:
-                    // Text: Markdown when piped (the post-build docs/COMMANDS.md target), coloured in a terminal.
+                    // Text: Markdown when piped for explicit docs generation, coloured in a terminal.
                     if (RtConsole.IsOutputRedirected)
                         RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot, products)));
                     else

@@ -153,7 +153,7 @@ below is complete until its failure, recovery, and cross-host acceptance tests p
 
 ## P1.6 hermetic build and developer workflow
 
-- [ ] Remove formatting, generated-document writes, and user-profile skill deployment from normal Debug build targets.
+- [x] Remove formatting, generated-document writes, and user-profile skill deployment from normal Debug build targets.
 - [ ] Provide explicit `format`, `generate-docs`, `deploy-skill`, `dogfood`, and `mutation-test` scripts/targets with predictable inputs and outputs.
 - [ ] Add a clean-tree build test that fails if restore/build/test modifies the checkout or user profile.
 - [ ] Make generated files reproducible and verify them in CI without rewriting them.

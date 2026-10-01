@@ -52,8 +52,7 @@ internal static class App
     /// <summary>
     ///     Enforces the convention "every class in RoslynTools.Commands ending with 'Command'
     ///     implements IRtCommand". Runs at first access to any <see cref="App" /> member, so it fires
-    ///     during startup — including the post-build <c>rt dump-help</c> target, which makes this a
-    ///     build-time check in practice.
+    ///     during startup, including explicit <c>rt dump-help</c> generation.
     /// </summary>
     static App()
     {
@@ -107,7 +106,7 @@ internal static class App
         // IInspectCommand / IAnalyzeCommand / IRefactorCommand / ICiCommand. The category marker
         // and RtCommandInfo.Category together describe the same fact in two places;
         // this ratchet keeps them in sync at startup so new commands can't forget to
-        // declare a category — the post-build docs/COMMANDS.md regeneration will fail.
+        // declare a category — CLI startup and explicit docs generation will fail.
         var categoryOffenders = typeof(App).Assembly.GetTypes()
             .Where(t => t.Namespace == "RoslynTools.Commands"
                         && !t.IsInterface

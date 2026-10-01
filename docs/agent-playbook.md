@@ -98,9 +98,9 @@ Every CLI command class ending in `Command` must implement `IRtCommand`.
 - Update `Info.Examples` when flags or invocation shape changes.
 - Keep `Info.Mutates` and `Info.JsonOutput` accurate.
 
-After command changes, build the CLI project, run `rt dump-help`, and commit only
-source/doc files intended for version control. Generated `docs/COMMANDS.md` is
-local convenience output.
+After command changes, build the CLI project, run `npm run generate:commands`,
+and commit only source/doc files intended for version control. Generated
+`docs/COMMANDS.md` is local convenience output; ordinary builds do not write it.
 
 ## Result and Output Conventions
 

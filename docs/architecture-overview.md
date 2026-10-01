@@ -1202,7 +1202,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 - **MCP is experimental until conformance gates pass.** The SDK transport and structured tool results are in place; pagination, cancellation, and other spawned-process conformance gates remain open under RT-012.
 - **Capability flags remain partly ad hoc.** Continue the central-catalogue migration; do not create more command-local known options.
 - **Output and suggestion fan-out remain incomplete.** Follow-ons, schemas, provenance, confidence, and limitations must be uniform before stable admission.
-- **Build/release claims exceed current evidence.** Debug builds currently have side-effecting targets, version metadata claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.
+- **Build/release claims exceed current evidence.** The three implicit Debug build hooks for formatting, command-reference generation, and user-profile skill deployment were removed ([ADR-0093](adr/0093-remove-implicit-debug-build-writes.md)), but a durable cross-platform clean-tree build gate remains open. Version metadata still claims `1.0.0`, and distribution verification is not yet native end-to-end. Treat release hardening as product correctness.
 - **The broader workspace daemon remains parked.** ADR-0017 admits only bounded read-only reuse for six named semantic operations. Generic sessions, incremental mutation, durable/cross-machine state, hot-upgrade draining, and daemon-owned mutation still require the remaining trust, mutation, protocol, and canonical-operation gates plus a separate decision.
 
 ## Updating this document
