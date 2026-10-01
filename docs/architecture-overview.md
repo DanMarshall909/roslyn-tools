@@ -556,13 +556,17 @@ A command implements exactly one category marker:
 
 - `IInspectCommand` — read-only, focused inspection;
 - `IAnalyzeCommand` — read-only, broader analysis; or
-- `IRefactorCommand` — prepares or applies source changes.
+- `IRefactorCommand` — prepares or applies source changes;
+- `ICiCommand` — enforces read-only checks; or
+- `IControlPlaneCommand` — changes or inspects user-scoped local state.
 
-`IControlPlaneCommand` is a narrow subtype of `IRefactorCommand` for explicit,
-local, user-authoritative control-plane actions such as `rt trust add/remove`.
-Its verb is itself the apply decision, so repository-source `--dry-run` and
-review-first gates exclude only this marker. Control-plane commands remain
-in-process and must not become MCP- or daemon-invocable through catalog inclusion.
+`IControlPlaneCommand` is a separate root-only category for explicit,
+local, user-authoritative actions such as `rt trust add/remove`. Its verb is
+itself the apply decision, so repository-source `--dry-run` and review-first
+gates do not apply. Its published product profile describes possible local-state
+write and Git reads without claiming repository-source mutation or a semantic
+workspace. Control-plane commands remain in-process and do not enter MCP or
+daemon request discovery; see [ADR-0103](adr/0103-separate-local-trust-control.md).
 
 Reusable options are capabilities backed by a central catalogue and shared binders, for example `IHasSolutionOption`, `ISupportsDryRun`, and `IHasSymbolTarget`. Services receive domain requests, not parser types. Known flags are not recreated command by command.
 

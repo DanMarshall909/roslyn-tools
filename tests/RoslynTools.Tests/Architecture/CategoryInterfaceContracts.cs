@@ -13,6 +13,7 @@ namespace RoslynTools.Tests.Architecture;
 ///         <item><see cref="IInspectCommand" /> ⇒ Category="inspect", Mutates=false. (Hard ratchet.)</item>
 ///         <item><see cref="IAnalyzeCommand" /> ⇒ Category="analyze", Mutates=false. (Hard ratchet.)</item>
 ///         <item><see cref="IRefactorCommand" /> ⇒ Category="refactor", Mutates=true. (Hard ratchet.)</item>
+///         <item><see cref="IControlPlaneCommand" /> ⇒ Category="control", root-only, Mutates=false.</item>
 ///         <item>Inspect/analyze ⇒ JsonOutput=true. <b>Soft (Skip)</b> — owned by US-082 (EP-007 umbrella).
 ///         Unskip when US-082 closes.</item>
 ///         <item><see cref="IRefactorCommand" />.Build() registers a <c>--dry-run</c> option, with
@@ -118,6 +119,25 @@ public sealed class CategoryInterfaceContracts
             "Every IRefactorCommand must have Info.Category=='refactor' and Info.Mutates==true. "
             + $"Offenders ({offenders.Count}): "
             + string.Join("; ", offenders));
+    }
+
+    [Fact]
+    public void with_every_control_plane_command_the_info_describes_root_local_control()
+    {
+        var controlCommands = AllCommandTypes()
+            .Where(t => typeof(IControlPlaneCommand).IsAssignableFrom(t))
+            .ToArray();
+        Assert.NotEmpty(controlCommands);
+
+        var offenders = controlCommands
+            .Select(t => (Name: t.Name, Info: InfoOf(t)))
+            .Where(x => x.Info is null
+                        || x.Info.Category != "control"
+                        || x.Info.Mutates
+                        || x.Info.Placement != CommandPlacement.RootOnly)
+            .Select(x => x.Name)
+            .ToArray();
+        Assert.Empty(offenders);
     }
 
     [Fact(Skip = "US-082 (EP-007 umbrella) owns adding structured JSON output to find-callers, find-refs, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Unskip once US-082 closes — this test ratchets the category ⇒ JsonOutput biconditional.")]

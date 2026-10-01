@@ -38,11 +38,11 @@ internal static class HostCommandMetadata
 
     internal static RtCommandInfo Trust { get; } = new(
         "trust",
-        Mutates: true,
+        Mutates: false,
         JsonOutput: true,
-        Category: "refactor",
-        "Managing preview user-scoped trust for a reviewed Git repository. "
-        + "Use trust add/remove only as an explicit local user decision; use list/status to inspect it.",
+        Category: "control",
+        "Use this when inspecting or changing user-scoped trust for a reviewed Git repository. "
+        + "The explicit add/remove verb is the local decision; list/status inspect trust.",
         [
             "rt trust add .",
             "rt trust list",
@@ -50,7 +50,29 @@ internal static class HostCommandMetadata
             "rt trust remove ."
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
-        SeeAlso: ["doctor"]);
+        SeeAlso: ["doctor"],
+        Placement: CommandPlacement.RootOnly);
+
+    internal static CommandProductMetadata TrustProduct { get; } = new(
+        CapabilityMaturity.Preview,
+        CommandEffects.RepositoryRead | CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite,
+        ConditionallyMutable: true,
+        CommandIdempotency.Conditional,
+        CommandAudience.Public,
+        TrustRequirement.None,
+        WorkspaceRequirement.None,
+        Prerequisites: [],
+        CommandCost.Low,
+        CancellationSupport.NotSupported,
+        new CommandResourceLimits(30_000, 1_000, 1_048_576),
+        Limitations:
+        [
+            "Add and status require a Git worktree; list and removal by stored repository id do not.",
+            "Cancellation is checked before registry work; synchronous registry and Git operations cannot be cancelled.",
+            "CLI trust commands do not yet enforce the advertised timeout, item count, or output byte limit.",
+            "Preview trust storage does not yet implement ADR-0011 leases, audit history, quotas, or evaluator isolation."
+        ],
+        Trust.Examples);
 
     internal static RtCommandInfo SemanticDiff { get; } = new(
         "semantic-diff",

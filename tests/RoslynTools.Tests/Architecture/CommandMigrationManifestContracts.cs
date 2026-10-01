@@ -10,13 +10,13 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class CommandMigrationManifestContracts
 {
     private static readonly HashSet<string> Categories =
-        ["inspect", "analyze", "refactor", "ci"];
+        ["inspect", "analyze", "refactor", "ci", "control"];
     private static readonly HashSet<string> WorkStates =
         ["convert", "reconcile", "complete"];
     private static readonly HashSet<string> ExecutionPlacements =
         ["daemon-preferred", "in-process"];
     private static readonly HashSet<string> SafetyPolicies =
-        ["read-only", "review-default", "apply-default"];
+        ["read-only", "review-default", "apply-default", "local-state-write"];
     private static readonly Type[] HostRenderingContracts =
         [typeof(IRtOutput), typeof(IRtJsonOutput), typeof(IRtMarkdownOutput), typeof(IRtYamlOutput)];
 
@@ -101,6 +101,10 @@ public sealed class CommandMigrationManifestContracts
             case "apply-default":
                 safety.Effect.ShouldBe(CommandEffect.Mutation);
                 safety.MutationDefault.ShouldBe(MutationExecutionDefault.Apply);
+                break;
+            case "local-state-write":
+                safety.Effect.ShouldBe(CommandEffect.LocalStateWrite);
+                safety.MutationDefault.ShouldBeNull();
                 break;
             default:
                 throw new InvalidOperationException($"Unknown manifest safety '{expected}'.");

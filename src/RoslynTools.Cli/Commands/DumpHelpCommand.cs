@@ -158,7 +158,7 @@ internal static class DumpHelpCommand
         sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
         sb.AppendLine(
-            "Source commands are filed under `inspect`, `analyze`, `refactor`, or `ci`; lifecycle commands are root-only. Invoke them as shown:");
+            "Source commands are filed under `inspect`, `analyze`, `refactor`, or `ci`; control and lifecycle commands are root-only. Invoke them as shown:");
         sb.AppendLine();
         sb.AppendLine("```bash");
         sb.AppendLine("rt <group> <command> [args...]   # canonical form");
@@ -177,7 +177,7 @@ internal static class DumpHelpCommand
         sb.AppendLine();
         foreach (var group in byCategory)
         {
-            var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+            var desc = DescribeGroup(group.Key);
             var heading = IsRootOnly(group)
                 ? "`rt`"
                 : $"`rt {group.Key}`";
@@ -221,7 +221,7 @@ internal static class DumpHelpCommand
         IGrouping<string, (Command Cmd, RtCommandInfo Info)> group,
         IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
-        var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+        var desc = DescribeGroup(group.Key);
         var heading = IsRootOnly(group)
             ? "`rt`"
             : $"`rt {group.Key}`";
@@ -321,8 +321,8 @@ internal static class DumpHelpCommand
 
         foreach (var group in byCategory)
         {
-            var desc = App.CategoryDescriptions.TryGetValue(group.Key, out var d) ? d : "";
-            var heading = IsRootOnly(group) ? "root lifecycle" : $"rt {group.Key}";
+            var desc = DescribeGroup(group.Key);
+            var heading = IsRootOnly(group) ? "root commands" : $"rt {group.Key}";
             RtConsole.Write(RtOutputContext.Ui, $"  {heading}", CategoryColour(group.Key));
             RtConsole.WriteLine(RtOutputContext.Ui, $"   {desc}", ConsoleColor.DarkGray);
             RtConsole.WriteLine(RtOutputContext.Ui, "  " + new string('\u2500', 52), ConsoleColor.DarkGray);
@@ -452,9 +452,16 @@ internal static class DumpHelpCommand
             "inspect" => 0,
             "analyze" => 1,
             "refactor" => 2,
-            _ => 3
+            "ci" => 3,
+            "root" => 4,
+            _ => 5
         };
     }
+
+    private static string DescribeGroup(string category) =>
+        category == "root"
+            ? "Root-only lifecycle and local control commands"
+            : App.CategoryDescriptions.TryGetValue(category, out var description) ? description : "";
 
     private static string Anchor(string name)
     {
@@ -473,6 +480,7 @@ internal static class DumpHelpCommand
                 StringComparer.Ordinal)
             ?? new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal);
         products.Add(HostCommandMetadata.Config.Name, HostCommandMetadata.ConfigProduct);
+        products.Add(HostCommandMetadata.Trust.Name, HostCommandMetadata.TrustProduct);
         return products;
     }
 
@@ -521,6 +529,6 @@ internal static class DumpHelpCommand
             .GroupBy(entry => entry.Info.Category)
             .Concat(registry
                 .Where(entry => IsRootOnly(entry.Info))
-                .GroupBy(entry => entry.Info.Category))
+                .GroupBy(_ => "root"))
             .OrderBy(group => CategoryOrder(group.Key));
 }

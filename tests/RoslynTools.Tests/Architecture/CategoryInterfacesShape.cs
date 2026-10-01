@@ -7,7 +7,7 @@ namespace RoslynTools.Tests.Architecture;
 /// <summary>
 ///     Locks the shape of the category and capability marker interfaces introduced in EP-013
 ///     Phase 1: <c>IInspectCommand</c>, <c>IAnalyzeCommand</c>, <c>IRefactorCommand</c>,
-///     <c>IMutatingCommand</c>, <c>IBatchMutationCommand</c>. Together with the pre-existing
+///     <c>IControlPlaneCommand</c>, <c>IMutatingCommand</c>, <c>IBatchMutationCommand</c>. Together with the pre-existing
 ///     <c>IStructuredOutputCommand</c>, these markers drive App.cs static-ctor invariants and
 ///     downstream architecture tests added in later batches.
 /// </summary>
@@ -85,9 +85,9 @@ public sealed class CategoryInterfacesShape
     }
 
     [Fact]
-    public void with_icontrolplanecommand_the_direct_parent_is_irefactorcommand()
+    public void with_icontrolplanecommand_the_direct_parent_is_irtcommand()
     {
-        AssertDirectParents("RoslynTools.Core.IControlPlaneCommand", "RoslynTools.Core.IRefactorCommand");
+        AssertDirectParents("RoslynTools.Core.IControlPlaneCommand", "RoslynTools.Core.IRtCommand");
     }
 
     [Fact]

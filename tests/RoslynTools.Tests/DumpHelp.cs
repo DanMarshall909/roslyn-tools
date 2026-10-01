@@ -83,6 +83,21 @@ public sealed class DumpHelp
         sb.ToString().ShouldContain("Auto-generated", Case.Sensitive);
     }
 
+    [Fact]
+    public void generated_reference_combines_root_only_categories_into_one_navigation_group()
+    {
+        var control = MakeEntry("trust", "control");
+        control.Info = control.Info with { Placement = CommandPlacement.RootOnly };
+        var lifecycle = MakeEntry("apply-operation", "lifecycle");
+        lifecycle.Info = lifecycle.Info with { Placement = CommandPlacement.RootOnly };
+
+        var markdown = DumpHelpCommand.RenderMarkdown([control, lifecycle]);
+
+        markdown.Split("## `rt` —", StringSplitOptions.None).Length.ShouldBe(2);
+        markdown.ShouldContain("[`trust`](#trust)");
+        markdown.ShouldContain("[`apply-operation`](#apply-operation)");
+    }
+
     // ── BuildContents ─────────────────────────────────────────────────────────────
 
     [Fact]

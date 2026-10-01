@@ -77,8 +77,10 @@ internal static class RepositoryTrustCommandDefinitions
         "Persist trust for a reviewed Git repository and all of its currently registered worktrees.",
         typeof(TrustAddRequest),
         typeof(RepositoryTrustStatus),
-        CommandEffects.LocalStateWrite,
-        CommandSafety.ReviewByDefault,
+        CommandEffects.RepositoryRead | CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite,
+        CommandSafety.LocalStateWrite,
+        ["Git"],
+        CommandIdempotency.Conditional,
         ["rt trust add <repository>"]);
 
     internal static ApplicationCommandDefinition List { get; } = Create(
@@ -86,8 +88,10 @@ internal static class RepositoryTrustCommandDefinitions
         "List persistent repository-trust records and their current registered-worktree continuity state.",
         typeof(TrustListRequest),
         typeof(TrustListResult),
-        CommandEffects.LocalStateRead,
+        CommandEffects.RepositoryRead | CommandEffects.LocalStateRead,
         CommandSafety.ReadOnly,
+        [],
+        CommandIdempotency.Idempotent,
         ["rt trust list"]);
 
     internal static ApplicationCommandDefinition Status { get; } = Create(
@@ -97,6 +101,8 @@ internal static class RepositoryTrustCommandDefinitions
         typeof(RepositoryTrustStatus),
         CommandEffects.LocalStateRead | CommandEffects.RepositoryRead,
         CommandSafety.ReadOnly,
+        ["Git"],
+        CommandIdempotency.Idempotent,
         ["rt trust status <repository>"]);
 
     internal static ApplicationCommandDefinition Remove { get; } = Create(
@@ -104,8 +110,10 @@ internal static class RepositoryTrustCommandDefinitions
         "Remove persistent trust for a Git common-directory identity.",
         typeof(TrustRemoveRequest),
         typeof(RepositoryTrustStatus),
-        CommandEffects.LocalStateWrite,
-        CommandSafety.ReviewByDefault,
+        CommandEffects.RepositoryRead | CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite,
+        CommandSafety.LocalStateWrite,
+        [],
+        CommandIdempotency.Conditional,
         ["rt trust remove <repository>"]);
 
     private static ApplicationCommandDefinition Create(
@@ -115,16 +123,19 @@ internal static class RepositoryTrustCommandDefinitions
         Type responseType,
         CommandEffects effects,
         CommandSafety safety,
+        string[] prerequisites,
+        CommandIdempotency idempotency,
         string[] examples)
     {
         var info = new RtCommandInfo(
             name,
             safety.Effect == CommandEffect.Mutation,
             true,
-            "trust",
+            "control",
             whenToUse,
             examples,
-            SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+            SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
+            Placement: CommandPlacement.RootOnly);
         return new ApplicationCommandDefinition(
             info,
             requestType,
@@ -136,17 +147,20 @@ internal static class RepositoryTrustCommandDefinitions
             product: new CommandProductMetadata(
                 CapabilityMaturity.Preview,
                 effects,
-                ConditionallyMutable: safety.Effect == CommandEffect.Mutation,
-                CommandIdempotency.Idempotent,
+                ConditionallyMutable: safety.Effect == CommandEffect.LocalStateWrite,
+                idempotency,
                 CommandAudience.Maintainer,
                 TrustRequirement.None,
                 WorkspaceRequirement.None,
-                Prerequisites: ["Git"],
+                Prerequisites: prerequisites,
                 CommandCost.Low,
-                CancellationSupport.Cooperative,
-                new CommandResourceLimits(5_000, 1_000, 1_048_576),
+                CancellationSupport.NotSupported,
+                new CommandResourceLimits(30_000, 1_000, 1_048_576),
                 Limitations:
                 [
+                    "Git is needed to validate live repository continuity; listing stored records and removal by id can continue without it.",
+                    "Cancellation is checked before registry work; synchronous registry and Git operations cannot be cancelled.",
+                    "CLI trust commands do not yet enforce the advertised timeout, item count, or output byte limit.",
                     "Preview trust storage does not yet implement ADR-0011 leases, audit history, quotas, or evaluator isolation."
                 ],
                 examples));

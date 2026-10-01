@@ -76,7 +76,7 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0009](0009-authenticated-daemon-endpoints.md) | Authenticated local daemon endpoints | Accepted | 2026-08-30 |
 | [0010](0010-revision-bound-continuation-tokens.md) | Revision-bound continuation tokens | Accepted | 2026-08-30 |
 | [0011](0011-authoritative-trust-and-evaluator-isolation.md) | Authoritative repository trust and evaluator isolation | Accepted | 2026-08-30 |
-| [0012](0012-review-first-mutation-defaults.md) | Review-first mutation defaults during hardening | Accepted | 2026-08-30 |
+| [0012](0012-review-first-mutation-defaults.md) | Review-first mutation defaults during hardening | Accepted; trust category superseded by [0103](0103-separate-local-trust-control.md) | 2026-08-30 |
 | [0013](0013-fenced-plan-unavailability-resolution.md) | Fenced plan-unavailability resolution | Accepted | 2026-08-30 |
 | [0014](0014-bounded-recovery-attempt-history.md) | Bounded recovery-attempt history | Accepted | 2026-08-31 |
 | [0015](0015-operation-lifecycle-authorization.md) | Operation-lifecycle authorization | Accepted | 2026-08-31 |
@@ -167,3 +167,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0100](0100-refuse-uncontained-mcp-semantic-diff-files.md) | Refuse uncontained MCP semantic-diff file reads | Accepted | 2026-10-01 |
 | [0101](0101-doctor-mode-discovery-metadata.md) | Describe doctor modes in one product contract | Accepted | 2026-10-02 |
 | [0102](0102-config-host-discovery-profile.md) | Publish config as a host-only product | Accepted | 2026-10-02 |
+| [0103](0103-separate-local-trust-control.md) | Separate local trust control from repository refactoring | Accepted | 2026-10-02 |

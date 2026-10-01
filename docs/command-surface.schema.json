@@ -69,7 +69,8 @@
             "analyze",
             "refactor",
             "ci",
-            "lifecycle"
+            "lifecycle",
+            "control"
           ]
         },
         "mutates": {

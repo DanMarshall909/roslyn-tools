@@ -27,7 +27,7 @@ internal static class App
 {
     /// <summary>
     ///     The executable top-level groups used by category-placed source commands.
-    ///     Root-only lifecycle commands use <see cref="CategoryDescriptions" /> instead.
+    ///     Root-only lifecycle and control commands use <see cref="CategoryDescriptions" /> instead.
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, string> GroupDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -40,13 +40,14 @@ internal static class App
 
     /// <summary>
     ///     Public discovery categories include both executable command groups and root-only
-    ///     lifecycle commands. A category is descriptive; <see cref="CommandPlacement" />
+    ///     lifecycle and control commands. A category is descriptive; <see cref="CommandPlacement" />
     ///     determines whether a corresponding <c>rt &lt;group&gt;</c> route exists.
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, string> CategoryDescriptions =
         new Dictionary<string, string>(GroupDescriptions, StringComparer.Ordinal)
         {
-            ["lifecycle"] = "Root lifecycle commands for durable operation coordination"
+            ["lifecycle"] = "Root lifecycle commands for durable operation coordination",
+            ["control"] = "Root local controls for user-scoped trust state"
         };
 
     /// <summary>
@@ -103,7 +104,7 @@ internal static class App
 
         // Category-marker biconditional: every concrete command in RoslynTools.Commands
         // (excluding the DumpHelp meta-command) must implement EXACTLY ONE of
-        // IInspectCommand / IAnalyzeCommand / IRefactorCommand / ICiCommand. The category marker
+        // IInspectCommand / IAnalyzeCommand / IRefactorCommand / ICiCommand / IControlPlaneCommand. The category marker
         // and RtCommandInfo.Category together describe the same fact in two places;
         // this ratchet keeps them in sync at startup so new commands can't forget to
         // declare a category — CLI startup and explicit docs generation will fail.
@@ -121,7 +122,8 @@ internal static class App
                     typeof(IInspectCommand).IsAssignableFrom(t) ? "IInspectCommand" : null,
                     typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "IAnalyzeCommand" : null,
                     typeof(ICiCommand).IsAssignableFrom(t) ? "ICiCommand" : null,
-                    typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null
+                    typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null,
+                    typeof(IControlPlaneCommand).IsAssignableFrom(t) ? "IControlPlaneCommand" : null
                 }.Where(m => m is not null).ToArray()
             })
             .Where(x => x.Markers.Length != 1)
@@ -133,7 +135,7 @@ internal static class App
         if (categoryOffenders.Count > 0)
             throw new InvalidOperationException(
                 "These commands must implement exactly one category marker "
-                + "(IInspectCommand, IAnalyzeCommand, ICiCommand, or IRefactorCommand): "
+                + "(IInspectCommand, IAnalyzeCommand, ICiCommand, IRefactorCommand, or IControlPlaneCommand): "
                 + string.Join(", ", categoryOffenders)
                 + ". Add the appropriate marker to the class declaration.");
     }

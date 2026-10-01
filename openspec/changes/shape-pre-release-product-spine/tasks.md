@@ -67,6 +67,9 @@
     catalogue profile, no-repository invocation, and task suggestion route.
   - [ ] Bound CLI configuration file reads, diagnostic counts, execution time,
     and output bytes before treating `config` resource metadata as enforced.
+  - [x] Move `trust` to a root-only local control category and publish its
+    possible user-state write and Git-read effects without repository mutation,
+    semantic workspace, or SDK requirements. Preserve CLI-only dispatch.
 - [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
   contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
   containment for extraction output, authoritative completeness for whole-solution

@@ -13,7 +13,7 @@ export const commandGroups = [...source.matchAll(/^- \*\*`rt(?: ([^`]+))?`\*\* [
     return {
       name,
       label: name === 'root'
-        ? 'Root lifecycle'
+        ? 'Root commands'
         : name === 'ci' ? 'CI' : name.charAt(0).toUpperCase() + name.slice(1),
       description,
     };

@@ -50,8 +50,7 @@ internal static class CliInvocationClassifier
         var root = commandTokens[0];
         return LocalOnlyRoots.Contains(root)
                || root == "inspect"
-               && commandTokens.ElementAtOrDefault(1) is "config" or "doctor"
-               || root == "refactor" && commandTokens.ElementAtOrDefault(1) == "trust";
+               && commandTokens.ElementAtOrDefault(1) is "config" or "doctor";
     }
 
     private static bool IsHelpOrVersion(string argument) =>
