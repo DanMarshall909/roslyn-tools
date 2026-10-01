@@ -47,6 +47,11 @@
   schema, and failure semantics with focused fixtures; resolve mismatches before
   final ratification of the plan-only preview whitelist. The static evidence
   ledger is not a runtime proof for every variant.
+  - [x] Return typed `Unsupported` for MCP semantic-diff file mode before
+    daemon forwarding, workspace admission, or direct file reading; bind Git
+    mode's selected directory to the active trust scope before any Git read.
+    Admit MCP file mode only after an explicit verified-root request and
+    contained reader meet the untrusted-read contract (ADR-0100).
 - [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
   contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
   containment for extraction output, authoritative completeness for whole-solution

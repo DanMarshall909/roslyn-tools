@@ -46,8 +46,9 @@ internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRt
         var filesArg = new Argument<string[]>(
             "files",
             () => [],
-            "Two .cs files to compare directly on disc (works outside git). Omit to diff git versions; "
-            + "supply exactly two. Cannot be combined with --from/--to.")
+            "CLI: two .cs files to compare directly on disc (works outside git). Omit to diff git versions; "
+            + "supply exactly two. Cannot be combined with --from/--to. "
+            + "MCP file mode is unavailable until contained file reading is implemented.")
         {
             Arity = ArgumentArity.ZeroOrMore,
         };

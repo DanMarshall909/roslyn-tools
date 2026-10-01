@@ -47,5 +47,8 @@ internal enum RtErrorKind
     CorruptState,
 
     /// <summary>The exact immutable plan is unavailable, expired, incompatible, or unverified.</summary>
-    PlanUnavailable
+    PlanUnavailable,
+
+    /// <summary>The requested operation or mode is not supported by this host.</summary>
+    Unsupported
 }

@@ -169,8 +169,14 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   failures instead of reading outside content or claiming deletion (ADR-0088).
   Linux x64 now uses handle-relative no-follow reads and regular-file checks;
   other platforms now return an explicit unsupported result for Git-backed
-  working-tree content while ref-vs-ref and direct two-file modes remain
-  available (ADR-0089). Explicit C# working-tree review now routes through
+  working-tree content while ref-vs-ref remains available across hosts and
+  direct two-file comparison remains available in the local CLI (ADR-0089).
+  MCP now returns typed `Unsupported` for two-file requests, including in a
+  trusted host, because the direct file provider lacks the required contained
+  reader (ADR-0100). Git-mode MCP now checks the selected directory against
+  the active trust scope even under startup-scoped trust, before Git reads;
+  a verified-root file request and contained reader remain open. Explicit C#
+  working-tree review now routes through
   the shared suggestion service to one semantic-diff step on Linux x64, with
   CLI/MCP arguments when a target is known. Other hosts receive a typed
   unsupported outcome and cross-platform alternatives (ADR-0090). Broader

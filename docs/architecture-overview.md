@@ -255,6 +255,12 @@ The path-based fallback on other platforms has been retired: Git-backed
 working-tree semantic diff now returns an explicit unsupported error there,
 while ref-vs-ref and direct two-file comparison remain available. See
 [ADR-0089](adr/0089-honest-working-tree-read-platform-support.md).
+Direct two-file comparison remains a local CLI mode. MCP returns typed
+`Unsupported` for any nonempty `files` request until both paths can be bound to a
+verified root and read through the contained file boundary; Git-backed MCP
+requests resolve an absolute directory and verify it against the active trust
+scope before opening Git content, including with startup-scoped trust. See
+[ADR-0100](adr/0100-refuse-uncontained-mcp-semantic-diff-files.md).
 Task-aware `suggest` uses that same platform capability for explicit C#
 working-tree review. Supported hosts receive an invokable semantic-diff step;
 other hosts receive a typed unsupported outcome with ref-vs-ref and two-file
@@ -482,6 +488,9 @@ Symlinks, junctions, mounts, reparse points, alternate streams, special files, o
 unproven external aliases are denied; if the boundary is unavailable, the operation
 runs in the allow-listed worker or is refused. Redirected content cannot reach
 results, diagnostics, logs, or caches.
+MCP `semantic_diff` two-file requests currently stop with `Unsupported` because
+its direct file provider does not satisfy that boundary; absolute paths or
+startup trust alone do not provide containment (ADR-0100).
 
 Each workspace request declares a semantic-input manifest: requested projects and
 transitive references; selected target frameworks, configurations, and compilation

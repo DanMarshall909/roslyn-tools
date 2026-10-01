@@ -67,7 +67,7 @@ per-command destinations and reasons are in the matrix above and in
 
 | Catalogue group | Advertised common contract | Material exceptions and live discrepancies |
 |---|---|---|
-| 25 inspect/analyze/CI entries | All require explicit repository trust; 23 say Semantic workspace and `check`/`check-architecture` say CompleteSemantic. | `solid-review` declares ExternalWrite; `check` and `check-architecture` declare RepositoryCodeExecution. `semantic-diff` two-file mode and `config` work without a solution, Git repository, or trust; `doctor --installation-only` reports no workspace requested. Their current whole-command prerequisites overstate those modes. `find-pattern` did require a solution in a no-repository trial. |
+| 25 inspect/analyze/CI entries | All require explicit repository trust; 23 say Semantic workspace and `check`/`check-architecture` say CompleteSemantic. | `solid-review` declares ExternalWrite; `check` and `check-architecture` declare RepositoryCodeExecution. Local CLI `semantic-diff` two-file mode and `config` work without a solution, Git repository, or trust; `doctor --installation-only` reports no workspace requested. Their current whole-command prerequisites overstate those modes. MCP two-file semantic diff now returns typed `Unsupported` until contained file reading exists (ADR-0100). `find-pattern` did require a solution in a no-repository trial. |
 | 34 refactor entries | All are Public/Experimental, conditionally mutable, and declare repository read/write plus explicit trust; 33 say Semantic and, independently, 33 lack advertised JSON output. | `delete-unreferenced` requires CompleteSemantic and advertises no JSON. `trust` says Semantic and is the one entry advertising JSON, but its user-scoped local-state job is mislabelled as repository write/semantic work. A rename dry-run returned JSON despite its `jsonOutput=false` metadata. |
 | `prepare-operation` | Public/Experimental, local-state read/write, no workspace or trust, JSON output. | The stored-plan coordination primitive has no plan producer yet and should not be a public task recommendation. |
 
@@ -81,6 +81,16 @@ no listed limitations, while
 their help or implementations acknowledge incomplete follow-up or semantic
 risks. Confirm individual request/result schemas and actual effect boundaries
 before final admission; one command-level flag cannot describe every mode.
+
+The default persistent MCP host previously returned an unrelated absolute
+workspace-target error for `semantic_diff` with two files, while a host without
+the persistent trust registry could pass the same request to a direct file
+reader. Absolute paths alone do not satisfy the accepted contained-read
+boundary. [ADR-0100](../../../docs/adr/0100-refuse-uncontained-mcp-semantic-diff-files.md)
+now gives every MCP file-mode request a typed `Unsupported` result before
+daemon forwarding, MSBuild registration, or file reading. Git mode now checks
+the selected directory against the active trust scope before creating its Git
+client, including when the MCP host was started for a different repository.
 
 A source/operation cross-check of all 25 read/analyze/CI entries found five
 envelope-backed results with explicit provenance (`doctor`, `search-symbols`,

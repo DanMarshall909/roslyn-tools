@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services.SemanticDiff;
@@ -34,14 +35,19 @@ public sealed class SemanticDiffHandlerTests
         var def = provider.GetRequiredService<ToolRegistry>()
             .GetTools()
             .Single(tool => tool.name == "semantic_diff");
+        provider.GetRequiredService<ApplicationCommandCatalog>()
+            .TryGetByToolName("semantic_diff", out var descriptor).ShouldBeTrue();
+        descriptor.Definition!.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         def.name.ShouldBe("semantic_diff");
         def.description.ShouldNotBeNullOrWhiteSpace();
+        def.description.ShouldContain("MCP two-file mode returns Unsupported");
 
         // No required fields — default is working-tree-vs-HEAD in the cwd.
         def.inputSchema.ShouldNotContainKey("required");
 
         var properties = (Dictionary<string, Dictionary<string, object>>)def.inputSchema["properties"];
         properties.Keys.ShouldBe(ExpectedPropertyNames, ignoreOrder: true);
+        properties["files"]["description"].ToString()!.ShouldContain("MCP file mode is unavailable");
     }
 
     [Fact]
@@ -265,9 +271,15 @@ public sealed class SemanticDiffHandlerTests
         // End-to-end through the real ToolRegistry against the live repo: HEAD..HEAD is a
         // deterministic no-op diff (independent of the working tree), so the native handler
         // returns an empty JSON array — proving the registry invokes the typed application port.
-        using var provider = McpTestHost.CreateProvider();
+        var repositoryRoot = FindRepoRoot();
+        using var provider = McpTestHost.CreateProvider(new McpHostOptions(repositoryRoot));
         var registry = provider.GetRequiredService<ToolRegistry>();
-        using var args = JsonDocument.Parse("""{"from":"HEAD","to":"HEAD"}""");
+        using var args = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            directory = repositoryRoot,
+            from = "HEAD",
+            to = "HEAD"
+        }));
 
         var result = await registry.InvokeAsync("semantic_diff", args.RootElement);
 
@@ -275,6 +287,161 @@ public sealed class SemanticDiffHandlerTests
         using var payload = JsonDocument.Parse(result.content);
         payload.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
         payload.RootElement.GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task persistent_host_refuses_file_mode_without_a_contained_reader()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-semantic-diff-");
+        try
+        {
+            var before = Path.Combine(directory.FullName, "Before.cs");
+            var after = Path.Combine(directory.FullName, "After.cs");
+            File.WriteAllText(before, "class Gadget { int Value() => 1; }");
+            File.WriteAllText(after, "class Gadget { int Value() => 2; }");
+            var trustRegistry = new RepositoryTrustRegistry(Path.Combine(directory.FullName, "trust.json"));
+            var binding = new RecordingBinding();
+            var fileReader = new RecordingFileReader();
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustRegistry: trustRegistry),
+                services =>
+                {
+                    services.AddSingleton<IMcpMsBuildBinding>(binding);
+                    services.AddSingleton<IFileTextReader>(fileReader);
+                });
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { files = new[] { before, after } }));
+
+            var result = await registry.InvokeAsync("semantic_diff", arguments.RootElement);
+
+            result.isError.ShouldBeTrue();
+            result.content.ShouldContain("Unsupported");
+            result.content.ShouldContain("contained file reader");
+            binding.InvocationCount.ShouldBe(0);
+            fileReader.InvocationCount.ShouldBe(0);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task persistent_host_refuses_every_file_mode_and_keeps_git_mode_trusted()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-semantic-diff-");
+        try
+        {
+            var trustRegistry = new RepositoryTrustRegistry(Path.Combine(directory.FullName, "trust.json"));
+            var fileReader = new RecordingFileReader();
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustRegistry: trustRegistry),
+                services => services.AddSingleton<IFileTextReader>(fileReader));
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var relativeFiles = JsonDocument.Parse("""{"files":["Before.cs","After.cs"]}""");
+            using var oneFile = JsonDocument.Parse("""{"files":["Before.cs"]}""");
+            using var threeFiles = JsonDocument.Parse("""{"files":["Before.cs","After.cs","Third.cs"]}""");
+            using var gitMode = JsonDocument.Parse(JsonSerializer.Serialize(new { directory = directory.FullName }));
+            using var conflictingMode = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                files = new[]
+                {
+                    Path.Combine(directory.FullName, "Before.cs"),
+                    Path.Combine(directory.FullName, "After.cs")
+                },
+                from = "HEAD"
+            }));
+
+            var relativeResult = await registry.InvokeAsync("semantic_diff", relativeFiles.RootElement);
+            var oneFileResult = await registry.InvokeAsync("semantic_diff", oneFile.RootElement);
+            var threeFilesResult = await registry.InvokeAsync("semantic_diff", threeFiles.RootElement);
+            var gitResult = await registry.InvokeAsync("semantic_diff", gitMode.RootElement);
+            var conflictingResult = await registry.InvokeAsync("semantic_diff", conflictingMode.RootElement);
+
+            relativeResult.isError.ShouldBeTrue();
+            relativeResult.content.ShouldContain("Unsupported");
+            oneFileResult.content.ShouldContain("Unsupported");
+            threeFilesResult.content.ShouldContain("Unsupported");
+            gitResult.isError.ShouldBeTrue();
+            gitResult.content.ShouldContain("TrustRequired");
+            conflictingResult.isError.ShouldBeTrue();
+            conflictingResult.content.ShouldContain("Unsupported");
+            fileReader.InvocationCount.ShouldBe(0);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task explicitly_trusted_host_still_refuses_uncontained_file_mode()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-semantic-diff-");
+        try
+        {
+            var before = Path.Combine(directory.FullName, "Before.cs");
+            var after = Path.Combine(directory.FullName, "After.cs");
+            File.WriteAllText(before, "class Gadget { int Value() => 1; }");
+            File.WriteAllText(after, "class Gadget { int Value() => 2; }");
+            var fileReader = new RecordingFileReader();
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(FindRepoRoot()),
+                services => services.AddSingleton<IFileTextReader>(fileReader));
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { files = new[] { before, after } }));
+
+            var result = await provider.GetRequiredService<ToolRegistry>()
+                .InvokeAsync("semantic_diff", arguments.RootElement);
+
+            result.isError.ShouldBeTrue();
+            result.content.ShouldContain("Unsupported");
+            result.content.ShouldContain("contained file reader");
+            fileReader.InvocationCount.ShouldBe(0);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task startup_trust_does_not_admit_git_comparison_in_another_directory()
+    {
+        var outside = Directory.CreateTempSubdirectory("rt-semantic-diff-");
+        try
+        {
+            var trustedRoot = FindRepoRoot();
+            var factory = new RecordingGitClientFactory(new RecordingGitClient());
+            using var provider = McpTestHost.CreateProvider(
+                new McpHostOptions(trustedRoot),
+                services => services.AddSingleton<IGitClientFactory>(factory));
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var outsideArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                directory = outside.FullName,
+                from = "HEAD",
+                to = "HEAD"
+            }));
+            using var trustedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                directory = trustedRoot,
+                from = "HEAD",
+                to = "HEAD"
+            }));
+
+            var outsideResult = await registry.InvokeAsync("semantic_diff", outsideArguments.RootElement);
+            factory.CreatedDirectories.ShouldNotContain(outside.FullName);
+            var trustedResult = await registry.InvokeAsync("semantic_diff", trustedArguments.RootElement);
+
+            outsideResult.isError.ShouldBeTrue();
+            outsideResult.content.ShouldContain("TrustRequired");
+            trustedResult.isError.ShouldBeFalse();
+            factory.WorkingDirectory.ShouldBe(trustedRoot);
+        }
+        finally
+        {
+            outside.Delete(recursive: true);
+        }
     }
 
     private static async Task<ToolResult> InvokeAsync(
@@ -310,6 +477,41 @@ public sealed class SemanticDiffHandlerTests
     private static JsonElement EmptyArgs() => Args("{}");
 
     private static JsonElement Args(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    private static string FindRepoRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+        }
+
+        throw new InvalidOperationException("RoslynTools.slnx was not found above the test output directory.");
+    }
+
+    private sealed class RecordingBinding : IMcpMsBuildBinding
+    {
+        public int InvocationCount { get; private set; }
+
+        public Result<bool, RtError> EnsureRegistered(string directory)
+        {
+            InvocationCount++;
+            return Result<bool, RtError>.Ok(true);
+        }
+    }
+
+    private sealed class RecordingFileReader : IFileTextReader
+    {
+        public int InvocationCount { get; private set; }
+
+        public string? TryReadAllText(string path)
+        {
+            InvocationCount++;
+            return null;
+        }
+    }
 
     /// <summary>
     ///     In-memory <see cref="IGitClient" /> mirroring the CLI command tests' fake: validation
@@ -373,8 +575,11 @@ public sealed class SemanticDiffHandlerTests
     {
         public string? WorkingDirectory { get; private set; }
 
+        public List<string> CreatedDirectories { get; } = [];
+
         public IGitClient Create(string workingDirectory)
         {
+            CreatedDirectories.Add(workingDirectory);
             WorkingDirectory = workingDirectory;
             return git;
         }

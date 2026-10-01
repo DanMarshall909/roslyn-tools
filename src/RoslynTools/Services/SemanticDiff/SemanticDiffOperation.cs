@@ -4,6 +4,7 @@ using RoslynTools.Services.SemanticDiff.Git;
 namespace RoslynTools.Services.SemanticDiff;
 
 internal sealed record SemanticDiffOperationRequest(
+    [property: CommandPropertyDescription("Two source files for local CLI comparison. MCP file mode is unavailable until contained file reading is implemented.")]
     string[]? Files = null,
     string? From = null,
     string? To = null,
@@ -35,7 +36,7 @@ internal sealed class SemanticDiffOperation(
 
     public override ApplicationCommandDefinition Definition { get; } = new(
         new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
-            WhenToUse: "Use this instead of git diff for semantic C# changes. Working-tree mode requires Linux x64; ref-vs-ref and two-file modes work on other platforms.", Examples: [],
+            WhenToUse: "When you need a declaration-level comparison in a trusted Git repository, prefer this over git diff. Working-tree mode requires Linux x64; ref-vs-ref works on other platforms. MCP two-file mode returns Unsupported until contained file reading is available; use the local CLI for two-file comparison.", Examples: [],
             SupportedFormats: [Core.Output.OutputFormat.Text, Core.Output.OutputFormat.Json]),
         typeof(SemanticDiffOperationRequest), typeof(SemanticDiffOperationResult), true,
         CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, []);

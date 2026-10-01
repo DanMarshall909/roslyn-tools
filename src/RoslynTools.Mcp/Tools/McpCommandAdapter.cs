@@ -51,6 +51,14 @@ internal sealed class McpCommandAdapter(
             && ValidateRequestVariant(definition, safeArguments) is { } variantError)
             return new ToolResult(true, SerializeError(variantError));
 
+        // Refuse direct file reads before a future placement change can forward them to a daemon.
+        if (descriptor.Port?.RequestType == typeof(SemanticDiffOperationRequest)
+            && safeArguments.EnumerateObject().Any(static property =>
+                string.Equals(property.Name, "files", StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.Array
+                && property.Value.GetArrayLength() > 0))
+            return UnsupportedSemanticDiffFiles();
+
         using var trustScope = _hostOptions.EnterTrustScope();
 
         if (_hostOptions.TrustedRepositoryRoot is null
@@ -99,7 +107,20 @@ internal sealed class McpCommandAdapter(
                         $"Invalid input for tool '{toolName}'.")));
             }
 
-            if (request is not DoctorRequest { InstallationOnly: true })
+            if (request is SemanticDiffOperationRequest semanticDiff)
+            {
+                if (semanticDiff.Files is { Length: > 0 })
+                    return UnsupportedSemanticDiffFiles();
+
+                var gitAdmission = AdmitSemanticDiffGitRequest(semanticDiff);
+                if (gitAdmission.IsErr)
+                    return new ToolResult(true, SerializeError(gitAdmission.Match(
+                        _ => throw new InvalidOperationException("Expected Git admission failure."),
+                        error => error)));
+
+                request = gitAdmission.Unwrap();
+            }
+            else if (request is not DoctorRequest { InstallationOnly: true })
             {
                 var admission = AdmitWorkspaceRequest(descriptor, safeArguments, request);
                 if (admission is not null)
@@ -140,6 +161,38 @@ internal sealed class McpCommandAdapter(
         {
             return new ToolResult(true, ex.Message);
         }
+    }
+
+    private static ToolResult UnsupportedSemanticDiffFiles() =>
+        new(true, SerializeError(new RtError(
+            RtErrorKind.Unsupported,
+            "MCP semantic_diff file mode is unavailable until a contained file reader is implemented. "
+            + "Use the local CLI for two-file comparison, or use Git mode with a trusted repository.")));
+
+    private static Result<SemanticDiffOperationRequest, RtError> AdmitSemanticDiffGitRequest(
+        SemanticDiffOperationRequest request)
+    {
+        var directory = request.Directory ?? Environment.CurrentDirectory;
+        if (!Path.IsPathFullyQualified(directory))
+            return Result<SemanticDiffOperationRequest, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                "MCP semantic_diff Git mode requires an absolute directory."));
+
+        var fullDirectory = Path.GetFullPath(directory);
+        if (!RepositoryTrustContext.IsExplicitlyTrustedFor(fullDirectory))
+            return Result<SemanticDiffOperationRequest, RtError>.Err(new RtError(
+                RtErrorKind.TrustRequired,
+                $"Repository evaluation is not trusted for '{fullDirectory}'.",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["directory"] = fullDirectory,
+                    ["grantThrough"] = "rt trust add, trusted CLI invocation, or MCP host startup"
+                }));
+
+        return Result<SemanticDiffOperationRequest, RtError>.Ok(request with
+        {
+            Directory = fullDirectory
+        });
     }
 
     private static RtError? ValidateRequestVariant(

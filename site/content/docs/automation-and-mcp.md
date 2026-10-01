@@ -105,9 +105,13 @@ Once connected, an agent can discover focused operations such as:
 | `describe` and `source` | Inspect declarations and bounded related source |
 | `relationships` | Follow references, callers, and implementations |
 | `dependency_graph` and `circular_deps` | Analyze solution structure |
+| `semantic_diff` | Compare Git refs or a trusted Git working tree |
 | `suggest_command` | Find the right Roslyn Tools workflow from a goal |
 
 These tools return typed results with explicit workspace context. That lets an agent distinguish semantic evidence from an incomplete load or a bounded response.
+The MCP `semantic_diff` tool returns `Unsupported` for two-file `files` requests
+until contained file reading is available. Use the local
+`rt analyze semantic-diff before.cs after.cs` CLI route for that mode.
 
 ## Respect the exposed surface
 
