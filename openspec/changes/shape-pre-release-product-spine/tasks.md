@@ -292,6 +292,8 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 
 ### 3.4 Workflow-aware suggestions
 
+- [x] Surface `prime`, task `suggest`, and compact `dump-help` from root CLI help;
+  keep maintainer controls and the product command catalogue separate.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

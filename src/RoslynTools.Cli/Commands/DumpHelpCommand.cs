@@ -12,7 +12,8 @@ namespace RoslynTools.Commands;
 ///     Displays the full command reference by walking the registry in <see cref="App" />.
 ///     When stdout is a terminal: coloured, categorised output.
 ///     When stdout is redirected (e.g. the post-build MSBuild target): Markdown suitable for <c>docs/COMMANDS.md</c>.
-///     Hidden from <c>rt --help</c> to keep the top-level list clean.
+///     Listed in the root help's short discovery section while the full catalogue
+///     remains limited to product commands.
 /// </summary>
 internal static class DumpHelpCommand
 {
@@ -22,10 +23,7 @@ internal static class DumpHelpCommand
     internal static Command Build()
     {
         var cmd = new Command("dump-help",
-            "Show the full command reference (coloured in terminal, Markdown when piped)")
-        {
-            IsHidden = true
-        };
+            "Show the full command reference (coloured in terminal, Markdown when piped)");
 
         var compactOpt = new Option<bool>("--compact",
             "One-line-per-command catalog (<name> | <category> | <description>) — ~500 tokens, agent-friendly");

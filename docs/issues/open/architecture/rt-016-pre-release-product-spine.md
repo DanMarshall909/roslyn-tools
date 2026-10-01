@@ -40,8 +40,7 @@ The pre-freeze audit found several misleading or incomplete surface contracts:
   moves, need distinct plan evidence before preview admission;
 - contradictory dry-run/apply flags could still write for three commands, and two
   extraction output paths lack trusted-root containment at the common writer;
-- root help omits usable discovery entry points, while MCP output schemas are
-  generic and some request properties are undocumented;
+- MCP output schemas are generic and some request properties are undocumented;
 - `convert-static-class`, the mixed `add-test` mode, feedback commands, daemon
   controls, and `probe-di` are now outside normal public discovery, but their
   internal or experimental contracts still need explicit review.
@@ -109,6 +108,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- Root CLI help now shows invocable `prime`, `suggest`, and compact `dump-help`
+  entry points. `dump-help --help` exposes its own options. The generated
+  catalogue remains at 59 product commands and was regenerated with no diff;
+  maintainer controls remain outside public discovery.
 - The durable `prepare-operation` primitive now has an explicit maintainer CLI
   route. Public help, task suggestions, command reference, site catalogue, and MCP
   discovery exclude it until a complete plan lifecycle is available (ADR-0082).

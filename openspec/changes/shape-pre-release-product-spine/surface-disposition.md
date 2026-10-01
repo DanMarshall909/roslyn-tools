@@ -4,7 +4,7 @@ This is the reviewed **recommended destination** after the two-repository task
 corpus, not the final product-surface freeze or a
 claim that any current implementation already passes the shared provenance,
 structured-output, cancellation, resource, parity, and packaging gates. The
-[pre-freeze audit](pre-freeze-surface-audit.md) reviews the live 60-entry catalogue
+[pre-freeze audit](pre-freeze-surface-audit.md) reviews the initial 60-entry catalogue
 for user usefulness first and agent output cost second. Scenario-level admission
 and the final preview whitelist remain open. Thin compatibility wrappers may
 exist temporarily during migration, but only the destination contract is eligible
@@ -106,7 +106,7 @@ for preview support.
 | `feedback_process` | Maintainer CLI | Internal descriptor marks local read/write; verify CLI help and runtime projection. |
 | `feedback_report` | Maintainer CLI with explicit external apply | Never ordinary agent discovery. |
 | `prime` | Generated `doctor --quick` / capabilities primer | Remove hard-coded command truth. |
-| `dump-help` | Generated documentation tool | Maintainer surface; make its own `--help` explain the generated views. |
+| `dump-help` | Generated documentation and discovery helper | Public root help lists the compact view; its own `--help` explains the generated views. Keep it outside the product-command catalogue. |
 | `prepare-operation` | Internal durable coordination primitive | Remove from normal help and suggestion discovery until a complete plan lifecycle exists; it does not prepare a refactor plan. |
 | daemon lifecycle | Internal performance experiment | Not packaged or advertised for preview. |
 | root plus grouped duplicates | One canonical grammar | Remove duplicate product identities before release. |

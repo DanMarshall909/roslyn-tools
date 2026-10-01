@@ -483,7 +483,11 @@ internal static class App
         if (ctx.Command is RootCommand)
         {
             var snapshot = CatalogCommands.Select(e => (Cmd: e.Build(), e.Info)).ToList();
-            return [_ => DumpHelpCommand.RenderColoured(snapshot, ResolvePublicProducts())];
+            return
+            [
+                _ => RenderStartHere(),
+                _ => DumpHelpCommand.RenderColoured(snapshot, ResolvePublicProducts())
+            ];
         }
 
         if (GroupDescriptions.ContainsKey(ctx.Command.Name))
@@ -511,6 +515,14 @@ internal static class App
             ];
 
         return HelpBuilder.Default.GetLayout();
+    }
+
+    private static void RenderStartHere()
+    {
+        RtConsole.WriteLine(RtOutputContext.Ui, "Start here", ConsoleColor.White);
+        RtConsole.WriteLine(RtOutputContext.Ui, "  rt prime                       Short session primer");
+        RtConsole.WriteLine(RtOutputContext.Ui, "  rt suggest \"<task>\" --top 3   Find commands for a task");
+        RtConsole.WriteLine(RtOutputContext.Ui, "  rt dump-help --compact         Scan the command catalogue");
     }
 
     private static Dictionary<string, CommandProductMetadata> ResolvePublicProducts() =>
