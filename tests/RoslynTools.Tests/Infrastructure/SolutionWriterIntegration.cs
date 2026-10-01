@@ -33,6 +33,105 @@ public class SolutionWriterIntegration
     }
 
     [Fact]
+    public async Task removed_document_preview_reports_deletion_without_writing()
+    {
+        const string before = "class Removed { }";
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Removed.cs", before);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var output = new RecordingSolutionWriteOutput();
+
+            await Core.SolutionWriter.PreviewChangesAsync(
+                solution, solution.RemoveDocument(document.Id), output);
+
+            output.DiffLines.ShouldContain($"\n--- {document.FilePath} (deleted file)");
+            output.DiffLines.ShouldContain($"-{before}");
+            output.DiffLines.ShouldContain("\n[dry-run] 1 file(s) would change.");
+            output.Results.ShouldBeEmpty();
+            File.ReadAllText(document.FilePath!).ShouldBe(before);
+        }
+    }
+
+    [Fact]
+    public async Task preview_counts_changed_and_removed_documents()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", "class Original { }");
+        project.AddSource("Removed.cs", "class Removed { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var documents = solution.Projects.Single().Documents.ToArray();
+            var changed = solution
+                .WithDocumentText(documents[0].Id, SourceText.From("class Updated { }"))
+                .RemoveDocument(documents[1].Id);
+            var output = new RecordingSolutionWriteOutput();
+
+            await Core.SolutionWriter.PreviewChangesAsync(solution, changed, output);
+
+            output.DocumentDiffs.Count.ShouldBe(1);
+            output.DiffLines.ShouldContain($"\n--- {documents[1].FilePath} (deleted file)");
+            output.DiffLines.ShouldContain("\n[dry-run] 2 file(s) would change.");
+            File.ReadAllText(documents[0].FilePath!).ShouldBe("class Original { }");
+            File.ReadAllText(documents[1].FilePath!).ShouldBe("class Removed { }");
+        }
+    }
+
+    [Fact]
+    public async Task preview_rejects_added_project_before_reporting_document_change()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", "class Original { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var changed = solution.WithDocumentText(document.Id, SourceText.From("class Updated { }"));
+            var added = changed.AddProject(ProjectInfo.Create(
+                ProjectId.CreateNewId(), VersionStamp.Create(), "Added", "Added", LanguageNames.CSharp));
+            var output = new RecordingSolutionWriteOutput();
+
+            var exception = await Should.ThrowAsync<NotSupportedException>(() =>
+                Core.SolutionWriter.PreviewChangesAsync(solution, added, output));
+
+            exception.Message.ShouldContain("does not support adding or removing projects");
+            output.DiffLines.ShouldBeEmpty();
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task preview_rejects_removed_project_before_reporting_document_change()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Changed.cs", "class Original { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var document = solution.Projects.Single().Documents.Single();
+            var extraProjectId = ProjectId.CreateNewId();
+            var original = solution.AddProject(ProjectInfo.Create(
+                extraProjectId, VersionStamp.Create(), "Removed", "Removed", LanguageNames.CSharp));
+            var changed = original
+                .WithDocumentText(document.Id, SourceText.From("class Updated { }"))
+                .RemoveProject(extraProjectId);
+            var output = new RecordingSolutionWriteOutput();
+
+            var exception = await Should.ThrowAsync<NotSupportedException>(() =>
+                Core.SolutionWriter.PreviewChangesAsync(original, changed, output));
+
+            exception.Message.ShouldContain("does not support adding or removing projects");
+            output.DiffLines.ShouldBeEmpty();
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
     public async Task prepared_writer_applies_changed_documents_with_explicit_encoding()
     {
         const string before = "class Original { }";
@@ -293,6 +392,8 @@ public class SolutionWriterIntegration
     {
         internal List<string> Results { get; } = [];
 
+        internal List<string> DiffLines { get; } = [];
+
         internal List<string> Warnings { get; } = [];
 
         internal List<(string Before, string After, string Path)> DocumentDiffs { get; } = [];
@@ -301,6 +402,7 @@ public class SolutionWriterIntegration
 
         public void Diff(string message)
         {
+            DiffLines.Add(message);
         }
 
         public void DocumentDiff(string oldText, string newText, string filePath)

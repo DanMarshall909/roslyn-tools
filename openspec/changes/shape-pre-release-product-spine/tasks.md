@@ -66,6 +66,8 @@
   - [x] Validate prepared affected paths before `SolutionWriter` preview output;
     reject pathless changed or added documents and conflicting affected paths
     without a partial report.
+  - [x] Render removed source documents as deletions and reject project
+    additions/removals before preview output, matching prepared apply support.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

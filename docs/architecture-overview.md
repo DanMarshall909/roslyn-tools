@@ -563,7 +563,8 @@ internal `SolutionWriter` now renders previews only; `SolutionChangeWriter` appl
 and migrated transformation test fixtures use the prepared-writer boundary.
 The preview renderer validates prepared affected paths before emitting a diff;
 pathless changed or added documents and conflicting affected paths fail without
-a partial report.
+a partial report. Removed documents appear as deletions. Project additions and
+removals are rejected before output because prepared apply does not support them.
 Unattended apply still requires the physical effect broker and the other
 platform-hardening gates.
 

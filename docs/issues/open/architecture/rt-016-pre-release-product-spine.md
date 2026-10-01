@@ -128,7 +128,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   open; this does not satisfy the optional apply admission gate. Preview now
   validates prepared affected paths before output, rejecting pathless changed
   or added documents and conflicting affected paths without a partial diff.
-  Removed documents and project changes still need a truthful preview contract.
+  Removed documents now produce deletion previews; project additions/removals
+  fail before output, matching prepared apply support. Project metadata and
+  non-source document changes still need a truthful preview contract.
   Older cross-project move helpers exercised by tests still contain direct `File.Move` and
   project-file save effects; audit them in another containment slice before
   any apply admission claim.
