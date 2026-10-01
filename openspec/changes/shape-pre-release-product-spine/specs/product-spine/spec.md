@@ -338,6 +338,14 @@ forcing an irrelevant command match.
 - **AND** dependency/rule inventories, unconfigured architecture explanation, SOLID checks, baseline deltas, mutations, and custom configuration paths retain their existing discovery routes
 - **AND** a compound request to extract all non-Microsoft core dependencies remains `Unsupported`
 
+#### Scenario: proposed change impact is requested before impact exists
+
+- **WHEN** the user explicitly asks what would break or requests an impact assessment for a proposed symbol or project change
+- **THEN** CLI and MCP `suggest` return `Unsupported` with `change-impact` and manual reference, project-dependency, build, and test steps
+- **AND** no mutation command is recommended as a substitute for impact evidence
+- **AND** the response does not claim that missing source edges prove no reflection, generated-code, or external-consumer impact
+- **AND** direct move, dependency, reference, configured architecture, plan-verification, and compiler-diagnostic-delta requests retain their existing routes
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

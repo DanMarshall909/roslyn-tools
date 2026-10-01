@@ -353,6 +353,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   `check-architecture` workflow with populated CLI and conditional MCP arguments;
   preserve inventory, unconfigured, baseline, SOLID, mutation, and custom-config
   requests, plus compound wholesale dependency extraction.
+- [x] Report explicit proposed symbol/project change-impact requests as named
+  `Unsupported` in CLI and MCP until an impact operation exists; preserve direct
+  mutation and read requests. This does not complete the Milestone 4 impact tasks.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

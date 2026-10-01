@@ -55,6 +55,10 @@ internal sealed class SuggestService : IRtService
         if (IsConfiguredArchitectureCheck(request.Query))
             return SuggestArchitectureCheck(request.Solution);
 
+        if (IsProposedChangeImpactRequest(request.Query))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "change-impact",
+                UnsupportedReason: "rt cannot calculate the impact of a proposed code or project change yet. Inspect references and project dependencies, review the proposed edits, then build and test the solution. Missing source edges cannot prove safety across reflection, generated code, or external consumers.");
+
         if (ImplementationSearchSymbol(request.Query) is { } symbol)
             return SuggestImplementations(symbol, request.Solution);
 
@@ -74,6 +78,26 @@ internal sealed class SuggestService : IRtService
             results,
             related,
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private static bool IsProposedChangeImpactRequest(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string impactIntentPattern =
+            @"\b(?:assess|estimate|evaluate|analy[sz]e|predict)\s+(?:(?:the|a|potential|likely|project|code|symbol|overall|possible)\s+){0,3}impact\b"
+            + @"|\bimpact\s+(?:assessment|of|from|on|for)\b"
+            + @"|\bwhat(?:'s|\s+(?:is|(?:would|will|could|might)\s+be))\s+(?:the\s+)?impact\b"
+            + @"|\bwhat\s+impact\b"
+            + @"|\bhow\s+(?:would|will|could)\s+(?:\S+\s+){1,8}(?:impact|affect)\b"
+            + @"|\b(?:what|which|who|will|would|could|does|do)\b.{0,100}\bbreaks?\b"
+            + @"|\bwhat\s+happens?\s+(?:if|when)\b";
+        var impactIntent = Regex.IsMatch(query, impactIntentPattern, options);
+        return impactIntent
+               && Regex.IsMatch(query,
+                   @"\b(?:mov(?:e|ing|ed)|renam(?:e|ing|ed)|chang(?:e|ing|ed)|modif(?:y|ying|ied)|refactor(?:ing|ed)?|add(?:ing|ed)?|remov(?:e|ing|ed)|delet(?:e|ing|ed)|replac(?:e|ing|ed)|extract(?:ing|ed)?)\b",
+                   options);
     }
 
     private SuggestResponse SuggestArchitectureCheck(string? solution)
@@ -348,7 +372,7 @@ internal sealed class SuggestService : IRtService
             @"\b(?:non[- ]Microsoft|third[- ]party|external|other\s+than\s+Microsoft|excluding\s+Microsoft)\b",
             options);
         if (dependency && coreLayer && thirdParty
-            && Regex.IsMatch(query, @"\b(?:extract(?:ed)?|remov(?:e|ed)|mov(?:e|ed)|decoupl(?:e|ed)|isolat(?:e|ed))\b", options)
+            && Regex.IsMatch(query, @"\b(?:extract(?:ed)?|remov(?:e|ed|ing)|mov(?:e|ed)|decoupl(?:e|ed)|isolat(?:e|ed))\b", options)
             && Regex.IsMatch(query, @"\b(?:all|every)\b", options))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported,
                 "third-party-dependency-extraction",

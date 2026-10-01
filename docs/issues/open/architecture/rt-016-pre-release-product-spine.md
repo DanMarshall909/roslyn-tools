@@ -208,6 +208,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   The captured layering query fell from 2,530 to 684 JSON stdout bytes.
   The check still lacks result-level workspace completeness evidence, so its
   suggestion stops short of treating zero violations as whole-solution proof.
+- Explicit proposed symbol/project change-impact requests now return named
+  `Unsupported` from CLI and MCP instead of a `move` recommendation. The
+  response names manual reference/project-dependency, build, and test steps and
+  does not infer safety from missing source edges. A source-built CycleEngine
+  suggestion fell from 2,705 to 409 JSON stdout bytes; the impact operation
+  and end-to-end workflow remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

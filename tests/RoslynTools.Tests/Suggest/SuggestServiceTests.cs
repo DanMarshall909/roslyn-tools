@@ -311,6 +311,92 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
+    [InlineData("Assess impact of moving CycleEngine to another project")]
+    [InlineData("What breaks if I move CycleEngine to another project?")]
+    [InlineData("Estimate the impact of renaming IRtCommand")]
+    [InlineData("What is the impact of moving CycleEngine to another project?")]
+    [InlineData("What will be the impact of moving CycleEngine to another project?")]
+    [InlineData("What could be the impact of moving CycleEngine to another project?")]
+    [InlineData("What might be the impact of moving CycleEngine to another project?")]
+    [InlineData("What's the impact of moving CycleEngine to another project?")]
+    [InlineData("What impact would moving CycleEngine to another project have?")]
+    [InlineData("Impact of moving CycleEngine to another project")]
+    [InlineData("Assess the project impact of moving CycleEngine")]
+    [InlineData("Impact assessment for renaming IRtCommand")]
+    [InlineData("How would moving CycleEngine impact the project?")]
+    [InlineData("How would moving CycleEngine affect callers?")]
+    [InlineData("Will moving CycleEngine to another project break callers?")]
+    [InlineData("Does moving CycleEngine to another project break anything?")]
+    [InlineData("Which callers would break if I rename IRtCommand?")]
+    [InlineData("What happens if I move CycleEngine to another project?")]
+    [InlineData("What would break if we moved CycleEngine?")]
+    [InlineData("What would break when renaming IRtCommand?")]
+    [InlineData("Assess impact of deleting CycleEngine")]
+    [InlineData("What would break if I delete IRtCommand?")]
+    [InlineData("Assess impact of replacing IRtCommand")]
+    [InlineData("What would break if I extract CycleEngine into a new project?")]
+    public void proposed_change_impact_requests_report_the_missing_capability(string query)
+    {
+        var catalog = new FakeCatalog(
+            Info("move", category: "refactor", whenToUse: "Move a type between projects"),
+            Info("check-architecture", category: "analyze", whenToUse: "Check boundaries"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("change-impact");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        var reason = response.UnsupportedReason.ShouldNotBeNull();
+        reason.ShouldContain("Inspect references");
+        reason.ShouldContain("project dependencies");
+        reason.ShouldContain("review the proposed edits");
+        reason.ShouldContain("build and test");
+        reason.ShouldContain("cannot prove safety");
+        reason.ShouldContain("reflection");
+        reason.ShouldContain("generated code");
+        reason.ShouldContain("external consumers");
+    }
+
+    [Theory]
+    [InlineData("Move CycleEngine to another project", "move")]
+    [InlineData("Delete IRtCommand", "delete-unreferenced")]
+    [InlineData("Show dependencies of CycleEngine", "dependency-graph")]
+    [InlineData("Find references to CycleEngine", "relationships")]
+    [InlineData("Find violations of configured project layering rules", "check-architecture")]
+    [InlineData("Analyze project impact", "dependency-graph")]
+    public void requests_without_proposed_change_impact_keep_their_existing_route(
+        string query,
+        string expectedCommand)
+    {
+        var response = new SuggestService(new FakeCatalog(Info(expectedCommand, whenToUse: query)))
+            .Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        if (query.Contains("configured project layering", StringComparison.Ordinal))
+            response.Workflow.ShouldNotBeNull().Steps.Single().CliInvocation.ShouldContain("check-architecture");
+        else
+            response.Results.Single().Name.ShouldBe(expectedCommand);
+    }
+
+    [Theory]
+    [InlineData("Assess impact and prepare a safe rename plan", "prepare-plan")]
+    [InlineData("Assess impact of moving CycleEngine and compare compiler diagnostics before and after", "compiler-diagnostic-delta")]
+    [InlineData("Assess impact of removing all non-Microsoft dependencies from core layers", "third-party-dependency-extraction")]
+    public void earlier_missing_capability_guards_keep_precedence_over_change_impact(
+        string query,
+        string expectedCapability)
+    {
+        var response = new SuggestService(new FakeCatalog(Info("move", category: "refactor")))
+            .Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe(expectedCapability);
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
     [InlineData("Find NuGet package dependencies in the core layer", "package-dependency-inventory")]
     [InlineData("NuGet package dependencies in the core layer", "package-dependency-inventory")]
     [InlineData("Find NuGet dependencies in the core layer", "package-dependency-inventory")]
@@ -319,6 +405,7 @@ public sealed class SuggestServiceTests
     [InlineData("Extract all non-Microsoft dependencies from the core layers", "third-party-dependency-extraction")]
     [InlineData("Extract all dependencies from the core layers other than Microsoft ones", "third-party-dependency-extraction")]
     [InlineData("All non-Microsoft dependencies from core layers should be extracted", "third-party-dependency-extraction")]
+    [InlineData("Removing all non-Microsoft dependencies from core layers", "third-party-dependency-extraction")]
     public void unavailable_package_and_core_extraction_jobs_do_not_suggest_unrelated_commands(
         string query,
         string missingCapability)

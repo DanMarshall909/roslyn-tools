@@ -7,6 +7,31 @@ namespace RoslynTools.Tests.Cli;
 public sealed class SuggestUnsupportedSurfaceTests
 {
     [Fact]
+    public async Task proposed_change_impact_has_honest_json_and_text_outcomes()
+    {
+        var json = await RtCliHost.RunAsync(
+            "suggest \"Assess impact of moving CycleEngine to another project\" --top 3 --json");
+        var text = await RtCliHost.RunAsync(
+            "suggest \"Assess impact of moving CycleEngine to another project\" --top 3 --llm");
+
+        json.ExitCode.ShouldBe(0, json.Stderr);
+        using var payload = JsonDocument.Parse(json.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("change-impact");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.GetProperty("Related").GetArrayLength().ShouldBe(0);
+        var reason = payload.RootElement.GetProperty("UnsupportedReason").GetString()!;
+        reason.ShouldContain("references and project dependencies");
+        reason.ShouldContain("build and test");
+        reason.ShouldContain("cannot prove safety");
+        text.ExitCode.ShouldBe(0, text.Stderr);
+        text.Stdout.ShouldContain("Unsupported: change-impact.");
+        text.Stdout.ShouldContain("references and project dependencies");
+        text.Stdout.ShouldContain("cannot prove safety");
+        text.Stdout.ShouldNotContain("rt refactor move");
+    }
+
+    [Fact]
     public async Task compiler_diagnostic_delta_has_honest_json_and_text_outcomes()
     {
         var json = await RtCliHost.RunAsync(

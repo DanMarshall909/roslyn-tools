@@ -301,6 +301,15 @@ custom-config requests remain on their earlier discovery path. Compound
 wholesale dependency extraction stays `Unsupported`. The corpus ranking above is pre-fix
 evidence, not a current ranking.
 
+Explicit proposed change-impact requests now return named `Unsupported` rather
+than ranking `move` as if it assessed impact. The response points to manual
+reference/project-dependency inspection and build/test verification while
+stating that absent source edges cannot prove safety across reflection,
+generated code, or external consumers. On the same CycleEngine query, current
+source-built JSON stdout changed from 2,705 to 409 bytes. This is one
+suggestion-response measurement; the impact operation and end-to-end workflow
+remain open.
+
 ### Second-repository read workflow: Flo
 
 The source-built `rt` was run from the already trusted
