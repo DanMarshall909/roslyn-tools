@@ -147,3 +147,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0080](0080-official-mcp-sdk-transport.md) | Official MCP SDK owns the stdio protocol lifecycle | Accepted | 2026-09-29 |
 | [0081](0081-bounded-cli-workspace-evidence.md) | Bound workspace evidence in CLI inspection results | Accepted | 2026-09-30 |
 | [0082](0082-maintainer-only-durable-prepare.md) | Keep durable Prepare on the maintainer surface | Accepted | 2026-10-01 |
+| [0083](0083-honest-unsupported-plan-suggestions.md) | Return honest unsupported outcomes for unavailable plan tasks | Accepted | 2026-10-01 |

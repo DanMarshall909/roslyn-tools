@@ -1,3 +1,4 @@
+using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Services.Suggest;
 using Shouldly;
@@ -89,6 +90,7 @@ public sealed class SuggestServiceTests
 
         response.Results.ShouldBeEmpty();
         response.Related.ShouldBeEmpty();
+        response.Outcome.ShouldBe(SuggestOutcome.NoMatch);
     }
 
     [Fact]
@@ -117,6 +119,97 @@ public sealed class SuggestServiceTests
         var response = service.Suggest(new SuggestRequest(Query: "rename", Top: 1));
 
         response.Related.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Verify a prepared plan without applying")]
+    [InlineData("Validate an existing change plan before it is applied")]
+    [InlineData("Verify a refactoring plan without applying it")]
+    [InlineData("verify-plan")]
+    public void unavailable_plan_verification_returns_unsupported_instead_of_a_command(string query)
+    {
+        var catalog = new FakeCatalog(
+            Info("doctor", whenToUse: "Verify repository workspace readiness"),
+            Info("add-dependency", category: "refactor", whenToUse: "Apply a dependency change"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+        var payload = JsonSerializer.SerializeToElement(response);
+
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        payload.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.GetProperty("MissingCapability").GetString().ShouldBe("verify-plan");
+    }
+
+    [Fact]
+    public void unavailable_revision_bound_plan_preparation_does_not_recommend_a_mutator()
+    {
+        var catalog = new FakeCatalog(Info("rename", category: "refactor",
+            whenToUse: "Rename a C# symbol across the solution"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Prepare a revision-bound rename plan before applying"));
+        var payload = JsonSerializer.SerializeToElement(response);
+
+        response.Results.ShouldBeEmpty();
+        payload.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.GetProperty("MissingCapability").GetString().ShouldBe("prepare-plan");
+    }
+
+    [Fact]
+    public void named_prepare_plan_capability_is_reported_as_unavailable()
+    {
+        var response = new SuggestService(new FakeCatalog()).Suggest(
+            new SuggestRequest("prepare-plan"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("prepare-plan");
+    }
+
+    [Fact]
+    public void immutable_plan_request_without_a_prepare_verb_is_still_unsupported()
+    {
+        var catalog = new FakeCatalog(Info("rename", category: "refactor",
+            whenToUse: "Rename a C# symbol across the solution"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "I need an immutable revision-bound rename plan"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("prepare-plan");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_symbol_named_plan_does_not_trigger_the_plan_capability_guard()
+    {
+        var catalog = new FakeCatalog(Info("relationships",
+            whenToUse: "Show references to a method"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Show references to the method named Plan before I review it"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe("relationships");
+    }
+
+    [Fact]
+    public void a_plan_class_is_not_mistaken_for_a_change_plan_artifact()
+    {
+        var catalog = new FakeCatalog(Info("extract-interface",
+            whenToUse: "Create an interface for a class"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Create an interface for the Plan class"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe("extract-interface");
+    }
+
+    [Fact]
+    public void supported_rename_query_still_returns_ranked_results()
+    {
+        var catalog = new FakeCatalog(Info("rename", whenToUse: "Rename a symbol"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest("rename symbol"));
+        var payload = JsonSerializer.SerializeToElement(response);
+
+        response.Results.Single().Name.ShouldBe("rename");
+        payload.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
     }
 
 }

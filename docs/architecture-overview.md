@@ -273,6 +273,11 @@ same positions in the CLI registration sequence; see
 Host suggestion metadata and the typed-source suggestion catalogue are described
 in [ADR-0051](adr/0051-shared-host-command-metadata.md) and
 [ADR-0052](adr/0052-typed-source-suggestion-catalogue.md).
+The shared suggestion response distinguishes recommendations, no lexical match,
+and known unsupported plan tasks. Both CLI and MCP report the absent `verify-plan`
+or revision-bound plan producer without substituting an unrelated command; see
+[ADR-0083](adr/0083-honest-unsupported-plan-suggestions.md). Ordered workflow
+recommendations and a general relevance threshold remain open.
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

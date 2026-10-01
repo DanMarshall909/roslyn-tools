@@ -35,7 +35,7 @@ internal static class SuggestCommand
             "Maximum number of ranked candidates to return");
 
         var cmd = new Command("suggest",
-            "Find the right rt command by describing what you want to do")
+            "Find a relevant rt command or identify an unsupported plan task")
         {
             queryArg, topOpt
         };
@@ -65,6 +65,13 @@ internal static class SuggestCommand
         {
             var json = JsonSerializer.Serialize(response, JsonOptions);
             RtConsole.WriteLine(RtOutputContext.Result, json);
+            return;
+        }
+
+        if (response.Outcome == SuggestOutcome.Unsupported)
+        {
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"Unsupported: {response.MissingCapability} is not available yet.");
             return;
         }
 

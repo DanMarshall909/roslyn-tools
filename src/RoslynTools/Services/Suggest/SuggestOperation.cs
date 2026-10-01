@@ -41,7 +41,7 @@ internal static class SuggestCommandDefinition
         Mutates: false,
         JsonOutput: true,
         "meta",
-        "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language and get ranked candidates back before falling back to a manual edit. Returns ranked candidates with name, score, when-to-use, and example invocation.",
+        "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language. Returns ranked candidates with examples, or an explicit unsupported outcome for a known missing plan capability.",
         ["rt suggest \"rename a symbol\" --json"],
         Placement: CommandPlacement.RootOnly);
 

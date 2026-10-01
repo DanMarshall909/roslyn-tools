@@ -1,4 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace RoslynTools.Services.Suggest;
+
+[JsonConverter(typeof(JsonStringEnumConverter<SuggestOutcome>))]
+internal enum SuggestOutcome
+{
+    Recommendations,
+    NoMatch,
+    Unsupported
+}
 
 /// <summary>
 ///     Service-level reply from <see cref="SuggestService.Suggest" />.
@@ -7,4 +17,7 @@ namespace RoslynTools.Services.Suggest;
 /// </summary>
 internal sealed record SuggestResponse(
     IReadOnlyList<SuggestResult> Results,
-    IReadOnlyList<SuggestResult> Related);
+    IReadOnlyList<SuggestResult> Related,
+    SuggestOutcome Outcome,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? MissingCapability = null);

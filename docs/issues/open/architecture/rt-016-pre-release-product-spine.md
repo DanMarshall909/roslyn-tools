@@ -17,11 +17,12 @@ summary: "Shape a trustworthy 0.1-preview around semantic discovery, impact, pla
 
 ## Context
 
-The 2026-10-01 source-built catalogue exposes 60 entries: 25
+At the 2026-10-01 pre-freeze audit baseline, the source-built catalogue exposed
+60 entries: 25
 inspect/analyze/CI, 34 refactor (including the local `trust` control), and one
-lifecycle command. Thirty-nine entries do not advertise JSON output even though
-several can emit JSON. The MCP surface under the current persistent-trust
-profile exposes 60 tools: 58 shared with CLI plus `prime` and `suggest_command`.
+lifecycle command. Thirty-nine entries did not advertise JSON output even though
+several could emit JSON. The MCP surface under that persistent-trust profile
+exposed 60 tools: 58 shared with CLI plus `prime` and `suggest_command`.
 The breadth is concentrated in bespoke refactors even though the
 beginning and end of the agent workflow remain incomplete:
 
@@ -109,6 +110,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 - The durable `prepare-operation` primitive now has an explicit maintainer CLI
   route. Public help, task suggestions, command reference, site catalogue, and MCP
   discovery exclude it until a complete plan lifecycle is available (ADR-0082).
+- CLI and MCP suggestions now report `Unsupported` with a named missing
+  capability for plan preparation and verification requests (ADR-0083). General
+  workflow ranking, relevance thresholds, and Git-context parity remain open.
+  For the captured `Verify a prepared plan without applying` query, one
+  source-built CLI response fell from 2,452 to 103 stdout bytes; this is a
+  per-call byte comparison, not a complete workflow or token budget.
 
 ## Dependencies and reconciliation
 

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services.Suggest;
@@ -33,6 +34,9 @@ internal sealed class SuggestService : IRtService
     /// </summary>
     public SuggestResponse Suggest(SuggestRequest request)
     {
+        if (UnavailablePlanCapability(request.Query) is { } missingCapability)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, missingCapability);
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -42,7 +46,45 @@ internal sealed class SuggestService : IRtService
         var results = scored.Select(ToResult).ToList();
         var related = BuildRelated(results, _catalog.All);
 
-        return new SuggestResponse(results, related);
+        return new SuggestResponse(
+            results,
+            related,
+            results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private static string? UnavailablePlanCapability(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var namedCapability = query.Trim();
+        if (namedCapability.Equals("verify-plan", StringComparison.OrdinalIgnoreCase))
+            return "verify-plan";
+        if (namedCapability.Equals("prepare-plan", StringComparison.OrdinalIgnoreCase))
+            return "prepare-plan";
+
+        // A symbol or source file named Plan is not a request for a change-plan artifact.
+        var task = Regex.Replace(query,
+            @"\b(?:named|called|class|struct|interface|type|method|file)\s+Plan\b|\bPlan\s+(?:class|struct|interface|type|method|file)\b|\bPlan\.(?:cs|csproj)\b",
+            " ", options);
+        if (!Regex.IsMatch(task, @"\bplans?\b", options))
+            return null;
+        if (Regex.IsMatch(task,
+                @"\b(?:verify|validate|check|review)\s+(?:(?:a|an|the|my|our|existing|prepared|reviewed|immutable|revision-bound|change|stored|saved|proposed|pending|rename|signature|refactor|refactoring)\s+){0,6}plans?\b",
+                options)
+            || Regex.IsMatch(task, @"\bplans?\s+(?:verification|validation)\b", options)
+            || Regex.IsMatch(task,
+                @"\bplans?\s+(?:and|then)\s+(?:verify|validate|check|review)\s+(?:it|them)\b",
+                options))
+            return "verify-plan";
+        return Regex.IsMatch(task,
+                   @"\b(?:prepare|preparing|create|generate|produce|build)\b(?:\s+[\w-]+){0,8}\s+plans?\b",
+                   options)
+               || Regex.IsMatch(task,
+                   @"\b(?:immutable|revision-bound)\b(?:\s+[\w-]+){0,8}\s+plans?\b",
+                   options)
+            ? "prepare-plan"
+            : null;
     }
 
     private static SuggestResult ToResult(ScoredCommand s) => new(

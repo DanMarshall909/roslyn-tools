@@ -243,6 +243,26 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task suggest_reports_missing_plan_verification_without_unrelated_tools()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"tools/call","id":2,"params":{"name":"suggest_command","arguments":{"query":"Verify a prepared plan without applying","top":3}}}
+            """);
+
+        using var doc = JsonDocument.Parse(output);
+        var result = doc.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("verify-plan");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        using var payload = JsonDocument.Parse(text!);
+        JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
+    }
+
     [Theory]
     [InlineData("suggest_command", "{\"query\":\"extract an interface from a class\",\"top\":3}", "results")]
     [InlineData("prime", "{}", "hotCommands")]
