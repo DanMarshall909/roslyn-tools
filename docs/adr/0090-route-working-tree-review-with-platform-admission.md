@@ -30,6 +30,11 @@ before content at `--from`, but its changed-path list still comes from HEAD,
 so a clean tree can omit every change since that baseline. Cross-platform
 ref-vs-ref comparison remains available, and help now states this limitation.
 
+The non-HEAD path limitation was removed by [ADR-0091](0091-exact-baseline-semantic-diff.md).
+`semantic-diff --from <ref>` now compares that ref with the working tree.
+Task-aware suggestion still returns `Unsupported` for explicit baselines until
+it can parse them safely, and points callers to the direct command.
+
 The Git client and suggestion service use one platform capability predicate.
 On unsupported hosts, or if the command is absent from the catalogue, the
 suggestion is typed `Unsupported` with the missing capability

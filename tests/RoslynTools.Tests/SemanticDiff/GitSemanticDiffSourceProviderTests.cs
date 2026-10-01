@@ -9,7 +9,7 @@ namespace RoslynTools.Tests.SemanticDiff;
 ///     that feeds the semantic-diff engine. Driven entirely by a <see cref="FakeGitClient" />
 ///     so no real repository is touched (US-122 batch 3). The provider's job is path
 ///     selection (.cs filter), side membership (the union), and the two modes
-///     (working-tree-vs-HEAD and ref-vs-ref); the engine itself is tested separately.
+///     (working-tree-vs-baseline and ref-vs-ref); the engine itself is tested separately.
 /// </summary>
 public sealed class GitSemanticDiffSourceProviderTests
 {
@@ -74,6 +74,44 @@ public sealed class GitSemanticDiffSourceProviderTests
 
         before.ShouldHaveSingleItem().Text.ShouldContain("V1");
         after.ShouldHaveSingleItem().Text.ShouldContain("V2");
+    }
+
+    [Fact]
+    public void moving_ref_names_are_pinned_before_ref_path_discovery_and_content_reads()
+    {
+        var git = new FakeGitClient
+        {
+            ResolvedCommits = { ["moving"] = "oid-before", ["latest"] = "oid-after" },
+            ChangedPathsBetween = { [("oid-before", "oid-after")] = ["Gadget.cs"] },
+            FilesAtRef =
+            {
+                ["oid-before:Gadget.cs"] = "class Gadget { void Before() { } }",
+                ["oid-after:Gadget.cs"] = "class Gadget { void After() { } }",
+            },
+        };
+
+        var (before, after) = new GitSemanticDiffSourceProvider(git).Load("moving", "latest");
+
+        before.ShouldHaveSingleItem().Text.ShouldContain("Before");
+        after.ShouldHaveSingleItem().Text.ShouldContain("After");
+    }
+
+    [Fact]
+    public void moving_baseline_is_pinned_for_working_tree_paths_and_before_content()
+    {
+        var git = new FakeGitClient
+        {
+            ResolvedCommits = { ["moving"] = "oid-before" },
+            WorkingTreeChangedPaths = ["Gadget.cs"],
+            FilesAtRef = { ["oid-before:Gadget.cs"] = "class Gadget { void Before() { } }" },
+            WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { void After() { } }" },
+        };
+
+        var (before, after) = new GitSemanticDiffSourceProvider(git).Load("moving", null);
+
+        git.WorkingTreeBaseline.ShouldBe("oid-before");
+        before.ShouldHaveSingleItem().Text.ShouldContain("Before");
+        after.ShouldHaveSingleItem().Text.ShouldContain("After");
     }
 
     [Fact]
@@ -217,6 +255,10 @@ public sealed class GitSemanticDiffSourceProviderTests
 
         public Dictionary<string, string> FilesAtRef { get; } = new(StringComparer.Ordinal);
 
+        public Dictionary<string, string> ResolvedCommits { get; } = new(StringComparer.Ordinal);
+
+        public string? WorkingTreeBaseline { get; private set; }
+
         public Dictionary<string, string> WorkingTreeFiles { get; } = new(StringComparer.Ordinal);
 
         public void EnsureRepository()
@@ -235,10 +277,20 @@ public sealed class GitSemanticDiffSourceProviderTests
                 throw new ArgumentException($"invalid git ref: {reference}");
         }
 
+        public string ResolveCommit(string reference)
+        {
+            EnsureRefExists(reference);
+            return ResolvedCommits.TryGetValue(reference, out var commit) ? commit : reference;
+        }
+
         public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef) =>
             ChangedPathsBetween.TryGetValue((fromRef, toRef), out var paths) ? paths : [];
 
-        public IReadOnlyList<string> GetWorkingTreeChangedPaths() => WorkingTreeChangedPaths;
+        public IReadOnlyList<string> GetWorkingTreeChangedPaths(string baselineRef = "HEAD")
+        {
+            WorkingTreeBaseline = baselineRef;
+            return WorkingTreeChangedPaths;
+        }
 
         public string? ReadFileAtRef(string reference, string path) =>
             FilesAtRef.TryGetValue($"{reference}:{path}", out var text) ? text : null;

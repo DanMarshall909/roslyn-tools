@@ -385,7 +385,7 @@ public sealed class SuggestServiceTests
     [InlineData("review my working tree C# changes from my branch")]
     [InlineData("review C# changes from my working tree against 'main'")]
     [InlineData("review C# changes from my working tree against \"main\"")]
-    public void explicit_working_tree_baseline_is_unsupported_until_changed_paths_are_baseline_aware(string query)
+    public void explicit_working_tree_baseline_is_unsupported_until_suggestion_can_parse_it(string query)
     {
         var response = new SuggestService(new FakeCatalog(
             Info("semantic-diff", category: "analyze")), workingTreeReadsAvailable: true)
@@ -393,6 +393,7 @@ public sealed class SuggestServiceTests
 
         response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
         response.MissingCapability.ShouldBe("semantic-diff-working-tree-baseline");
+        response.UnsupportedReason!.ShouldContain("--from <ref>");
         response.Results.ShouldBeEmpty();
         response.Workflow.ShouldBeNull();
     }

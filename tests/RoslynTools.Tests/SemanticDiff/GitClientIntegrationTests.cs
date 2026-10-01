@@ -43,6 +43,130 @@ public sealed class GitClientIntegrationTests
     }
 
     [Fact]
+    public void non_head_baseline_finds_committed_changes_in_a_clean_working_tree()
+    {
+        if (!WorkingTreeReadCapability.IsAvailable)
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Gadget.cs", "class Gadget { void V1() { } }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var baseline = repo.Head();
+
+        repo.Write("Gadget.cs", "class Gadget { void V2() { } }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
+
+        var provider = new GitSemanticDiffSourceProvider(new GitClient(repo.Path));
+        var (before, after) = provider.Load(baseline, null);
+
+        before.ShouldHaveSingleItem().Text.ShouldContain("V1");
+        after.ShouldHaveSingleItem().Text.ShouldContain("V2");
+    }
+
+    [Fact]
+    public void non_head_baseline_uses_net_paths_across_commits_index_and_working_tree()
+    {
+        if (!WorkingTreeReadCapability.IsAvailable)
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Changed.cs", "class Changed { int Version = 1; }");
+        repo.Write("Removed.cs", "class Removed { }");
+        repo.Write("Reverted.cs", "class Reverted { int Version = 1; }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var baseline = repo.Head();
+
+        repo.Write("Changed.cs", "class Changed { int Version = 2; }");
+        repo.Write("Reverted.cs", "class Reverted { int Version = 2; }");
+        File.Delete(System.IO.Path.Combine(repo.Path, "Removed.cs"));
+        repo.Write("Committed.cs", "class Committed { }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
+
+        repo.Write("Changed.cs", "class Changed { int Version = 3; }");
+        repo.Write("Reverted.cs", "class Reverted { int Version = 1; }");
+        repo.Write("Staged.cs", "class Staged { }");
+        repo.Git("add", "Staged.cs");
+        repo.Write("Untracked.cs", "class Untracked { }");
+
+        var client = new GitClient(repo.Path);
+        var changedPaths = client.GetWorkingTreeChangedPaths(baseline);
+        changedPaths.OrderBy(path => path, StringComparer.Ordinal).ShouldBe(
+            ["Changed.cs", "Committed.cs", "Removed.cs", "Staged.cs", "Untracked.cs"]);
+
+        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(baseline, null);
+        before.Select(source => source.Path).OrderBy(path => path, StringComparer.Ordinal)
+            .ShouldBe(["Changed.cs", "Removed.cs"]);
+        after.Select(source => source.Path).OrderBy(path => path, StringComparer.Ordinal)
+            .ShouldBe(["Changed.cs", "Committed.cs", "Staged.cs", "Untracked.cs"]);
+        after.Single(source => source.Path == "Changed.cs").Text.ShouldContain("Version = 3");
+    }
+
+    [Fact]
+    public void nested_directory_ignores_diff_relative_for_ref_and_working_tree_paths()
+    {
+        if (!WorkingTreeReadCapability.IsAvailable)
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("sub/First.cs", "class First { int Version = 1; }");
+        repo.Write("other/Second.cs", "class Second { int Version = 1; }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var baseline = repo.Head();
+
+        repo.Write("sub/First.cs", "class First { int Version = 2; }");
+        repo.Write("other/Second.cs", "class Second { int Version = 2; }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
+        repo.Git("config", "diff.relative", "true");
+        repo.Write("other/Untracked.cs", "class UntrackedOther { }");
+        repo.Write("sub/Untracked.cs", "class UntrackedSub { }");
+
+        var client = new GitClient(System.IO.Path.Combine(repo.Path, "sub"));
+        var tracked = new[] { "other/Second.cs", "sub/First.cs" };
+        var withUntracked = new[]
+        {
+            "other/Second.cs", "other/Untracked.cs", "sub/First.cs", "sub/Untracked.cs"
+        };
+        client.GetChangedPathsBetween(baseline, repo.Head())
+            .OrderBy(path => path, StringComparer.Ordinal).ShouldBe(tracked);
+        client.GetWorkingTreeChangedPaths(baseline)
+            .OrderBy(path => path, StringComparer.Ordinal).ShouldBe(withUntracked);
+
+        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(baseline, null);
+        before.Select(source => source.Path).OrderBy(path => path, StringComparer.Ordinal)
+            .ShouldBe(tracked);
+        after.Select(source => source.Path).OrderBy(path => path, StringComparer.Ordinal)
+            .ShouldBe(withUntracked);
+    }
+
+    [Fact]
+    public void non_head_baseline_keeps_both_sides_of_a_working_tree_rename()
+    {
+        if (!WorkingTreeReadCapability.IsAvailable)
+            return;
+
+        using var repo = new TempRepo();
+        repo.Write("Old.cs", "class Moved { }");
+        repo.Git("add", "-A");
+        repo.Commit("first");
+        var baseline = repo.Head();
+
+        File.Move(System.IO.Path.Combine(repo.Path, "Old.cs"),
+            System.IO.Path.Combine(repo.Path, "New.cs"));
+
+        var (before, after) = new GitSemanticDiffSourceProvider(new GitClient(repo.Path))
+            .Load(baseline, null);
+
+        before.ShouldHaveSingleItem().Path.ShouldBe("Old.cs");
+        after.ShouldHaveSingleItem().Path.ShouldBe("New.cs");
+    }
+
+    [Fact]
     public void changed_paths_between_refs_fail_when_a_ref_is_missing()
     {
         using var repo = new TempRepo();
@@ -191,13 +315,16 @@ public sealed class GitClientIntegrationTests
         repo.Write(tracked, "class Odd { int Value = 1; }");
         repo.Git("add", "-A");
         repo.Commit("first");
+        var baseline = repo.Head();
 
         repo.Write(tracked, "class Odd { int Value = 2; }");
+        repo.Git("add", "-A");
+        repo.Commit("second");
         repo.Write(untracked, "class New { }");
         var client = new GitClient(repo.Path);
 
-        client.GetWorkingTreeChangedPaths().ShouldBe([tracked, untracked]);
-        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(null, null);
+        client.GetWorkingTreeChangedPaths(baseline).ShouldBe([tracked, untracked]);
+        var (before, after) = new GitSemanticDiffSourceProvider(client).Load(baseline, null);
         before.Select(source => source.Path).ShouldBe([tracked]);
         after.Select(source => source.Path).ShouldBe([tracked, untracked]);
     }

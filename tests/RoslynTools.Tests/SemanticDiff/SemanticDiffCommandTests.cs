@@ -166,6 +166,7 @@ public sealed class SemanticDiffCommandTests
         // --from without --to: working-tree-vs-ref. from is v1, after is the working tree.
         git.RefsValidated.ShouldContain("v1");
         git.WorkingTreeRead.ShouldBeTrue();
+        git.WorkingTreeBaseline.ShouldBe("v1");
         git.ChangedPathsBetweenQueried.ShouldBeEmpty();
     }
 
@@ -522,6 +523,8 @@ public sealed class SemanticDiffCommandTests
 
         public bool WorkingTreeRead { get; private set; }
 
+        public string? WorkingTreeBaseline { get; private set; }
+
         public void EnsureRepository()
         {
             if (ThrowNotARepository)
@@ -543,13 +546,23 @@ public sealed class SemanticDiffCommandTests
                 throw new ArgumentException($"invalid git ref: {reference}");
         }
 
+        public string ResolveCommit(string reference)
+        {
+            EnsureRefExists(reference);
+            return reference;
+        }
+
         public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef)
         {
             ChangedPathsBetweenQueried.Add((fromRef, toRef));
             return ChangedPathsBetween.TryGetValue((fromRef, toRef), out var paths) ? paths : [];
         }
 
-        public IReadOnlyList<string> GetWorkingTreeChangedPaths() => WorkingTreeChangedPaths;
+        public IReadOnlyList<string> GetWorkingTreeChangedPaths(string baselineRef = "HEAD")
+        {
+            WorkingTreeBaseline = baselineRef;
+            return WorkingTreeChangedPaths;
+        }
 
         public string? ReadFileAtRef(string reference, string path)
         {

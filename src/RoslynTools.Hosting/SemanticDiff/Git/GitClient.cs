@@ -44,10 +44,18 @@ internal sealed class GitClient : IGitClient
     }
 
     public void EnsureRefExists(string reference)
+        => _ = ResolveCommit(reference);
+
+    public string ResolveCommit(string reference)
     {
         ArgumentException.ThrowIfNullOrEmpty(reference);
-        if (Run("rev-parse", "--verify", $"{reference}^{{commit}}").ExitCode != 0)
+        var result = Run("rev-parse", "--verify", $"{reference}^{{commit}}");
+        var commit = result.StdOut.Trim();
+        if (result.ExitCode != 0
+            || commit.Length is not (40 or 64)
+            || !commit.All(Uri.IsHexDigit))
             throw new ArgumentException($"invalid git ref: {reference}");
+        return commit;
     }
 
     public void EnsureWorkingTreeContentSupported()
@@ -62,17 +70,21 @@ internal sealed class GitClient : IGitClient
 
     public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef)
     {
-        var result = Run("diff", "--no-renames", "--name-only", "-z", fromRef, toRef);
-        EnsureSuccess(result, $"diff --no-renames --name-only -z {fromRef} {toRef}");
+        var result = Run("diff", "--no-renames", "--no-relative", "--name-only", "-z",
+            fromRef, toRef, "--");
+        EnsureSuccess(result, $"diff --no-renames --no-relative --name-only -z {fromRef} {toRef} --");
         return SplitPaths(result.StdOut);
     }
 
-    public IReadOnlyList<string> GetWorkingTreeChangedPaths()
+    public IReadOnlyList<string> GetWorkingTreeChangedPaths(string baselineRef = "HEAD")
     {
-        var trackedResult = Run("diff", "--no-renames", "--name-only", "-z", "HEAD");
-        EnsureSuccess(trackedResult, "diff --no-renames --name-only -z HEAD");
-        var untrackedResult = Run("ls-files", "--others", "--exclude-standard", "--full-name", "-z");
-        EnsureSuccess(untrackedResult, "ls-files --others --exclude-standard --full-name -z");
+        var trackedResult = Run("diff", "--no-renames", "--no-relative", "--name-only", "-z",
+            baselineRef, "--");
+        EnsureSuccess(trackedResult,
+            $"diff --no-renames --no-relative --name-only -z {baselineRef} --");
+        var untrackedResult = Run("ls-files", "--others", "--exclude-standard", "--full-name", "-z",
+            "--", ":/");
+        EnsureSuccess(untrackedResult, "ls-files --others --exclude-standard --full-name -z -- :/");
         var tracked = SplitPaths(trackedResult.StdOut);
         var untracked = SplitPaths(untrackedResult.StdOut);
 

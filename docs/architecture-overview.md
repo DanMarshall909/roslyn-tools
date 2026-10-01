@@ -259,6 +259,11 @@ Task-aware `suggest` uses that same platform capability for explicit C#
 working-tree review. Supported hosts receive an invokable semantic-diff step;
 other hosts receive a typed unsupported outcome with ref-vs-ref and two-file
 alternatives. See [ADR-0090](adr/0090-route-working-tree-review-with-platform-admission.md).
+Git-backed semantic diff pins each symbolic ref to one commit ID before path
+discovery and content reads. Working-tree path discovery diffs directly from
+that baseline through the index and current tracked files, then adds untracked
+files; `--no-relative` preserves repository-root paths from nested directories.
+See [ADR-0091](adr/0091-exact-baseline-semantic-diff.md).
 A syntax-tree ratchet now rejects ambient host adapters and host-framework
 imports across Core and Services, plus process-launch types in Services. It
 complements the project-reference, compiled-assembly, placement, and console

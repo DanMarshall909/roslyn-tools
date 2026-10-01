@@ -317,8 +317,10 @@ forcing an irrelevant command match.
 - **WHEN** the same task is requested on a platform without the contained reader
 - **THEN** `suggest` returns `Unsupported` with `semantic-diff-working-tree`
 - **AND** names ref-vs-ref and two-file comparison as alternatives without emitting a working-tree call
-- **WHEN** the user requests unstaged-only changes or a non-HEAD working-tree baseline
+- **WHEN** the user requests unstaged-only changes
 - **THEN** `suggest` reports the missing mode without emitting a broader comparison
+- **WHEN** the user requests an explicit non-HEAD working-tree baseline
+- **THEN** `suggest` reports that it cannot infer the ref safely and points to `semantic-diff --from <ref>` without emitting a HEAD comparison
 
 ### Requirement: selected mutations prepare immutable revision-bound plans
 

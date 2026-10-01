@@ -349,11 +349,18 @@ public sealed class SemanticDiffHandlerTests
                 throw new ArgumentException($"invalid git ref: {reference}");
         }
 
+        public string ResolveCommit(string reference)
+        {
+            EnsureRefExists(reference);
+            return reference;
+        }
+
         // No test exercises a successful ref-vs-ref diff; the invalid-ref test throws at
         // EnsureRefExists before this is reached, so an empty list is the honest default.
         public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef) => [];
 
-        public IReadOnlyList<string> GetWorkingTreeChangedPaths() => WorkingTreeChangedPaths;
+        public IReadOnlyList<string> GetWorkingTreeChangedPaths(string baselineRef = "HEAD") =>
+            WorkingTreeChangedPaths;
 
         public string? ReadFileAtRef(string reference, string path) =>
             FilesAtRef.TryGetValue($"{reference}:{path}", out var text) ? text : null;

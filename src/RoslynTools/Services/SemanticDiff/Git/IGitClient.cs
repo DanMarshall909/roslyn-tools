@@ -38,6 +38,13 @@ internal interface IGitClient
     void EnsureRefExists(string reference);
 
     /// <summary>
+    ///     Resolve a symbolic or literal commit ref to one immutable Git object ID.
+    ///     Throw <see cref="ArgumentException" /> for an invalid ref. Callers reuse
+    ///     the returned ID for changed paths and content reads in one comparison.
+    /// </summary>
+    string ResolveCommit(string reference);
+
+    /// <summary>
     ///     Fail before working-tree path discovery when a repository-contained content
     ///     read boundary is unavailable. Ref-vs-ref mode does not call this method.
     /// </summary>
@@ -45,7 +52,7 @@ internal interface IGitClient
 
     /// <summary>
     ///     Paths changed between two refs:
-    ///     <c>git diff --no-renames --name-only -z &lt;from&gt; &lt;to&gt;</c>.
+    ///     <c>git diff --no-renames --no-relative --name-only -z &lt;from&gt; &lt;to&gt; --</c>.
     ///     <c>--no-renames</c> is mandatory so a class moved A.cs→B.cs lists <i>both</i>
     ///     paths, enabling cross-file move detection downstream.
     ///     Throws <see cref="InvalidOperationException" /> if git fails.
@@ -53,15 +60,18 @@ internal interface IGitClient
     IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef);
 
     /// <summary>
-    ///     Paths changed in the working tree relative to <c>HEAD</c>: the union of
-    ///     <c>git diff --no-renames --name-only -z HEAD</c> (tracked, modified/deleted)
-    ///     and <c>git ls-files --others --exclude-standard --full-name -z</c>
-    ///     (untracked, not ignored), so a new un-added file counts as changed.
+    ///     Paths changed in the working tree relative to <paramref name="baselineRef" />
+    ///     (defaults to <c>HEAD</c>): the union of
+    ///     <c>git diff --no-renames --no-relative --name-only -z &lt;baseline&gt; --</c>
+    ///     (tracked, modified/deleted across commits, index, and working tree)
+    ///     and <c>git ls-files --others --exclude-standard --full-name -z -- :/</c>
+    ///     (untracked, not ignored, across the repository root), so a new
+    ///     un-added file counts as changed even from a nested working directory.
     ///     Both lists preserve literal repository-root-relative paths.
     ///     Throws <see cref="InvalidOperationException" /> if either git command
     ///     fails or git cannot start; an empty list requires successful commands.
     /// </summary>
-    IReadOnlyList<string> GetWorkingTreeChangedPaths();
+    IReadOnlyList<string> GetWorkingTreeChangedPaths(string baselineRef = "HEAD");
 
     /// <summary>
     ///     Content of <paramref name="path" /> at <paramref name="reference" />

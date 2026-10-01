@@ -329,6 +329,11 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   outcomes on other platforms before declaring complete read effects.
 - [x] Make task-aware discovery report working-tree semantic-diff availability
   by platform and preserve ref-vs-ref/two-file routes on unsupported hosts.
+- [x] Discover Git-backed semantic-diff working-tree paths from the selected
+  baseline, pin refs before path and content reads, and retain root-relative
+  literal paths from nested directories.
+- [ ] Route safely parsed explicit working-tree baselines through task-aware
+  CLI/MCP suggestion; keep ambiguous requests unsupported.
 - [ ] Add workflow fixtures for understand-symbol, extend-interface, change-DTO,
   investigate-diagnostic, prepare-rename, and working-tree review.
 

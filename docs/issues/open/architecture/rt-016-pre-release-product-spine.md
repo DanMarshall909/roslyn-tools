@@ -153,9 +153,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   unsupported outcome and cross-platform alternatives (ADR-0090). Broader
   Git-context classification and workflow routing remain open. The workflow
   distinguishes HEAD-versus-current-files from unstaged-only requests and
-  rejects non-HEAD working-tree baselines because path enumeration still uses
-  HEAD. A later semantic-diff fix must enumerate the baseline-to-HEAD changes
-  as well before advertising `--from` alone as complete. For the captured
+  rejects non-HEAD working-tree baselines because it cannot safely infer an
+  arbitrary ref from natural-language requests. Semantic diff now enumerates
+  tracked paths directly against the pinned `--from` commit and adds untracked
+  files, so direct `--from` comparison is complete for the observed working
+  tree (ADR-0091). The suggestion parser remains a follow-up. For the captured
   `review my working tree C# changes` query with no solution argument,
   source-built suggestion output fell from 2,417 to 625 JSON stdout bytes
   and from 995 to 360 text stdout bytes. This measures one response, not an

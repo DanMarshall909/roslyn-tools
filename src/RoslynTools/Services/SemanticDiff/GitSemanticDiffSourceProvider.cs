@@ -45,17 +45,15 @@ internal sealed class GitSemanticDiffSourceProvider : IRtService
 
         var from = string.IsNullOrEmpty(fromRef) ? "HEAD" : fromRef;
 
-        // toRef null => working-tree-vs-HEAD; otherwise ref-vs-ref. Validate every ref we
-        // are about to read so a bad ref fails fast as an ArgumentException.
-        _git.EnsureRefExists(from);
-        if (toRef is not null)
-            _git.EnsureRefExists(toRef);
-        else
+        // Pin each ref once: a branch can move between path discovery and content reads.
+        var fromCommit = _git.ResolveCommit(from);
+        var toCommit = toRef is null ? null : _git.ResolveCommit(toRef);
+        if (toCommit is null)
             _git.EnsureWorkingTreeContentSupported();
 
-        var changedPaths = toRef is null
-            ? _git.GetWorkingTreeChangedPaths()
-            : _git.GetChangedPathsBetween(from, toRef);
+        var changedPaths = toCommit is null
+            ? _git.GetWorkingTreeChangedPaths(fromCommit)
+            : _git.GetChangedPathsBetween(fromCommit, toCommit);
 
         var before = new List<SemanticDiffSource>();
         var after = new List<SemanticDiffSource>();
@@ -66,14 +64,14 @@ internal sealed class GitSemanticDiffSourceProvider : IRtService
                 continue;
 
             // Before side is always content at the from-ref.
-            var beforeText = _git.ReadFileAtRef(from, path);
+            var beforeText = _git.ReadFileAtRef(fromCommit, path);
             if (beforeText is not null)
                 before.Add(new SemanticDiffSource(path, beforeText));
 
             // After side is the working tree (default mode) or the to-ref (ref-vs-ref).
-            var afterText = toRef is null
+            var afterText = toCommit is null
                 ? _git.ReadWorkingTreeFile(path)
-                : _git.ReadFileAtRef(toRef, path);
+                : _git.ReadFileAtRef(toCommit, path);
             if (afterText is not null)
                 after.Add(new SemanticDiffSource(path, afterText));
         }

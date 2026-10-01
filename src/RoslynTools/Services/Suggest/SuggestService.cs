@@ -76,7 +76,7 @@ internal sealed class SuggestService : IRtService
                 UnsupportedReason: "The current semantic diff compares HEAD with the working tree and includes staged changes; an unstaged-only comparison is unavailable.");
         if (HasExplicitWorkingTreeBaseline(query))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-working-tree-baseline",
-                UnsupportedReason: "Working-tree changed-path discovery is HEAD-relative even with --from; a non-HEAD baseline can omit changes. Compare two Git refs or two .cs files instead.");
+                UnsupportedReason: "This suggestion route cannot safely infer an explicit baseline from the request. Run semantic-diff --from <ref> directly, or compare two Git refs.");
         if (_catalog.All.All(info => info.Name != "semantic-diff"))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, capability,
                 UnsupportedReason: "The semantic-diff command is unavailable in this command catalogue.");

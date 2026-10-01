@@ -30,7 +30,7 @@ internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRt
     {
         var fromOpt = new Option<string?>(
             "--from",
-            "Git ref for the 'before' side. Omit to default to HEAD; with no --to, changed-path discovery remains HEAD-relative.");
+            "Git ref for the 'before' side. Omit to default to HEAD; with no --to, compare that ref with the working tree on Linux x64.");
         var toOpt = new Option<string?>(
             "--to",
             "Git ref for the 'after' side. Omit to compare against the working tree on Linux x64.");
