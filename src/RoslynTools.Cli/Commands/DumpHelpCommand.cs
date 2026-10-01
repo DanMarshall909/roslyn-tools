@@ -461,16 +461,20 @@ internal static class DumpHelpCommand
         return name.ToLowerInvariant().Replace(' ', '-');
     }
 
-    private static Dictionary<string, CommandProductMetadata> ResolveProducts(
-        IServiceProvider? services) =>
-        services?.GetServices<ICommandApplicationPort>()
+    internal static Dictionary<string, CommandProductMetadata> ResolveProducts(
+        IServiceProvider? services)
+    {
+        var products = services?.GetServices<ICommandApplicationPort>()
             .Where(port => port is not ILegacyCommandApplicationPort)
             .GroupBy(port => port.Definition.Info.Name, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
                 group => group.First().Definition.Product,
                 StringComparer.Ordinal)
-        ?? new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal);
+            ?? new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal);
+        products.Add(HostCommandMetadata.Config.Name, HostCommandMetadata.ConfigProduct);
+        return products;
+    }
 
     private static CommandSafety ResolveSafety(
         RtCommandInfo info,

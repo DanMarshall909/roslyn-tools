@@ -13,10 +13,28 @@ internal static class HostCommandMetadata
         Mutates: false,
         JsonOutput: true,
         Category: "inspect",
-        "Inspecting effective global and worktree host configuration or diagnosing an invalid file.",
+        "Use this when inspecting effective host configuration or diagnosing an invalid configuration file without a solution or repository trust.",
         ["rt config", "rt config --json"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
         SeeAlso: ["doctor", "trust"]);
+
+    internal static CommandProductMetadata ConfigProduct { get; } = new(
+        CapabilityMaturity.Preview,
+        CommandEffects.RepositoryRead | CommandEffects.LocalStateRead,
+        ConditionallyMutable: false,
+        CommandIdempotency.Idempotent,
+        CommandAudience.Public,
+        TrustRequirement.None,
+        WorkspaceRequirement.None,
+        Prerequisites: [],
+        CommandCost.Low,
+        CancellationSupport.NotSupported,
+        new CommandResourceLimits(30_000, 100, 1_048_576),
+        Limitations:
+        [
+            "CLI config inspection does not yet enforce the advertised timeout, item count, or output byte limit."
+        ],
+        Config.Examples);
 
     internal static RtCommandInfo Trust { get; } = new(
         "trust",

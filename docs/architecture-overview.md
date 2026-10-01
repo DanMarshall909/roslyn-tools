@@ -357,7 +357,14 @@ The loader, effective host configuration, and MCP descriptor policy live in shar
 Hosting; Core has no host configuration implementation. An architecture placement
 test guards this boundary; see [ADR-0059](adr/0059-host-configuration-hosting-ownership.md).
 `rt config` is a local host inspection command that reports selected paths, effective
-values, and their sources without MSBuild registration or daemon routing.
+values, and their sources without MSBuild registration or daemon routing. Its
+host-neutral product profile lives alongside its shared command identity in
+`HostCommandMetadata`; CLI discovery projects that profile explicitly because
+the repair route has no application port and remains outside MCP. The profile
+describes possible local-state and worktree configuration reads, with no trust,
+semantic-workspace, or .NET SDK prerequisite. Its resource values are advisory
+until CLI configuration inspection enforces them; see
+[ADR-0102](adr/0102-config-host-discovery-profile.md).
 
 Daemon scalars resolve in this order: built-in defaults, global file, worktree file,
 environment, then an applicable explicit host argument. MCP policy composes instead of

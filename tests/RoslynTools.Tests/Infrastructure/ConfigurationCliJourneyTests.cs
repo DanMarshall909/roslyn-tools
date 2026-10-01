@@ -5,6 +5,54 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public sealed class ConfigurationCliJourneyTests
 {
+    [Fact]
+    public async Task config_catalogue_describes_the_msbuild_free_repair_route()
+    {
+        using var fixture = new ConfigurationCliFixture("{\"schemaVersion\":1}");
+
+        var result = await RtCliHost.RunAsync(
+            "dump-help --json",
+            fixture.OutsideRepository,
+            fixture.Environment);
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var document = JsonDocument.Parse(result.Stdout);
+        var config = document.RootElement.GetProperty("commands").EnumerateArray()
+            .Single(command => command.GetProperty("name").GetString() == "config");
+        var product = config.GetProperty("product");
+        product.GetProperty("effects").EnumerateArray()
+            .Select(effect => effect.GetString())
+            .ShouldBe(["RepositoryRead", "LocalStateRead"]);
+        product.GetProperty("trustRequirement").GetString().ShouldBe("None");
+        product.GetProperty("workspaceRequirement").GetString().ShouldBe("None");
+        product.GetProperty("prerequisites").GetArrayLength().ShouldBe(0);
+        product.GetProperty("cost").GetString().ShouldBe("Low");
+        product.GetProperty("audience").GetString().ShouldBe("Public");
+        product.GetProperty("limitations").EnumerateArray()
+            .ShouldContain(item => item.GetString()!.Contains("does not yet enforce", StringComparison.Ordinal));
+        config.GetProperty("whenToUse").GetString()!
+            .ShouldContain("without a solution or repository trust");
+
+        var invocation = await RtCliHost.RunAsync(
+            "config --json",
+            fixture.OutsideRepository,
+            fixture.Environment);
+        invocation.ExitCode.ShouldBe(0, invocation.Stderr);
+        using var configResult = JsonDocument.Parse(invocation.Stdout);
+        configResult.RootElement.GetProperty("worktreeRoot").ValueKind.ShouldBe(JsonValueKind.Null);
+        configResult.RootElement.GetProperty("repositoryFile").GetProperty("path")
+            .ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var suggestion = await RtCliHost.RunAsync(
+            "suggest \"diagnose an invalid rt configuration file\" --top 3 --json",
+            fixture.OutsideRepository,
+            fixture.Environment);
+        suggestion.ExitCode.ShouldBe(0, suggestion.Stderr);
+        using var suggestionResult = JsonDocument.Parse(suggestion.Stdout);
+        suggestionResult.RootElement.GetProperty("Results").EnumerateArray().First()
+            .GetProperty("Name").GetString().ShouldBe("config");
+    }
+
     [Theory]
     [InlineData("--json config")]
     [InlineData("--json inspect config")]
@@ -190,6 +238,7 @@ public sealed class ConfigurationCliJourneyTests
         }
 
         private string Root { get; }
+        internal string OutsideRepository => Path.GetPathRoot(Root)!;
         internal string Repository { get; }
         internal string RepositoryConfigPath { get; }
         internal IReadOnlyDictionary<string, string?> Environment { get; }

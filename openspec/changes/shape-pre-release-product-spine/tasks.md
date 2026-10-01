@@ -62,6 +62,11 @@
     workspace acquisition starts, including an acquisition failure. Omit it for
     installation-only, trust-required, and SDK bootstrap failure results where
     workspace acquisition never starts.
+  - [x] Publish `config` as a CLI-only local host inspection route with no
+    repository trust, semantic workspace, or SDK prerequisite; verify the
+    catalogue profile, no-repository invocation, and task suggestion route.
+  - [ ] Bound CLI configuration file reads, diagnostic counts, execution time,
+    and output bytes before treating `config` resource metadata as enforced.
 - [ ] Resolve source-audit blockers before admitting any apply-capable CLI mode:
   contradictory `--dry-run`/`--apply` semantics, canonical affected-path trust
   containment for extraction output, authoritative completeness for whole-solution

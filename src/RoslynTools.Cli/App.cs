@@ -563,14 +563,7 @@ internal static class App
     }
 
     private static Dictionary<string, CommandProductMetadata> ResolvePublicProducts() =>
-        (_currentServices ?? GetOrCreateRegistryServices())
-        .GetServices<ICommandApplicationPort>()
-        .Where(port => port is not ILegacyCommandApplicationPort)
-        .GroupBy(port => port.Definition.Info.Name, StringComparer.Ordinal)
-        .ToDictionary(
-            group => group.Key,
-            group => group.First().Definition.Product,
-            StringComparer.Ordinal);
+        DumpHelpCommand.ResolveProducts(_currentServices ?? GetOrCreateRegistryServices());
 
     private static async Task CaptureExceptionAsync(InvocationContext context, Exception ex)
     {

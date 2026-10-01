@@ -166,3 +166,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0099](0099-reject-unsupported-cli-output-formats.md) | Reject unsupported explicit CLI output formats | Accepted | 2026-10-01 |
 | [0100](0100-refuse-uncontained-mcp-semantic-diff-files.md) | Refuse uncontained MCP semantic-diff file reads | Accepted | 2026-10-01 |
 | [0101](0101-doctor-mode-discovery-metadata.md) | Describe doctor modes in one product contract | Accepted | 2026-10-02 |
+| [0102](0102-config-host-discovery-profile.md) | Publish config as a host-only product | Accepted | 2026-10-02 |
