@@ -263,6 +263,110 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task suggest_implementation_search_returns_typed_read_workflow_in_both_content_forms()
+    {
+        var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new
+                {
+                    query = "Find every implementation of IRtCommand",
+                    top = 3,
+                    solution = solutionPath
+                }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        var step = structured.GetProperty("workflow").GetProperty("steps")[0];
+        step.GetProperty("mcpTool").GetString().ShouldBe("relationships");
+        step.GetProperty("mcpArguments").GetProperty("mode").GetString().ShouldBe("Implementations");
+        step.GetProperty("mcpArguments").GetProperty("solution").GetString().ShouldBe(solutionPath);
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task suggested_implementation_mcp_step_reaches_the_trust_gate_with_its_generated_arguments()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"rt-suggest-route-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var registry = new RepositoryTrustRegistry(Path.Combine(directory, "trust.json"));
+            var host = new McpHostOptions(trustRegistry: registry);
+            var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+            var suggestRequest = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 2,
+                @params = new
+                {
+                    name = "suggest_command",
+                    arguments = new
+                    {
+                        query = "Find every implementation of IRtCommand",
+                        solution = solutionPath
+                    }
+                }
+            });
+            var suggestOutput = await RunSingleRequestAsync(suggestRequest, host);
+            using var suggestion = JsonDocument.Parse(suggestOutput);
+            var step = suggestion.RootElement.GetProperty("result").GetProperty("structuredContent")
+                .GetProperty("workflow").GetProperty("steps")[0];
+            var relationshipRequest = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 3,
+                @params = new
+                {
+                    name = step.GetProperty("mcpTool").GetString(),
+                    arguments = step.GetProperty("mcpArguments").Clone()
+                }
+            });
+
+            var relationshipOutput = await RunSingleRequestAsync(relationshipRequest, host);
+            using var relationship = JsonDocument.Parse(relationshipOutput);
+            var result = relationship.RootElement.GetProperty("result");
+            result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+            using var error = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task suggest_schema_exposes_optional_solution_without_making_it_required()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
+
+        using var document = JsonDocument.Parse(output);
+        var suggest = document.RootElement.GetProperty("result").GetProperty("tools")
+            .EnumerateArray().Single(tool => tool.GetProperty("name").GetString() == "suggest_command");
+        var schema = suggest.GetProperty("inputSchema");
+        schema.GetProperty("properties").TryGetProperty("solution", out _).ShouldBeTrue();
+        schema.GetProperty("required").EnumerateArray()
+            .Select(property => property.GetString()).ShouldNotContain("solution");
+    }
+
     [Theory]
     [InlineData("suggest_command", "{\"query\":\"extract an interface from a class\",\"top\":3}", "results")]
     [InlineData("prime", "{}", "hotCommands")]

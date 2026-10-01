@@ -15,6 +15,8 @@ when `rt` is not on PATH. Build from the current source before validating change
 
 1. `rt prime` gives the short session primer without loading a workspace.
 2. `rt suggest "<task in plain English>" --top 3 --llm` ranks candidate commands.
+   Pass `--solution <path>` when the task needs a populated solution-scoped
+   workflow; check any returned stop condition before claiming completeness.
 3. Read the selected command's `--help` for exact parameters and apply controls.
 4. Use `rt dump-help --compact` for a wider catalogue, or `rt dump-help` for the
    generated full reference. Do not maintain a second command list in this skill.

@@ -8,7 +8,9 @@ internal sealed record SuggestOperationRequest(
     [property: CommandPropertyDescription("Natural-language description of what you want to do (omit to get git-context suggestions)")]
     string Query,
     [property: CommandPropertyDescription("Maximum number of ranked candidates to return")]
-    int Top = 3);
+    int Top = 3,
+    [property: CommandPropertyDescription("Optional solution path; MCP workflows require an absolute path")]
+    string? Solution = null);
 
 /// <summary>Shared catalog-suggestion operation used by CLI and MCP.</summary>
 internal sealed class SuggestOperation
@@ -30,7 +32,7 @@ internal sealed class SuggestOperation
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Result<SuggestResponse, RtError>.Ok(
-            _suggest.Suggest(new SuggestRequest(request.Query, request.Top))));
+            _suggest.Suggest(new SuggestRequest(request.Query, request.Top, request.Solution))));
     }
 }
 
@@ -41,8 +43,9 @@ internal static class SuggestCommandDefinition
         Mutates: false,
         JsonOutput: true,
         "meta",
-        "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language. Returns ranked candidates with examples, or an explicit unsupported outcome for a known missing plan capability.",
-        ["rt suggest \"rename a symbol\" --json"],
+        "Call this when you know what you want to do to C# code but aren't sure which rt command does it. Describe the task in natural language; implementation searches return a read workflow with a completeness stop condition. Other tasks return ranked candidates or a known unsupported capability.",
+        ["rt suggest \"Find every implementation of IRtCommand\" --solution RoslynTools.slnx --json",
+         "rt suggest \"rename a symbol\" --json"],
         Placement: CommandPlacement.RootOnly);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(

@@ -100,7 +100,7 @@ for preview support.
 
 | Current capability | Destination | Decision |
 |---|---|---|
-| `suggest_command` | `suggest` workflow guidance | Rebuild from catalogue, Git, and semantic context with read-intent and unsupported-job routing; reconcile MCP required query with CLI's optional Git-context query and label this primary discovery route deliberately. |
+| `suggest_command` | `suggest` workflow guidance | The first implementation-search route returns a CLI call and, with an absolute solution path, an MCP call plus a completeness stop condition. Continue rebuilding from catalogue, Git, and semantic context with broader read-intent and unsupported-job routing; reconcile MCP required query with CLI's optional Git-context query and label this primary discovery route deliberately. |
 | `feedback_add` | Maintainer/dogfood CLI | Keep out of normal MCP; internal descriptor already marks LocalStateWrite, so verify CLI help and runtime projection. |
 | `feedback_list` | Maintainer CLI | May expose local paths, traces, and samples; add paging/limits before a 206-item list can consume 520 KB. |
 | `feedback_process` | Maintainer CLI | Internal descriptor marks local read/write; verify CLI help and runtime projection. |

@@ -30,6 +30,22 @@ public sealed class DiscoveryCatalogTests
     }
 
     [Fact]
+    public void implementation_search_uses_the_real_read_route_before_interface_mutators()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        var response = provider.GetRequiredService<SuggestService>().Suggest(new SuggestRequest(
+            "Find every implementation of IRtCommand before changing the interface", 3,
+            Path.GetFullPath("RoslynTools.slnx")));
+
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldNotBeNull();
+        response.Workflow.Steps.Single().McpTool.ShouldBe("relationships");
+    }
+
+    [Fact]
     public async Task advertised_feedback_examples_parse_on_the_real_cli_without_execution()
     {
         foreach (var example in HostCommandMetadata.Feedback.Examples)

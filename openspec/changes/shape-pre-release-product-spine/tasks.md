@@ -294,6 +294,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 
 - [x] Surface `prime`, task `suggest`, and compact `dump-help` from root CLI help;
   keep maintainer controls and the product command catalogue separate.
+- [x] Pilot one task-aware implementation-search workflow with a CLI call, an
+  MCP call when given an absolute solution, and an explicit partial/truncated-
+  result stop condition.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

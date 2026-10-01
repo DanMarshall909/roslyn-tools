@@ -212,4 +212,107 @@ public sealed class SuggestServiceTests
         payload.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
     }
 
+    [Theory]
+    [InlineData("Find every implementation of IRtCommand before changing the interface")]
+    [InlineData("Show all implementers of IRtCommand")]
+    public void implementation_search_returns_one_invokable_read_workflow(string query)
+    {
+        var catalog = new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"),
+            Info("extract-interface", category: "refactor", whenToUse: "Extract an interface"),
+            Info("implement-interface", category: "refactor", whenToUse: "Implement an interface"));
+        var solutionPath = Path.GetFullPath("RoslynTools.slnx");
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            query, Top: 3, Solution: solutionPath));
+        var payload = JsonSerializer.SerializeToElement(response);
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.ShouldBeEmpty();
+        var step = payload.GetProperty("Workflow").GetProperty("Steps")[0];
+        step.GetProperty("CliInvocation").GetString().ShouldBe(
+            $"rt inspect relationships implementations IRtCommand --solution {solutionPath} --json");
+        step.GetProperty("McpTool").GetString().ShouldBe("relationships");
+        step.GetProperty("McpArguments").GetProperty("symbol").GetString().ShouldBe("IRtCommand");
+        step.GetProperty("McpArguments").GetProperty("mode").GetString().ShouldBe("Implementations");
+        step.GetProperty("McpArguments").GetProperty("solution").GetString().ShouldBe(solutionPath);
+        var stopCondition = step.GetProperty("StopCondition").GetString();
+        stopCondition.ShouldNotBeNull();
+        stopCondition.ShouldContain("Partial");
+        stopCondition.ShouldContain("truncated");
+    }
+
+    [Fact]
+    public void implementation_intent_is_unsupported_when_the_read_route_is_absent()
+    {
+        var catalog = new FakeCatalog(Info("extract-interface", category: "refactor",
+            whenToUse: "Extract an interface"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Find every implementation of IRtCommand"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.Results.ShouldBeEmpty();
+        response.MissingCapability.ShouldBe("relationships-implementations");
+    }
+
+    [Fact]
+    public void implementation_search_without_solution_keeps_cli_route_and_marks_mcp_unavailable()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"))).Suggest(
+            new SuggestRequest("Find all implementations of IRtCommand"));
+
+        var step = response.Workflow!.Steps.Single();
+        step.CliInvocation.ShouldBe("rt inspect relationships implementations IRtCommand --json");
+        step.McpTool.ShouldBeNull();
+        step.McpArguments.ShouldBeNull();
+        step.McpUnavailableReason.ShouldBe(
+            "MCP requires an absolute solution path; call suggest_command again with one.");
+    }
+
+    [Theory]
+    [InlineData("Find every implementation of IHandler<T>")]
+    [InlineData("Find every implementation of global::IRtCommand")]
+    [InlineData("Find every implementation of the interface")]
+    [InlineData("Find implementations of an interface")]
+    [InlineData("Find implementations of that interface")]
+    [InlineData("Find implementations of some interface")]
+    [InlineData("Find implementations of IFoo and IBar")]
+    [InlineData("Find implementations of IFoo, IBar")]
+    public void incomplete_symbol_query_does_not_suggest_a_route_for_its_prefix(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"))).Suggest(
+            new SuggestRequest(query));
+
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Fact]
+    public void relative_solution_from_shared_request_does_not_create_an_uninvokable_mcp_step()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"))).Suggest(
+            new SuggestRequest("Find every implementation of IRtCommand", Solution: "RoslynTools.slnx"));
+
+        var step = response.Workflow!.Steps.Single();
+        step.McpTool.ShouldBeNull();
+        step.McpArguments.ShouldBeNull();
+        step.McpUnavailableReason.ShouldBe(
+            "MCP requires an absolute solution path; call suggest_command again with one.");
+    }
+
+    [Fact]
+    public void interface_creation_does_not_trigger_implementation_search()
+    {
+        var catalog = new FakeCatalog(
+            Info("relationships", whenToUse: "Inspect semantic relationships"),
+            Info("extract-interface", category: "refactor", whenToUse: "Extract an interface"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Extract an interface from BookingService"));
+        var payload = JsonSerializer.SerializeToElement(response);
+
+        response.Results[0].Name.ShouldBe("extract-interface");
+        payload.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
 }

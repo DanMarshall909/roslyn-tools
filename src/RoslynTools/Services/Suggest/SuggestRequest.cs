@@ -7,4 +7,5 @@ namespace RoslynTools.Services.Suggest;
 /// </summary>
 /// <param name="Query">Natural-language description of the task.</param>
 /// <param name="Top">Maximum number of ranked candidates to return.</param>
-internal sealed record SuggestRequest(string Query, int Top = 3);
+/// <param name="Solution">Optional solution path to populate a suggested invocation.</param>
+internal sealed record SuggestRequest(string Query, int Top = 3, string? Solution = null);

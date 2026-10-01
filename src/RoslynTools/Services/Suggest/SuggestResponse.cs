@@ -20,4 +20,6 @@ internal sealed record SuggestResponse(
     IReadOnlyList<SuggestResult> Related,
     SuggestOutcome Outcome,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    string? MissingCapability = null);
+    string? MissingCapability = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    SuggestWorkflow? Workflow = null);

@@ -33,17 +33,20 @@ internal static class SuggestCommand
         };
         var topOpt = new Option<int>("--top", () => 3,
             "Maximum number of ranked candidates to return");
+        var solutionOpt = new Option<string?>("--solution",
+            "Solution path to include in suggested invocations");
 
         var cmd = new Command("suggest",
             "Find a relevant rt command or identify an unsupported plan task")
         {
-            queryArg, topOpt
+            queryArg, topOpt, solutionOpt
         };
 
         cmd.SetHandler(async context =>
         {
             var query = context.ParseResult.GetValueForArgument(queryArg);
             var top = context.ParseResult.GetValueForOption(topOpt);
+            var solution = context.ParseResult.GetValueForOption(solutionOpt);
 
             if (string.IsNullOrWhiteSpace(query))
             {
@@ -51,8 +54,11 @@ internal static class SuggestCommand
                 return;
             }
 
+            if (!string.IsNullOrWhiteSpace(solution))
+                solution = Path.GetFullPath(solution);
+
             var response = (await operation.ExecuteAsync(
-                new SuggestOperationRequest(query, top))).Unwrap();
+                new SuggestOperationRequest(query, top, solution))).Unwrap();
             Render(response);
         });
 
@@ -72,6 +78,20 @@ internal static class SuggestCommand
         {
             RtConsole.WriteLine(RtOutputContext.Result,
                 $"Unsupported: {response.MissingCapability} is not available yet.");
+            return;
+        }
+
+        if (response.Workflow is { } workflow)
+        {
+            for (var i = 0; i < workflow.Steps.Count; i++)
+            {
+                var step = workflow.Steps[i];
+                RtConsole.WriteLine(RtOutputContext.Result, $"{i + 1}. {step.CliInvocation}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"   Why: {step.Reason}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"   Stop: {step.StopCondition}");
+                if (step.McpUnavailableReason is { } reason)
+                    RtConsole.WriteLine(RtOutputContext.Result, $"   MCP: {reason}");
+            }
             return;
         }
 

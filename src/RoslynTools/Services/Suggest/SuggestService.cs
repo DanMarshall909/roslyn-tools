@@ -37,6 +37,9 @@ internal sealed class SuggestService : IRtService
         if (UnavailablePlanCapability(request.Query) is { } missingCapability)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, missingCapability);
 
+        if (ImplementationSearchSymbol(request.Query) is { } symbol)
+            return SuggestImplementations(symbol, request.Solution);
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -50,6 +53,71 @@ internal sealed class SuggestService : IRtService
             results,
             related,
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private SuggestResponse SuggestImplementations(string symbol, string? solution)
+    {
+        var command = _catalog.All.FirstOrDefault(info => info.Name == "relationships");
+        if (command is null)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "relationships-implementations");
+
+        var cli = $"rt inspect relationships implementations {symbol}"
+                  + (string.IsNullOrWhiteSpace(solution) ? "" : $" --solution {QuoteCliArgument(solution)}")
+                  + " --json";
+        var hasMcpSolution = !string.IsNullOrWhiteSpace(solution)
+                             && Path.IsPathFullyQualified(solution);
+        IReadOnlyDictionary<string, string>? arguments = hasMcpSolution
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["symbol"] = symbol,
+                ["mode"] = "Implementations",
+                ["solution"] = solution!
+            }
+            : null;
+
+        var step = new SuggestWorkflowStep(
+            cli,
+            hasMcpSolution ? "relationships" : null,
+            arguments,
+            "Read semantic implementations of the named type before planning a change.",
+            "Inspect outcome and truncation before treating results as complete; Partial or truncated results cannot prove every implementation.",
+            hasMcpSolution ? null : "MCP requires an absolute solution path; call suggest_command again with one.");
+        return new SuggestResponse([], [], SuggestOutcome.Recommendations,
+            Workflow: new SuggestWorkflow([step]));
+    }
+
+    private static string? ImplementationSearchSymbol(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var match = Regex.Match(query,
+            @"\b(?:find|show|list)\s+(?:(?:all|every|the)\s+)?(?:implementations?|implementers?)\s+of\s+(?:(?:the|an?)\s+)?(?:interface\s+|type\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
+            options);
+        if (!match.Success)
+            return null;
+        var next = match.Index + match.Length;
+        if (next < query.Length && query[next] is '.' or '<' or '[' or ':' or '?')
+            return null;
+        if (Regex.IsMatch(query[next..],
+                @"^\s*(?:,|\band\b|\bor\b)\s+[A-Za-z_][A-Za-z0-9_.]*", options))
+            return null;
+        var symbol = match.Groups["symbol"].Value;
+        var leafName = symbol[(symbol.LastIndexOf('.') + 1)..];
+        return char.IsUpper(leafName[0]) ? symbol : null;
+    }
+
+    private static string QuoteCliArgument(string value)
+    {
+        var safeCharacters = OperatingSystem.IsWindows()
+            ? @"^[A-Za-z0-9_./:\-]+$"
+            : @"^[A-Za-z0-9_./-]+$";
+        if (Regex.IsMatch(value, safeCharacters, RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
+            return value;
+
+        return OperatingSystem.IsWindows()
+            ? $"'{value.Replace("'", "''", StringComparison.Ordinal)}'"
+            : $"'{value.Replace("'", "'\"'\"'", StringComparison.Ordinal)}'";
     }
 
     private static string? UnavailablePlanCapability(string query)

@@ -39,6 +39,22 @@ A `UserPromptSubmit` hook in `.claude/settings.json` runs `rt prime --json` once
   - US-137: fan-out to all remaining `rt inspect` and `rt analyze` commands.
   - `rt prime` hot-command list is hardcoded; it will drift as the catalog grows. Tracked as a known trade-off in `PrimeOperation.cs`.
 
+## 2026-10-01 amendment: task workflows
+
+The adapter-owned invariant above applies to inspection-result `_suggestions`.
+Task-level `suggest` now also has a shared `SuggestService` workflow response. Its
+first route recognizes a request to find implementations of one PascalCase named type and
+returns a populated CLI `relationships` invocation. An absolute solution path
+also enables the corresponding MCP invocation; otherwise the response states
+why MCP is unavailable. CLI normalizes a supplied relative path in its own
+working directory, while persistent MCP never resolves a relative path against
+its server directory. The response states that `Partial` or truncated
+relationship results cannot prove an exhaustive search. Ranked `Results` stay
+empty for this rule-selected workflow, so no BM25 score is invented. CLI and
+MCP project the same workflow; neither executes it during suggestion. This is
+a narrow pilot: general metadata-generated workflows and reconciliation of
+inspection-result follow-ons remain open in RT-016.
+
 ## Alternatives considered
 
 - **`_suggestions` inside the core service:** Rejected — services don't know the `--solution` path or the host format. Generating pre-filled commands inside the service would couple it to CLI/MCP rendering concerns.

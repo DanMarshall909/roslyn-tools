@@ -121,6 +121,16 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   For the captured `Verify a prepared plan without applying` query, one
   source-built CLI response fell from 2,452 to 103 stdout bytes; this is a
   per-call byte comparison, not a complete workflow or token budget.
+- The first task-level suggestion pilot routes "find every implementation of
+  IRtCommand" to a populated read-only `relationships implementations` CLI
+  call. MCP gets an invokable call only with an absolute solution path; without
+  one the response names that prerequisite. The response also names the
+  `Partial`/truncation stop condition;
+  it does not claim exhaustive evidence from the current repository workspace.
+  On that captured query, the source-built CLI JSON response changed from
+  2,774 bytes of irrelevant ranked commands to 775 bytes of one workflow;
+  the compact text route was 341 bytes. These are per-call stdout sizes, not
+  measured end-to-end workflow savings. General task routing remains open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

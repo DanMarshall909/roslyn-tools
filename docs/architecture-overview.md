@@ -276,8 +276,12 @@ in [ADR-0051](adr/0051-shared-host-command-metadata.md) and
 The shared suggestion response distinguishes recommendations, no lexical match,
 and known unsupported plan tasks. Both CLI and MCP report the absent `verify-plan`
 or revision-bound plan producer without substituting an unrelated command; see
-[ADR-0083](adr/0083-honest-unsupported-plan-suggestions.md). Ordered workflow
-recommendations and a general relevance threshold remain open.
+[ADR-0083](adr/0083-honest-unsupported-plan-suggestions.md). A first shared
+task workflow returns a populated CLI `relationships implementations` call and,
+with an absolute solution path, the equivalent MCP call. It includes a stop
+condition when the result is partial or truncated.
+General workflow generation from command metadata and a relevance threshold
+remain open; see the [ADR-0002 amendment](adr/0002-suggestions-output-contract-and-proactive-session-start.md#2026-10-01-amendment-task-workflows).
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
