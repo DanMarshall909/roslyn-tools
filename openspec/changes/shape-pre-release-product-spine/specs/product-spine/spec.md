@@ -308,6 +308,13 @@ forcing an irrelevant command match.
 - **AND** names the missing capability
 - **AND** does not substitute an unrelated command merely to return a result
 
+#### Scenario: package inventory or wholesale core dependency extraction is requested
+
+- **WHEN** the user asks for NuGet package inventory or all non-Microsoft dependencies to be extracted from core layers
+- **THEN** CLI and MCP `suggest` return `Unsupported` with a named missing capability and an actionable manual next step
+- **AND** do not recommend symbol dependency graphs or source extraction commands as if they completed that task
+- **AND** ordinary symbol dependency, project dependency, and interface extraction requests retain their existing routes
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

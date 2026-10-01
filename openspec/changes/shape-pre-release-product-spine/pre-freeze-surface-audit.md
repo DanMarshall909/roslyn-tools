@@ -279,6 +279,13 @@ bytes without completeness evidence. The checked-in architecture configuration
 defines project-reference layers, not package-inventory rules, so its current
 route cannot answer the NuGet inventory request.
 
+The follow-up discovery slice routes explicit NuGet package inventory and
+wholesale non-Microsoft core dependency extraction requests to named
+`Unsupported` outcomes with manual next steps. The measured ranking and bytes
+above remain the pre-fix baseline; symbol and project dependency queries keep
+their existing recommendation path. This closes the misleading-suggestion
+case, not the missing inventory or extraction capability.
+
 ### Second-repository read workflow: Flo
 
 The source-built `rt` was run from the already trusted

@@ -291,6 +291,37 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("Find NuGet package dependencies in the core layer", "package-dependency-inventory", "PackageReference")]
+    [InlineData("Extract all non-Microsoft dependencies from the core layers", "third-party-dependency-extraction", "core layers")]
+    public async Task suggest_reports_missing_dependency_capability_in_both_mcp_content_forms(
+        string query,
+        string missingCapability,
+        string reasonFragment)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new { name = "suggest_command", arguments = new { query, top = 3 } }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var doc = JsonDocument.Parse(output);
+        var result = doc.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString()
+            .ShouldBe(missingCapability);
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.GetProperty("unsupportedReason").GetString()!.ShouldContain(reasonFragment);
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        using var payload = JsonDocument.Parse(text!);
+        JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
+    }
+
     [Fact]
     public async Task suggest_implementation_search_returns_typed_read_workflow_in_both_content_forms()
     {

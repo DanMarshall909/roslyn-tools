@@ -44,6 +44,9 @@ internal sealed class SuggestService : IRtService
         if (UnavailablePlanCapability(request.Query) is { } missingCapability)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, missingCapability);
 
+        if (UnsupportedDependencyRequest(request.Query) is { } unsupportedDependency)
+            return unsupportedDependency;
+
         if (ImplementationSearchSymbol(request.Query) is { } symbol)
             return SuggestImplementations(symbol, request.Solution);
 
@@ -251,6 +254,33 @@ internal sealed class SuggestService : IRtService
                    options)
             ? "prepare-plan"
             : null;
+    }
+
+    private static SuggestResponse? UnsupportedDependencyRequest(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var dependency = Regex.IsMatch(query, @"\b(?:dependenc(?:y|ies)|references?|packages?)\b", options);
+        var coreLayer = Regex.IsMatch(query, @"\b(?:core|domain)\s+(?:layers?|projects?)\b", options);
+        var thirdParty = Regex.IsMatch(query,
+            @"\b(?:non[- ]Microsoft|third[- ]party|external|other\s+than\s+Microsoft|excluding\s+Microsoft)\b",
+            options);
+        if (dependency && coreLayer && thirdParty
+            && Regex.IsMatch(query, @"\b(?:extract(?:ed)?|remov(?:e|ed)|mov(?:e|ed)|decoupl(?:e|ed)|isolat(?:e|ed))\b", options)
+            && Regex.IsMatch(query, @"\b(?:all|every)\b", options))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported,
+                "third-party-dependency-extraction",
+                UnsupportedReason: "rt has no verified workflow to extract all non-Microsoft dependencies from core layers. Inventory package and project references and source usage first, then change and verify one dependency at a time.");
+
+        if (Regex.IsMatch(query,
+                @"\bNuGet\s+(?:packages?|dependenc(?:y|ies)|references?)\b|\b(?:third[- ]party|external)\s+packages?\b|\bpackages?\s+(?:dependenc(?:y|ies)|references?|inventory|versions?|licenses?|used|installed)\b|\bPackageReference\s+(?:entries|items)\b",
+                options))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported,
+                "package-dependency-inventory",
+                UnsupportedReason: "rt has no NuGet package inventory. Inspect PackageReference and Directory.Packages.props, then use the installed .NET SDK package listing for affected projects; dependency-graph covers C# symbols only.");
+
+        return null;
     }
 
     private static SuggestResult ToResult(ScoredCommand s) => new(

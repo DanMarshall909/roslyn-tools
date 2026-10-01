@@ -340,6 +340,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Pilot one task-aware implementation-search workflow with a CLI call, an
   MCP call when given an absolute solution, and an explicit partial/truncated-
   result stop condition.
+- [x] Return named `Unsupported` outcomes with manual next steps for NuGet
+  package inventory and wholesale non-Microsoft dependency extraction from
+  core layers; preserve ordinary symbol and project dependency suggestions.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

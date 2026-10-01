@@ -213,6 +213,54 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
+    [InlineData("Find NuGet package dependencies in the core layer", "package-dependency-inventory")]
+    [InlineData("NuGet package dependencies in the core layer", "package-dependency-inventory")]
+    [InlineData("Find NuGet dependencies in the core layer", "package-dependency-inventory")]
+    [InlineData("Which NuGet dependencies does the core layer use?", "package-dependency-inventory")]
+    [InlineData("List all third-party package references across core projects", "package-dependency-inventory")]
+    [InlineData("Extract all non-Microsoft dependencies from the core layers", "third-party-dependency-extraction")]
+    [InlineData("Extract all dependencies from the core layers other than Microsoft ones", "third-party-dependency-extraction")]
+    [InlineData("All non-Microsoft dependencies from core layers should be extracted", "third-party-dependency-extraction")]
+    public void unavailable_package_and_core_extraction_jobs_do_not_suggest_unrelated_commands(
+        string query,
+        string missingCapability)
+    {
+        var catalog = new FakeCatalog(
+            Info("dependency-graph", whenToUse: "Show C# symbol dependencies"),
+            Info("extract-interface", category: "refactor", whenToUse: "Extract an interface"),
+            Info("find-pattern", whenToUse: "Find source patterns"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe(missingCapability);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNullOrWhiteSpace();
+        response.UnsupportedReason.ShouldContain("rt");
+    }
+
+    [Theory]
+    [InlineData("Show symbol dependencies of WorkspaceLoader", "dependency-graph")]
+    [InlineData("Add a project dependency from Core to Hosting", "add-dependency")]
+    [InlineData("Extract an interface for a constructor-injected dependency", "extract-interface")]
+    [InlineData("Find references to Package", "relationships")]
+    [InlineData("Show dependencies of Package", "dependency-graph")]
+    [InlineData("Find references to PackageReference", "relationships")]
+    public void supported_dependency_queries_keep_their_existing_catalogue_route(
+        string query,
+        string expectedCommand)
+    {
+        var catalog = new FakeCatalog(Info(expectedCommand, whenToUse: query));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe(expectedCommand);
+    }
+
+    [Theory]
     [InlineData("Find every implementation of IRtCommand before changing the interface")]
     [InlineData("Show all implementers of IRtCommand")]
     public void implementation_search_returns_one_invokable_read_workflow(string query)
