@@ -316,8 +316,10 @@ measured the same source-built `relationships callers ExecuteAsync --include-tes
 --json` route at 85,921 stdout bytes before the change and 4,150 after it
 (95.2% less). The after response reported 130 total matches and six complete
 displayed identities with truncation. These are per-call byte counts on this
-checkout, not an end-to-end token measure. Legacy `SymbolLocator` errors remain
-outside this bound.
+checkout, not an end-to-end token measure. The separate no-store legacy
+`SymbolLocator` ambiguity path was later bounded by
+[ADR-0096](../../../docs/adr/0096-bound-legacy-symbol-ambiguity.md); its
+member-signature overload error still needs a bound.
 
 These are one-run observations on the current source-built checkout, not
 benchmark distributions; concurrent workspace activity may affect times. The

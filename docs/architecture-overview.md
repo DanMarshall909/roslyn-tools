@@ -549,8 +549,10 @@ The shared symbol-candidate resolver bounds ambiguous-match messages and
 candidate context by count and UTF-8 bytes. It reports total and displayed
 counts plus truncation, keeps each displayed stable identity complete, and
 directs callers to narrow a `search-symbols` query before retrying. This
-applies to consumers of `SymbolCandidateService`; legacy `SymbolLocator`
-ambiguity paths still need the same treatment ([ADR-0095](adr/0095-bound-shared-symbol-ambiguity.md)).
+applies to consumers of `SymbolCandidateService` ([ADR-0095](adr/0095-bound-shared-symbol-ambiguity.md)).
+The no-store `SymbolLocator` ambiguity error has its own bounded presentation
+while retaining full decisions-file choices ([ADR-0096](adr/0096-bound-legacy-symbol-ambiguity.md)).
+Member-signature overload ambiguity still needs a bound.
 
 Every structured operation response carries, where applicable:
 

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -11,6 +13,11 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class SymbolLocator
 {
+    private const int MaximumAmbiguityCandidates = 12;
+    private const int MaximumAmbiguityContextBytes = 4_096;
+    private const int MaximumAmbiguityDisplayBytes = 1_024;
+    private const int MaximumAmbiguityQueryBytes = 256;
+
     private static readonly SymbolDisplayFormat TypeFqnFormat = new(
         SymbolDisplayGlobalNamespaceStyle.Omitted,
         SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
@@ -380,11 +387,77 @@ internal static class SymbolLocator
 
     private static Result<ISymbol, RtError> AmbiguousMatch(List<SymbolMatch> matches, string name)
     {
-        var candidates = matches.Select(m => m.DisplayName).ToList();
-        return Result<ISymbol, RtError>.Err(RtError.AmbiguousMatch(
-            $"Multiple symbols match '{name}': {string.Join(", ", candidates)}. "
+        return Result<ISymbol, RtError>.Err(BoundedAmbiguousMatch(
+            name,
+            matches.Select(match => match.DisplayName)));
+    }
+
+    private static RtError BoundedAmbiguousMatch(
+        string name,
+        IEnumerable<string> candidateNames)
+    {
+        var candidates = candidateNames.ToArray();
+        var listed = new List<string>();
+        var contextBytes = 0;
+        var displayBytes = 0;
+        foreach (var candidate in candidates)
+        {
+            if (listed.Count == MaximumAmbiguityCandidates)
+                break;
+
+            var nextContextBytes = contextBytes + Encoding.UTF8.GetByteCount(candidate)
+                                   + (listed.Count == 0 ? 0 : 1);
+            var nextDisplayBytes = displayBytes + Encoding.UTF8.GetByteCount(candidate)
+                                   + (listed.Count == 0 ? 0 : 2);
+            if (nextContextBytes > MaximumAmbiguityContextBytes
+                || nextDisplayBytes > MaximumAmbiguityDisplayBytes)
+                break;
+
+            listed.Add(candidate);
+            contextBytes = nextContextBytes;
+            displayBytes = nextDisplayBytes;
+        }
+
+        var query = LimitUtf8(name, MaximumAmbiguityQueryBytes);
+        var candidateCount = candidates.Length.ToString(CultureInfo.InvariantCulture);
+        var displayedCount = listed.Count.ToString(CultureInfo.InvariantCulture);
+        var context = new Dictionary<string, string>
+        {
+            ["symbol"] = query,
+            ["symbolTruncated"] = query == name ? "false" : "true",
+            ["candidateCount"] = candidateCount,
+            ["displayedCandidateCount"] = displayedCount,
+            ["candidatesTruncated"] = listed.Count < candidates.Length ? "true" : "false",
+            ["candidates"] = string.Join(';', listed),
+            ["disambiguateWith"] = "Pass a more specific fully-qualified name."
+        };
+        var summary = listed.Count == 0
+            ? "No candidate fits within the response budget"
+            : string.Join(", ", listed);
+        return RtError.AmbiguousMatch(
+            $"Multiple symbols match '{query}': {summary}. "
+            + $"{candidateCount} candidates; showing {displayedCount}. "
             + "Pass a more specific fully-qualified name.",
-            new Dictionary<string, string> { ["candidates"] = string.Join(";", candidates) }));
+            context);
+    }
+
+    private static string LimitUtf8(string value, int maximumBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(value) <= maximumBytes)
+            return value;
+
+        const char ellipsis = '…';
+        var remaining = maximumBytes - Encoding.UTF8.GetByteCount(ellipsis.ToString());
+        var builder = new StringBuilder();
+        foreach (var rune in value.EnumerateRunes())
+        {
+            if (rune.Utf8SequenceLength > remaining)
+                break;
+            builder.Append(rune.ToString());
+            remaining -= rune.Utf8SequenceLength;
+        }
+
+        return builder.Append(ellipsis).ToString();
     }
 
     private static ISymbol DisambiguateViaStore(List<SymbolMatch> matches, string name, DecisionStore store)

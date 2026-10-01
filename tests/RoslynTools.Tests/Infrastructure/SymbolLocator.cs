@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using Shouldly;
@@ -6,6 +8,63 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class SymbolLocator
 {
+    [Fact]
+    public async Task many_legacy_symbol_matches_return_bounded_candidate_evidence()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Workers.cs", string.Join(Environment.NewLine,
+            Enumerable.Range(0, 80).Select(index =>
+                $"namespace N{index:D3} {{ public sealed class Worker {{ public void ExecuteAsync() {{ }} }} }}")));
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindSymbolAsync(
+                solution, "ExecuteAsync", "method");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Context!["candidateCount"].ShouldBe("80");
+            var displayed = int.Parse(error.Context["displayedCandidateCount"],
+                CultureInfo.InvariantCulture);
+            displayed.ShouldBeInRange(1, 12);
+            error.Context["candidatesTruncated"].ShouldBe("true");
+            error.Context["candidates"].Split(';').Length.ShouldBe(displayed);
+            error.Message.ShouldContain("Pass a more specific fully-qualified name");
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
+            Encoding.UTF8.GetByteCount(error.Context["candidates"])
+                .ShouldBeLessThanOrEqualTo(4_096);
+        }
+    }
+
+    [Fact]
+    public async Task long_legacy_symbol_name_keeps_ambiguity_error_within_byte_budgets()
+    {
+        var name = new string('界', 500);
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("LongNames.cs", $$"""
+            namespace First { public sealed class Service { public void {{name}}() { } } }
+            namespace Second { public sealed class Service { public void {{name}}() { } } }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindSymbolAsync(solution, name, "method");
+            var error = result.Match<RtError?>(_ => null, failure => failure);
+
+            error.ShouldNotBeNull();
+            error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            error.Context!["candidateCount"].ShouldBe("2");
+            error.Context["displayedCandidateCount"].ShouldBe("0");
+            error.Context["candidatesTruncated"].ShouldBe("true");
+            error.Context["candidates"].ShouldBe(string.Empty);
+            error.Context["symbolTruncated"].ShouldBe("true");
+            error.Context["symbol"].ShouldEndWith("…");
+            Encoding.UTF8.GetByteCount(error.Context["symbol"]).ShouldBeLessThanOrEqualTo(256);
+            Encoding.UTF8.GetByteCount(error.Message).ShouldBeLessThanOrEqualTo(2_048);
+        }
+    }
+
     [Fact]
     public async Task handles_ambiguous_symbol_without_input_reports_the_missing_selection()
     {

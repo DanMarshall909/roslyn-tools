@@ -280,7 +280,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Bound ambiguity responses from the shared symbol-candidate resolver by
   count and UTF-8 bytes while retaining complete listed identities, total and
   truncation metadata, and a filtered `search-symbols` disambiguation route.
-  Legacy `SymbolLocator` ambiguity paths remain separate work.
+- [x] Bound the no-store legacy `SymbolLocator` ambiguity error while retaining
+  complete candidate names, original order, total/truncation metadata, and the
+  full decisions-file selection path. Member-signature overload errors remain.
 
 ### 3.2 Symbol search
 

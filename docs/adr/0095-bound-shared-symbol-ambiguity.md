@@ -44,9 +44,9 @@ ambiguity error is not a search result.
 - The byte budgets apply to raw strings. JSON escaping may enlarge wire output;
   the representative CLI and MCP paths are measured separately. `search-symbols`
   has its own result limits and requires filtering when a broad query truncates.
-- Legacy `SymbolLocator` ambiguity errors are a separate path and remain
-  unbounded. This decision does not imply that every rt ambiguous error is
-  bounded yet.
+- Legacy `SymbolLocator` uses a separate ambiguity contract. Its general
+  no-store path is bounded by [ADR-0096](0096-bound-legacy-symbol-ambiguity.md);
+  member-signature overload ambiguity remains separate work.
 
 ## References
 
