@@ -6,7 +6,7 @@ using RoslynTools.Services;
 namespace RoslynTools.Cli.Prepare;
 
 /// <summary>
-///     Root-level host adapter for the durable no-effect Prepare boundary. It is not a
+///     Maintainer host adapter for the durable no-effect Prepare boundary. It is not a
 ///     repository refactor command: its only write is protected local coordination state.
 /// </summary>
 internal static class DurablePrepareCommand
@@ -55,7 +55,7 @@ internal static class DurablePrepareCommand
 
         var command = new Command(
             "prepare-operation",
-            "Validate an exact stored plan and durably record no-effect Prepared state")
+            "Validate an exact stored plan and durably record no-effect Prepared state in protected local storage")
         {
             repositoryIdOpt,
             planIdOpt,

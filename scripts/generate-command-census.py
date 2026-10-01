@@ -27,6 +27,7 @@ ANCILLARY = (
     ("prime", "prime"),
     ("suggest", "suggest"),
     ("dump-help", "dump-help"),
+    ("prepare-operation", "maintainer prepare-operation"),
     ("feedback_add", "maintainer feedback add"),
     ("feedback_list", "maintainer feedback list"),
     ("feedback_process", "maintainer feedback process"),
@@ -131,7 +132,7 @@ def help_children(*path):
 
 
 def verify_ancillary_inventory():
-    if help_children("maintainer") != {"feedback", "daemon"}:
+    if help_children("maintainer") != {"feedback", "daemon", "prepare-operation"}:
         raise RuntimeError("Maintainer command inventory changed")
     for parent, expected in (("feedback", {"add", "list", "process", "report"}),
                              ("daemon", {"start", "stop", "status", "logs"})):

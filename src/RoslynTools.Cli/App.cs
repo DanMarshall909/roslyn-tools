@@ -6,7 +6,6 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.Cli.Prepare;
 using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Commands;
@@ -198,17 +197,9 @@ internal static class App
                               && !TrustedExperimentalCommandNames.Contains(command.Info.Name))
             .ToArray();
 
-    /// <summary>
-    ///     Complete public help and suggestion catalog. Lifecycle meta-commands live at
-    ///     the root because the source-oriented category markers do not describe protected
-    ///     operation coordination, but they remain discoverable from the canonical catalog.
-    /// </summary>
+    /// <summary>Commands in ordinary public help and task suggestions.</summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> CatalogCommands =>
-        Commands
-            .Append<(Func<Command> Build, RtCommandInfo Info)>((
-                BuildDurablePrepareFromRegistry,
-                DurablePrepareCommandDefinition.Info))
-            .ToArray();
+        Commands;
 
     /// <summary>
     /// Runs the application asynchronously with command-line arguments and service provider.
@@ -260,13 +251,6 @@ internal static class App
             _registryServices ??= BuildDefaultServiceProvider();
             return _registryServices;
         }
-    }
-
-    private static Command BuildDurablePrepareFromRegistry()
-    {
-        var services = _currentServices ?? GetOrCreateRegistryServices();
-        return DurablePrepareCommand.Build(
-            services.GetRequiredService<DurablePrepareOperation>());
     }
 
     private static async Task<int> RunCoreAsync(string[] args, IServiceProvider services,

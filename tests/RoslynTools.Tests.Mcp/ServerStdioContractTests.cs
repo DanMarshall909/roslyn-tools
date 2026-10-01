@@ -350,7 +350,7 @@ public sealed class ServerStdioContractTests
             } while (cursor is not null && requestId < 10);
 
             cursor.ShouldBeNull("The tool catalogue must terminate within eight pages.");
-            names.Count.ShouldBe(60);
+            names.Count.ShouldBe(59);
             names.Distinct(StringComparer.Ordinal).Count().ShouldBe(names.Count);
             names.ShouldContain("prime");
             names.ShouldContain("move_slice");

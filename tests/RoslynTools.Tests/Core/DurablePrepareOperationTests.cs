@@ -1,6 +1,8 @@
+using System.CommandLine;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Prepare;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -668,7 +670,7 @@ public sealed class DurablePrepareOperationTests
     }
 
     [Fact]
-    public void durable_prepare_is_in_the_public_catalog_as_a_root_lifecycle_meta_command()
+    public void durable_prepare_remains_a_maintainer_typed_command_outside_public_discovery()
     {
         var info = DurablePrepareCommandDefinition.CreateInfo();
         var definition = DurablePrepareCommandDefinition.CreateDefinition(info);
@@ -681,7 +683,7 @@ public sealed class DurablePrepareOperationTests
         info.Placement.ShouldBe(CommandPlacement.RootOnly);
         info.WhenToUse.ShouldContain("durable no-effect Prepared lifecycle boundary");
         info.Examples.ShouldBe([
-            "rt prepare-operation --repository-id repository-001 --plan-id 11111111-2222-3333-4444-555555555555 --plan-hash aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --expected-revision 0123456789abcdef0123456789abcdef01234567 --operation-epoch 42 --operation-nonce 99999999-8888-7777-6666-555555555555 --maximum-operation-count 8 --maximum-request-bytes 16777216 --operation-epoch-not-after 2030-01-02T04:00:00Z --dispatch-lease-id dispatch-1 --dispatch-lease-expires-at 2030-01-02T03:14:05Z --intake-attempt-id attempt-1 --intake-attempt-expires-at 2030-01-02T03:09:05Z --json"
+            "rt maintainer prepare-operation --repository-id repository-001 --plan-id 11111111-2222-3333-4444-555555555555 --plan-hash aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --expected-revision 0123456789abcdef0123456789abcdef01234567 --operation-epoch 42 --operation-nonce 99999999-8888-7777-6666-555555555555 --maximum-operation-count 8 --maximum-request-bytes 16777216 --operation-epoch-not-after 2030-01-02T04:00:00Z --dispatch-lease-id dispatch-1 --dispatch-lease-expires-at 2030-01-02T03:14:05Z --intake-attempt-id attempt-1 --intake-attempt-expires-at 2030-01-02T03:09:05Z --json"
         ]);
         info.KnownIssues.ShouldBe([
             "A plan-producing command, full operation-epoch issuance, status lookup, and repository effects remain separate work."
@@ -690,11 +692,12 @@ public sealed class DurablePrepareOperationTests
         definition.Info.ShouldBeSameAs(info);
         definition.RequestType.ShouldBe(typeof(DurablePrepareRequest));
         definition.ResponseType.ShouldBe(typeof(DurablePrepareResult));
-        definition.McpVisible.ShouldBeTrue();
+        definition.McpVisible.ShouldBeFalse();
         definition.Safety.ShouldBeSameAs(CommandSafety.LocalStateWrite);
         definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         definition.Product.Effects.ShouldBe(
             CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite);
+        definition.Product.Audience.ShouldBe(CommandAudience.Maintainer);
         definition.Product.ConditionallyMutable.ShouldBeTrue();
         definition.Product.Prerequisites.ShouldBe([
             "Exact rt.change-plan.v1 envelope already retained in the protected plan store"
@@ -704,9 +707,9 @@ public sealed class DurablePrepareOperationTests
         definition.Product.Examples.ShouldBe(info.Examples);
         DurablePrepareCommandDefinition.CreateDefinition(info with { KnownIssues = null })
             .Product.Limitations.ShouldBeEmpty();
-        App.CatalogCommands.ShouldContain(entry => entry.Info.Name == "prepare-operation");
+        App.CatalogCommands.ShouldNotContain(entry => entry.Info.Name == "prepare-operation");
         App.Commands.ShouldNotContain(entry => entry.Info.Name == "prepare-operation");
-        new AppCommandCatalog().All.ShouldContain(info => info.Name == "prepare-operation");
+        new AppCommandCatalog().All.ShouldNotContain(info => info.Name == "prepare-operation");
     }
 
     [Fact]
@@ -725,6 +728,7 @@ public sealed class DurablePrepareOperationTests
         var epoch = LocalDurableOperationAuthority.CurrentEpoch(now);
 
         var exitCode = await App.RunAsync([
+            "maintainer",
             "prepare-operation",
             "--repository-id", "repository-001",
             "--plan-id", fixture.PlanId.ToString(),
@@ -741,7 +745,7 @@ public sealed class DurablePrepareOperationTests
             "--intake-attempt-id", "attempt-1",
             "--intake-attempt-expires-at", now.AddMinutes(5).ToString("O"),
             "--json"
-        ], provider);
+        ], provider, [BuildMaintainerCommand(provider)]);
 
         exitCode.ShouldBe(0);
         using var payload = System.Text.Json.JsonDocument.Parse(console.Output);
@@ -761,6 +765,7 @@ public sealed class DurablePrepareOperationTests
         using var scope = RoslynTools.Core.RtConsole.UseConsole(console);
 
         var exitCode = await App.RunAsync([
+            "maintainer",
             "prepare-operation",
             "--repository-id", "repository-001",
             "--plan-id", "11111111-2222-3333-4444-555555555555",
@@ -776,13 +781,21 @@ public sealed class DurablePrepareOperationTests
             "--intake-attempt-id", "attempt-1",
             "--intake-attempt-expires-at", "2030-01-02T03:09:05+00:00",
             "--json"
-        ], provider);
+        ], provider, [BuildMaintainerCommand(provider)]);
 
         exitCode.ShouldBe(1);
         using var payload = System.Text.Json.JsonDocument.Parse(console.Output);
         payload.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.InvalidInput));
         payload.RootElement.GetProperty("message").GetString()!.ShouldContain("SHA-256");
         console.Error.ShouldBeEmpty();
+    }
+
+    private static Command BuildMaintainerCommand(IServiceProvider provider)
+    {
+        var maintainer = new Command("maintainer");
+        maintainer.AddCommand(DurablePrepareCommand.Build(
+            provider.GetRequiredService<DurablePrepareOperation>()));
+        return maintainer;
     }
 
     private sealed class PrepareFixture : IDisposable

@@ -90,7 +90,7 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0023](0023-protected-durable-change-plan-storage.md) | Protected durable change-plan storage | Accepted | 2026-09-23 |
 | [0024](0024-durable-operation-intake-ledger.md) | Durable operation intake and lifecycle ledger | Accepted | 2026-09-25 |
 | [0025](0025-restart-safe-dispatch-intake-handoff.md) | Restart-safe dispatch and intake handoff | Accepted | 2026-09-25 |
-| [0026](0026-public-no-effect-durable-prepare.md) | Public no-effect durable Prepare boundary | Accepted | 2026-09-26 |
+| [0026](0026-public-no-effect-durable-prepare.md) | Public no-effect durable Prepare boundary | Superseded by [0082](0082-maintainer-only-durable-prepare.md) | 2026-09-26 |
 | [0027](0027-internal-journaled-apply-barrier.md) | Internal journaled apply barrier | Accepted | 2026-09-27 |
 | [0028](0028-internal-pre-effect-activity-fence.md) | Internal pre-effect activity fence | Accepted | 2026-09-27 |
 | [0029](0029-internal-staging-intent-journal.md) | Internal staging intent journal | Accepted | 2026-09-27 |
@@ -146,3 +146,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0079](0079-third-party-adapter-boundary.md) | Third-party adapters stay outside reusable layers | Accepted | 2026-09-29 |
 | [0080](0080-official-mcp-sdk-transport.md) | Official MCP SDK owns the stdio protocol lifecycle | Accepted | 2026-09-29 |
 | [0081](0081-bounded-cli-workspace-evidence.md) | Bound workspace evidence in CLI inspection results | Accepted | 2026-09-30 |
+| [0082](0082-maintainer-only-durable-prepare.md) | Keep durable Prepare on the maintainer surface | Accepted | 2026-10-01 |

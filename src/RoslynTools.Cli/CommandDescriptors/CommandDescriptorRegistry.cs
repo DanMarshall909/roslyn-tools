@@ -140,7 +140,7 @@ internal sealed class CommandDescriptorRegistry
             prime.Definition.Name);
         AddTypedMetaCommand(
             () => DurablePrepareCommand.Build(durablePrepare),
-            ["prepare-operation"],
+            ["maintainer", "prepare-operation"],
             durablePrepare.Definition.Name);
 
         _descriptors = [.. descriptors];

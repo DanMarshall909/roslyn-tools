@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
+using RoslynTools.Cli.Prepare;
 using RoslynTools.Configuration;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
@@ -86,6 +87,8 @@ internal static class Program
             "maintainer",
             "Dogfood, feedback, and release-maintenance commands");
         maintainer.AddCommand(DaemonCommand.Build());
+        maintainer.AddCommand(DurablePrepareCommand.Build(
+            host.Services.GetRequiredService<DurablePrepareOperation>()));
         maintainer.AddCommand(FeedbackCommand.Build(
             host.Services.GetRequiredService<FeedbackAddOperation>(),
             host.Services.GetRequiredService<FeedbackListOperation>(),

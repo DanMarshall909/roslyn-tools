@@ -1,6 +1,6 @@
 # ADR-0026: Public no-effect durable Prepare boundary
 
-- Status: Accepted
+- Status: Superseded by ADR-0082
 - Date: 2026-09-26
 - Related issues: [#123](https://github.com/DanMarshall909/roslyn-tools/issues/123)
 - Related OpenSpec: [critical platform hardening](../../openspec/changes/critical-platform-hardening/proposal.md)

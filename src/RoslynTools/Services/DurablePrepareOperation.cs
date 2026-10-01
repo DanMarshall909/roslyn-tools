@@ -305,7 +305,7 @@ internal static class DurablePrepareCommandDefinition
         true,
         "lifecycle",
         "Use this when an exact canonical plan is already in the protected store and you need the durable no-effect Prepared lifecycle boundary. This writes protected host-local coordination state, never writes repository files, and does not apply the plan.",
-        ["rt prepare-operation --repository-id repository-001 --plan-id 11111111-2222-3333-4444-555555555555 --plan-hash aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --expected-revision 0123456789abcdef0123456789abcdef01234567 --operation-epoch 42 --operation-nonce 99999999-8888-7777-6666-555555555555 --maximum-operation-count 8 --maximum-request-bytes 16777216 --operation-epoch-not-after 2030-01-02T04:00:00Z --dispatch-lease-id dispatch-1 --dispatch-lease-expires-at 2030-01-02T03:14:05Z --intake-attempt-id attempt-1 --intake-attempt-expires-at 2030-01-02T03:09:05Z --json"],
+        ["rt maintainer prepare-operation --repository-id repository-001 --plan-id 11111111-2222-3333-4444-555555555555 --plan-hash aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --expected-revision 0123456789abcdef0123456789abcdef01234567 --operation-epoch 42 --operation-nonce 99999999-8888-7777-6666-555555555555 --maximum-operation-count 8 --maximum-request-bytes 16777216 --operation-epoch-not-after 2030-01-02T04:00:00Z --dispatch-lease-id dispatch-1 --dispatch-lease-expires-at 2030-01-02T03:14:05Z --intake-attempt-id attempt-1 --intake-attempt-expires-at 2030-01-02T03:09:05Z --json"],
         KnownIssues:
         [
             "A plan-producing command, full operation-epoch issuance, status lookup, and repository effects remain separate work."
@@ -317,7 +317,7 @@ internal static class DurablePrepareCommandDefinition
         info,
         typeof(DurablePrepareRequest),
         typeof(DurablePrepareResult),
-        mcpVisible: true,
+        mcpVisible: false,
         CommandSafety.LocalStateWrite,
         CommandExecutionPlacement.InProcess,
         [],
@@ -326,7 +326,7 @@ internal static class DurablePrepareCommandDefinition
             CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite,
             ConditionallyMutable: true,
             CommandIdempotency.Conditional,
-            CommandAudience.Public,
+            CommandAudience.Maintainer,
             TrustRequirement.None,
             WorkspaceRequirement.None,
             Prerequisites: ["Exact rt.change-plan.v1 envelope already retained in the protected plan store"],

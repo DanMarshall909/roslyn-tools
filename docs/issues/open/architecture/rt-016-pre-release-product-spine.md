@@ -104,6 +104,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 - [ ] `0.1-preview` package tests pass on each supported operating system and state
       the trusted-local, plan-only scope truthfully.
 
+## Implementation progress
+
+- The durable `prepare-operation` primitive now has an explicit maintainer CLI
+  route. Public help, task suggestions, command reference, site catalogue, and MCP
+  discovery exclude it until a complete plan lifecycle is available (ADR-0082).
+
 ## Dependencies and reconciliation
 
 - `critical-platform-hardening` remains authoritative for trust, workspace

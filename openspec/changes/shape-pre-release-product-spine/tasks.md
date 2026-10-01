@@ -143,6 +143,8 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   experimental trusted CLI profile.
 - [x] Move `feedback_add`, `feedback_list`, `feedback_process`, and `feedback_report`
   to a maintainer/dogfood surface and correct their effect classifications.
+- [x] Move the incomplete durable `prepare-operation` primitive to the maintainer
+  CLI surface and remove it from public help, suggestions, and MCP discovery.
 - [x] Remove trace `debug` from the C# product surface.
 - [x] Hide `convert-static-class` until its advertised interface and DI stages exist;
   remove the rt-specific `add-test` mode from public discovery.

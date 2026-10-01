@@ -1011,13 +1011,15 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 - **Daemon application routing is typed.** The legacy envelope accepts only
   exact lifecycle controls; application operations use structured typed RPC.
   Mutation RPC remains disabled during the separate mutation safety work.
-- **Durable Prepare is public but deliberately no-effect and experimental.** Core has a
+- **Durable Prepare is maintainer-only, no-effect, and experimental.** Core has a
   canonical plan, exact-byte reader, fail-closed durable plan and lifecycle stores, and
   the restart-reconcilable handoff in
   [ADR-0025](adr/0025-restart-safe-dispatch-intake-handoff.md). The production host now
-  composes that handoff under fixed external local roots and projects one stored-plan-key
-  application port through root CLI and trusted MCP surfaces as described by
-  [ADR-0026](adr/0026-public-no-effect-durable-prepare.md). It resolves replay,
+  composes that handoff under fixed external local roots. The typed stored-plan-key
+  application port remains available internally, and its CLI route is
+  `rt maintainer prepare-operation`; it is absent from public CLI and MCP discovery
+  because no complete plan lifecycle exists, as decided by
+  [ADR-0082](adr/0082-maintainer-only-durable-prepare.md). It resolves replay,
   conflict, and access denial before plan access, transfers
   `DispatchLease -> IntakePending -> OperationLedger`, converges on one
   `Received -> Prepared` history, and resumes after every implemented persistence
@@ -1026,7 +1028,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
   protection, repository enrollment, bounded attempt expiry and `NotRecorded`, public
   status and lifecycle authorization, repository reservation/barriers, a durable
   journal, verified rollback, automatic startup reconciliation, and recovery commands
-  remain missing from the public path. [ADR-0027](adr/0027-internal-journaled-apply-barrier.md)
+  remain missing. [ADR-0027](adr/0027-internal-journaled-apply-barrier.md)
   adds an internal exclusive reservation and per-effect journaled apply authority.
   It loads the exact pinned plan and blocks a second operation while a mutation is
   unresolved. Its production effect broker is deliberately unavailable: no supported

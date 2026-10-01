@@ -59,35 +59,24 @@ public sealed class CommandSurfaceSchemaTests
     }
 
     [Fact]
-    public void generated_public_catalog_uses_schema_categories_and_exposes_root_local_state_lifecycle()
+    public void generated_public_catalog_uses_schema_categories_and_omits_maintainer_prepare()
     {
         var categoryEnum = Schema["$defs"]!["command"]!["properties"]!["category"]!["enum"]!
             .AsArray().Select(node => node!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
         var registry = App.CatalogCommands
             .Select(entry => (Cmd: entry.Build(), entry.Info))
             .ToArray();
-        var products = new Dictionary<string, CommandProductMetadata>(StringComparer.Ordinal)
-        {
-            [DurablePrepareCommandDefinition.Info.Name] = DurablePrepareCommandDefinition.Definition.Product
-        };
         var json = CommandSurfaceBuilder.ToJson(CommandSurfaceBuilder.Build(
             registry,
             App.GroupDescriptions,
-            [],
-            products));
+            []));
         var root = JsonNode.Parse(json)!.AsObject();
         var commands = root["commands"]!.AsArray();
 
         commands.Select(node => node!["category"]!.GetValue<string>())
             .ShouldAllBe(category => categoryEnum.Contains(category));
-        var prepare = commands.Single(node =>
-            node!["name"]!.GetValue<string>() == "prepare-operation")!.AsObject();
-        prepare["category"]!.GetValue<string>().ShouldBe("lifecycle");
-        prepare["group"]!.GetValue<string>().ShouldBe("root");
-        prepare["mutates"]!.GetValue<bool>().ShouldBeFalse();
-        prepare["product"]!["effects"]!.AsArray()
-            .Select(node => node!.GetValue<string>())
-            .ShouldContain(nameof(CommandEffects.LocalStateWrite));
+        commands.ShouldNotContain(node =>
+            node!["name"]!.GetValue<string>() == "prepare-operation");
         root["groups"]!.AsObject().Select(property => property.Key)
             .ShouldBe(App.GroupDescriptions.Keys, ignoreOrder: true);
     }
