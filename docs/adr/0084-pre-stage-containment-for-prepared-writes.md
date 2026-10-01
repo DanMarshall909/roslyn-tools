@@ -38,9 +38,9 @@ the path being mutated.
   can replace a path component after the check. `SolutionWriter` now exposes
   preview reporting only; `SolutionChangeWriter` apply and migrated
   transformation test fixtures use the prepared writer. This does not establish
-  unattended apply safety. Preview still warns and skips a pathless
-  added document while prepared apply rejects it; that outcome needs a separate
-  contract repair before apply admission.
+  unattended apply safety. Preview now validates a `PreparedChangeSet` before
+  rendering any diff, so a pathless changed or added document or conflicting
+  affected path fails without a misleading partial report.
 - On systems where the trusted checkout is reached through a symlinked ancestor,
   the preflight rejects the alias path. Callers must use physical paths until a
   handle-based boundary can safely support aliases.

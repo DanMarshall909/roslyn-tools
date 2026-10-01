@@ -63,6 +63,9 @@
     This does not close symlink-swap races.
   - [x] Remove the legacy `SolutionWriter` direct apply branch; route
     transformation test fixtures through the prepared writer.
+  - [x] Validate prepared affected paths before `SolutionWriter` preview output;
+    reject pathless changed or added documents and conflicting affected paths
+    without a partial report.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

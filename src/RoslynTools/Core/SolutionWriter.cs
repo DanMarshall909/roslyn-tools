@@ -8,13 +8,16 @@ namespace RoslynTools.Core;
 internal static class SolutionWriter
 {
     /// <summary>
-    /// Renders changed and added documents to the optional output sink.
+    /// Validates affected paths before rendering changed and added documents to the
+    /// optional output sink. A pathless changed or added document, or conflicting
+    /// affected path, fails without output.
     /// </summary>
     internal static async Task PreviewChangesAsync(
         Solution originalSolution,
         Solution newSolution,
         ISolutionWriteOutput? output = null)
     {
+        _ = new PreparedChangeSet(originalSolution, newSolution);
         output ??= NullSolutionWriteOutput.Instance;
         var changes = newSolution.GetChanges(originalSolution);
         var fileCount = 0;
@@ -39,13 +42,7 @@ internal static class SolutionWriter
             {
                 var newDoc = newSolution.GetDocument(docId)!;
                 var newText = await newDoc.GetTextAsync();
-                var filePath = newDoc.FilePath;
-
-                if (string.IsNullOrEmpty(filePath))
-                {
-                    output.Warning($"Added document '{newDoc.Name}' has no file path — skipped.");
-                    continue;
-                }
+                var filePath = newDoc.FilePath!;
 
                 output.Diff($"\n+++ {filePath} (new file)");
                 foreach (var line in newText.Lines)

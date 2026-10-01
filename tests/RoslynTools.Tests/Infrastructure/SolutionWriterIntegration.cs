@@ -85,7 +85,7 @@ public class SolutionWriterIntegration
     }
 
     [Fact]
-    public async Task preview_skips_added_document_without_a_path_with_a_warning()
+    public async Task preview_rejects_pathless_document_before_reporting_other_changes()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", "class Calculator { }");
@@ -95,15 +95,77 @@ public class SolutionWriterIntegration
         using (workspace)
         {
             var projectId = solution.Projects.Single().Id;
-            var withoutPath = solution.AddDocument(DocumentInfo.Create(
+            var existingDocument = solution.Projects.Single().Documents.Single();
+            var changed = solution.WithDocumentText(existingDocument.Id,
+                SourceText.From("class Updated { }"));
+            var withoutPath = changed.AddDocument(DocumentInfo.Create(
                 DocumentId.CreateNewId(projectId),
                 "NoPath.cs",
                 loader: new NewClassTextLoader()));
 
-            await Core.SolutionWriter.PreviewChangesAsync(solution, withoutPath, output);
+            var exception = await Should.ThrowAsync<ArgumentException>(() =>
+                Core.SolutionWriter.PreviewChangesAsync(solution, withoutPath, output));
 
-            output.Warnings.ShouldContain("Added document 'NoPath.cs' has no file path — skipped.");
-            output.Results.ShouldContain("No changes.");
+            exception.Message.ShouldContain("no file path");
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Warnings.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+            (await project.ReadSourceAsync("Calculator.cs")).ShouldBe("class Calculator { }");
+        }
+    }
+
+    [Fact]
+    public async Task preview_rejects_changed_document_that_loses_its_path_before_reporting_other_changes()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("First.cs", "class First { }");
+        project.AddSource("Second.cs", "class Second { }");
+        var (workspace, solution) = project.Build();
+        var output = new RecordingSolutionWriteOutput();
+        using (workspace)
+        {
+            var documents = solution.Projects.Single().Documents.ToArray();
+            var changed = solution
+                .WithDocumentText(documents[0].Id, SourceText.From("class FirstUpdated { }"))
+                .WithDocumentFilePath(documents[1].Id, null)
+                .WithDocumentText(documents[1].Id, SourceText.From("class SecondUpdated { }"));
+
+            var exception = await Should.ThrowAsync<ArgumentException>(() =>
+                Core.SolutionWriter.PreviewChangesAsync(solution, changed, output));
+
+            exception.Message.ShouldContain("no file path");
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+            (await project.ReadSourceAsync("First.cs")).ShouldBe("class First { }");
+            (await project.ReadSourceAsync("Second.cs")).ShouldBe("class Second { }");
+        }
+    }
+
+    [Fact]
+    public async Task preview_rejects_conflicting_paths_before_reporting_other_changes()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("First.cs", "class First { }");
+        var (workspace, solution) = project.Build();
+        var output = new RecordingSolutionWriteOutput();
+        using (workspace)
+        {
+            var existing = solution.Projects.Single().Documents.Single();
+            var changed = solution.WithDocumentText(existing.Id,
+                SourceText.From("class FirstUpdated { }"));
+            var conflicting = changed.AddDocument(DocumentInfo.Create(
+                DocumentId.CreateNewId(existing.Project.Id),
+                "Duplicate.cs",
+                filePath: existing.FilePath,
+                loader: new NewClassTextLoader()));
+
+            var exception = await Should.ThrowAsync<ArgumentException>(() =>
+                Core.SolutionWriter.PreviewChangesAsync(solution, conflicting, output));
+
+            exception.Message.ShouldContain("affected more than once");
+            output.DocumentDiffs.ShouldBeEmpty();
+            output.Results.ShouldBeEmpty();
+            (await project.ReadSourceAsync("First.cs")).ShouldBe("class First { }");
         }
     }
 

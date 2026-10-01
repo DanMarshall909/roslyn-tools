@@ -561,6 +561,9 @@ documents; standalone prepared text writes still use UTF-8 without a BOM. Full
 encoding, newline, and file-mode policy remains a platform-hardening gate. The
 internal `SolutionWriter` now renders previews only; `SolutionChangeWriter` apply
 and migrated transformation test fixtures use the prepared-writer boundary.
+The preview renderer validates prepared affected paths before emitting a diff;
+pathless changed or added documents and conflicting affected paths fail without
+a partial report.
 Unattended apply still requires the physical effect broker and the other
 platform-hardening gates.
 

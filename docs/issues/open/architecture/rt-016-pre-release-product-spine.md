@@ -125,10 +125,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   UTF-8-without-BOM default.
   The legacy `SolutionWriter` direct apply branch has been removed and its
   transformation fixtures now use the prepared writer. Path-swap races remain
-  open; this does not satisfy the optional apply admission gate. Preview still
-  warns and skips an added document without a path while prepared apply rejects
-  it; align this outcome in a separate behavior slice. Older cross-project
-  move helpers exercised by tests still contain direct `File.Move` and
+  open; this does not satisfy the optional apply admission gate. Preview now
+  validates prepared affected paths before output, rejecting pathless changed
+  or added documents and conflicting affected paths without a partial diff.
+  Removed documents and project changes still need a truthful preview contract.
+  Older cross-project move helpers exercised by tests still contain direct `File.Move` and
   project-file save effects; audit them in another containment slice before
   any apply admission claim.
 

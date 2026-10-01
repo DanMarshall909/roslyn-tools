@@ -118,17 +118,22 @@ internal sealed class PreparedChangeSet
         foreach (var projectChange in changes.GetProjectChanges())
         {
             foreach (var documentId in projectChange.GetChangedDocuments()
-                         .Concat(projectChange.GetAddedDocuments())
-                         .Concat(projectChange.GetRemovedDocuments()))
+                         .Concat(projectChange.GetAddedDocuments()))
+                AddRequiredDocumentPath(changedSolution, documentId, nameof(changedSolution));
+            foreach (var documentId in projectChange.GetRemovedDocuments())
+                AddRequiredDocumentPath(originalSolution, documentId, nameof(originalSolution));
+        }
+
+        void AddRequiredDocumentPath(Solution source, DocumentId documentId, string parameterName)
+        {
+            var path = source.GetDocument(documentId)?.FilePath;
+            if (path is null)
             {
-                var path = changedSolution.GetDocument(documentId)?.FilePath
-                           ?? originalSolution.GetDocument(documentId)?.FilePath;
-                if (path is null)
-                    throw new ArgumentException(
-                        $"Changed document '{documentId}' has no file path; an exact preview is not possible.",
-                        nameof(changedSolution));
-                AddUnique(paths, path);
+                throw new ArgumentException(
+                    $"Affected document '{documentId}' has no file path; an exact preview is not possible.",
+                    parameterName);
             }
+            AddUnique(paths, path);
         }
 
         foreach (var project in changes.GetAddedProjects())
