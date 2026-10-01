@@ -61,7 +61,9 @@ checked diagnostic-only dependency validation target and still hashes it. A
 fixture with the target reports `Complete`; adding an unrecognized task remains
 nonreusable. The full roslyn-tools checkout still reports `Partial`: authored
 CLI tool targets, off-solution build inputs, and a test SDK target with compiler
-input effects need separate attribution and proof before a complete claim.
+input effects need separate proof before a complete claim. Input-set failure
+detail now gives a bounded list of known non-reusable build files, prioritizing
+declared projects and retaining the `Partial` state (ADR-0081).
 
 ## Decision
 

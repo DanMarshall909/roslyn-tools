@@ -101,6 +101,91 @@ public class WorkspaceLoaderSmoke
     }
 
     [Fact]
+    public async Task nonreusable_authored_project_names_the_build_input_without_claiming_completeness()
+    {
+        using var fixture = new WorkspaceLoaderTestProject();
+        var solution = fixture.AddSolution("", "OpaqueBuild", "App");
+        var projectPath = await PinSdkAsync(fixture, "App");
+        await File.WriteAllTextAsync(projectPath,
+            (await File.ReadAllTextAsync(projectPath)).Replace(
+                "</Project>",
+                "<Target Name=\"Opaque\" BeforeTargets=\"CoreCompile\"><Exec Command=\"echo opaque\" /></Target></Project>",
+                StringComparison.Ordinal));
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.RootDir);
+        using var loader = new WorkspaceLoader();
+
+        var loaded = await loader.LoadWorkspaceResultAsync(solution.SolutionPath, CancellationToken.None);
+
+        loaded.Completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
+        loaded.Completeness.Acquisition.ShouldNotBeNull().Outcomes.ShouldContain(outcome =>
+            outcome.InputId == "workspace:input-set"
+            && outcome.State == SemanticInputState.Failed
+            && outcome.Detail != null
+            && outcome.Detail.Contains("App/App.csproj", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task nonreusable_build_input_detail_prioritizes_the_project_and_bounds_paths()
+    {
+        using var fixture = new WorkspaceLoaderTestProject();
+        var solution = fixture.AddSolution("", "ManyOpaqueBuildInputs", "App");
+        var projectPath = await PinSdkAsync(fixture, "App");
+        await File.WriteAllTextAsync(projectPath,
+            (await File.ReadAllTextAsync(projectPath)).Replace(
+                "</Project>",
+                "<Target Name=\"Opaque\" BeforeTargets=\"CoreCompile\"><Exec Command=\"echo opaque\" /></Target></Project>",
+                StringComparison.Ordinal));
+        for (var index = 0; index < 10; index++)
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(fixture.RootDir, $"Unsafe{index:D2}.targets"),
+                "<Project><Target Name=\"Opaque\" BeforeTargets=\"CoreCompile\"><Exec Command=\"echo opaque\" /></Target></Project>");
+        }
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.RootDir);
+        using var loader = new WorkspaceLoader();
+
+        var loaded = await loader.LoadWorkspaceResultAsync(solution.SolutionPath, CancellationToken.None);
+
+        loaded.Completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
+        var detail = loaded.Completeness.Acquisition.ShouldNotBeNull().Outcomes.Single(outcome =>
+            outcome.InputId == "workspace:input-set").Detail.ShouldNotBeNull();
+        var displayed = detail.Split("Known non-reusable build inputs: ")[1]
+            .Split(" (+", 2, StringSplitOptions.None)[0]
+            .Split(", ", StringSplitOptions.None);
+        displayed.Length.ShouldBe(8);
+        displayed[0].ShouldBe("App/App.csproj");
+        detail.ShouldContain("more)");
+    }
+
+    [Fact]
+    public async Task nonreusable_build_input_detail_bounds_one_long_path()
+    {
+        using var fixture = new WorkspaceLoaderTestProject();
+        var solution = fixture.AddSolution("", "LongOpaqueBuildInput", "App");
+        await PinSdkAsync(fixture, "App");
+        var targetPath = Path.Combine(
+            fixture.RootDir,
+            new string('a', 120),
+            new string('b', 120),
+            new string('c', 120),
+            "Unsafe.targets");
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        await File.WriteAllTextAsync(targetPath,
+            "<Project><Target Name=\"Opaque\" BeforeTargets=\"CoreCompile\"><Exec Command=\"echo opaque\" /></Target></Project>");
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.RootDir);
+        using var loader = new WorkspaceLoader();
+
+        var loaded = await loader.LoadWorkspaceResultAsync(solution.SolutionPath, CancellationToken.None);
+
+        loaded.Completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
+        var detail = loaded.Completeness.Acquisition.ShouldNotBeNull().Outcomes.Single(outcome =>
+            outcome.InputId == "workspace:input-set").Detail.ShouldNotBeNull();
+        detail.ShouldContain("Unsafe.targets");
+        detail.ShouldContain("…");
+        detail.Length.ShouldBeLessThan(500);
+    }
+
+    [Fact]
     public async Task missing_evaluated_project_reference_keeps_production_load_partial()
     {
         using var fixture = new WorkspaceLoaderTestProject();

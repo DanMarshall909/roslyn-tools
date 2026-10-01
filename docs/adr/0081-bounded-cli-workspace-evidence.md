@@ -26,6 +26,12 @@ groups. Failed or unknown inputs take priority in the bounded input sample.
 The global `--full-workspace-evidence` option retrieves the complete prior
 `rt.result.v1` envelope when an audit needs every input and diagnostic.
 
+When build-input parsing positively identifies files that prevent safe input-set
+reuse, the `workspace:input-set` failure detail lists solution projects first,
+then other repository files, then external files. It caps the list at eight
+paths and a character budget, with a remaining count. The list is evidence of
+known causes, not a complete explanation of every possible non-reusable state.
+
 The projection is pure and belongs to the shared result contract; CLI chooses
 when to apply it. MCP continues to receive the complete application result and
 can choose its own host projection without changing command semantics.
@@ -34,6 +40,8 @@ can choose its own host projection without changing command semantics.
 
 - Large CLI inspection evidence is bounded by samples rather than solution
   size; exact counts and completeness signals remain visible.
+- A partial input-set result can name actionable build files without claiming
+  completeness or changing the fingerprint and reuse decision.
 - Consumers that require the former full JSON arrays must opt into
   `--full-workspace-evidence`. The compact schema version is distinct because
   array completeness changed.

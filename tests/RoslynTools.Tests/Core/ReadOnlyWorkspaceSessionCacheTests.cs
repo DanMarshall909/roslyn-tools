@@ -2630,6 +2630,8 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         var result = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
 
         result.Reusable.ShouldBeFalse();
+        result.NonReusableBuildInputPaths.ShouldNotBeNull().ShouldContain(
+            System.IO.Path.Combine(root.Path, "Build.targets"));
     }
 
     [Fact]
@@ -2651,7 +2653,9 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         var withGuard = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
 
         withoutGuard.Reusable.ShouldBeTrue();
+        withoutGuard.NonReusableBuildInputPaths.ShouldBeNull();
         withGuard.Reusable.ShouldBeTrue();
+        withGuard.NonReusableBuildInputPaths.ShouldBeNull();
         withGuard.Value.ShouldNotBe(withoutGuard.Value);
 
         File.WriteAllText(
@@ -2663,6 +2667,7 @@ public sealed class ReadOnlyWorkspaceSessionCacheTests
         var withExtraTask = await fingerprint.CaptureAsync(identity, solution: null, CancellationToken.None);
 
         withExtraTask.Reusable.ShouldBeFalse();
+        withExtraTask.NonReusableBuildInputPaths.ShouldNotBeNull().ShouldContain(guardPath);
     }
 
     [Fact]

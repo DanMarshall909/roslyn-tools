@@ -36,6 +36,54 @@ internal static class WorkspaceAcquisitionCollector
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
 
+    private static string DescribeNonReusableBuildInputs(
+        string repositoryRoot,
+        IEnumerable<string> projectPaths,
+        params WorkspaceInputFingerprintResult[] captures)
+    {
+        const string detail = "Workspace input discovery found state that cannot be reused safely.";
+        var declaredProjects = projectPaths.Select(Path.GetFullPath).ToHashSet(PathComparer);
+        var paths = captures
+            .SelectMany(capture => capture.NonReusableBuildInputPaths ?? [])
+            .Distinct(PathComparer)
+            .OrderBy(path => declaredProjects.Contains(path)
+                ? 0
+                : IsWithinRepository(path, repositoryRoot) ? 1 : 2)
+            .ThenBy(path => path, PathComparer)
+            .ToArray();
+        if (paths.Length == 0)
+            return detail;
+
+        const int limit = 8;
+        const int maxPathListLength = 320;
+        var displayedPaths = new List<string>();
+        var displayedLength = 0;
+        foreach (var path in paths.Take(limit))
+        {
+            var display = Path.GetRelativePath(repositoryRoot, path)
+                .Replace(Path.DirectorySeparatorChar, '/');
+            if (display.Length > maxPathListLength)
+                display = display[..120] + "…" + display[^199..];
+            var nextLength = displayedLength + (displayedPaths.Count == 0 ? 0 : 2) + display.Length;
+            if (displayedPaths.Count > 0 && nextLength > maxPathListLength)
+                break;
+            displayedPaths.Add(display);
+            displayedLength = nextLength;
+        }
+        var remainder = paths.Length > displayedPaths.Count
+            ? $" (+{paths.Length - displayedPaths.Count} more)"
+            : "";
+        return $"{detail} Known non-reusable build inputs: {string.Join(", ", displayedPaths)}{remainder}.";
+    }
+
+    private static bool IsWithinRepository(string path, string repositoryRoot)
+    {
+        var relative = Path.GetRelativePath(repositoryRoot, path);
+        return !Path.IsPathRooted(relative)
+               && !relative.Equals("..", StringComparison.Ordinal)
+               && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+    }
+
     internal static async Task<WorkspaceAcquisitionDiscovery> DiscoverAsync(
         WorkspaceManifestSeed seed,
         IReadOnlyDictionary<string, string> globalProperties,
@@ -836,7 +884,13 @@ internal static class WorkspaceAcquisitionCollector
                             ? "The loaded solution disagrees with the current input snapshot."
                             : !beforeInputSet.Reusable || !afterRepositoryInputSet.Reusable
                                 || !inputSet.Reusable || !finalRepositoryInputSet.Reusable
-                                ? "Workspace input discovery found state that cannot be reused safely."
+                                ? DescribeNonReusableBuildInputs(
+                                    workspaceIdentity.WorktreeRoot,
+                                    projectPaths,
+                                    beforeInputSet,
+                                    afterRepositoryInputSet,
+                                    inputSet,
+                                    finalRepositoryInputSet)
                                 : "Repository inputs changed during solution load.");
             }
             catch (Exception exception) when (exception is IOException

@@ -97,7 +97,8 @@ internal interface IWorkspaceInputFingerprint
 internal readonly record struct WorkspaceInputFingerprintResult(
     string Value,
     bool Reusable = true,
-    bool SnapshotConsistent = true);
+    bool SnapshotConsistent = true,
+    IReadOnlyList<string>? NonReusableBuildInputPaths = null);
 
 internal interface IWorkspaceEnvironmentIdentity
 {
@@ -633,7 +634,8 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         return new WorkspaceInputFingerprintResult(
             Convert.ToHexString(hash.GetHashAndReset()),
             discovery.Reusable,
-            snapshotConsistent);
+            snapshotConsistent,
+            discovery.NonReusableBuildInputPaths);
     }
 
     private async Task<SemanticInputDiscovery> DiscoverSemanticInputsAsync(
@@ -697,6 +699,7 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         paths.UnionWith(gitInputs.Paths);
 
         var opaqueBuildInputs = new HashSet<string>(PathComparer);
+        var nonReusableBuildInputPaths = new HashSet<string>(PathComparer);
         var environmentTargetFrameworks = GetEnvironmentProperty("TargetFrameworks")
                                           ?? GetEnvironmentProperty("TargetFramework");
         var canSkipLegacySdkExtensionImports = CanSkipLegacySdkExtensionImports(
@@ -718,7 +721,10 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
             if (ShouldDiscoverDeclaredInputs(path))
                 buildInputs.Enqueue(path);
             else if (File.Exists(path))
+            {
                 reusable = false;
+                nonReusableBuildInputPaths.Add(path);
+            }
         }
 
         var parsedBuildInputs = new HashSet<string>(PathComparer);
@@ -729,6 +735,8 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
 
             var references = ReadDeclaredBuildInputs(buildInput);
             reusable &= references.Reusable;
+            if (!references.Reusable)
+                nonReusableBuildInputPaths.Add(buildInput);
             foreach (var referencedPath in references.Paths)
             {
                 var added = paths.Add(referencedPath);
@@ -737,7 +745,10 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
                 if (!ShouldDiscoverDeclaredInputs(referencedPath))
                 {
                     if (File.Exists(referencedPath))
+                    {
                         reusable = false;
+                        nonReusableBuildInputPaths.Add(referencedPath);
+                    }
                     continue;
                 }
 
@@ -749,7 +760,10 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
         return new SemanticInputDiscovery(
             paths.OrderBy(path => path, PathComparer).ToArray(),
             reusable,
-            gitInputs.Values);
+            gitInputs.Values,
+            nonReusableBuildInputPaths.Count == 0
+                ? null
+                : nonReusableBuildInputPaths.OrderBy(path => path, PathComparer).ToArray());
     }
 
     private bool AddDefaultMsBuildWildcardHookInputs(
@@ -3332,7 +3346,8 @@ internal sealed class WorkspaceInputFingerprint : IWorkspaceInputFingerprint
     private sealed record SemanticInputDiscovery(
         IReadOnlyList<string> Paths,
         bool Reusable,
-        IReadOnlyList<string>? Values = null);
+        IReadOnlyList<string>? Values = null,
+        IReadOnlyList<string>? NonReusableBuildInputPaths = null);
 
     private enum GitRepositoryInputState
     {

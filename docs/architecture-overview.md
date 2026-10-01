@@ -468,6 +468,11 @@ from structured provenance.
 
 Partial workspaces cannot produce proof-strength conclusions, automatic deletion advice, or mutation suggestions. Confidence is a shared structure with level, basis, evidence, and limitations—not an analyser-local adjective.
 
+When build-input parsing identifies non-reusable files, `workspace:input-set`
+names a bounded, prioritized sample in its failure detail while retaining
+`Partial`. Other causes can still make the input set non-reusable, and the
+sample does not prove that the listed files are the only blockers.
+
 Beneath the workspace assessment sits a document-level precondition: absence of references
 is evidence only where the source was understood. A document carrying a syntax error makes
 no absence claim at all, and a symbol is reported as an unused method only where the
