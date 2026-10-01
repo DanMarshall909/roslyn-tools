@@ -291,6 +291,16 @@ comparison requests a named `Unsupported` outcome with a manual two-revision
 build comparison. The original mutator ranking in the task corpus remains
 the baseline; the diagnostic-delta command itself is still future work.
 
+Another focused slice routes explicit configured project/layer boundary checks
+to one `check-architecture` workflow using the checked-in default config. CLI
+and MCP suggestions carry the same operation; MCP requires an absolute solution
+path. The stop condition names missing config, trust, errors, and the current
+check result's missing workspace-completeness evidence. Dependency and rule
+inventories, unconfigured architecture, SOLID, baseline-delta, mutation, and
+custom-config requests remain on their earlier discovery path. Compound
+wholesale dependency extraction stays `Unsupported`. The corpus ranking above is pre-fix
+evidence, not a current ranking.
+
 ### Second-repository read workflow: Flo
 
 The source-built `rt` was run from the already trusted

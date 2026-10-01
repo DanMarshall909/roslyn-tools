@@ -52,6 +52,9 @@ internal sealed class SuggestService : IRtService
         if (UnsupportedDependencyRequest(request.Query) is { } unsupportedDependency)
             return unsupportedDependency;
 
+        if (IsConfiguredArchitectureCheck(request.Query))
+            return SuggestArchitectureCheck(request.Solution);
+
         if (ImplementationSearchSymbol(request.Query) is { } symbol)
             return SuggestImplementations(symbol, request.Solution);
 
@@ -71,6 +74,79 @@ internal sealed class SuggestService : IRtService
             results,
             related,
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private SuggestResponse SuggestArchitectureCheck(string? solution)
+    {
+        if (_catalog.All.All(info => info.Name != "check-architecture"))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "check-architecture",
+                UnsupportedReason: "The configured architecture check is unavailable in this command catalogue.");
+
+        var hasMcpSolution = !string.IsNullOrWhiteSpace(solution) && Path.IsPathFullyQualified(solution);
+        IReadOnlyDictionary<string, string>? arguments = hasMcpSolution
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["config"] = ".rt/architecture.json",
+                ["solution"] = solution!
+            }
+            : null;
+        var cli = "rt analyze check-architecture --config .rt/architecture.json"
+                  + (string.IsNullOrWhiteSpace(solution) ? "" : $" --solution {QuoteCliArgument(solution)}")
+                  + " --json";
+        var step = new SuggestWorkflowStep(
+            cli,
+            hasMcpSolution ? "check_architecture" : null,
+            arguments,
+            "Check configured project and layer dependency boundaries.",
+            "Stop if .rt/architecture.json is missing, repository trust is required, or the check errors; zero violations do not prove solution completeness while workspace completeness is unreported.",
+            hasMcpSolution ? null : "MCP requires an absolute solution path; call suggest_command again with one.");
+        return new SuggestResponse([], [], SuggestOutcome.Recommendations,
+            Workflow: new SuggestWorkflow([step]));
+    }
+
+    private static bool IsConfiguredArchitectureCheck(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var normalized = query.Replace('\\', '/');
+        if (Regex.IsMatch(normalized, @"\b(?:refactor|change|modify|move|fix|apply|rewrite|edit|baseline|SOLID|principles?)\b", options))
+            return false;
+        if (Regex.IsMatch(normalized, @"--config\b", options))
+        {
+            var selectedConfig = Regex.Match(normalized, @"--config(?:=|\s+)(?<path>\S+)", options);
+            if (!selectedConfig.Success
+                || !IsDefaultArchitectureConfigPath(selectedConfig.Groups["path"].Value.Trim('`', '(', ')', '\'', '"')))
+                return false;
+        }
+        foreach (Match path in Regex.Matches(normalized,
+                     @"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]{2,10}\b|[A-Za-z0-9_.-]+\.(?:json|ya?ml|toml)\b|(?:config|configs|\.rt)/[A-Za-z0-9_.-]+\b", options))
+        {
+            if (!IsDefaultArchitectureConfigPath(path.Value))
+                return false;
+        }
+        foreach (Match contextPath in Regex.Matches(normalized,
+                     @"\b(?:in|with|using|from|under|at)\s+(?<path>[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)", options))
+        {
+            if (!IsDefaultArchitectureConfigPath(contextPath.Groups["path"].Value))
+                return false;
+        }
+
+        return Regex.IsMatch(normalized, @"\b(?:configured|configuration|config)\b|\.rt/architecture\.json\b", options)
+               && (Regex.IsMatch(normalized, @"\b(?:check|validate|enforce)\b", options)
+                   && Regex.IsMatch(normalized, @"\b(?:violations?|boundaries?|rules?)\b", options)
+                   || Regex.IsMatch(normalized, @"\b(?:find|show|list|detect|report)\b", options)
+                   && Regex.IsMatch(normalized, @"\bviolations?\b", options))
+               && Regex.IsMatch(normalized,
+                   @"\bproject\s+(?:layer(?:ing)?|dependenc(?:y|ies)|boundar(?:y|ies))\b|\bproject\s*/\s*layer(?:ing)?\b|\blayer(?:ing)?\s+(?:rules?|boundaries?|violations?|dependenc(?:y|ies))\b|\barchitecture\s+(?:rules?|boundaries?|violations?)\b",
+                   options);
+    }
+
+    private static bool IsDefaultArchitectureConfigPath(string path)
+    {
+        while (path.StartsWith("./", StringComparison.Ordinal))
+            path = path[2..];
+        return path.Equals(".rt/architecture.json", StringComparison.OrdinalIgnoreCase);
     }
 
     private SuggestResponse SuggestWorkingTreeReview(string query, string? solution)

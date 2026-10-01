@@ -349,6 +349,10 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Return a named `Unsupported` outcome for compiler/analyzer diagnostic
   deltas until a comparison route exists; preserve current diagnostic, source
   diff, architecture-baseline, and diagnostic-fix queries.
+- [x] Route explicit configured project/layer boundary checks to one
+  `check-architecture` workflow with populated CLI and conditional MCP arguments;
+  preserve inventory, unconfigured, baseline, SOLID, mutation, and custom-config
+  requests, plus compound wholesale dependency extraction.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

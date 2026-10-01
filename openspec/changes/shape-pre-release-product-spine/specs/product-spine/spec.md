@@ -329,6 +329,15 @@ forcing an irrelevant command match.
 - **AND** no source mutation is recommended as a substitute
 - **AND** current diagnostic, C# declaration comparison, architecture baseline, and diagnostic-fix requests are not reclassified by this guard
 
+#### Scenario: configured project layering violations are requested
+
+- **WHEN** the user explicitly asks to find or check violations of configured project or layer boundaries
+- **THEN** CLI and MCP `suggest` return one invokable `check-architecture` read workflow using `.rt/architecture.json`
+- **AND** the MCP step is populated only when an absolute solution path is supplied
+- **AND** the stop condition calls out missing configuration, trust, errors, and the lack of workspace completeness in the current check result
+- **AND** dependency/rule inventories, unconfigured architecture explanation, SOLID checks, baseline deltas, mutations, and custom configuration paths retain their existing discovery routes
+- **AND** a compound request to extract all non-Microsoft core dependencies remains `Unsupported`
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

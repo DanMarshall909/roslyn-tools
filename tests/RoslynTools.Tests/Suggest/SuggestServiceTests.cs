@@ -66,6 +66,104 @@ public sealed class SuggestServiceTests
         hit.AllExamples.Count.ShouldBe(2);
     }
 
+    [Theory]
+    [InlineData("Find violations of configured project layering rules")]
+    [InlineData("Check configured project dependency boundaries")]
+    [InlineData("Check configured layer dependency violations")]
+    [InlineData("Check configured project/layer boundary violations")]
+    [InlineData("List violations of configured project layering rules")]
+    [InlineData("Show configured project layering violations")]
+    [InlineData("Check configured project layering violations in `.rt/architecture.json`")]
+    [InlineData("Check configured project layering violations in (.rt/architecture.json)")]
+    [InlineData("Check configured project layering violations in .rt\\architecture.json")]
+    [InlineData("Check configured project layering violations in ./.rt/architecture.json")]
+    [InlineData("Validate architecture boundaries in .rt/architecture.json")]
+    public void configured_architecture_checks_use_a_single_read_workflow(string query)
+    {
+        var catalog = new FakeCatalog(
+            Info("check-architecture", category: "analyze", whenToUse: "Validate project boundaries"),
+            Info("solid", category: "analyze", whenToUse: "Find principle violations"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        var step = response.Workflow.ShouldNotBeNull().Steps.Single();
+        step.CliInvocation.ShouldBe("rt analyze check-architecture --config .rt/architecture.json --json");
+        step.McpTool.ShouldBeNull();
+        step.McpUnavailableReason.ShouldNotBeNull().ShouldContain("absolute solution path");
+        step.StopCondition.ShouldContain("trust");
+        step.StopCondition.ShouldContain("completeness");
+    }
+
+    [Fact]
+    public void configured_architecture_check_populates_mcp_only_for_an_absolute_solution()
+    {
+        var solution = Path.GetFullPath("RoslynTools.slnx");
+        var catalog = new FakeCatalog(Info("check-architecture", category: "analyze"));
+
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Find violations of configured project layering rules", Solution: solution));
+
+        var step = response.Workflow.ShouldNotBeNull().Steps.Single();
+        step.CliInvocation.ShouldBe(
+            $"rt analyze check-architecture --config .rt/architecture.json --solution {solution} --json");
+        step.McpTool.ShouldBe("check_architecture");
+        step.McpArguments.ShouldNotBeNull()["config"].ShouldBe(".rt/architecture.json");
+        step.McpArguments["solution"].ShouldBe(solution);
+        step.McpUnavailableReason.ShouldBeNull();
+    }
+
+    [Fact]
+    public void configured_architecture_check_reports_a_missing_catalogue_capability()
+    {
+        var response = new SuggestService(new FakeCatalog(Info("solid"))).Suggest(new SuggestRequest(
+            "Find violations of configured project layering rules"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("check-architecture");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void compound_extraction_request_keeps_the_existing_unsupported_result()
+    {
+        var catalog = new FakeCatalog(Info("check-architecture", category: "analyze"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
+            "Check configured project dependency boundaries and extract all non-Microsoft dependencies from core layers"));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("third-party-dependency-extraction");
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Explain the architecture of this project")]
+    [InlineData("Find project layering violations")]
+    [InlineData("List configured project dependencies")]
+    [InlineData("Show configured architecture rules")]
+    [InlineData("Find violations of SOLID principles in configured projects")]
+    [InlineData("Find baseline deltas for configured project layering rules")]
+    [InlineData("Refactor configured project layering rules")]
+    [InlineData("Check configured project naming rules")]
+    [InlineData("Check configured project layering rules in custom/architecture.json")]
+    [InlineData("Check configured project layering violations with --config config/architecture.yaml")]
+    [InlineData("Check configured project layering violations with --config config/architecture.rules")]
+    [InlineData("Check configured project layering violations in config/architecture.rules")]
+    [InlineData("Check configured project layering violations in config/architecture")]
+    [InlineData("Check configured project layering violations in custom/architecture")]
+    [InlineData("Check configured project layering violations with ./custom/architecture")]
+    public void other_architecture_requests_keep_their_existing_discovery_path(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(Info("doctor", whenToUse: query)))
+            .Suggest(new SuggestRequest(query));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe("doctor");
+        response.Workflow.ShouldBeNull();
+    }
+
     [Fact]
     public void primary_example_is_empty_when_command_has_no_examples()
     {

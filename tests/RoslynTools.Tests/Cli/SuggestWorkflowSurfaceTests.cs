@@ -49,6 +49,31 @@ public sealed class SuggestWorkflowSurfaceTests
     }
 
     [Fact]
+    public async Task configured_architecture_check_has_a_populated_cli_and_mcp_route()
+    {
+        var json = await RtCliHost.RunAsync(
+            "suggest \"Find violations of configured project layering rules\" --solution RoslynTools.slnx --json");
+        var text = await RtCliHost.RunAsync(
+            "suggest \"Find violations of configured project layering rules\" --solution RoslynTools.slnx --llm");
+
+        json.ExitCode.ShouldBe(0, json.Stderr);
+        text.ExitCode.ShouldBe(0, text.Stderr);
+        using var payload = JsonDocument.Parse(json.Stdout);
+        var response = payload.RootElement;
+        response.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        var step = response.GetProperty("Workflow").GetProperty("Steps")[0];
+        var solution = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
+        step.GetProperty("CliInvocation").GetString().ShouldBe(
+            $"rt analyze check-architecture --config .rt/architecture.json --solution {solution} --json");
+        step.GetProperty("McpTool").GetString().ShouldBe("check_architecture");
+        step.GetProperty("McpArguments").GetProperty("config").GetString()
+            .ShouldBe(".rt/architecture.json");
+        step.GetProperty("McpArguments").GetProperty("solution").GetString().ShouldBe(solution);
+        text.Stdout.ShouldContain("check-architecture --config .rt/architecture.json");
+        text.Stdout.ShouldContain("Stop:");
+    }
+
+    [Fact]
     public async Task working_tree_review_has_an_invokable_or_explicitly_unsupported_cli_route()
     {
         var json = await RtCliHost.RunAsync(

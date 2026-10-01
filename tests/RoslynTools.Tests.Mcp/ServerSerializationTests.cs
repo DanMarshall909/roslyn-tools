@@ -379,6 +379,42 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task suggest_configured_architecture_check_returns_an_invokable_mcp_step()
+    {
+        var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new
+                {
+                    query = "Find violations of configured project layering rules",
+                    top = 3,
+                    solution = solutionPath
+                }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        var step = structured.GetProperty("workflow").GetProperty("steps")[0];
+        step.GetProperty("mcpTool").GetString().ShouldBe("check_architecture");
+        step.GetProperty("mcpArguments").GetProperty("config").GetString()
+            .ShouldBe(".rt/architecture.json");
+        step.GetProperty("mcpArguments").GetProperty("solution").GetString().ShouldBe(solutionPath);
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task suggest_working_tree_review_projects_platform_admission_in_structured_content()
     {
         var solutionPath = Path.Combine(FindRepoRoot(), "RoslynTools.slnx");

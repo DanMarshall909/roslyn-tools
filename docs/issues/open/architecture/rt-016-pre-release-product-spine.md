@@ -200,6 +200,14 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   source-built suggestion output fell from 2,417 to 625 JSON stdout bytes
   and from 995 to 360 text stdout bytes. This measures one response, not an
   end-to-end workflow or token budget.
+- Explicit configured project/layer violation requests now suggest one
+  `check-architecture` read step using `.rt/architecture.json`, with populated
+  MCP arguments when the solution path is absolute. Inventory, custom-config,
+  SOLID, baseline, and mutation requests retain their prior routes; wholesale
+  non-Microsoft core dependency extraction remains named `Unsupported`.
+  The captured layering query fell from 2,530 to 684 JSON stdout bytes.
+  The check still lacks result-level workspace completeness evidence, so its
+  suggestion stops short of treating zero violations as whole-solution proof.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

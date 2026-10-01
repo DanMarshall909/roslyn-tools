@@ -45,6 +45,21 @@ public sealed class DiscoveryCatalogTests
     }
 
     [Fact]
+    public void configured_project_layering_uses_the_real_architecture_check_route()
+    {
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+
+        var response = provider.GetRequiredService<SuggestService>().Suggest(new SuggestRequest(
+            "Find violations of configured project layering rules", Top: 3));
+
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldNotBeNull().Steps.Single().CliInvocation
+            .ShouldBe("rt analyze check-architecture --config .rt/architecture.json --json");
+    }
+
+    [Fact]
     public void implementation_search_uses_the_real_read_route_before_interface_mutators()
     {
         var services = new ServiceCollection();
