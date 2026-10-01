@@ -72,6 +72,9 @@
     analyzer-reference/option, project reference/metadata, and source-document
     metadata/order deltas during prepared change-set construction so preview
     and apply cannot silently ignore them.
+  - [x] Exercise the current TypeToProject prepared path with a dry-run that
+    preserves source and project-file bytes, an applied source/project/reference
+    move, and a sibling-prefix source rejection before any write.
   - [ ] Attribute remaining `Partial` inputs precisely, including authored CLI
     tool targets, off-solution build files, and test SDK targets that change
     compiler inputs; prove or scope each before claiming completeness.

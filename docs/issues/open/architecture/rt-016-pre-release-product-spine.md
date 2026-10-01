@@ -153,9 +153,11 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   previously produced partial results. Supported representations for those
   deltas remain future work; audit further Roslyn snapshot state before an
   exhaustive admission claim.
-  Older cross-project move helpers exercised by tests still contain direct `File.Move` and
-  project-file save effects; audit them in another containment slice before
-  any apply admission claim.
+  The current TypeToProject operation now has disk-level coverage proving
+  dry-run byte preservation, prepared apply across source/project/reference
+  paths, and sibling-prefix source rejection. Older cross-project move helpers
+  remain test-only callers of direct `File.Move` and project-file save effects;
+  retire them before any apply admission claim.
 
 ## Dependencies and reconciliation
 

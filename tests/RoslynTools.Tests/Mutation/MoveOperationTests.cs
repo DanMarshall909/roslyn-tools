@@ -316,6 +316,88 @@ public sealed class MoveOperationTests
     }
 
     [Fact]
+    public async Task cross_project_dry_run_preserves_files_and_apply_moves_source_with_project_edits()
+    {
+        using var project = new AdhocProjectBuilder("Source")
+            .AddSource("Models/Widget.cs", "namespace App.Models; public class Widget { }");
+        project.AddProject("Target");
+        project.AddProject("Consumer")
+            .AddSource("Consumer.cs", "using App.Models; class Consumer { Widget Value = new(); }")
+            .ReferenceProject("Source");
+        var (previewWorkspace, previewSolution) = project.Build();
+        var sourceProject = previewSolution.Projects.Single(candidate => candidate.Name == "Source");
+        var targetProject = previewSolution.Projects.Single(candidate => candidate.Name == "Target");
+        var consumerProject = previewSolution.Projects.Single(candidate => candidate.Name == "Consumer");
+        var sourcePath = sourceProject.Documents.Single().FilePath!;
+        var destinationPath = Path.Combine(Path.GetDirectoryName(targetProject.FilePath!)!, "Models", "Widget.cs");
+        const string sourceProjectXml = "<Project><ItemGroup><Compile Include=\"Models/Widget.cs\" /></ItemGroup></Project>";
+        const string targetProjectXml = "<Project />";
+        const string consumerProjectXml = "<Project><ItemGroup><ProjectReference Include=\"../Source/Source.csproj\" /></ItemGroup></Project>";
+        await File.WriteAllTextAsync(sourceProject.FilePath!, sourceProjectXml);
+        await File.WriteAllTextAsync(targetProject.FilePath!, targetProjectXml);
+        await File.WriteAllTextAsync(consumerProject.FilePath!, consumerProjectXml);
+        var originalSource = await File.ReadAllBytesAsync(sourcePath);
+        var originalSourceProject = await File.ReadAllBytesAsync(sourceProject.FilePath!);
+        var originalTargetProject = await File.ReadAllBytesAsync(targetProject.FilePath!);
+        var originalConsumerProject = await File.ReadAllBytesAsync(consumerProject.FilePath!);
+        var request = new MoveRequest(
+            MoveMode.TypeToProject,
+            Type: "App.Models.Widget",
+            ToProject: "Target",
+            DryRun: true);
+        var previewOperation = CreatePhysicalMoveOperation(previewWorkspace, previewSolution, project.Directory);
+
+        var preview = (await previewOperation.ExecuteAsync(request)).Unwrap();
+
+        preview.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        preview.AffectedPaths.ShouldContain(sourcePath);
+        preview.AffectedPaths.ShouldContain(destinationPath);
+        preview.AffectedPaths.ShouldContain(sourceProject.FilePath!);
+        preview.AffectedPaths.ShouldContain(targetProject.FilePath!);
+        preview.AffectedPaths.ShouldContain(consumerProject.FilePath!);
+        (await File.ReadAllBytesAsync(sourcePath)).SequenceEqual(originalSource).ShouldBeTrue();
+        File.Exists(destinationPath).ShouldBeFalse();
+        (await File.ReadAllBytesAsync(sourceProject.FilePath!))
+            .SequenceEqual(originalSourceProject).ShouldBeTrue();
+        (await File.ReadAllBytesAsync(targetProject.FilePath!))
+            .SequenceEqual(originalTargetProject).ShouldBeTrue();
+        (await File.ReadAllBytesAsync(consumerProject.FilePath!))
+            .SequenceEqual(originalConsumerProject).ShouldBeTrue();
+
+        var (applyWorkspace, applySolution) = project.Build();
+        var applyOperation = CreatePhysicalMoveOperation(applyWorkspace, applySolution, project.Directory);
+        var applied = (await applyOperation.ExecuteAsync(request with { DryRun = false })).Unwrap();
+
+        applied.Status.ShouldBe(MutationExecutionStatus.Applied);
+        File.Exists(sourcePath).ShouldBeFalse();
+        File.Exists(destinationPath).ShouldBeTrue();
+        (await File.ReadAllBytesAsync(destinationPath)).SequenceEqual(originalSource).ShouldBeTrue();
+        (await File.ReadAllTextAsync(sourceProject.FilePath!)).ShouldNotContain("Compile Include", Case.Sensitive);
+        (await File.ReadAllTextAsync(targetProject.FilePath!))
+            .ShouldContain("Compile Include=\"Models/Widget.cs\"", Case.Sensitive);
+        (await File.ReadAllTextAsync(consumerProject.FilePath!))
+            .ShouldContain("ProjectReference Include=\"../Target/Target.csproj\"", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task cross_project_preparation_rejects_a_sibling_prefix_source_path_before_writing()
+    {
+        using var project = new AdhocProjectBuilder("Source")
+            .AddSource("../SourceSibling/Outside.cs", "namespace App; public class Outside { }");
+        project.AddProject("Target");
+        var (_, solution) = project.Build();
+        var sourcePath = solution.Projects.Single(candidate => candidate.Name == "Source")
+            .Documents.Single().FilePath!;
+        var result = await new MoveService().PrepareAsync(
+            solution,
+            new TypeToProjectMove("App.Outside", "Target", TargetNamespace: null));
+
+        GetError(result).Message.ShouldContain("outside source project", Case.Insensitive);
+        File.Exists(sourcePath).ShouldBeTrue();
+        File.Exists(Path.Combine(project.Directory, "Target", "Outside.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task cross_project_preparation_rejects_a_required_reference_cycle()
     {
         using var project = new AdhocProjectBuilder("Source")
@@ -336,6 +418,15 @@ public sealed class MoveOperationTests
     private static RtError GetError<T>(Result<T, RtError> result) => result.Match(
         _ => throw new ShouldAssertException("Expected an error."),
         error => error);
+
+    private static MoveOperation CreatePhysicalMoveOperation(
+        Workspace workspace,
+        Solution solution,
+        string repositoryRoot) => new(
+        new FixedWorkspaceSessionFactory(workspace, solution),
+        new MoveService(),
+        new PreparedChangeSetExecutor(
+            new PreparedChangeSetWriter(new PhysicalPreparedFileSystem(), repositoryRoot)));
 
     private static async Task AssertCompilesWithoutErrorsAsync(Solution solution)
     {
