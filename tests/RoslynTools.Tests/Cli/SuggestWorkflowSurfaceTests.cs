@@ -236,7 +236,16 @@ public sealed class SuggestWorkflowSurfaceTests
     [InlineData("Remove static from the references to a static property Count")]
     [InlineData("Remove the static keyword from a static property reference")]
     [InlineData("Remove the static keyword from references to a static property")]
-    public async Task static_member_reference_edit_reports_missing_capability(string query)
+    [InlineData("Delete a static field read")]
+    [InlineData("Update accesses to a static property")]
+    [InlineData("Edit access to a static property")]
+    [InlineData("Edit read sites of a static property")]
+    [InlineData("Change read and write sites of a static property")]
+    [InlineData("Edit both read and write sites of the static field Cache")]
+    [InlineData("Edit read and write access sites of a static property")]
+    [InlineData("Edit member access sites of a static property")]
+    [InlineData("Change read or write accesses to a static field")]
+    public async Task static_member_use_site_edit_reports_missing_capability(string query)
     {
         var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
 

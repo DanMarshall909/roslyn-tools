@@ -290,6 +290,7 @@ public sealed class SuggestServiceTests
     [InlineData("Make property Count non-static and convert references to a static field")]
     [InlineData("Make property Count nonstatic")]
     [InlineData("Make property Count nonstatic and convert references to a static field")]
+    [InlineData("Make a field static and delete a static property access")]
     public void property_or_field_staticness_does_not_claim_a_method_workflow(string query)
     {
         var response = new SuggestService(new FakeCatalog(
@@ -488,7 +489,6 @@ public sealed class SuggestServiceTests
     [InlineData("Remove a static field initializer")]
     [InlineData("Delete a static field Count initializer")]
     [InlineData("Remove a public static field named Count initializer")]
-    [InlineData("Delete a static property Count access")]
     [InlineData("Remove a static field Count value")]
     [InlineData("Remove a static field's initializer")]
     [InlineData("Add a static property's getter")]
@@ -561,6 +561,175 @@ public sealed class SuggestServiceTests
         response.Related.ShouldBeEmpty();
         response.Workflow.ShouldBeNull();
         response.UnsupportedReason.ShouldNotBeNull().ShouldContain("references");
+    }
+
+    [Theory]
+    [InlineData("Delete a static field read", 1)]
+    [InlineData("Remove a static field write", 3)]
+    [InlineData("Delete a static property access", 1)]
+    [InlineData("Delete a static property Count access", 3)]
+    [InlineData("Update accesses to a static property", 1)]
+    [InlineData("Change writes to a static field", 3)]
+    [InlineData("Replace reads of a static property", 1)]
+    [InlineData("Edit a static property's access", 3)]
+    [InlineData("Remove a static field named Count write", 1)]
+    [InlineData("Edit accesses to the static field named Count", 3)]
+    [InlineData("Delete a static property access and make a field static", 1)]
+    [InlineData("Edit access to a static property", 3)]
+    [InlineData("Edit access sites of a static field", 1)]
+    [InlineData("Update member access to a static property", 3)]
+    [InlineData("Change member accesses of a static field", 1)]
+    [InlineData("Edit read sites of a static property", 3)]
+    [InlineData("Change write sites of a static field", 1)]
+    [InlineData("Delete an access site to a static property", 3)]
+    [InlineData("Modify write accesses to a static field", 1)]
+    [InlineData("Edit a static property read site", 3)]
+    [InlineData("Edit a static field write site", 1)]
+    [InlineData("Change read and write sites of a static property", 3)]
+    [InlineData("Edit reads and writes of a static field", 1)]
+    [InlineData("Modify read/write sites of a static property", 3)]
+    [InlineData("Edit the read and write sites of the static property Count", 1)]
+    [InlineData("Edit writes and reads of a static property", 3)]
+    [InlineData("Change a static property read and write site", 1)]
+    [InlineData("Edit both read and write sites of the static field Cache", 3)]
+    [InlineData("Edit both reads and writes of a static field", 1)]
+    [InlineData("Edit both static fields' read sites", 3)]
+    [InlineData("Edit static properties' accesses", 1)]
+    [InlineData("Edit read and write access sites of a static property", 3)]
+    [InlineData("Edit both read and write access sites of a static field", 1)]
+    [InlineData("Edit read/write access sites of a static field", 3)]
+    [InlineData("Edit member access sites of a static property", 1)]
+    [InlineData("Edit read access sites of static field Cache", 3)]
+    [InlineData("Edit write access sites of static property Count", 1)]
+    [InlineData("Edit read and write member access sites of a static property", 3)]
+    [InlineData("Change static property and static field accesses", 1)]
+    [InlineData("Delete both static property and static field reads", 3)]
+    [InlineData("Change both static properties' and static fields' reads", 1)]
+    [InlineData("Change both the static property and the static field read sites", 3)]
+    [InlineData("Update the reads of both the static property and field", 1)]
+    [InlineData("Delete reads from both the static property and field", 3)]
+    [InlineData("Change read or write accesses to a static field", 1)]
+    [InlineData("Update reads or writes of both static property and field", 3)]
+    [InlineData("Edit access sites to both the static property and field", 1)]
+    [InlineData("Edit references to a static property from private methods", 3)]
+    [InlineData("Update reads of the static property Count from private classes", 1)]
+    [InlineData("Change accesses to a static field from public methods", 3)]
+    [InlineData("Edit a static property's references from private methods", 1)]
+    [InlineData("Edit references to a static property from private methods in class C", 3)]
+    [InlineData("Edit references to a static property from protected internal methods", 1)]
+    [InlineData("Edit references to a static property from public consumers", 3)]
+    [InlineData("Change a static field access site to a public wrapper", 1)]
+    [InlineData("Edit references to a static property to a private helper", 3)]
+    [InlineData("Edit references to a static property then change access to private", 1)]
+    public void static_member_access_site_edits_report_missing_capability(string query, int top)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("delete-unreferenced", category: "refactor", whenToUse: "Delete an unreferenced symbol"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static"),
+            Info("relationships", category: "inspect", whenToUse: "Find symbol references")))
+            .Suggest(new SuggestRequest(query, Top: top));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("member-reference-edit");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull().ShouldContain("access");
+    }
+
+    [Theory]
+    [InlineData("Do not delete a static field read")]
+    [InlineData("Never update accesses to a static property")]
+    [InlineData("Avoid changing writes of a static field")]
+    [InlineData("Without removing a static property's access")]
+    [InlineData("Do not edit access to a static property")]
+    [InlineData("Never update member access to a static property")]
+    [InlineData("Avoid editing read sites of a static property")]
+    [InlineData("Do not change write sites of a static field")]
+    [InlineData("Never modify write accesses to a static field")]
+    [InlineData("Do not edit reads and writes of a static field")]
+    [InlineData("Never modify read/write sites of a static property")]
+    [InlineData("Do not edit both read and write sites of a static field")]
+    [InlineData("Do not edit static fields' reads")]
+    [InlineData("Do not edit read and write access sites of a static property")]
+    [InlineData("Do not edit member access sites of a static property")]
+    [InlineData("Do not edit read access sites of a static field")]
+    [InlineData("Do not change read or write accesses to a static field")]
+    [InlineData("Do not delete both static property and static field reads")]
+    [InlineData("Do not edit references to a static property from private methods")]
+    [InlineData("Do not edit references to a static property to private helper")]
+    public void standalone_negated_static_member_access_site_edit_has_no_mutation_route(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("delete-unreferenced", category: "refactor", whenToUse: "Delete an unreferenced symbol"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
+            .Suggest(new SuggestRequest(query, Top: 3));
+
+        response.Outcome.ShouldBe(SuggestOutcome.NoMatch);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Change a static property's access modifier")]
+    [InlineData("Change access to public on a static property")]
+    [InlineData("Add a static property getter")]
+    [InlineData("Remove a static field initializer")]
+    [InlineData("Change a static property access to private")]
+    [InlineData("Change a static property read access to private")]
+    [InlineData("Change a static property's access rights")]
+    [InlineData("Change a static field's access permissions")]
+    [InlineData("Change a static property's read and write access to private")]
+    [InlineData("Change access to a static property from public to private")]
+    [InlineData("Update access to the static field from public to internal")]
+    [InlineData("Change read access to a static property from public to private")]
+    [InlineData("Change access to a static property to public")]
+    [InlineData("Change member access to a static property to internal")]
+    [InlineData("Change a static property's access to a private setter")]
+    [InlineData("Change a static property's read access to an internal getter")]
+    [InlineData("Change a static field's access to a protected level")]
+    [InlineData("Remove a static field read-only modifier")]
+    [InlineData("Change a static field write-only")]
+    [InlineData("Change a static property's read-only access")]
+    [InlineData("Change access to both static properties and fields from internal to public")]
+    [InlineData("Change access to a static property from public to private in class C")]
+    [InlineData("Change access to a static property to private in class C")]
+    [InlineData("Change a static property's access to private in class C")]
+    [InlineData("Change a static property's read access to private in the declaring class")]
+    [InlineData("Change access to a static property to protected internal")]
+    [InlineData("Change access to a static property to private protected")]
+    [InlineData("Change a static field access from public to protected internal")]
+    [InlineData("Change read access to static field Cache to protected internal in class C")]
+    [InlineData("Change access to a static property to internal protected")]
+    [InlineData("Change access to a static property to private on type C")]
+    [InlineData("Change a static property access to get-only")]
+    [InlineData("Change a static property access to read-only")]
+    [InlineData("Change a static field write access to read-only")]
+    [InlineData("Change access to a static property to private for tests")]
+    [InlineData("Change access to a static property to private so tests can use it")]
+    [InlineData("Change a static property access to public for consumers")]
+    [InlineData("Change access to a static property from public to private for class C")]
+    public void static_member_declaration_context_does_not_claim_access_site_edit(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.MissingCapability.ShouldBeNull();
+        response.Results.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public void access_site_edit_with_explicit_plan_keeps_plan_precedence()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
+            .Suggest(new SuggestRequest("Delete a static field read and prepare a plan", Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("prepare-plan");
+        response.Results.ShouldBeEmpty();
     }
 
     [Theory]

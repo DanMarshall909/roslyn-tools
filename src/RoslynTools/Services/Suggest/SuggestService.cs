@@ -21,6 +21,12 @@ namespace RoslynTools.Services.Suggest;
 /// </remarks>
 internal sealed class SuggestService : IRtService
 {
+    private const string StaticMemberUseSiteNoun =
+        @"(?:references?|usages?|uses?|"
+        + @"(?:reads?\s*(?:and|or|/)\s*writes?|writes?\s*(?:and|or|/)\s*reads?)(?:\s+(?:member\s+)?access(?:es)?(?:\s+sites?)?|\s+sites?)?|"
+        + @"(?:(?:member|read|write)\s+)?access(?:es)?(?:\s+sites?)?|"
+        + @"(?:read|write)\s+sites?|reads?|writes?)";
+
     private readonly ICommandCatalog _catalog;
     private readonly bool _workingTreeReadsAvailable;
 
@@ -80,7 +86,7 @@ internal sealed class SuggestService : IRtService
         if (staticMemberCapability == "member-reference-edit"
             && (!memberStaticConversion || IsLeadingStaticMemberReferenceEdit(request.Query)))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, staticMemberCapability,
-                UnsupportedReason: "rt has no general workflow to edit references or usages of a static property or field. Resolve the exact member and inspect its references before a reviewed edit; delete-unreferenced prepares deletion of the declaration, not an individual reference.");
+                UnsupportedReason: "rt has no general workflow to edit references, reads, writes, or access sites of a static property or field. Resolve the exact member and inspect its references before a reviewed edit; delete-unreferenced prepares deletion of the declaration, not an individual use site.");
 
         if (memberStaticConversion)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "member-staticness-conversion",
@@ -452,7 +458,9 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
         const string member = @"(?:propert(?:y|ies)|fields?)\b";
-        const string context = @"(?:getters?|setters?|accessors?|attributes?|initializers?|assignments?|references?|usages?|uses?|access(?:es)?|reads?|writes?|values?|member\s+access(?:es)?|modifiers?|keywords?|backing\s+fields?)\b";
+        const string context = @"(?:getters?|setters?|accessors?|attributes?|initializers?|assignments?|"
+                               + StaticMemberUseSiteNoun
+                               + @"|values?|modifiers?|keywords?|backing\s+fields?)\b";
         const string name = @"(?:@?[\w.:<>]+|`[^`]+`|""[^""]+""|'[^']+')";
         foreach (Match action in Regex.Matches(query,
                      @"\b(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning)\b", options))
@@ -467,13 +475,14 @@ internal sealed class SuggestService : IRtService
             var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
             var suffix = StaticMemberSuffix(task, options);
             var contextMatch = suffix is null ? null : Regex.Match(suffix,
-                @"^(?:['’]s)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
-                + member + @"(?:['’]s)?\s+)?(?:(?:(?:named|called)\s+)?"
+                @"^(?:['’]s?)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
+                + @"(?:the\s+)?(?:static\s+)?" + member + @"(?:['’]s?)?\s+)?(?:(?:(?:named|called)\s+)?"
                 + name + @"(?:['’]s)?\s+)?(?<context>" + context + @")",
                 options);
             var directMember = suffix is not null && contextMatch?.Success != true;
-            if (contextMatch?.Success == true && Regex.IsMatch(contextMatch.Groups["context"].Value,
-                    @"^(?:references?|usages?|uses?)$", options))
+            if (suffix is not null && contextMatch?.Success == true
+                && IsStaticMemberUseSiteContext(contextMatch.Groups["context"].Value,
+                    suffix[contextMatch.Length..], options))
                 return "member-reference-edit";
 
             if (!Regex.IsMatch(action.Value,
@@ -497,12 +506,53 @@ internal sealed class SuggestService : IRtService
         return null;
     }
 
+    private static bool IsStaticMemberUseSiteContext(string context, string after, RegexOptions options)
+    {
+        return Regex.IsMatch(context, "^" + StaticMemberUseSiteNoun + "$", options)
+               && !IsDeclarationAccessTail(context, after, options);
+    }
+
+    private static bool IsDeclarationAccessTail(string site, string tail, RegexOptions options)
+    {
+        const string visibility = @"(?:public|private(?:\s+protected)?|protected(?:\s+internal)?|internal(?:\s+protected)?)";
+        const string only = @"(?:(?:get(?:ter)?|set(?:ter)?|read|write|init)[-\s]?only|readonly|writeonly)";
+        const string location = @"(?:\s+(?:in|within|on)\s+.+)?[.!?]?\s*$";
+        if (Regex.IsMatch(tail,
+                @"^\s+(?:accessors?|modifiers?|keywords?|levels?|rights?|permissions?|visibility|accessibility)\b|^[-‐‑]only\b",
+                options))
+            return true;
+
+        // A named reference or access site can itself point to a private helper or public wrapper.
+        if (!Regex.IsMatch(site, @"\baccess$", options))
+            return false;
+
+        foreach (Match destination in Regex.Matches(tail,
+                     @"\b(?:to|as)\s+(?:(?:an?|the)\s+)?(?:" + visibility + "|" + only + @")\b",
+                     options))
+        {
+            var remainder = tail[(destination.Index + destination.Length)..].TrimStart();
+            if (remainder.Length == 0 || Regex.IsMatch(remainder,
+                    @"^(?:to|from|as|for|so|because|in|within|on|please|when|while|that|which|now|getters?|setters?|levels?|modifiers?|accessors?|rights?|permissions?|visibility)\b|^[.!?]",
+                    options))
+                return true;
+        }
+
+        return Regex.IsMatch(tail,
+                   @"\b(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + only + @"\b" + location,
+                   options)
+               || Regex.IsMatch(tail,
+                   @"\b(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + visibility + @"\b"
+                   + @"(?:\s+(?:(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + visibility
+                   + @"|getters?|setters?|levels?|modifiers?|accessors?))*" + location,
+                   options);
+    }
+
     private static string? StaticMemberSuffix(string task, RegexOptions options)
     {
         const string member = @"(?:propert(?:y|ies)|fields?)\b";
         const string modifiers = @"(?:(?:public|private|protected|internal|file|new|readonly|const|volatile|required|unsafe)\s+)*";
         var directPrefix = Regex.Match(task,
-            @"^\s+(?:(?:an?|the|this|these|those|my|any|each|every|all|some)\s+)?(?:existing\s+)?" + modifiers
+            @"^\s+(?:(?:an?|the|this|these|those|my|any|each|every|all|some)\s+|both\s+(?:the\s+)?)?(?:existing\s+)?" + modifiers
             + @"static\s+" + modifiers, options);
         if (!directPrefix.Success)
             return null;
@@ -544,10 +594,17 @@ internal sealed class SuggestService : IRtService
                 options);
             var target = modifier.Success ? " " + task[modifier.Length..] : task;
             var references = Regex.Match(target,
-                @"^\s+(?:(?:all|every|the|an?|some|these|those|any|each|existing)\s+)*(?:references?|usages?|uses?)\s+(?:to|of|on|from|in|for)\s+",
+                @"^\s+(?:(?:all|every|the|an?|some|these|those|any|each|existing|both)\s+)*(?<site>"
+                + StaticMemberUseSiteNoun + @")\s+(?<relation>to|of|on|from|in|for)\s+",
                 options);
+            var memberSuffix = references.Success
+                ? StaticMemberSuffix(" " + target[references.Length..].TrimStart(), options)
+                : null;
             if (references.Success
-                && StaticMemberSuffix(" " + target[references.Length..].TrimStart(), options) is not null)
+                && (!references.Groups["site"].Value.Equals("access", StringComparison.OrdinalIgnoreCase)
+                    || references.Groups["relation"].Value.Equals("to", StringComparison.OrdinalIgnoreCase))
+                && memberSuffix is not null
+                && !IsDeclarationAccessTail(references.Groups["site"].Value, memberSuffix, options))
                 return true;
 
             if (modifier.Success

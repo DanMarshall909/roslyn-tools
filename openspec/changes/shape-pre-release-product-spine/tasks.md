@@ -391,6 +391,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [x] Route explicit static-class-to-instance and injection migration requests to `Unsupported(static-class-migration)` rather than a method recipe, including direct, named-source, replacement, injectable-service, and member-qualified forms. Preserve negated targets, contextual instance-class mentions, separate-action boundaries, inventory, imports, member, and positive method-conversion routes.
 - [x] Route explicit static property/field creation and ordinary deletion to named missing capabilities with empty results instead of unrelated import, method, or unreferenced-delete recipes. Preserve existing-member modifier conversion, method precedence, import and inventory discovery, and standalone negations.
 - [x] Route explicit edits to static property/field references and usages to `Unsupported(member-reference-edit)` with empty results, preserving declaration deletion, named reference reads, modifier conversion, and standalone negation.
+- [x] Extend the static member use-site guard to read, write, and access edits without claiming declaration accessibility, accessor, initializer, or attribute changes; preserve plan and conversion precedence and standalone negation.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

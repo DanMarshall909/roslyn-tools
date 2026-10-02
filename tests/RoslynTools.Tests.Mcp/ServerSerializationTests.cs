@@ -489,8 +489,10 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
     }
 
-    [Fact]
-    public async Task suggest_static_member_reference_edit_reports_missing_capability()
+    [Theory]
+    [InlineData("Delete a static property's reference")]
+    [InlineData("Delete a static field read")]
+    public async Task suggest_static_member_reference_or_access_site_edit_reports_missing_capability(string query)
     {
         var request = JsonSerializer.Serialize(new
         {
@@ -500,7 +502,7 @@ public class ServerSerializationTests
             @params = new
             {
                 name = "suggest_command",
-                arguments = new { query = "Delete a static property's reference", top = 1 }
+                arguments = new { query, top = 1 }
             }
         });
         var output = await RunSingleRequestAsync(request);

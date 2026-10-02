@@ -340,15 +340,24 @@ results instead of suggesting `delete-unreferenced`, whose target is the member
 declaration. Standalone negations return `NoMatch`; named reference searches
 keep their read workflow. Reference-targeted staticness wording keeps the
 reference-edit route, while a preceding declaration conversion, including the
-`nonstatic` spelling, keeps its own route. Attribute, accessor, initializer, and access changes
-on static members remain outside the member creation/deletion route. They still
-fall through general ranking and can surface unrelated commands; the task-aware
-relevance threshold remains open.
+`nonstatic` spelling, keeps its own route. Edits to a static property or field
+read, write, or access site now share that missing capability rather than
+ranking method or unreferenced-deletion commands. Standalone negations return
+`NoMatch`; declaration accessibility, attribute, accessor, and initializer
+changes still fall through general ranking and can surface unrelated commands.
+The task-aware relevance threshold remains open.
 A 74-query source-built follow-up covered reference edits, negations, named
 reference reads, declaration deletion, staticness conversion, imports, and
 remaining context. The reference-edit response was 389 stdout bytes versus
 2,605 bytes for the earlier unrelated `delete-unreferenced` recommendation.
 This per-call comparison does not establish total agent token savings.
+A 187-query source-built extension covered the prior reference cases, read/write
+and access-site edits including coordinated, member, and plural-possessive forms,
+negations, plan and declaration precedence, named reads,
+and the remaining declaration contexts. For “Delete a static field read,” the
+typed unsupported response was 410 stdout bytes versus 2,605 bytes for the
+earlier unrelated `delete-unreferenced` recommendation. This is a per-call
+comparison, not a total agent token claim.
 The negated control “Do not convert an instance method to static; list its
 callers” now returns `Unsupported(method-relationship-target)` with empty
 results and asks for a named method. A standalone negation returns `NoMatch`;

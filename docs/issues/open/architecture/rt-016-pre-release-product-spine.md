@@ -294,6 +294,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   return `Unsupported(member-reference-edit)` with empty results. The reason
   points to exact reference inspection and distinguishes reference edits from
   `delete-unreferenced`, which prepares deletion of the declaration.
+  The same route now covers edits to read, write, and access sites. Declaration
+  accessibility, attributes, accessors, and initializers remain separate
+  relevance work; a named read search retains its inspection workflow.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text
