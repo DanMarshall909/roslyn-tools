@@ -4,6 +4,8 @@ This is the umbrella description of the `rt` target architecture. It names the l
 
 Companion documents:
 
+- [pre-release product spine OpenSpec](../openspec/changes/shape-pre-release-product-spine/proposal.md) — accepted product scope and preview admission requirements.
+- [RT-016](issues/open/architecture/rt-016-pre-release-product-spine.md) — owning product-spine issue and decisions.
 - [critical-architecture-review-2026-08.md](critical-architecture-review-2026-08.md) — critical baseline, evidence, risks, and remediation order.
 - [critical platform hardening OpenSpec](../openspec/changes/critical-platform-hardening/proposal.md) — executable P0/P1 requirements and tasks.
 - [pattern-core-service.md](pattern-core-service.md) — the canonical Core-service + thin-host-adapters pattern with worked examples.

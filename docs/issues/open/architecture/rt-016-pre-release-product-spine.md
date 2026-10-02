@@ -331,9 +331,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 - `critical-platform-hardening` remains authoritative for trust, workspace
   completeness, mutation safety, MCP conformance, and release gates.
 - RT-007 remains authoritative for shared descriptors and typed application ports.
-- RT-012 remains authoritative for portable distribution, but its older decision
-  making the daemon the execution owner must be reconciled with ADR-0008 and this
-  preview topology.
+- RT-012 remains authoritative for portable distribution. Its
+  [execution topology authority](rt-012-portable-mcp-installation-and-distribution.md#execution-topology-authority)
+  now reconciles the historical daemon-owner direction with ADR-0008 and the
+  daemon-free preview target.
 - ADR-0002's adapter-owned suggestion model must be superseded by host-neutral
   catalogue metadata and shared workflow recommendations.
 - The dirty `codex/p0-mutation-containment` branch must be finished and verified as
@@ -350,3 +351,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 Those capabilities may be required for a later stable release. They are not required
 to obtain useful feedback from an honest read-only and plan-only `0.1-preview`.
+
+## Decision log
+
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-10-03 | Link the product-spine authority from architecture navigation | The overview and ADR index link to this issue and the existing OpenSpec, keeping scope and tasks at their original owners. RT-012 topology reconciliation is recorded there; preview admission remains open. |

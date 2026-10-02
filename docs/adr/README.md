@@ -2,6 +2,8 @@
 
 This directory holds the Architecture Decision Records (ADRs) for `rt`. Each ADR captures a single architectural decision: what was chosen, why, what alternatives were rejected, and what the consequences are. The architecture overview at [../architecture-overview.md](../architecture-overview.md) is the running synthesis; ADRs are the historical log.
 
+Current pre-release work is tracked by the [product-spine OpenSpec](../../openspec/changes/shape-pre-release-product-spine/proposal.md) and [RT-016](../issues/open/architecture/rt-016-pre-release-product-spine.md).
+
 ## When to write an ADR
 
 Write an ADR when a decision:

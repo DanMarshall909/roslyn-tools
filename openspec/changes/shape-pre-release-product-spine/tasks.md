@@ -146,7 +146,7 @@
   daemon-free `0.1-preview` topology.
 - [ ] Reconcile RT-007 completed criteria, its remaining bridge work, and the unchecked
   platform-hardening tasks so one generated status view links to authoritative facts.
-- [ ] Add the product-spine OpenSpec and RT-016 to architecture navigation without
+- [x] Add the product-spine OpenSpec and RT-016 to architecture navigation without
   copying their narrative into another roadmap.
 
 ### 0.3 Baseline evidence
