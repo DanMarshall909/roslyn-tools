@@ -357,3 +357,4 @@ to obtain useful feedback from an honest read-only and plan-only `0.1-preview`.
 | Date | Decision | Rationale |
 |---|---|---|
 | 2026-10-03 | Link the product-spine authority from architecture navigation | The overview and ADR index link to this issue and the existing OpenSpec, keeping scope and tasks at their original owners. RT-012 topology reconciliation is recorded there; preview admission remains open. |
+| 2026-10-03 | Record skipped-test preview dispositions | The owning OpenSpec records nine retained skipped test identities: four require fixes before relevant admission and five are explicitly experimental. No skip removal, defect fix, or preview readiness is claimed. |

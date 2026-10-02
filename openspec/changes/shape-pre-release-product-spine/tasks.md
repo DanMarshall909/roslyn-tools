@@ -156,8 +156,9 @@
 - [ ] Add red tests for the observed discovery count bug, required-query schema
   mismatch, unusable rename MCP schema, missing `structuredContent`, and feedback
   write-safety misclassification.
-- [ ] Record existing skipped known-defect tests and assign every stable/preview-
-  relevant skip a remove, fix, or explicit experimental disposition.
+- [x] Record existing skipped known-defect tests and assign every stable/preview-
+  relevant skip a remove, fix, or explicit experimental disposition; see
+  [skipped-test-disposition.md](skipped-test-disposition.md).
 
 ### Milestone 0 exit
 
