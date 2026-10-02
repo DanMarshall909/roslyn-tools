@@ -332,10 +332,6 @@ public sealed class SuggestServiceTests
     [InlineData("Make a static class with properties thread-safe")]
     [InlineData("Remove static imports from a method")]
     [InlineData("Find a field used by a static method")]
-    [InlineData("Add a static property")]
-    [InlineData("Add a static field")]
-    [InlineData("Remove a static property")]
-    [InlineData("Remove a static field")]
     [InlineData("Make a static method async")]
     [InlineData("Convert an instance method to a static class")]
     [InlineData("Make a static property thread-safe")]
@@ -385,6 +381,130 @@ public sealed class SuggestServiceTests
         response.MissingCapability.ShouldBeNull();
         response.Results.ShouldNotBeEmpty();
         response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Add a static property", "static-member-creation", 1)]
+    [InlineData("Create a static field", "static-member-creation", 3)]
+    [InlineData("Introduce a static property named Status", "static-member-creation", 1)]
+    [InlineData("Declare static field Foo.Bar", "static-member-creation", 3)]
+    [InlineData("Add property Value with the static modifier", "static-member-creation", 1)]
+    [InlineData("Add a property with the static modifier", "static-member-creation", 3)]
+    [InlineData("Create field Count as static", "static-member-creation", 1)]
+    [InlineData("Declare static fields X and Y", "static-member-creation", 3)]
+    [InlineData("Add a private static field", "static-member-creation", 1)]
+    [InlineData("Create a public static property", "static-member-creation", 3)]
+    [InlineData("Declare an internal static readonly field", "static-member-creation", 1)]
+    [InlineData("Add a static int field", "static-member-creation", 1)]
+    [InlineData("Create a static string property", "static-member-creation", 3)]
+    [InlineData("Create a private static System.String property", "static-member-creation", 1)]
+    [InlineData("Create a static int? property", "static-member-creation", 1)]
+    [InlineData("Add a static Dictionary<string, List<int>> field", "static-member-creation", 1)]
+    [InlineData("Add a static (int x, int y) field", "static-member-creation", 1)]
+    [InlineData("Remove a static property", "static-member-deletion", 3)]
+    [InlineData("Delete a static field", "static-member-deletion", 1)]
+    [InlineData("Delete static property Count", "static-member-deletion", 3)]
+    [InlineData("Delete a public static property", "static-member-deletion", 1)]
+    [InlineData("Delete a static int field", "static-member-deletion", 1)]
+    [InlineData("Delete a static Dictionary<string, List<int>> field", "static-member-deletion", 1)]
+    [InlineData("Do not add a static field; delete a static property", "static-member-deletion", 1)]
+    [InlineData("List static classes; add a static field", "static-member-creation", 3)]
+    public void static_member_creation_and_deletion_report_missing_capability(
+        string query, string capability, int top)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("add-static-import", category: "refactor", whenToUse: "Add using static imports"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static"),
+            Info("delete-unreferenced", category: "refactor", whenToUse: "Delete an unreferenced symbol")))
+            .Suggest(new SuggestRequest(query, Top: top));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe(capability);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull();
+    }
+
+    [Theory]
+    [InlineData("Do not add a static field")]
+    [InlineData("Do not ever add a static field")]
+    [InlineData("I do not want to add a static field")]
+    [InlineData("Do not add a static int field")]
+    [InlineData("Avoid adding a static field")]
+    [InlineData("Without creating a static property")]
+    [InlineData("Do not create a static int? property")]
+    [InlineData("Without creating a static string? property")]
+    [InlineData("Do not create a static (int? x, int y) field")]
+    [InlineData("Do not create a static (int x, string? label) property")]
+    [InlineData("Never delete a static property")]
+    public void standalone_negated_static_member_change_does_not_recommend_a_mutation(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("add-static-import", category: "refactor", whenToUse: "Add using static imports"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
+            .Suggest(new SuggestRequest(query, Top: 3));
+
+        response.Outcome.ShouldBe(SuggestOutcome.NoMatch);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Do not add a static field; list static classes")]
+    [InlineData("Do not add a static field and list static classes")]
+    [InlineData("Do not add a static field? List static classes")]
+    [InlineData("Do not add a static field? Also list static classes")]
+    [InlineData("Do not add a static field? Instead, list static classes")]
+    [InlineData("Do not add a static field? Could you list static classes")]
+    [InlineData("Do not add a static int? field? Please list static classes")]
+    [InlineData("Do not create a static (int? x, int y) field? Also list static classes")]
+    public void inventory_after_negated_member_creation_keeps_inventory_discovery(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("add-static-import", category: "refactor", whenToUse: "Add using static imports"),
+            Info("static-class-inventory", category: "analyze", whenToUse: "List static classes")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.Single().Name.ShouldBe("static-class-inventory");
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Add an attribute to a static property")]
+    [InlineData("Remove an attribute from a static field")]
+    [InlineData("Add static using imports")]
+    [InlineData("Add a static property getter")]
+    [InlineData("Remove a static field initializer")]
+    [InlineData("Delete a static property reference")]
+    [InlineData("Delete a static property Count reference")]
+    [InlineData("Delete a static field Count initializer")]
+    [InlineData("Remove a public static field named Count initializer")]
+    [InlineData("Delete a static property Count access")]
+    [InlineData("Remove a static field Count value")]
+    [InlineData("Delete a static property's reference")]
+    [InlineData("Delete a static property’s reference")]
+    [InlineData("Remove a static field's initializer")]
+    [InlineData("Add a static property's getter")]
+    [InlineData("Delete a static property or field reference")]
+    [InlineData("Delete a static property/field reference")]
+    [InlineData("Delete a static property or field's reference")]
+    [InlineData("Delete a static property/field's reference")]
+    [InlineData("Delete a static property or field named Count reference")]
+    [InlineData("Delete a static property/field Count reference")]
+    [InlineData("Remove a static field/property Count initializer")]
+    [InlineData("Delete a static property and field named Count's reference")]
+    public void static_member_context_does_not_claim_creation_or_deletion(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("add-static-import", category: "refactor", whenToUse: "Add using static imports"),
+            Info("static-class-inventory", category: "analyze", whenToUse: "List static classes")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.MissingCapability.ShouldBeNull();
+        response.Results.ShouldNotBeEmpty();
     }
 
     [Theory]

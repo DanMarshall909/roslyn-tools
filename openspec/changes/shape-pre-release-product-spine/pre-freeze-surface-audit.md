@@ -283,8 +283,9 @@ The named-method sweep also caught `make` and `remove static` forms that had
 fallen back to opposite-direction ranking. Those now preserve direction.
 Property/field staticness requests instead name
 `Unsupported(member-staticness-conversion)`; method-to-property/field requests
-retain `method-kind-conversion`. Creating or deleting a static member remains
-general discovery, rather than being labeled an existing-member conversion.
+retain `method-kind-conversion`. At that checkpoint, creating or deleting a
+static member still fell through general discovery rather than being mislabeled
+an existing-member conversion.
 A further review found that a positive method conversion followed by “do not
 change callers” or a static-class task could fall through to opposite-direction
 ranking. Whole-query exclusions now apply only to the standalone excluded
@@ -321,9 +322,23 @@ expected bounded routes and retained controls. A single `make-static` response
 was 962–963 stdout bytes, `make-instance` 982–983 bytes, missing method
 staticness workflow 492 bytes, and missing property/field staticness 310 bytes.
 These per-call byte counts do not establish end-to-end token savings. General
-discovery still ranks `add-static-import` for “Add a static property” and
-`make-static` for “Remove a static field”; member creation/deletion needs its
-own honest route before the pre-freeze discovery gate closes.
+discovery still ranked `add-static-import` for “Add a static property” and
+`make-static` for “Remove a static field” at that checkpoint. Explicit static
+property/field creation and ordinary deletion now return
+`Unsupported(static-member-creation)` or `Unsupported(static-member-deletion)`
+with empty results and no inferred mutation recipe. Standalone negations return
+`NoMatch`; a later positive member change and separate inventory request keep
+their own routes. Source-built CLI probes covered 70 creation, deletion,
+negation, import, modifier, method, and attribute-context queries. A creation
+response was 336 stdout bytes versus 1,349 for the earlier unrelated import
+recommendation; this is a per-call comparison, not an end-to-end token claim.
+Access modifiers and explicit C# types, including nullable, generic, and tuple
+forms, before the member kind retain the
+creation/deletion route. Attribute, accessor, initializer, reference, and access
+changes on static members are
+not classified as member creation or deletion. They still fall through general
+ranking and can surface unrelated commands; the task-aware relevance threshold
+remains open.
 The negated control “Do not convert an instance method to static; list its
 callers” now returns `Unsupported(method-relationship-target)` with empty
 results and asks for a named method. A standalone negation returns `NoMatch`;

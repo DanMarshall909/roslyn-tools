@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Core;
 using RoslynTools.Services.SemanticDiff.Git;
 
@@ -85,6 +86,15 @@ internal sealed class SuggestService : IRtService
         if (IsStaticClassMigrationRequest(request.Query))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "static-class-migration",
                 UnsupportedReason: "rt has no complete static-class-to-instance or injection migration workflow. Use rt analyze static-class-inventory as preliminary read evidence, then inspect state, call sites, interface needs, and registration before planning the change; a method staticness recipe does not perform this migration.");
+
+        if (StaticMemberChangeCapability(request.Query) is { } staticMemberCapability)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, staticMemberCapability,
+                UnsupportedReason: staticMemberCapability == "static-member-creation"
+                    ? "rt has no static property or field creation command. Specify the intended declaration and containing type before editing; using-static imports and method staticness recipes do not create members."
+                    : "rt has no general static property or field deletion workflow. Inspect the member and its references first; delete-unreferenced requires complete reference evidence and does not establish that an ordinary deletion is safe.");
+
+        if (IsStandaloneNegatedStaticMemberChange(request.Query))
+            return new SuggestResponse([], [], SuggestOutcome.NoMatch);
 
         var scored = Bm25Scorer.Score(
             _catalog.All,
@@ -427,6 +437,109 @@ internal sealed class SuggestService : IRtService
         return false;
     }
 
+    private static string? StaticMemberChangeCapability(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string member = @"(?:propert(?:y|ies)|fields?)\b";
+        const string modifiers = @"(?:(?:public|private|protected|internal|file|new|readonly|const|volatile|required|unsafe)\s+)*";
+        const string context = @"(?:getters?|setters?|accessors?|attributes?|initializers?|assignments?|references?|usages?|access(?:es)?|reads?|writes?|values?|member\s+access(?:es)?|modifiers?|keywords?|backing\s+fields?)\b";
+        const string name = @"(?:@?[\w.:<>]+|`[^`]+`|""[^""]+""|'[^']+')";
+        foreach (Match action in Regex.Matches(query,
+                     @"\b(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting)\b", options))
+        {
+            if (IsNegatedAction(query, action.Index, options))
+                continue;
+
+            var afterAction = query[(action.Index + action.Length)..];
+            var nextTask = Regex.Match(afterAction,
+                @";|[.!]\s+|\band\s+(?:add|create|introduce|declare|remove|delete|make|convert|turn|change|list|find|show)\b",
+                options);
+            var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
+            var directPrefix = Regex.Match(task,
+                @"^\s+(?:(?:an?|the|this|these|those)\s+)?" + modifiers
+                + @"static\s+" + modifiers, options);
+            var directMember = false;
+            if (directPrefix.Success)
+            {
+                var declaration = task[directPrefix.Length..];
+                foreach (Match candidate in Regex.Matches(declaration, member, options))
+                {
+                    var type = declaration[..candidate.Index].Trim();
+                    if (type.Length > 0
+                        && (Regex.IsMatch(type,
+                                @"^(?:from|to|into|on|off|in|of|for|with|as|using|imports?|classes?|methods?)$", options)
+                            || SyntaxFactory.ParseTypeName(type, consumeFullText: true).ContainsDiagnostics))
+                        continue;
+
+                    directMember = !Regex.IsMatch(declaration[(candidate.Index + candidate.Length)..],
+                        @"^(?:['’]s)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
+                        + member + @"(?:['’]s)?\s+)?(?:(?:(?:named|called)\s+)?"
+                        + name + @"(?:['’]s)?\s+)?" + context,
+                        options);
+                    break;
+                }
+            }
+            var qualified = Regex.IsMatch(task,
+                @"^\s+(?:(?:an?|the|this|these|those)\s+)?" + member
+                + @"(?:\s+(?:(?:named|called)\s+)?(?:@?[\w.]+|`[^`]+`|""[^""]+""|'[^']+'))?"
+                + @"\s+(?:with\s+(?:the\s+)?static\s+(?:modifier|keyword)|as\s+static)\b",
+                options);
+            if (!directMember && !qualified)
+                continue;
+
+            return action.Value.StartsWith("remov", StringComparison.OrdinalIgnoreCase)
+                   || action.Value.StartsWith("delet", StringComparison.OrdinalIgnoreCase)
+                ? "static-member-deletion"
+                : "static-member-creation";
+        }
+
+        return null;
+    }
+
+    private static bool IsStandaloneNegatedStaticMemberChange(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var negation = Regex.Match(query,
+            @"^\s*(?:(?:please|kindly)[,;]?\s+)?(?:i\s+)?(?:do\s+not|don['’]t|never|avoid|without)\s+(?:(?:ever|(?:want|wish)\s+to)\s+)*",
+            options);
+        if (!negation.Success)
+            return false;
+
+        var task = query[negation.Length..];
+        if (Regex.IsMatch(task,
+                @"[;.!]\s+\S|\b(?:and|but|then|while)\s+(?:list|find|show|add|create|introduce|declare|remove|delete|make|convert|turn|change)\b",
+                options))
+            return false;
+        foreach (Match question in Regex.Matches(task, @"\?\s+(?<next>[^\s?]+)", options))
+        {
+            if (IsInsideTypeDelimiters(task, question.Index))
+                continue;
+            if (!Regex.IsMatch(question.Groups["next"].Value,
+                    @"^(?:propert(?:y|ies)|fields?)\b", options))
+                return false;
+        }
+
+        return StaticMemberChangeCapability(task) is not null;
+    }
+
+    private static bool IsInsideTypeDelimiters(string task, int position)
+    {
+        var depth = 0;
+        for (var index = 0; index < position; index++)
+        {
+            if (task[index] is '(' or '<' or '[')
+                depth++;
+            else if (task[index] is ')' or '>' or ']')
+                depth = Math.Max(0, depth - 1);
+        }
+
+        return depth > 0;
+    }
+
     private static bool HasStaticnessTarget(string afterMember, RegexOptions options, bool allowName = true)
     {
         const string direction = @"(?:static|instance|non[- ]static)\b";
@@ -465,7 +578,7 @@ internal sealed class SuggestService : IRtService
 
     private static bool IsNegatedAction(string query, int actionIndex, RegexOptions options) =>
         Regex.IsMatch(query[..actionIndex],
-            @"\b(?:not|never|avoid|don['’]t)(?:\s+(?:want|wish)\s+to)?\s*$", options);
+            @"\b(?:not|never|avoid|without|don['’]t)(?:\s+(?:ever|(?:want|wish)\s+to))*\s*$", options);
 
     private static Match? FirstMatch(string query, RegexOptions options, params string[] patterns)
     {

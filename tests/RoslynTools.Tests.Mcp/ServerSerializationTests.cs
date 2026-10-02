@@ -457,6 +457,38 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("Add a static property", "static-member-creation")]
+    [InlineData("Add a private static field", "static-member-creation")]
+    [InlineData("Add a static int field", "static-member-creation")]
+    [InlineData("Add a static Dictionary<string, List<int>> field", "static-member-creation")]
+    [InlineData("Delete a static field", "static-member-deletion")]
+    [InlineData("Delete a public static property", "static-member-deletion")]
+    [InlineData("Delete a static int field", "static-member-deletion")]
+    public async Task suggest_static_member_creation_or_deletion_reports_missing_capability(
+        string query, string capability)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new { name = "suggest_command", arguments = new { query, top = 1 } }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe(capability);
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
     [Fact]
     public async Task suggest_static_class_injection_reports_missing_migration()
     {

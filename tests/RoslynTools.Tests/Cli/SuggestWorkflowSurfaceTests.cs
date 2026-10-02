@@ -206,16 +206,43 @@ public sealed class SuggestWorkflowSurfaceTests
     }
 
     [Theory]
-    [InlineData("Add a static property")]
-    [InlineData("Remove a static field")]
-    public async Task static_member_creation_or_deletion_keeps_general_discovery(string query)
+    [InlineData("Add a static property", "static-member-creation")]
+    [InlineData("Create a static field", "static-member-creation")]
+    [InlineData("Add a private static field", "static-member-creation")]
+    [InlineData("Add a static int field", "static-member-creation")]
+    [InlineData("Create a static int? property", "static-member-creation")]
+    [InlineData("Remove a static property", "static-member-deletion")]
+    [InlineData("Delete a static field", "static-member-deletion")]
+    [InlineData("Delete a public static property", "static-member-deletion")]
+    [InlineData("Delete a static int field", "static-member-deletion")]
+    public async Task static_member_creation_or_deletion_reports_missing_capability(string query, string capability)
     {
         var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
 
         result.ExitCode.ShouldBe(0, result.Stderr);
         using var payload = JsonDocument.Parse(result.Stdout);
-        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
-        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe(capability);
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Do not add a static field")]
+    [InlineData("I do not want to add a static field")]
+    [InlineData("Do not add a static int field")]
+    [InlineData("Avoid adding a static field")]
+    [InlineData("Do not create a static int? property")]
+    [InlineData("Never delete a static property")]
+    public async Task negated_static_member_creation_or_deletion_does_not_recommend_mutation(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 3 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("NoMatch");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
     }
 
     [Fact]

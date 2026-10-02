@@ -389,7 +389,10 @@ forcing an irrelevant command match.
 - **AND** a negated member conversion remains general discovery unless a later positive conversion is requested
 - **AND** another change to a static member earlier in the request does not hide a later member conversion
 - **AND** a static-class context request with a property or field qualifier but no migration target retains general discovery
-- **AND** creating or deleting a static property or field retains general catalogue discovery rather than being labeled a staticness conversion
+- **AND** creating a static property or field returns `Unsupported(static-member-creation)` with no mutation recommendation
+- **AND** ordinary deletion of a static property or field returns `Unsupported(static-member-deletion)` rather than suggesting unproven `delete-unreferenced` or a method recipe
+- **AND** standalone negated creation or deletion returns `NoMatch`, while a later positive member change keeps its own missing capability
+- **AND** static import, inventory, attribute/accessor/initializer/reference context, and existing-member modifier requests retain their separate routes
 - **AND** an independently named missing plan capability retains its existing `Unsupported` outcome
 - **AND** static-import and static-class inventory queries retain general catalogue discovery
 - **WHEN** the user explicitly asks to migrate a static class to an instance class or make it injectable

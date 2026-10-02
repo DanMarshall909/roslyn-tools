@@ -284,6 +284,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   The latest boundary pass covers quoted type names and comma-separated member
   qualifiers, while rejecting action words as bare type names and instance
   member destinations as class migrations.
+  Explicit static property/field creation and ordinary deletion now return
+  `Unsupported(static-member-creation)` and `Unsupported(static-member-deletion)`
+  with empty results, rather than ranking import, method, or unproven delete
+  mutations. Existing-member modifier conversion, imports, inventory, and
+  standalone negation keep their distinct routes. Attribute changes on static
+  members still need task-aware relevance handling.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text
