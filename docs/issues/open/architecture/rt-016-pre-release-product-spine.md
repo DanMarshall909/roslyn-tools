@@ -232,7 +232,7 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   `--top 1`. If the matching command is absent, the outcome names the missing
   capability instead of recommending the opposite mutation. Compound requests
   name the missing `method-staticness-workflow` and give manual steps; standalone
-  static-import and static-class requests retain catalogue discovery. A
+  static-import and static-class inventory requests retain catalogue discovery. A
   later negation or class task does not hide an earlier positive conversion;
   earlier class/import tasks do not hide a later conversion. Polite
   punctuation and recognized motives remain a single conversion request, while
@@ -249,8 +249,8 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   discovery, which can still rank irrelevant commands and needs a later route.
   Earlier or later class, import, or member-deletion clauses do not hide a
   property or field conversion.
-  Other changes to an already-static property or field and class requests
-  mentioning properties or fields retain general discovery.
+  Other changes to an already-static property or field and non-migration class
+  context mentioning properties or fields retain general discovery.
   Static method/analysis context does not count as a conversion target;
   add/remove static modifier forms on a property or field name the missing
   member capability.
@@ -270,6 +270,20 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   a separate exact named-reference clause receives the existing read workflow.
   Unrecognized follow-on tasks stay out of mutation ranking. General goal
   routing and caller-specific workflows remain open.
+  Explicit static-class-to-instance and injection requests now return
+  `Unsupported(static-class-migration)` with no method recipe. The reason points
+  to `static-class-inventory` as preliminary read evidence while complete
+  caller, interface, and registration migration remains unavailable.
+  Independent review extended the route to direct instance-class, migration,
+  replacement, and dependency-injection wording, and protected negation and
+  separate-action boundaries.
+  A further boundary pass required named-source and injectable-service forms
+  while excluding contextual instance-class mentions and negated targets.
+  Another pass covered member-qualified sources, demonstratives, and direct
+  instance targets while excluding `with` context and modified prohibitions.
+  The latest boundary pass covers quoted type names and comma-separated member
+  qualifiers, while rejecting action words as bare type names and instance
+  member destinations as class migrations.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

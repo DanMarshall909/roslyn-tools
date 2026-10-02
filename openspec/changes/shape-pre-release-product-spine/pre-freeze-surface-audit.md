@@ -331,8 +331,40 @@ an exact separate `find references to method OrderService.Validate` clause
 returns one `relationships references` read step. Source-built `rt suggest`
 confirmed all three outcomes; positive conversion with a caller constraint
 still names `method-staticness-workflow`. Caller-specific routing remains open.
-“Make a static class injectable” still ranks `make-static`; broader class and
-injection intent discovery remains open.
+“Make a static class injectable” previously ranked `make-static`; it now returns
+`Unsupported(static-class-migration)` with empty results and a preliminary
+`static-class-inventory` pointer. Static-class-to-instance variants take the
+same route in source-built `rt suggest`; inventory-only requests still select
+`static-class-inventory`, and compound positive method conversion still names
+`method-staticness-workflow`. A later class migration after an unrelated class
+action also keeps the missing migration outcome. A complete class migration
+remains open.
+Independent boundary review found that direct “make ... an instance class”,
+“migrate ... to an instance class”, and “usable with dependency injection”
+still received unrelated recommendations. The repaired route covers those
+forms plus explicit replacement and DI wording. It excludes negated migration
+requests and keeps an injectable target in a separate class action from being
+borrowed by an earlier static-class action.
+A second boundary review exposed named-source “from a static class” requests and
+an injectable-service destination, plus contextual “from an instance class”,
+`but`-joined actions, and negated targets. The route now requires an explicit
+source-to-destination relationship or direct `make` target within the same
+action, preserving non-migration context.
+A third boundary review found that member qualifiers, `this static class`, and
+a direct `instance` target still fell through. It also found that `with an
+instance class` and a prohibition with `ever` falsely signaled migration. The
+current classifier strips only recognized source qualifiers, reserves task
+words from the optional class-name slot, and treats `with` as a replacement
+destination only. Broader task-aware workflow parsing remains open.
+A fourth review found quoted type names and comma-separated member qualifiers
+missing, while a generic optional name slot treated "return" and "accept" as
+type names and a destination prefix treated an instance method as a class
+migration. Bare names now require type-like casing unless explicitly named or
+quoted; destination matching rejects method, field, property, and event kinds.
+The next review found that all-caps task words such as `TO`, `INJECTABLE`, and
+`RETURN` passed the type-casing check. Bare class names now exclude these task
+words regardless of casing, while quoted and explicitly named identifiers
+remain eligible.
 
 An eight-query read-workflow corpus used exact external-language tasks rather
 than catalogue `whenToUse` text. Each row is one source-built

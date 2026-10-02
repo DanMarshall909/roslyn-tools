@@ -388,10 +388,23 @@ forcing an irrelevant command match.
 - **AND** named, qualified, quoted, plural, and mixed property/field conversion requests retain the member kind
 - **AND** a negated member conversion remains general discovery unless a later positive conversion is requested
 - **AND** another change to a static member earlier in the request does not hide a later member conversion
-- **AND** a static-class request with a property or field qualifier retains general discovery
+- **AND** a static-class context request with a property or field qualifier but no migration target retains general discovery
 - **AND** creating or deleting a static property or field retains general catalogue discovery rather than being labeled a staticness conversion
 - **AND** an independently named missing plan capability retains its existing `Unsupported` outcome
-- **AND** static-import and static-class queries retain general catalogue discovery
+- **AND** static-import and static-class inventory queries retain general catalogue discovery
+- **WHEN** the user explicitly asks to migrate a static class to an instance class or make it injectable
+- **THEN** CLI and MCP `suggest` return `Unsupported` with `static-class-migration`, empty results, and no method mutation recipe
+- **AND** the reason names the missing complete migration workflow and identifies static-class inventory as preliminary read evidence
+- **AND** an earlier or later positive method conversion retains its method-specific route
+- **AND** an earlier non-migration class action does not hide a later class migration
+- **AND** direct instance-class, migration, replacement, and dependency-injection wording retains that outcome
+- **AND** a negated class migration or an injectable target belonging to a separate non-static-class action does not claim class migration
+- **AND** a named source before `from a static class` and an injectable-service destination retain the migration outcome
+- **AND** an instance class mentioned only as calling context, or a negated target, does not claim a migration
+- **AND** field/property qualifiers, demonstratives, and direct instance targets preserve explicit migration intent
+- **AND** a class merely described as working with an instance class, or a prohibition with an intervening modifier, retains non-migration discovery
+- **AND** quoted source names and comma-separated field/property/method qualifiers retain migration intent
+- **AND** returning or accepting another class, or targeting an instance method, field, or property, does not claim class migration
 - **WHEN** a method staticness conversion is explicitly negated with no later positive task
 - **THEN** a standalone prohibition returns `NoMatch` without a mutation recommendation
 - **AND** a request to find callers or usages without an exact method target returns `Unsupported` with `method-relationship-target` and asks for a named method

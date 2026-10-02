@@ -82,6 +82,10 @@ internal sealed class SuggestService : IRtService
         if (SuggestNegatedMethodConversion(request.Query, request.Solution) is { } negatedConversion)
             return negatedConversion;
 
+        if (IsStaticClassMigrationRequest(request.Query))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "static-class-migration",
+                UnsupportedReason: "rt has no complete static-class-to-instance or injection migration workflow. Use rt analyze static-class-inventory as preliminary read evidence, then inspect state, call sites, interface needs, and registration before planning the change; a method staticness recipe does not perform this migration.");
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -218,6 +222,85 @@ internal sealed class SuggestService : IRtService
         }
 
         return null;
+    }
+
+    private static bool IsStaticClassMigrationRequest(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string classAction = @"\b(?<verb>make|convert|turn|change|refactor|migrate|replace)\s+"
+                                   + @"(?:(?:(?:an?|the|this|that|these|those|another)\s+)?static\s+class(?:es)?"
+                                   + @"|(?:(?:an?|the)\s+)?(?:(?:named|called)\s+)?[""']?@?\w+(?:\.@?\w+)*[""']?\s+from\s+(?:(?:an?|the)\s+)?static\s+class(?:es)?)\b";
+        const string destination = @"(?:instance(?:\s+class(?:es)?|-based)?|regular\s+class|non[- ]?static|"
+                                   + @"injectable(?:\s+service)?|instantiable|dependency[- ]injected\s+service|"
+                                   + @"service\s+that\s+can\s+be\s+injected)";
+        foreach (Match action in Regex.Matches(query, classAction, options))
+        {
+            var beforeAction = query[..action.Index];
+            var previousClause = Math.Max(beforeAction.LastIndexOf(';'), beforeAction.LastIndexOf('.'));
+            if (Regex.IsMatch(beforeAction[(previousClause + 1)..],
+                    @"\b(?:do\s+not|don't|never|without)\s+(?:(?:ever|want\s+to)\s+)*$", options))
+                continue;
+
+            var afterClass = query[(action.Index + action.Length)..];
+            var nextTask = Regex.Match(afterClass,
+                @";|[.!?]\s+|\b(?:and|but|then|while)\s+(?:(?:also|then)\s+)*(?:make|convert|turn|change|refactor|migrate|replace|list|find|show|add|remove|delete|create|introduce)\b",
+                options);
+            var targetText = afterClass[..Math.Min(nextTask.Success ? nextTask.Index : afterClass.Length, 120)]
+                .TrimStart();
+            if (Regex.IsMatch(targetText,
+                    @"\b(?:not|never|no\s+longer)\s+(?:injectable|instantiable|instance|non[- ]?static|usable|use|support)\b",
+                    options))
+                continue;
+
+            // Bare type names need C# type casing and cannot be task words.
+            // Quoted or explicitly named identifiers may use any casing or word.
+            var className = Regex.Match(targetText,
+                @"^(?:(?:named|called)\s+[""']?@?\w+(?:\.@?\w+)*[""']?|[""']@?\w+(?:\.@?\w+)*[""']|(?<bare>@?(?-i:[A-Z_])\w*(?:\.@?\w+)*))\s+",
+                options);
+            if (className.Success && !Regex.IsMatch(className.Groups["bare"].Value,
+                    @"^(?:to|into|as|with|for|from|return|accept|work|compatible|callable|injectable|"
+                    + @"instantiable|instance|regular|nonstatic|usable|use|support|dependency|di|an?|the|be|not|never|no)$",
+                    options))
+                targetText = targetText[className.Length..];
+
+            var qualifier = Regex.Match(targetText,
+                @"^with\s+(?:properties|fields|methods|members)(?:\s*(?:,\s*(?:and\s+)?|and\s+)(?:properties|fields|methods|members))*\s+",
+                options);
+            if (qualifier.Success)
+                targetText = targetText[qualifier.Length..];
+
+            var staticSource = Regex.Match(targetText, @"^from\s+static\s+", options);
+            if (staticSource.Success)
+                targetText = targetText[staticSource.Length..];
+
+            var verb = action.Groups["verb"].Value;
+            var directionWord = verb.Equals("replace", StringComparison.OrdinalIgnoreCase)
+                ? @"(?:to|into|as|with)"
+                : @"(?:to|into|as)";
+            var directionalMatch = Regex.Match(targetText,
+                @"^" + directionWord + @"\s+(?:be\s+)?(?:(?:an?|the)\s+)?" + destination + @"\b",
+                options);
+            var injectionPurpose = Regex.IsMatch(targetText,
+                @"^(?:for|to\s+(?:support|use))\s+(?:dependency\s+injection|DI)\b",
+                options);
+            var directMatch = verb.Equals("make", StringComparison.OrdinalIgnoreCase)
+                ? Regex.Match(targetText,
+                    @"^(?:(?:an?|the)\s+)?(?:instance(?:\s+class(?:es)?|-based)?|"
+                    + @"injectable|instantiable|non[- ]?static|usable\s+(?:with|for)\s+(?:dependency\s+injection|DI)|"
+                    + @"(?:use|support)\s+(?:dependency\s+injection|DI))\b",
+                    options)
+                : Match.Empty;
+            var directional = directionalMatch.Success && !Regex.IsMatch(targetText[directionalMatch.Length..],
+                @"^\s+(?:methods?|fields?|propert(?:y|ies)|events?)\b", options);
+            var directMake = directMatch.Success && !Regex.IsMatch(targetText[directMatch.Length..],
+                @"^\s+(?:methods?|fields?|propert(?:y|ies)|events?)\b", options);
+            if (directional || injectionPurpose || directMake)
+                return true;
+        }
+
+        return false;
     }
 
     private static (string CommandName, bool RequiresWorkflow, bool OtherTarget)? MethodStaticConversion(string query)

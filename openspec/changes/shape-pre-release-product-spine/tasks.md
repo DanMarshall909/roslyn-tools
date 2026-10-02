@@ -388,6 +388,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   discovery.
   This does not prepare or verify a mutation plan.
 - [x] Keep negated method staticness requests out of mutation ranking: return no match for a standalone prohibition, name the missing method target for generic caller or usage inspection, and use the existing reference workflow only for a separate exact named-reference clause. Preserve later positive conversions and higher-priority routes.
+- [x] Route explicit static-class-to-instance and injection migration requests to `Unsupported(static-class-migration)` rather than a method recipe, including direct, named-source, replacement, injectable-service, and member-qualified forms. Preserve negated targets, contextual instance-class mentions, separate-action boundaries, inventory, imports, member, and positive method-conversion routes.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

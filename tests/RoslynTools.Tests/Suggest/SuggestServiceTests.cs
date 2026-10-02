@@ -161,6 +161,7 @@ public sealed class SuggestServiceTests
     [InlineData("Convert an instance method to static; do not change callers")]
     [InlineData("Convert an instance method to static and never change callers")]
     [InlineData("Convert an instance method to static and make a static class injectable")]
+    [InlineData("Make a static class injectable and convert an instance method to static")]
     [InlineData("Convert an instance method to static but leave callers unchanged")]
     [InlineData("Convert an instance method to static without updating callers")]
     [InlineData("Convert an instance method to static without caller changes")]
@@ -327,10 +328,9 @@ public sealed class SuggestServiceTests
 
     [Theory]
     [InlineData("Find static imports used across the solution")]
+    [InlineData("List static classes")]
+    [InlineData("Make a static class with properties thread-safe")]
     [InlineData("Remove static imports from a method")]
-    [InlineData("Make a static class injectable")]
-    [InlineData("Convert a static class to an instance class")]
-    [InlineData("Convert a static class from static to instance")]
     [InlineData("Find a field used by a static method")]
     [InlineData("Add a static property")]
     [InlineData("Add a static field")]
@@ -342,7 +342,6 @@ public sealed class SuggestServiceTests
     [InlineData("Mark a static field obsolete")]
     [InlineData("Change the name of a static property")]
     [InlineData("Convert a static field to a property")]
-    [InlineData("Make a static class with properties injectable")]
     [InlineData("Make a property thread-safe in a static method")]
     [InlineData("Mark a property obsolete for static analysis")]
     [InlineData("Make a property static-analysis friendly")]
@@ -354,6 +353,26 @@ public sealed class SuggestServiceTests
     [InlineData("Do not convert a field from instance to static")]
     [InlineData("Do not remove static from property Value")]
     [InlineData("I do not want to make property Value static")]
+    [InlineData("Do not make a static class injectable; list static classes")]
+    [InlineData("Make a static class thread-safe and make another class injectable")]
+    [InlineData("Make a static class thread-safe and also make another class injectable")]
+    [InlineData("Make a static class thread-safe. Make another class injectable")]
+    [InlineData("Make a static class thread-safe and create another injectable class")]
+    [InlineData("Make a static class callable from an instance class")]
+    [InlineData("Make a static class thread-safe but make another class injectable")]
+    [InlineData("Make a static class not injectable")]
+    [InlineData("Do not ever make a static class injectable")]
+    [InlineData("Make a static class with an instance class")]
+    [InlineData("Make a static class work with an instance class")]
+    [InlineData("Make a static class compatible with an instance class")]
+    [InlineData("Make a static class return an instance class")]
+    [InlineData("MAKE A STATIC CLASS RETURN AN INSTANCE CLASS")]
+    [InlineData("MAKE A STATIC CLASS ACCEPT AN INJECTABLE SERVICE")]
+    [InlineData("Make a static class accept an injectable service")]
+    [InlineData("Convert a static class to an instance method")]
+    [InlineData("Convert a static class to an instance property")]
+    [InlineData("Make a static class an instance property")]
+    [InlineData("Convert a static class to an instance field")]
     public void static_queries_outside_method_conversion_keep_catalogue_discovery(string query)
     {
         var response = new SuggestService(new FakeCatalog(
@@ -366,6 +385,62 @@ public sealed class SuggestServiceTests
         response.MissingCapability.ShouldBeNull();
         response.Results.ShouldNotBeEmpty();
         response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Make a static class injectable")]
+    [InlineData("Make a static class with properties injectable")]
+    [InlineData("Convert a static class to an instance class")]
+    [InlineData("CONVERT A STATIC CLASS TO AN INSTANCE CLASS")]
+    [InlineData("MAKE A STATIC CLASS INJECTABLE FOR TESTING")]
+    [InlineData("Make static class \"TO\" injectable")]
+    [InlineData("Make static class named RETURN injectable")]
+    [InlineData("Make static class IO injectable")]
+    [InlineData("Convert a static class from static to instance")]
+    [InlineData("Turn a static class into an instance class")]
+    [InlineData("Make static class OrderService injectable")]
+    [InlineData("Convert static class OrderService to an instance class")]
+    [InlineData("Convert static class Foo.Bar to an instance class")]
+    [InlineData("Make a static class thread-safe; convert a static class to an instance class")]
+    [InlineData("Make a static class an instance class")]
+    [InlineData("Make static class OrderService usable with dependency injection")]
+    [InlineData("Migrate a static class to an instance class")]
+    [InlineData("Refactor a static class for dependency injection")]
+    [InlineData("Convert a static class to support dependency injection")]
+    [InlineData("Turn static class Foo into a regular class")]
+    [InlineData("Replace a static class with an instance class")]
+    [InlineData("Make static class Foo instance-based")]
+    [InlineData("Make a static class thread-safe and make another static class injectable")]
+    [InlineData("Make a static class thread-safe. Make another static class injectable")]
+    [InlineData("Convert static class Foo to be injectable")]
+    [InlineData("Make static class Foo usable for dependency injection")]
+    [InlineData("Make static class Foo use dependency injection")]
+    [InlineData("Convert OrderService from a static class to an instance class")]
+    [InlineData("Make the static class OrderService into an instance")]
+    [InlineData("Convert a static class into a service that can be injected")]
+    [InlineData("Make a static class thread-safe but make another static class injectable")]
+    [InlineData("Make a static class with fields injectable")]
+    [InlineData("Make a static class with properties and fields injectable")]
+    [InlineData("Make this static class injectable")]
+    [InlineData("Make a static class instance")]
+    [InlineData("Make static class \"OrderService\" injectable")]
+    [InlineData("Convert \"OrderService\" from a static class to an instance class")]
+    [InlineData("Make a static class with fields, properties and methods injectable")]
+    [InlineData("Make a static class with fields, properties, and methods injectable")]
+    public void static_class_migration_does_not_recommend_a_method_recipe(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static"),
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("static-class-inventory", category: "analyze", whenToUse: "List static classes")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("static-class-migration");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull().ShouldContain("static-class-inventory");
     }
 
     [Theory]

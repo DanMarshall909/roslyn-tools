@@ -143,8 +143,6 @@ public sealed class SuggestWorkflowSurfaceTests
     [Theory]
     [InlineData("Find static imports used across the solution", "list-imports")]
     [InlineData("Add static using imports", "add-static-import")]
-    [InlineData("Convert a static class to an instance class", "static-class-inventory")]
-    [InlineData("Make a static class with properties injectable", "make-static")]
     public async Task non_method_static_queries_keep_their_first_catalogue_result(string query, string expected)
     {
         var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
@@ -154,16 +152,57 @@ public sealed class SuggestWorkflowSurfaceTests
         payload.RootElement.GetProperty("Results")[0].GetProperty("Name").GetString().ShouldBe(expected);
     }
 
-    [Fact]
-    public async Task static_class_from_phrase_keeps_general_discovery()
+    [Theory]
+    [InlineData("Make a static class injectable")]
+    [InlineData("CONVERT A STATIC CLASS TO AN INSTANCE CLASS")]
+    [InlineData("MAKE A STATIC CLASS INJECTABLE FOR TESTING")]
+    [InlineData("Make static class \"TO\" injectable")]
+    [InlineData("Make static class named RETURN injectable")]
+    [InlineData("Convert a static class from static to instance")]
+    [InlineData("Make a static class an instance class")]
+    [InlineData("Make static class OrderService usable with dependency injection")]
+    [InlineData("Migrate a static class to an instance class")]
+    [InlineData("Replace a static class with an instance class")]
+    [InlineData("Refactor a static class for dependency injection")]
+    [InlineData("Convert OrderService from a static class to an instance class")]
+    [InlineData("Make the static class OrderService into an instance")]
+    [InlineData("Convert a static class into a service that can be injected")]
+    [InlineData("Make this static class injectable")]
+    [InlineData("Make a static class instance")]
+    [InlineData("Make static class OrderService injectable")]
+    [InlineData("Make a static class with fields, properties and methods injectable")]
+    public async Task static_class_migration_reports_missing_workflow(string query)
     {
-        var result = await RtCliHost.RunAsync(
-            "suggest \"Convert a static class from static to instance\" --top 1 --json");
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("static-class-migration");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Do not ever make a static class injectable")]
+    [InlineData("Make a static class with an instance class")]
+    [InlineData("Make a static class work with an instance class")]
+    [InlineData("Make a static class compatible with an instance class")]
+    [InlineData("Make a static class return an instance class")]
+    [InlineData("MAKE A STATIC CLASS RETURN AN INSTANCE CLASS")]
+    [InlineData("MAKE A STATIC CLASS ACCEPT AN INJECTABLE SERVICE")]
+    [InlineData("Make a static class accept an injectable service")]
+    [InlineData("Convert a static class to an instance method")]
+    [InlineData("Convert a static class to an instance property")]
+    public async Task non_migration_class_context_keeps_general_discovery(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
 
         result.ExitCode.ShouldBe(0, result.Stderr);
         using var payload = JsonDocument.Parse(result.Stdout);
         payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
         payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
+        payload.RootElement.TryGetProperty("MissingCapability", out _).ShouldBeFalse();
     }
 
     [Theory]
