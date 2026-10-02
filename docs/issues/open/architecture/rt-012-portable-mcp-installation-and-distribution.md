@@ -43,6 +43,31 @@ protocol version `2024-11-05`. The official MCP C# SDK now owns the protocol
 lifecycle and version negotiation. Spawned tests cover the supported stdio eras,
 including pagination, cancellation, and malformed-JSON recovery.
 
+## Execution topology authority
+
+The 2026-08-16 decision to make the daemon the local execution owner is a
+historical direction, superseded for the current hardening phase by
+[ADR-0008](../../../adr/0008-daemon-transparent-passthrough-phase.md).
+The daemon is an optional transparent typed transport adapter to the same
+canonical application operation used in-process. It does not own operation
+truth, repository trust, mutation policy, or recovery semantics.
+[ADR-0017](../../../adr/0017-bounded-read-only-workspace-reuse.md) permits a
+bounded read-only workspace lease cache for its named operations; that exception
+does not restore daemon execution or mutation-policy ownership.
+
+The accepted [product-spine design](../../../../openspec/changes/shape-pre-release-product-spine/design.md)
+targets a daemon-free `0.1-preview`: CLI and MCP reach shared typed application
+operations without requiring daemon availability. Portable distribution and
+installation checks must follow that topology. A persistent stdio host does not
+imply a daemon-owned workspace or require daemon startup; remaining experimental
+daemon transport is a separate compatibility surface.
+
+This reconciles architecture authority, not release readiness. The final
+preview catalogue and packaged admission journeys remain gated by
+[RT-016](rt-016-pre-release-product-spine.md) and its OpenSpec. The incomplete
+protocol classification, client startup policy, and bundle-evaluation criteria
+below remain open, as do the separately owned platform-hardening requirements.
+
 ## Acceptance Criteria
 
 - [x] CI publishes versioned, self-contained CLI and MCP artifacts for each
@@ -134,3 +159,4 @@ including pagination, cancellation, and malformed-JSON recovery.
 | 2026-09-30 | Prove request cancellation across all supported stdio protocol versions | A controlled blocking application port confirms that `notifications/cancelled` reaches the request token, suppresses the cancelled response, and leaves the connection usable in the four legacy versions and `2026-07-28`. Pagination, schema coverage across pages, and remaining protocol edge cases still keep the integration criterion open. |
 | 2026-09-30 | Page MCP tool discovery and verify all pages during installation | The stdio host returns up to 20 tools per `tools/list`, puts `prime` and `suggest_command` first, and rejects invalid cursors. Spawned tests walk the full catalogue and check schemas in all five protocol versions; installation doctor follows and validates every page. Remaining protocol edge cases keep the composite criterion open. |
 | 2026-09-30 | Complete the enumerated stdio integration matrix and retain an SDK error-code gate | Spawned tests in all five advertised versions now cover discovery, complete paged schemas, successful and typed-failure calls, cancellation, malformed JSON, unknown methods, notification silence, recovery, and EOF. The 2026 era also checks version-drift rejection. A separate test records that valid JSON with `method: 7` gets `-32700` from SDK 2.2.0 rather than the JSON-RPC-required `-32600`; this unresolved classification, portable plugin timeout policy, and MCP Bundle evaluation keep RT-012 open. |
+| 2026-10-03 | Reconcile portable distribution with ADR-0008 and the daemon-free preview target | The earlier daemon-as-execution-owner direction is historical. Optional typed transport and ADR-0017 bounded read-only reuse do not own canonical operations or mutation policy; RT-016 still owns final preview admission. |
