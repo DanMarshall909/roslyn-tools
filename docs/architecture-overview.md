@@ -1060,6 +1060,21 @@ Human text is not the MCP machine contract. A structured MCP tool returns `struc
 
 Suggestions/follow-ons are application metadata projected by hosts. They are not invented by a renderer, and destructive follow-ons are suppressed when workspace completeness, confidence, or safety policy does not allow them.
 
+[ADR-0007](adr/0007-host-neutral-command-contracts.md) owns the host-neutral
+follow-on metadata contract and supersedes the adapter-only ownership invariant
+in [ADR-0002](adr/0002-suggestions-output-contract-and-proactive-session-start.md).
+Hosts project application-defined actions; the accepted target does not let a
+renderer or transport adapter invent a second workflow catalogue.
+
+This ownership decision does not certify completed workflow migration. The
+legacy `_suggestions` shapes are currently populated by `DescribeOperation`
+and `FindRefsOperation` through `SuggestionHelper`, including prepared CLI
+command text. Those shared operations are not adapter-owned decoration, but
+their helper-built actions still need reconciliation with application metadata,
+invokable typed arguments, and the shared safety/completeness policy. General
+metadata-generated task workflows remain open in the
+[product-spine tasks](../openspec/changes/shape-pre-release-product-spine/tasks.md#34-workflow-aware-suggestions).
+
 For the migrated `outline` result and the `add-dependency` and `make-sealed`
 application definitions, the legacy daemon catalogue references each
 definition's `SuggestedTools` list. Reference follow-ons use the public

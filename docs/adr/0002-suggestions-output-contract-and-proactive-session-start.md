@@ -1,6 +1,6 @@
 # ADR-0002: `_suggestions` output contract and proactive session start
 
-- Status: Accepted
+- Status: Accepted; suggestion/follow-on ownership superseded in part by [ADR-0007](0007-host-neutral-command-contracts.md)
 - Date: 2026-06-19
 - Stories: US-135 (Beads-lessons batch — `_suggestions`, `rt prime`, session hook, `dump-help --compact`, `suggest` git-fallback)
 

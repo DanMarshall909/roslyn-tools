@@ -68,7 +68,7 @@ Per the architecture-overview doc's "Updating this doc" section:
 | # | Title | Status | Date |
 |---|---|---|---|
 | [0001](0001-core-service-thin-host-adapters.md) | Core service + thin host adapters | Accepted | 2026-06-17 |
-| [0002](0002-suggestions-output-contract-and-proactive-session-start.md) | _suggestions output contract and proactive session start | Accepted | 2026-06-19 |
+| [0002](0002-suggestions-output-contract-and-proactive-session-start.md) | _suggestions output contract and proactive session start | Accepted; follow-on ownership superseded in part by [0007](0007-host-neutral-command-contracts.md) | 2026-06-19 |
 | [0003](0003-shared-command-descriptors-and-application-ports.md) | Shared command descriptors and application ports | Accepted | 2026-07-30 |
 | [0004](0004-portable-mcp-distribution.md) | Portable MCP distribution | Accepted | 2026-08-16 |
 | [0005](0005-daemon-centred-local-execution.md) | Daemon-centred local execution | Superseded in part by [0008](0008-daemon-transparent-passthrough-phase.md) | 2026-08-16 |
