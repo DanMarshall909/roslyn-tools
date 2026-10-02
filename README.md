@@ -393,6 +393,14 @@ On macOS or Linux:
 ./scripts/check-local.sh
 ```
 
+The Unix gate requires Python 3 to validate test reports. Use `--full` (or
+`-Full` in PowerShell) to run every test project in the solution. Each test
+project must produce a fresh, completed, nonempty TRX report before the gate
+can pass, even if `dotnet test` exits successfully. The gate prints the report
+path for each project and keeps reports when verification fails. Pass
+`--results-directory <path>` (or `-ResultsDirectory <path>`) to retain reports
+after a successful run.
+
 A quick clone sanity check is also available through `scripts/doctor.ps1` or `scripts/doctor.sh`.
 
 Preview and verify the documentation site with:

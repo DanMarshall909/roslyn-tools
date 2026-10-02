@@ -29,8 +29,14 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Require PowerShell for gate parity checks
+        run: pwsh --version
+
       - name: Test purity detector
         run: node --test tests/build-purity.test.mjs
+
+      - name: Test local gate completion checks
+        run: node --test tests/check-local-completion.test.mjs
 
       - name: Verify plain restore, Debug build, and test
         run: node scripts/check-build-purity.mjs
@@ -65,7 +71,7 @@ jobs:
         run: dotnet build RoslynTools.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test RoslynTools.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
+        run: ./scripts/check-local.sh --full --configuration Release --skip-build --skip-format --results-directory TestResults
 
       - name: Upload test results
         if: always()
