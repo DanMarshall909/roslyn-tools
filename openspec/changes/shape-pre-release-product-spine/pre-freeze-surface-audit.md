@@ -249,6 +249,89 @@ static” ranked `make-instance` ahead of `make-static`. A request to apply an
 already reviewed immutable plan ranked `prepare-operation`, `trust`, and
 `convert-to-record`, although no immutable plan lifecycle exists yet.
 
+The explicit method-staticness direction slice now routes the first query to
+`make-static` at `--top 1` (963 JSON stdout bytes); the reverse request routes
+to `make-instance` (982 bytes). “Remove static from a method” and “Make a static
+method non-static” also route to `make-instance` (983 bytes each). One matching
+recipe is returned without an invented plan or target method. The live control
+queries “Find static imports used across the solution,” “Add static using
+imports,” and “Convert a static class to an instance class” still rank
+`list-imports`, `add-static-import`, and `static-class-inventory` first.
+The post-guard live probe showed “Convert an instance method to static and
+list callers” still ranked the opposite `make-instance` at `--top 1` through
+general BM25 fallback. This compound request now returns named
+`Unsupported(method-staticness-workflow)` with manual steps; no single mutation
+is presented as the complete task. Repeated independent boundary reviews found
+that an open-ended second-action verb list could miss “give me a list of
+callers,” call-site preservation phrasing, and a second sentence, while treating
+harmless punctuation or “and nothing else” as a second task. The route now
+recognizes a bounded single-conversion request with polite phrasing, stated
+motives such as performance and testability, and the known test-project scope.
+Additional or unrecognized surrounding clauses return the named missing
+workflow. “Convert an instance method to static, please” remains one task;
+“Convert an instance method to static. List callers” and an explicit caller
+constraint do not receive a bare mutation. Method-to-property/field requests
+return `Unsupported(method-kind-conversion)`, and an explicit missing plan
+request keeps its earlier named outcome.
+A further independent review found that a supplied method identity between the
+direction words still fell through to BM25: “Convert OrderService.Validate
+from instance to static” ranked `make-instance`. The route now recognizes
+qualified, named, generic, and signature forms, while an unparsed explicit
+method conversion returns the missing workflow instead of ranking the opposite
+mutation. No concrete method is selected by the recommendation.
+The named-method sweep also caught `make` and `remove static` forms that had
+fallen back to opposite-direction ranking. Those now preserve direction.
+Property/field staticness requests instead name
+`Unsupported(member-staticness-conversion)`; method-to-property/field requests
+retain `method-kind-conversion`. Creating or deleting a static member remains
+general discovery, rather than being labeled an existing-member conversion.
+A further review found that a positive method conversion followed by “do not
+change callers” or a static-class task could fall through to opposite-direction
+ranking. Whole-query exclusions now apply only to the standalone excluded
+request; the recognized conversion plus its later clause returns
+`Unsupported(method-staticness-workflow)`. A property/field conversion followed
+by a static-class or static-import clause now preserves the source member kind
+and returns `Unsupported(member-staticness-conversion)`. The same result holds
+when class/import inventory or static-member deletion precedes a later positive
+conversion; positional exception checks had let these requests fall back to a
+method recipe.
+An independent false-positive sweep found that “Make a static property
+thread-safe,” “Mark a static field obsolete,” “Change the name of a static
+property,” “Convert a static field to a property,” and “Make a static class
+with properties injectable” were incorrectly called property/field staticness
+conversions. The guard now requires an explicit staticness direction after the
+member within the same task clause; these requests retain general discovery.
+A later sweep showed that “in a static method” and “for static analysis” are
+context, not a conversion target. Explicit “add/remove static modifier on a
+field/property” requests now name the missing member-staticness capability.
+The boundary table also covers named and qualified member identities, mixed
+property/field names, plural fields, `set`/`apply` verbs, static keyword
+variants, and a later positive conversion after an unrelated or negated
+member action. Standalone negated member conversions retain discovery.
+An unparsed method conversion followed by “convert to static class/imports”
+also stays on the missing method workflow route; an earlier whole-query
+exclusion had let BM25 recommend the opposite method mutation.
+The reverse order with class/import inventory before a qualified unparsed
+method conversion now receives the same missing workflow outcome.
+A static-class `from static to instance`
+variant still uses general catalogue discovery and ranks `make-instance` first;
+class migration discovery therefore remains an explicit next safety task.
+The final 166-query source-built `suggest --top 1 --json` corpus returned the
+expected bounded routes and retained controls. A single `make-static` response
+was 962–963 stdout bytes, `make-instance` 982–983 bytes, missing method
+staticness workflow 492 bytes, and missing property/field staticness 310 bytes.
+These per-call byte counts do not establish end-to-end token savings. General
+discovery still ranks `add-static-import` for “Add a static property” and
+`make-static` for “Remove a static field”; member creation/deletion needs its
+own honest route before the pre-freeze discovery gate closes.
+The negated control “Do not convert an instance method to static; list its
+callers” still uses general catalogue discovery and ranks `make-instance` at
+`--top 1`. Negated conversion intent needs its own no-mutation discovery route
+before the pre-freeze decision gate; this slice does not claim that general
+ranking is safe for it.
+“Make a static class injectable” still ranks `make-static`; broader class and
+injection intent discovery remains open.
+
 An eight-query read-workflow corpus used exact external-language tasks rather
 than catalogue `whenToUse` text. Each row is one source-built
 `suggest "<task>" --top 3 --json` call; bytes are stdout.

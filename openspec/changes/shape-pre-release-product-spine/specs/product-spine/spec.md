@@ -356,6 +356,43 @@ forcing an irrelevant command match.
 - **AND** constructor, namespace, parameter, member, and C# type-subtype cues that the resolver cannot select exactly retain general discovery rather than silently changing the requested subject
 - **AND** unspecified, generic, multi-symbol, project/package-reference, and proposed-change impact requests retain their earlier discovery routes
 
+#### Scenario: method staticness conversion has an explicit direction
+
+- **WHEN** the user explicitly asks to convert an instance method to static or a static method to instance/non-static
+- **THEN** CLI and MCP `suggest` return only the matching `make-static` or `make-instance` recommendation, even at a display limit of one
+- **AND** the opposite mutation is absent from the response
+- **AND** the response does not invent an executable plan or a concrete target method
+- **AND** a supplied method name or signature does not reverse the selected direction or create a target selection
+- **WHEN** the matching command is unavailable
+- **THEN** `suggest` returns `Unsupported` naming that command instead of substituting the opposite mutation
+- **WHEN** the explicit conversion is coupled to another task
+- **THEN** `suggest` returns `Unsupported` with `method-staticness-workflow` and manual next steps instead of recommending one mutation as the whole task
+- **AND** punctuation and politeness around a single conversion do not create a second task
+- **AND** a stated motivation such as performance and testability does not create a second task
+- **AND** an explicit constraint on caller updates does not silently become an unconstrained mutation recommendation
+- **AND** a later negation or static-class/import task does not hide an earlier positive method conversion
+- **AND** an earlier class or import task does not hide a later positive conversion, including unparsed method syntax
+- **AND** a later static-class or static-import task does not hide an earlier explicit but unparsed method conversion
+- **AND** an earlier class or import task does not hide a later qualified but unparsed method conversion
+- **AND** an unrecognized surrounding clause is reported as `Unsupported` rather than assumed to be part of a single conversion
+- **AND** explicit direction with unparsed method syntax is reported as `Unsupported` rather than sent to general command ranking
+- **WHEN** the requested target is a property or field rather than a method
+- **THEN** `suggest` returns `Unsupported` with `method-kind-conversion` instead of recommending a method staticness recipe
+- **WHEN** the source itself is a property or field whose staticness is to change
+- **THEN** `suggest` returns `Unsupported` with `member-staticness-conversion` instead of claiming a method workflow
+- **AND** later static-class or static-import clauses do not hide that property or field source
+- **AND** earlier class, import, or member-deletion clauses do not hide a later property or field conversion
+- **AND** changing another quality of an already-static property or field does not claim a staticness conversion
+- **AND** static method or static analysis context after a property or field does not claim a staticness conversion
+- **AND** adding or removing the static modifier on a property or field reports the member-staticness capability
+- **AND** named, qualified, quoted, plural, and mixed property/field conversion requests retain the member kind
+- **AND** a negated member conversion remains general discovery unless a later positive conversion is requested
+- **AND** another change to a static member earlier in the request does not hide a later member conversion
+- **AND** a static-class request with a property or field qualifier retains general discovery
+- **AND** creating or deleting a static property or field retains general catalogue discovery rather than being labeled a staticness conversion
+- **AND** an independently named missing plan capability retains its existing `Unsupported` outcome
+- **AND** standalone negated, static-import, and static-class queries retain general catalogue discovery
+
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 
 - **WHEN** the user asks to review uncommitted C# changes on Linux x64

@@ -16,6 +16,155 @@ public sealed class SuggestWorkflowSurfaceTests
         help.Stdout.ShouldContain("--solution");
     }
 
+    [Theory]
+    [InlineData("Convert an instance method to static", "make-static")]
+    [InlineData("Convert an instance method to static, please.", "make-static")]
+    [InlineData("Convert an instance method to static, for performance and testability", "make-static")]
+    [InlineData("Convert an instance method to static, and nothing else", "make-static")]
+    [InlineData("Convert an instance method to static, and only that", "make-static")]
+    [InlineData("Convert an instance method to static to improve performance and testability", "make-static")]
+    [InlineData("Convert a static method to an instance method", "make-instance")]
+    [InlineData("Convert OrderService.Validate from instance to static", "make-static")]
+    [InlineData("Convert the static method OrderService.Validate to an instance method", "make-instance")]
+    [InlineData("Make the instance method OrderService.Validate static", "make-static")]
+    [InlineData("Remove static from the method OrderService.Validate", "make-instance")]
+    [InlineData("Remove static from OrderService.Validate", "make-instance")]
+    public async Task method_conversion_top_one_follows_the_requested_direction(string query, string intended)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Results")[0].GetProperty("Name").GetString().ShouldBe(intended);
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("Convert an instance method to static and list callers")]
+    [InlineData("Convert an instance method to static while listing callers")]
+    [InlineData("Convert an instance method to static and do not change callers")]
+    [InlineData("Convert an instance method to static and make a static class injectable")]
+    [InlineData("Convert an instance method to static with no caller changes")]
+    [InlineData("Make a static method non-static with no call-site updates")]
+    [InlineData("Convert an instance method to static as well as list callers")]
+    [InlineData("Convert an instance method to static. List callers.")]
+    [InlineData("Convert an instance method to static with no call-site edits")]
+    [InlineData("Convert an instance method to static along with listing callers")]
+    [InlineData("List callers. Convert an instance method to static.")]
+    [InlineData("List static classes and convert the instance method Foo.Bar unusual overload to static")]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static and convert to static class")]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static and convert to static imports")]
+    [InlineData("List static classes and convert Foo.Bar unusual overload from instance to static")]
+    [InlineData("Add static imports and convert Foo.Bar unusual overload from instance to static")]
+    public async Task compound_method_conversion_does_not_recommend_the_opposite_mutation(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("method-staticness-workflow");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task property_target_does_not_recommend_method_staticness()
+    {
+        var result = await RtCliHost.RunAsync(
+            "suggest \"Convert an instance method to a static property\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("method-kind-conversion");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task property_staticness_reports_its_own_missing_capability()
+    {
+        var result = await RtCliHost.RunAsync(
+            "suggest \"Convert a property from instance to static\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("member-staticness-conversion");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData("Make an instance field static")]
+    [InlineData("Remove static from the property Value")]
+    [InlineData("Remove static modifier on a field")]
+    [InlineData("Add the static modifier on a field")]
+    [InlineData("Make the property named Value static")]
+    [InlineData("Convert a field named _count from static to instance")]
+    [InlineData("Mark a field with the static modifier")]
+    [InlineData("Remove the static keyword from property Value")]
+    [InlineData("Set property Value to static")]
+    [InlineData("Make property `OrderService.Status` static")]
+    [InlineData("Make the fields X and Y static")]
+    [InlineData("Make a static property thread-safe and make a field static")]
+    [InlineData("Change the name of a static property and set a field static")]
+    [InlineData("Make the property Value and the field Count static")]
+    [InlineData("Do not remove static from property Value and add static to field Count")]
+    [InlineData("Make a property static and list static classes")]
+    [InlineData("Convert a field from instance to static and add static imports")]
+    [InlineData("Add static imports and convert a field from instance to static")]
+    [InlineData("List static classes and make a property static")]
+    [InlineData("Remove a static field and make a property static")]
+    public async Task property_or_field_staticness_never_recommends_a_method_recipe(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("member-staticness-conversion");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData("Find static imports used across the solution", "list-imports")]
+    [InlineData("Add static using imports", "add-static-import")]
+    [InlineData("Convert a static class to an instance class", "static-class-inventory")]
+    [InlineData("Make a static class with properties injectable", "make-static")]
+    public async Task non_method_static_queries_keep_their_first_catalogue_result(string query, string expected)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Results")[0].GetProperty("Name").GetString().ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task static_class_from_phrase_keeps_general_discovery()
+    {
+        var result = await RtCliHost.RunAsync(
+            "suggest \"Convert a static class from static to instance\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("Add a static property")]
+    [InlineData("Remove a static field")]
+    public async Task static_member_creation_or_deletion_keeps_general_discovery(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
+    }
+
     [Fact]
     public async Task implementation_search_json_contains_an_invokable_route_with_solution()
     {

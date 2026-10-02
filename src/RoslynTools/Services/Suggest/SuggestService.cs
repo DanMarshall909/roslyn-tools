@@ -68,6 +68,17 @@ internal sealed class SuggestService : IRtService
         if (IsWorkingTreeReview(request.Query))
             return SuggestWorkingTreeReview(request.Query, request.Solution);
 
+        if (MethodStaticConversion(request.Query) is { } conversion)
+            return SuggestMethodConversion(conversion.CommandName, conversion.RequiresWorkflow,
+                conversion.OtherTarget, request.Query);
+
+        if (IsPropertyOrFieldStaticConversion(request.Query))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "member-staticness-conversion",
+                UnsupportedReason: "rt has no property or field staticness conversion recipe. Inspect the member kind and its callers before choosing a change; method staticness recipes do not apply.");
+
+        if (IsUnparsedMethodStaticConversion(request.Query))
+            return UnsupportedMethodStaticnessWorkflow();
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -81,6 +92,234 @@ internal sealed class SuggestService : IRtService
             results,
             related,
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private SuggestResponse SuggestMethodConversion(
+        string commandName, bool requiresWorkflow, bool otherTarget, string query)
+    {
+        if (otherTarget)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "method-kind-conversion",
+                UnsupportedReason: "rt has no method-to-property, field, or other member-kind conversion workflow. Inspect the source and target member kinds before choosing a refactoring; method staticness recipes do not perform this conversion.");
+
+        if (requiresWorkflow)
+            return UnsupportedMethodStaticnessWorkflow();
+
+        var command = _catalog.All.FirstOrDefault(info => info.Name == commandName);
+        if (command is null)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, commandName);
+
+        // Word order determines the recipe; BM25 treats both directions as the same terms.
+        var ranked = Bm25Scorer.Score([command], query, 1, Synonyms.NameSynonyms);
+        var score = ranked.Count == 0 ? 0 : ranked[0].Score;
+        return new SuggestResponse([ToResult(new ScoredCommand(command, score))], [],
+            SuggestOutcome.Recommendations);
+    }
+
+    private static SuggestResponse UnsupportedMethodStaticnessWorkflow() =>
+        new([], [], SuggestOutcome.Unsupported, "method-staticness-workflow",
+            UnsupportedReason: "rt can suggest one method staticness recipe only for a recognized single-task request. Extra or unrecognized clauses or method syntax may require caller handling or another task. Make separate requests for caller/reference inspection and the selected conversion command; review its dry-run from a clean commit, then build and test before applying.");
+
+    private static (string CommandName, bool RequiresWorkflow, bool OtherTarget)? MethodStaticConversion(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string convert = @"\b(?:convert|turn|change)\s+(?:(?:an?|the)\s+)?";
+        const string identifier = @"@?\w+(?:<[^>]*>+)?";
+        const string memberName = @"(?:(?:named|called)\s+)?" + identifier
+            + @"(?:\." + identifier + @")*(?:\([^)]*\))?";
+        const string qualifiedMember = identifier + @"(?:\." + identifier + @")+(?:\([^)]*\))?";
+        var toStatic = FirstMatch(query, options,
+            convert + @"instance\s+methods?\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            convert + @"instance\s+methods?\s+" + memberName + @"\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            convert + @"methods?\s+from\s+instance\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            convert + @"methods?\s+" + memberName + @"\s+from\s+instance\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            convert + @"named\s+methods?\s+" + memberName + @"\s+from\s+instance\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            convert + qualifiedMember + @"\s+from\s+instance\s+(?:to|into)\s+(?:an?\s+)?static(?:\s+methods?)?\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?instance\s+methods?\s+static\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?instance\s+methods?\s+" + memberName + @"\s+static\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?named\s+methods?\s+" + memberName + @"\s+static\b",
+            @"\bmake\s+" + qualifiedMember + @"\s+static\b");
+        var toInstance = FirstMatch(query, options,
+            convert + @"static\s+methods?\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            convert + @"static\s+methods?\s+" + memberName + @"\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            convert + @"methods?\s+from\s+static\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            convert + @"methods?\s+" + memberName + @"\s+from\s+static\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            convert + @"named\s+methods?\s+" + memberName + @"\s+from\s+static\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            convert + qualifiedMember + @"\s+from\s+static\s+(?:to|into)\s+(?:an?\s+)?(?:instance(?:\s+methods?)?|non[- ]static)\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?static\s+methods?\s+(?:(?:an?\s+)?instance\s+methods?|non[- ]static)\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?static\s+methods?\s+" + memberName + @"\s+(?:(?:an?\s+)?instance\s+methods?|non[- ]static)\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?methods?\s+" + memberName + @"\s+non[- ]static\b",
+            @"\bmake\s+(?:(?:an?|the)\s+)?named\s+methods?\s+" + memberName + @"\s+(?:(?:an?\s+)?instance\s+methods?|non[- ]static)\b",
+            @"\bmake\s+" + qualifiedMember + @"\s+(?:(?:an?\s+)?instance\s+methods?|non[- ]static)\b",
+            @"\bremove\s+(?:the\s+)?static(?:\s+modifier)?\s+from\s+(?:(?:an?|the)\s+)?(?:static\s+)?methods?\s+" + memberName,
+            @"\bremove\s+(?:the\s+)?static(?:\s+modifier)?\s+from\s+(?:(?:an?|the)\s+)?named\s+methods?\s+" + memberName,
+            @"\bremove\s+(?:the\s+)?static(?:\s+modifier)?\s+from\s+" + qualifiedMember,
+            @"\bremove\s+(?:the\s+)?static(?:\s+modifier)?\s+from\s+(?:(?:an?|the)\s+)?methods?\b");
+        if (toStatic is null && toInstance is null)
+            return null;
+        var conversion = toStatic ?? toInstance!;
+        if (IsNegatedAction(query, conversion.Index, options)
+            || Regex.IsMatch(query[(conversion.Index + conversion.Length)..],
+                @"^\s+(?:class(?:es)?|imports?)\b", options))
+            return null;
+        return (toStatic is not null ? "make-static" : "make-instance",
+            toStatic is not null && toInstance is not null
+            || HasUnrepresentedMethodClause(query, conversion, options),
+            HasDifferentTargetKind(query[(conversion.Index + conversion.Length)..], options));
+    }
+
+    private static bool IsUnparsedMethodStaticConversion(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string direction = @"\bfrom\s+(?:instance|static)\s+(?:to|into)\s+(?:an?\s+)?(?:static|instance|non[- ]static)\b"
+                                 + @"|\b(?:instance|static)\s+methods?\b.{0,120}?\b(?:to|into)\s+(?:an?\s+)?(?:static|instance|non[- ]static)\b";
+        foreach (Match conversion in Regex.Matches(query, direction, options))
+        {
+            var after = query[(conversion.Index + conversion.Length)..];
+            if (Regex.IsMatch(after, @"^\s+(?:class(?:es)?|imports?)\b", options))
+                continue;
+
+            var before = query[..conversion.Index];
+            Match? action = null;
+            foreach (Match candidate in Regex.Matches(before,
+                         @"\b(?:convert|turn|change|make|remove)\b", options))
+                action = candidate;
+            if (action is null || IsNegatedAction(query, action.Index, options))
+                continue;
+
+            var requestedSubject = query[action.Index..(conversion.Index + conversion.Length)];
+            var method = Regex.Match(requestedSubject, @"\bmethods?\b", options);
+            var classOrImport = Regex.Match(requestedSubject,
+                @"\b(?:static|instance)\s+class(?:es)?\b|\bclass(?:es)?\s+from\s+(?:static|instance)\b"
+                + @"|\b(?:static\s+imports?|using\s+static)\b", options);
+            if (classOrImport.Success && !method.Success)
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPropertyOrFieldStaticConversion(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        const string member = @"\b(?:property|properties|fields?)\b";
+        foreach (var clause in Regex.Split(query, @"[.;]\s", options))
+        {
+            foreach (Match modifierAction in Regex.Matches(clause,
+                         @"\b(?:remove|add|set|apply)\s+(?:the\s+)?static(?:\s+(?:modifier|keyword))?\s+(?:from|to|on|off)\b.{0,80}?"
+                         + member, options))
+            {
+                if (!IsNegatedAction(clause, modifierAction.Index, options))
+                    return true;
+            }
+
+            foreach (Match action in Regex.Matches(clause,
+                         @"\b(?:convert|turn|change|make|mark|set|apply)\b", options))
+            {
+                if (IsNegatedAction(clause, action.Index, options))
+                    continue;
+                var afterAction = clause[(action.Index + action.Length)..];
+                var source = Regex.Match(afterAction, member, options);
+                if (!source.Success)
+                    continue;
+
+                var afterSource = afterAction[(source.Index + source.Length)..].TrimStart();
+                if (action.Value.Equals("mark", StringComparison.OrdinalIgnoreCase)
+                    && Regex.IsMatch(afterSource,
+                        @"^with\s+(?:the\s+)?static\s+(?:modifier|keyword)\b", options))
+                    return true;
+                if (HasStaticnessTarget(afterSource, options))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasStaticnessTarget(string afterMember, RegexOptions options, bool allowName = true)
+    {
+        const string direction = @"(?:static|instance|non[- ]static)\b";
+        const string article = @"(?:(?:an?|the)\s+)?";
+        var fromTo = Regex.Match(afterMember,
+            @"^from\s+" + direction + @"\s+(?:to|into)\s+" + article + direction, options);
+        if (fromTo.Success && !afterMember[fromTo.Length..].StartsWith('-'))
+            return true;
+
+        var target = Regex.Match(afterMember,
+            @"^(?:(?:to|into|as)\s+)?" + article + direction, options);
+        if (target.Success && !afterMember[target.Length..].StartsWith('-'))
+            return !Regex.IsMatch(afterMember[target.Length..],
+                @"^\s+(?:class(?:es)?|imports?|analysis)\b", options);
+
+        var names = Regex.Match(afterMember,
+            @"^@?[\w.:<>]+\s+and\s+@?[\w.:<>]+\s+", options);
+        if (names.Success && HasStaticnessTarget(afterMember[names.Length..], options, false))
+            return true;
+
+        var memberList = Regex.Match(afterMember,
+            @"^@?[\w.:<>]+\s+and\s+(?:(?:an?|the)\s+)?(?:property|properties|fields?)\s+@?[\w.:<>]+\s+",
+            options);
+        if (memberList.Success && HasStaticnessTarget(afterMember[memberList.Length..], options, false))
+            return true;
+
+        var name = Regex.Match(afterMember,
+            @"^(?:(?:named|called)\s+)?(?:@?[\w.:<>]+(?:\([^)]*\))?|`[^`]+`|""[^""]+""|'[^']+')\s+",
+            options);
+        if (!allowName || !name.Success || Regex.IsMatch(name.Value,
+                @"^(?:from|in|for|with|on|of|to|into|as)\b", options))
+            return false;
+
+        return HasStaticnessTarget(afterMember[name.Length..], options, false);
+    }
+
+    private static bool IsNegatedAction(string query, int actionIndex, RegexOptions options) =>
+        Regex.IsMatch(query[..actionIndex],
+            @"\b(?:not|never|avoid|don['’]t)(?:\s+(?:want|wish)\s+to)?\s*$", options);
+
+    private static Match? FirstMatch(string query, RegexOptions options, params string[] patterns)
+    {
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(query, pattern, options);
+            if (match.Success)
+                return match;
+        }
+        return null;
+    }
+
+    private static bool HasDifferentTargetKind(string after, RegexOptions options) =>
+        Regex.IsMatch(after,
+            @"^\s+(?:property|properties|fields?|events?|structs?|records?|interfaces?|namespaces?|types?|constructors?|parameters?|operators?|indexers?|local\s+functions?)\b",
+            options);
+
+    private static bool HasUnrepresentedMethodClause(string query, Match conversion, RegexOptions options)
+    {
+        // A recipe is safe only when the whole request is one recognized conversion task.
+        // Unknown surrounding clauses may hide another action or a caller constraint.
+        const string quality = @"(?:performance|testability|readability|maintainability|clarity|safety|efficiency|speed)";
+        const string qualityList = @"(?:(?:better|improved|greater)\s+)?" + quality
+            + @"(?:\s+and\s+(?:(?:better|improved|greater)\s+)?" + quality + @")*";
+        const string prefix = @"^\s*(?:(?:(?:please|kindly)[,;]?\s*)|(?:(?:can|could|would)\s+you\s+(?:(?:please|kindly)\s+)?)|(?:i\s+(?:need|want)\s+to\s+))?$";
+        const string motive = @"(?:(?:for\s+|because\s+it\s+(?:improves?|helps?)\s+|to\s+improve\s+)"
+            + qualityList + @"|in\s+(?:an?\s+)?test\s+project|safely)";
+        if (!Regex.IsMatch(query[..conversion.Index], prefix, options))
+            return true;
+        var after = query[(conversion.Index + conversion.Length)..].Trim();
+        if (Regex.IsMatch(after, @"^[,;.!?]*\s*(?:(?:please|thanks|thank\s+you)\b[.!?]*)?$", options))
+            return false;
+        after = after.TrimStart(',', ';', '.', '!', '?', ':').TrimStart();
+        if (Regex.IsMatch(after,
+                @"^and\s+(?:nothing\s+else|only\s+that|no\s+other\s+(?:changes|edits|updates|tasks?))(?:,\s*please)?[.!?]*$",
+                options))
+            return false;
+        return !Regex.IsMatch(after, @"^" + motive + @"(?:,\s*please)?[.!?]*$", options);
     }
 
     private static bool IsProposedChangeImpactRequest(string query)

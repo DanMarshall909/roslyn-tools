@@ -67,6 +67,309 @@ public sealed class SuggestServiceTests
     }
 
     [Theory]
+    [InlineData("Convert an instance method to static", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, please.", "make-static", "make-instance")]
+    [InlineData("Please, convert an instance method to static.", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static for performance", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static for performance and testability", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, for performance and testability", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, because it improves performance", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, to improve performance", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static to improve performance and testability", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static because it improves performance and testability", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static for better testability", "make-static", "make-instance")]
+    [InlineData("Kindly convert an instance method to static", "make-static", "make-instance")]
+    [InlineData("Could you kindly convert an instance method to static", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static and nothing else", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, and nothing else", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static, and only that", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static and no other edits", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static safely", "make-static", "make-instance")]
+    [InlineData("Convert an instance method to static in a test project", "make-static", "make-instance")]
+    [InlineData("Make an instance method static", "make-static", "make-instance")]
+    [InlineData("Make the instance method OrderService.Validate static", "make-static", "make-instance")]
+    [InlineData("Make OrderService.Validate static", "make-static", "make-instance")]
+    [InlineData("Make the named method OrderService.Validate static", "make-static", "make-instance")]
+    [InlineData("Make an instance method named Validate static", "make-static", "make-instance")]
+    [InlineData("Turn an instance method into a static method", "make-static", "make-instance")]
+    [InlineData("Convert a method from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert a method from instance to a static method", "make-static", "make-instance")]
+    [InlineData("Convert OrderService.Validate from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert OrderService.Validate(string) from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert the instance method Foo.Bar<Baz<Qux>> to static", "make-static", "make-instance")]
+    [InlineData("Convert an instance method named Validate to static", "make-static", "make-instance")]
+    [InlineData("Convert the instance method OrderService.Validate to static", "make-static", "make-instance")]
+    [InlineData("Convert a method named Validate from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert the named method OrderService.Validate from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert a static method to an instance method", "make-instance", "make-static")]
+    [InlineData("Convert a method from static to instance", "make-instance", "make-static")]
+    [InlineData("Convert a method from static to an instance method", "make-instance", "make-static")]
+    [InlineData("Convert OrderService.Validate from static to instance", "make-instance", "make-static")]
+    [InlineData("Convert the named method OrderService.Validate from static to instance", "make-instance", "make-static")]
+    [InlineData("Convert OrderService.Validate<T> from static to instance", "make-instance", "make-static")]
+    [InlineData("Convert a static method named Validate to an instance method", "make-instance", "make-static")]
+    [InlineData("Convert the static method OrderService.Validate to an instance method", "make-instance", "make-static")]
+    [InlineData("Convert a method from static to non-static", "make-instance", "make-static")]
+    [InlineData("Make a static method an instance method", "make-instance", "make-static")]
+    [InlineData("Make the static method OrderService.Validate an instance method", "make-instance", "make-static")]
+    [InlineData("Make OrderService.Validate an instance method", "make-instance", "make-static")]
+    [InlineData("Make OrderService.Validate non-static", "make-instance", "make-static")]
+    [InlineData("Make the method OrderService.Validate non-static", "make-instance", "make-static")]
+    [InlineData("Make the named method OrderService.Validate non-static", "make-instance", "make-static")]
+    [InlineData("Remove static from a method", "make-instance", "make-static")]
+    [InlineData("Remove static from the method OrderService.Validate", "make-instance", "make-static")]
+    [InlineData("Remove static from OrderService.Validate", "make-instance", "make-static")]
+    [InlineData("Remove the static modifier from OrderService.Validate", "make-instance", "make-static")]
+    [InlineData("Remove static from static method OrderService.Validate", "make-instance", "make-static")]
+    [InlineData("Remove static from the named method OrderService.Validate", "make-instance", "make-static")]
+    [InlineData("Remove static from a method named Validate", "make-instance", "make-static")]
+    [InlineData("Remove the static modifier from a method", "make-instance", "make-static")]
+    [InlineData("Make a static method non-static", "make-instance", "make-static")]
+    [InlineData("Convert a static method to non-static", "make-instance", "make-static")]
+    [InlineData("Convert a static method to an instance method; please", "make-instance", "make-static")]
+    public void explicit_method_conversion_removes_the_opposite_direction_before_ranking(
+        string query,
+        string intended,
+        string opposite)
+    {
+        var catalog = new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static"),
+            Info("static-class-inventory", category: "analyze", whenToUse: "List static classes"));
+        var service = new SuggestService(catalog);
+
+        var topOne = service.Suggest(new SuggestRequest(query, Top: 1));
+        var topThree = service.Suggest(new SuggestRequest(query, Top: 3));
+
+        topOne.Results.ShouldHaveSingleItem().Name.ShouldBe(intended);
+        topThree.Results.ShouldHaveSingleItem().Name.ShouldBe(intended);
+        topThree.Results.Select(result => result.Name).ShouldNotContain(opposite);
+        topThree.Related.ShouldBeEmpty();
+        topThree.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Make an instance method static and convert a static method to instance")]
+    [InlineData("Convert an instance method to static and list callers")]
+    [InlineData("Convert an instance method to static and identify its callers")]
+    [InlineData("Convert an instance method to static while listing callers")]
+    [InlineData("Convert an instance method to static after reviewing callers")]
+    [InlineData("Convert an instance method to static but keep callers unchanged")]
+    [InlineData("Convert an instance method to static but not update callers")]
+    [InlineData("Convert an instance method to static but do not update callers")]
+    [InlineData("Convert an instance method to static and do not change callers")]
+    [InlineData("Convert an instance method to static; do not change callers")]
+    [InlineData("Convert an instance method to static and never change callers")]
+    [InlineData("Convert an instance method to static and make a static class injectable")]
+    [InlineData("Convert an instance method to static but leave callers unchanged")]
+    [InlineData("Convert an instance method to static without updating callers")]
+    [InlineData("Convert an instance method to static without caller changes")]
+    [InlineData("Convert an instance method to static with no caller changes")]
+    [InlineData("Convert an instance method to static with no updates to callers")]
+    [InlineData("Convert an instance method to static with callers unchanged")]
+    [InlineData("Convert an instance method to static so callers remain unchanged")]
+    [InlineData("Convert an instance method to static with no call-site edits")]
+    [InlineData("Convert an instance method to static with no edits to callers")]
+    [InlineData("Convert an instance method to static with no changes at call sites")]
+    [InlineData("Convert an instance method to static with existing call sites unchanged")]
+    [InlineData("Convert an instance method to static with callers kept intact")]
+    [InlineData("Make a static method non-static with no call-site updates")]
+    [InlineData("Convert an instance method to static as well as list callers")]
+    [InlineData("Inspect callers and convert an instance method to static")]
+    [InlineData("Inspect callers before we convert an instance method to static")]
+    [InlineData("Convert an instance method to static, list callers")]
+    [InlineData("Convert an instance method to static, update callers")]
+    [InlineData("Convert an instance method to static. List callers.")]
+    [InlineData("Convert an instance method to static or list callers")]
+    [InlineData("Convert an instance method to static along with listing callers")]
+    [InlineData("List callers. Convert an instance method to static.")]
+    [InlineData("Convert an instance method to static; give me a list of callers")]
+    [InlineData("Convert an instance method to static with an extra caller review requirement")]
+    [InlineData("Convert OrderService.Validate from instance to static and list callers")]
+    [InlineData("Convert a static method to an instance method; list callers")]
+    public void compound_method_conversion_reports_missing_workflow(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-staticness-workflow");
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull().ShouldContain("separate");
+    }
+
+    [Theory]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static")]
+    [InlineData("List static classes and convert the instance method Foo.Bar unusual overload to static")]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static and convert to static class")]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static and convert to static imports")]
+    [InlineData("List static classes and convert Foo.Bar unusual overload from instance to static")]
+    [InlineData("Add static imports and convert Foo.Bar unusual overload from instance to static")]
+    public void unparsed_named_method_conversion_does_not_fall_through_to_opposite_mutation(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-staticness-workflow");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Convert an instance method to a static property")]
+    [InlineData("Convert a static method to an instance property")]
+    [InlineData("Convert an instance method to a static field")]
+    [InlineData("Convert the instance method OrderService.Validate to a static property")]
+    public void conversion_to_another_member_kind_does_not_recommend_method_staticness(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-kind-conversion");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Convert a property from instance to static")]
+    [InlineData("Convert a field from static to instance")]
+    [InlineData("Convert the instance property OrderService.Status to static")]
+    [InlineData("Make an instance field static")]
+    [InlineData("Make a static property an instance property")]
+    [InlineData("Remove static from the property Value")]
+    [InlineData("Add static to a field")]
+    [InlineData("Mark property Value static")]
+    [InlineData("Make a property static and list static classes")]
+    [InlineData("Make a property static in a static class")]
+    [InlineData("Convert a field from instance to static and add static imports")]
+    [InlineData("Remove the static modifier on property Value")]
+    [InlineData("Remove static modifier on a field")]
+    [InlineData("Add the static modifier on a field")]
+    [InlineData("Make the property named Value static")]
+    [InlineData("Make a field called _count static")]
+    [InlineData("Convert a property named OrderService.Status from instance to static")]
+    [InlineData("Convert a field named _count from static to instance")]
+    [InlineData("Mark the property named Value as static")]
+    [InlineData("Mark a field with the static modifier")]
+    [InlineData("Remove the static keyword from property Value")]
+    [InlineData("Add the static keyword to field _count")]
+    [InlineData("Make field called _count non-static")]
+    [InlineData("Convert a property called Value from static to instance")]
+    [InlineData("Make the property \"Value\" static")]
+    [InlineData("Set property Value to static")]
+    [InlineData("Make property `OrderService.Status` static")]
+    [InlineData("Convert field `_count` from static to instance")]
+    [InlineData("Make a property global::Foo.Bar static")]
+    [InlineData("Make the fields X and Y static")]
+    [InlineData("Set the static modifier on property Value")]
+    [InlineData("Apply the static modifier to field _count")]
+    [InlineData("Remove the static modifier off property Value")]
+    [InlineData("Make a static property thread-safe and make a field static")]
+    [InlineData("Change the name of a static property and set a field static")]
+    [InlineData("Mark a static field obsolete and convert a property from instance to static")]
+    [InlineData("Make the property Value and the field Count static")]
+    [InlineData("Convert field X and property Y from instance to static")]
+    [InlineData("Do not remove static from property Value and add static to field Count")]
+    [InlineData("Do not add static to property Value and remove static from field Count")]
+    [InlineData("Add static imports and convert a field from instance to static")]
+    [InlineData("List static classes and make a property static")]
+    [InlineData("Remove a static field and make a property static")]
+    public void property_or_field_staticness_does_not_claim_a_method_workflow(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("member-staticness-conversion");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void missing_plan_capability_keeps_precedence_over_method_conversion()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest("Convert an instance method to static and prepare a plan", Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("prepare-plan");
+        response.Results.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Convert an instance method to static", "make-static", "make-instance")]
+    [InlineData("Convert a static method to an instance method", "make-instance", "make-static")]
+    [InlineData("Convert OrderService.Validate from instance to static", "make-static", "make-instance")]
+    [InlineData("Convert OrderService.Validate from static to instance", "make-instance", "make-static")]
+    public void explicit_method_conversion_reports_a_missing_intended_command(
+        string query,
+        string intended,
+        string opposite)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info(opposite, category: "refactor", whenToUse: "Convert a method between static and instance")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe(intended);
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Find static imports used across the solution")]
+    [InlineData("Remove static imports from a method")]
+    [InlineData("Make a static class injectable")]
+    [InlineData("Convert a static class to an instance class")]
+    [InlineData("Convert a static class from static to instance")]
+    [InlineData("Find a field used by a static method")]
+    [InlineData("Add a static property")]
+    [InlineData("Add a static field")]
+    [InlineData("Remove a static property")]
+    [InlineData("Remove a static field")]
+    [InlineData("Make a static method async")]
+    [InlineData("Do not convert an instance method to static; list its callers")]
+    [InlineData("Convert an instance method to a static class")]
+    [InlineData("Make a static property thread-safe")]
+    [InlineData("Mark a static field obsolete")]
+    [InlineData("Change the name of a static property")]
+    [InlineData("Convert a static field to a property")]
+    [InlineData("Make a static class with properties injectable")]
+    [InlineData("Make a property thread-safe in a static method")]
+    [InlineData("Mark a property obsolete for static analysis")]
+    [InlineData("Make a property static-analysis friendly")]
+    [InlineData("Mark a field static-analysis exempt")]
+    [InlineData("Make a property static analysis friendly")]
+    [InlineData("Mark a field static analysis exempt")]
+    [InlineData("Make a property with the static modifier thread-safe")]
+    [InlineData("Do not make a property static")]
+    [InlineData("Do not convert a field from instance to static")]
+    [InlineData("Do not remove static from property Value")]
+    [InlineData("I do not want to make property Value static")]
+    public void static_queries_outside_method_conversion_keep_catalogue_discovery(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("list-imports", whenToUse: "Find static imports"),
+            Info("static-class-inventory", category: "analyze", whenToUse: "List static classes"),
+            Info("rename", category: "refactor", whenToUse: "Rename a method or class")))
+            .Suggest(new SuggestRequest(query, Top: 3));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.MissingCapability.ShouldBeNull();
+        response.Results.ShouldNotBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
     [InlineData("Find violations of configured project layering rules")]
     [InlineData("Check configured project dependency boundaries")]
     [InlineData("Check configured layer dependency violations")]

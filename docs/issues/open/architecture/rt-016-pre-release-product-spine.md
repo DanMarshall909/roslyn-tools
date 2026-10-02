@@ -226,6 +226,47 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   scope or option qualifiers remain on general discovery rather than receiving
   an unqualified call. General workflow routing and revision-safe relationship
   paging remain open.
+- Explicit method staticness requests now preserve the requested direction in
+  CLI and MCP `suggest`: instance-to-static recommends only `make-static`, and
+  static-to-instance/non-static recommends only `make-instance`, including at
+  `--top 1`. If the matching command is absent, the outcome names the missing
+  capability instead of recommending the opposite mutation. Compound requests
+  name the missing `method-staticness-workflow` and give manual steps; standalone
+  negated, static-import, and static-class requests retain catalogue discovery. A
+  later negation or class task does not hide an earlier positive conversion;
+  earlier class/import tasks do not hide a later conversion. Polite
+  punctuation and recognized motives remain a single conversion request, while
+  an unrecognized surrounding clause or caller-update constraint returns the
+  missing workflow instead of a bare mutation. This is
+  command selection only; supplied names and signatures preserve direction but
+  do not select a concrete target. Unparsed explicit method syntax returns the
+  missing workflow rather than opposite-direction ranking. Method resolution,
+  preparation, and verification
+  remain open. Method-to-property/field requests return named
+  `Unsupported(method-kind-conversion)` rather than a staticness recipe, while
+  property/field staticness requests name `member-staticness-conversion` rather
+  than a method workflow; static-member creation and deletion retain general
+  discovery, which can still rank irrelevant commands and needs a later route.
+  Earlier or later class, import, or member-deletion clauses do not hide a
+  property or field conversion.
+  Other changes to an already-static property or field and class requests
+  mentioning properties or fields retain general discovery.
+  Static method/analysis context does not count as a conversion target;
+  add/remove static modifier forms on a property or field name the missing
+  member capability.
+  Named, qualified, quoted, plural, and mixed property/field requests retain
+  that member kind. An earlier unrelated or negated member action does not
+  hide a later positive conversion; standalone negated member requests retain
+  discovery.
+  A later class or import task does not hide an earlier explicit but unparsed
+  method conversion; an earlier class or import task also does not hide a later
+  qualified unparsed method conversion.
+  Named `make` and `remove static` forms also preserve
+  direction. The independently named missing plan capability keeps its
+  existing outcome.
+  A negated “do not convert …; list callers” query still ranks a
+  mutation through general catalogue discovery and needs a separate read or
+  unsupported route before the pre-freeze discovery gate can close.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

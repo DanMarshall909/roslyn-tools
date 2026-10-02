@@ -363,6 +363,30 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   do not drop unrepresented scope or option qualifiers; preserve generic,
   ambiguous, unsupported-kind, project/package-reference, and proposed-impact
   routes.
+- [x] Preserve direction for explicit instance-to-static and static-to-instance
+  method conversion requests in CLI/MCP `suggest`, with one matching recipe at
+  top one, named `Unsupported` if absent or coupled to another task, and general
+  discovery for standalone negated, static-import, and static-class queries. Preserve
+  harmless punctuation and recognized motives; report unrecognized surrounding
+  clauses and caller-update constraints as unsupported rather than reducing
+  them to a single recommendation, including when a later negation or class
+  task might otherwise hide the positive conversion, or an earlier class or
+  import task might hide a later conversion. Preserve direction with supplied method
+  names and signatures; unparsed explicit method syntax must not fall back to
+  opposite-direction ranking even with an earlier or later class or import task. Reject
+  property/field targets with a named
+  missing member-kind capability, and reject property/field staticness with a
+  separate named missing capability even with earlier or later class, import,
+  or member-deletion clauses,
+  while preserving higher-priority named plan
+  outcomes. Other changes to an already-static property or field, and
+  static-class requests mentioning properties or fields, retain discovery;
+  static method/analysis context is not a conversion target. Add/remove static
+  modifier forms on properties or fields name the missing member capability;
+  named, qualified, quoted, plural, mixed, and later positive conversions
+  preserve the member kind while standalone negated conversions retain
+  discovery.
+  This does not prepare or verify a mutation plan.
 - [ ] Replace isolated name ranking with ordered workflow definitions generated from
   catalogue metadata and shared operation schemas.
 - [ ] Support natural-language goal and omitted-query Git-context modes in both CLI and

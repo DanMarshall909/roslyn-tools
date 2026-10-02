@@ -271,6 +271,165 @@ public class ServerSerializationTests
         JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("Convert an instance method to static", "make-static")]
+    [InlineData("Convert an instance method to static, please.", "make-static")]
+    [InlineData("Convert an instance method to static, for performance and testability", "make-static")]
+    [InlineData("Convert a static method to an instance method", "make-instance")]
+    [InlineData("Convert OrderService.Validate from instance to static", "make-static")]
+    [InlineData("Convert the static method OrderService.Validate to an instance method", "make-instance")]
+    [InlineData("Make the instance method OrderService.Validate static", "make-static")]
+    [InlineData("Remove static from the method OrderService.Validate", "make-instance")]
+    [InlineData("Remove static from OrderService.Validate", "make-instance")]
+    public async Task suggest_method_conversion_top_one_follows_the_requested_direction(string query, string intended)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new { name = "suggest_command", arguments = new { query, top = 1 } }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("results")[0].GetProperty("name").GetString().ShouldBe(intended);
+        structured.GetProperty("results").GetArrayLength().ShouldBe(1);
+        structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Convert an instance method to static and list callers")]
+    [InlineData("Convert an instance method to static while listing callers")]
+    [InlineData("Convert an instance method to static and do not change callers")]
+    [InlineData("Convert an instance method to static with no caller changes")]
+    [InlineData("Convert an instance method to static as well as list callers")]
+    [InlineData("List static classes and convert the instance method Foo.Bar unusual overload to static")]
+    [InlineData("Convert the instance method Foo.Bar unusual overload to static and convert to static class")]
+    [InlineData("List static classes and convert Foo.Bar unusual overload from instance to static")]
+    public async Task suggest_compound_method_conversion_reports_missing_workflow(string query)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query, top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("method-staticness-workflow");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task suggest_property_target_reports_missing_member_kind_conversion()
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query = "Convert a static method to an instance property", top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("method-kind-conversion");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Add static imports and convert a field from instance to static")]
+    [InlineData("Remove a static field and make a property static")]
+    [InlineData("Make a field called _count static")]
+    [InlineData("Remove the static keyword from property Value")]
+    [InlineData("Set property Value to static")]
+    [InlineData("Convert field `_count` from static to instance")]
+    [InlineData("Mark a static field obsolete and convert a property from instance to static")]
+    public async Task suggest_property_or_field_conversion_keeps_its_member_kind(string query)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query, top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("member-staticness-conversion");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Make a static property thread-safe")]
+    [InlineData("Make a static class with properties injectable")]
+    [InlineData("Make a property thread-safe in a static method")]
+    [InlineData("Make a property static analysis friendly")]
+    public async Task suggest_other_static_member_or_class_changes_keep_discovery(string query)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query, top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Recommendations");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(1);
+        structured.TryGetProperty("missingCapability", out _).ShouldBeFalse();
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
     [Fact]
     public async Task suggest_reports_missing_plan_verification_without_unrelated_tools()
     {
