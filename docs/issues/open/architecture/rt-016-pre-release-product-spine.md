@@ -290,6 +290,10 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   mutations. Existing-member modifier conversion, imports, inventory, and
   standalone negation keep their distinct routes. Attribute changes on static
   members still need task-aware relevance handling.
+  Explicit edits to references or usages of static properties and fields now
+  return `Unsupported(member-reference-edit)` with empty results. The reason
+  points to exact reference inspection and distinguishes reference edits from
+  `delete-unreferenced`, which prepares deletion of the declaration.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

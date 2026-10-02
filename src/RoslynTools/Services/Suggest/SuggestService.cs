@@ -73,7 +73,16 @@ internal sealed class SuggestService : IRtService
             return SuggestMethodConversion(conversion.CommandName, conversion.RequiresWorkflow,
                 conversion.OtherTarget, request.Query);
 
-        if (IsPropertyOrFieldStaticConversion(request.Query))
+        var staticMemberCapability = StaticMemberChangeCapability(request.Query)
+                                     ?? (IsStaticMemberReferenceFirstEdit(request.Query)
+                                         ? "member-reference-edit" : null);
+        var memberStaticConversion = IsPropertyOrFieldStaticConversion(request.Query);
+        if (staticMemberCapability == "member-reference-edit"
+            && (!memberStaticConversion || IsLeadingStaticMemberReferenceEdit(request.Query)))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, staticMemberCapability,
+                UnsupportedReason: "rt has no general workflow to edit references or usages of a static property or field. Resolve the exact member and inspect its references before a reviewed edit; delete-unreferenced prepares deletion of the declaration, not an individual reference.");
+
+        if (memberStaticConversion)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "member-staticness-conversion",
                 UnsupportedReason: "rt has no property or field staticness conversion recipe. Inspect the member kind and its callers before choosing a change; method staticness recipes do not apply.");
 
@@ -87,7 +96,7 @@ internal sealed class SuggestService : IRtService
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "static-class-migration",
                 UnsupportedReason: "rt has no complete static-class-to-instance or injection migration workflow. Use rt analyze static-class-inventory as preliminary read evidence, then inspect state, call sites, interface needs, and registration before planning the change; a method staticness recipe does not perform this migration.");
 
-        if (StaticMemberChangeCapability(request.Query) is { } staticMemberCapability)
+        if (staticMemberCapability is not null)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, staticMemberCapability,
                 UnsupportedReason: staticMemberCapability == "static-member-creation"
                     ? "rt has no static property or field creation command. Specify the intended declaration and containing type before editing; using-static imports and method staticness recipes do not create members."
@@ -443,11 +452,10 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
         const string member = @"(?:propert(?:y|ies)|fields?)\b";
-        const string modifiers = @"(?:(?:public|private|protected|internal|file|new|readonly|const|volatile|required|unsafe)\s+)*";
-        const string context = @"(?:getters?|setters?|accessors?|attributes?|initializers?|assignments?|references?|usages?|access(?:es)?|reads?|writes?|values?|member\s+access(?:es)?|modifiers?|keywords?|backing\s+fields?)\b";
+        const string context = @"(?:getters?|setters?|accessors?|attributes?|initializers?|assignments?|references?|usages?|uses?|access(?:es)?|reads?|writes?|values?|member\s+access(?:es)?|modifiers?|keywords?|backing\s+fields?)\b";
         const string name = @"(?:@?[\w.:<>]+|`[^`]+`|""[^""]+""|'[^']+')";
         foreach (Match action in Regex.Matches(query,
-                     @"\b(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting)\b", options))
+                     @"\b(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning)\b", options))
         {
             if (IsNegatedAction(query, action.Index, options))
                 continue;
@@ -457,30 +465,21 @@ internal sealed class SuggestService : IRtService
                 @";|[.!]\s+|\band\s+(?:add|create|introduce|declare|remove|delete|make|convert|turn|change|list|find|show)\b",
                 options);
             var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
-            var directPrefix = Regex.Match(task,
-                @"^\s+(?:(?:an?|the|this|these|those)\s+)?" + modifiers
-                + @"static\s+" + modifiers, options);
-            var directMember = false;
-            if (directPrefix.Success)
-            {
-                var declaration = task[directPrefix.Length..];
-                foreach (Match candidate in Regex.Matches(declaration, member, options))
-                {
-                    var type = declaration[..candidate.Index].Trim();
-                    if (type.Length > 0
-                        && (Regex.IsMatch(type,
-                                @"^(?:from|to|into|on|off|in|of|for|with|as|using|imports?|classes?|methods?)$", options)
-                            || SyntaxFactory.ParseTypeName(type, consumeFullText: true).ContainsDiagnostics))
-                        continue;
+            var suffix = StaticMemberSuffix(task, options);
+            var contextMatch = suffix is null ? null : Regex.Match(suffix,
+                @"^(?:['’]s)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
+                + member + @"(?:['’]s)?\s+)?(?:(?:(?:named|called)\s+)?"
+                + name + @"(?:['’]s)?\s+)?(?<context>" + context + @")",
+                options);
+            var directMember = suffix is not null && contextMatch?.Success != true;
+            if (contextMatch?.Success == true && Regex.IsMatch(contextMatch.Groups["context"].Value,
+                    @"^(?:references?|usages?|uses?)$", options))
+                return "member-reference-edit";
 
-                    directMember = !Regex.IsMatch(declaration[(candidate.Index + candidate.Length)..],
-                        @"^(?:['’]s)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
-                        + member + @"(?:['’]s)?\s+)?(?:(?:(?:named|called)\s+)?"
-                        + name + @"(?:['’]s)?\s+)?" + context,
-                        options);
-                    break;
-                }
-            }
+            if (!Regex.IsMatch(action.Value,
+                    @"^(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting)$",
+                    options))
+                continue;
             var qualified = Regex.IsMatch(task,
                 @"^\s+(?:(?:an?|the|this|these|those)\s+)?" + member
                 + @"(?:\s+(?:(?:named|called)\s+)?(?:@?[\w.]+|`[^`]+`|""[^""]+""|'[^']+'))?"
@@ -496,6 +495,81 @@ internal sealed class SuggestService : IRtService
         }
 
         return null;
+    }
+
+    private static string? StaticMemberSuffix(string task, RegexOptions options)
+    {
+        const string member = @"(?:propert(?:y|ies)|fields?)\b";
+        const string modifiers = @"(?:(?:public|private|protected|internal|file|new|readonly|const|volatile|required|unsafe)\s+)*";
+        var directPrefix = Regex.Match(task,
+            @"^\s+(?:(?:an?|the|this|these|those|my|any|each|every|all|some)\s+)?(?:existing\s+)?" + modifiers
+            + @"static\s+" + modifiers, options);
+        if (!directPrefix.Success)
+            return null;
+
+        var declaration = task[directPrefix.Length..];
+        foreach (Match candidate in Regex.Matches(declaration, member, options))
+        {
+            var type = declaration[..candidate.Index].Trim();
+            if (type.Length > 0
+                && (Regex.IsMatch(type,
+                        @"^(?:from|to|into|on|off|in|of|for|with|as|using|imports?|classes?|methods?)$", options)
+                    || SyntaxFactory.ParseTypeName(type, consumeFullText: true).ContainsDiagnostics))
+                continue;
+
+            return declaration[(candidate.Index + candidate.Length)..];
+        }
+
+        return null;
+    }
+
+    private static bool IsStaticMemberReferenceFirstEdit(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        foreach (Match action in Regex.Matches(query,
+                     @"\b(?:add|adding|create|creating|delete|deleting|remove|removing|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning)\b", options))
+        {
+            if (IsNegatedAction(query, action.Index, options))
+                continue;
+
+            var afterAction = query[(action.Index + action.Length)..];
+            var nextTask = Regex.Match(afterAction,
+                @";|[.!]\s+|\band\s+(?:add|create|delete|remove|update|change|replace|modify|rewrite|list|find|show)\b",
+                options);
+            var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
+            var modifier = Regex.Match(task,
+                @"^\s+(?:the\s+)?static(?:\s+(?:modifier|keyword))?\s+(?:from|to|on|off)\s+",
+                options);
+            var target = modifier.Success ? " " + task[modifier.Length..] : task;
+            var references = Regex.Match(target,
+                @"^\s+(?:(?:all|every|the|an?|some|these|those|any|each|existing)\s+)*(?:references?|usages?|uses?)\s+(?:to|of|on|from|in|for)\s+",
+                options);
+            if (references.Success
+                && StaticMemberSuffix(" " + target[references.Length..].TrimStart(), options) is not null)
+                return true;
+
+            if (modifier.Success
+                && StaticMemberChangeCapability(action.Value + target)
+                    == "member-reference-edit")
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsLeadingStaticMemberReferenceEdit(string query)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var nextTask = Regex.Match(query,
+            @";|[.!]\s+|(?:,\s*)?\bthen\s+|\band\s+(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning|make|making|mark|marking|set|setting|apply|applying)\b",
+            options);
+        var firstTask = query[..(nextTask.Success ? nextTask.Index : query.Length)];
+        return StaticMemberChangeCapability(firstTask) == "member-reference-edit"
+               || IsStaticMemberReferenceFirstEdit(firstTask);
     }
 
     private static bool IsStandaloneNegatedStaticMemberChange(string query)
@@ -523,7 +597,8 @@ internal sealed class SuggestService : IRtService
                 return false;
         }
 
-        return StaticMemberChangeCapability(task) is not null;
+        return StaticMemberChangeCapability(task) is not null
+               || IsStaticMemberReferenceFirstEdit(task);
     }
 
     private static bool IsInsideTypeDelimiters(string task, int position)
@@ -542,7 +617,7 @@ internal sealed class SuggestService : IRtService
 
     private static bool HasStaticnessTarget(string afterMember, RegexOptions options, bool allowName = true)
     {
-        const string direction = @"(?:static|instance|non[- ]static)\b";
+        const string direction = @"(?:static|instance|non[- ]?static)\b";
         const string article = @"(?:(?:an?|the)\s+)?";
         var fromTo = Regex.Match(afterMember,
             @"^from\s+" + direction + @"\s+(?:to|into)\s+" + article + direction, options);

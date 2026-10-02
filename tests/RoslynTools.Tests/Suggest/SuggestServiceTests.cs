@@ -282,6 +282,14 @@ public sealed class SuggestServiceTests
     [InlineData("Add static imports and convert a field from instance to static")]
     [InlineData("List static classes and make a property static")]
     [InlineData("Remove a static field and make a property static")]
+    [InlineData("Convert a property from static to instance and edit references to a static field")]
+    [InlineData("Remove static from property Count and edit references to a static field")]
+    [InlineData("Convert a property from static to instance, then edit references to a static field")]
+    [InlineData("Convert a property from static to instance and editing references to a static field")]
+    [InlineData("Remove static from property Count then change references to a static field")]
+    [InlineData("Make property Count non-static and convert references to a static field")]
+    [InlineData("Make property Count nonstatic")]
+    [InlineData("Make property Count nonstatic and convert references to a static field")]
     public void property_or_field_staticness_does_not_claim_a_method_workflow(string query)
     {
         var response = new SuggestService(new FakeCatalog(
@@ -478,24 +486,13 @@ public sealed class SuggestServiceTests
     [InlineData("Add static using imports")]
     [InlineData("Add a static property getter")]
     [InlineData("Remove a static field initializer")]
-    [InlineData("Delete a static property reference")]
-    [InlineData("Delete a static property Count reference")]
     [InlineData("Delete a static field Count initializer")]
     [InlineData("Remove a public static field named Count initializer")]
     [InlineData("Delete a static property Count access")]
     [InlineData("Remove a static field Count value")]
-    [InlineData("Delete a static property's reference")]
-    [InlineData("Delete a static property’s reference")]
     [InlineData("Remove a static field's initializer")]
     [InlineData("Add a static property's getter")]
-    [InlineData("Delete a static property or field reference")]
-    [InlineData("Delete a static property/field reference")]
-    [InlineData("Delete a static property or field's reference")]
-    [InlineData("Delete a static property/field's reference")]
-    [InlineData("Delete a static property or field named Count reference")]
-    [InlineData("Delete a static property/field Count reference")]
     [InlineData("Remove a static field/property Count initializer")]
-    [InlineData("Delete a static property and field named Count's reference")]
     public void static_member_context_does_not_claim_creation_or_deletion(string query)
     {
         var response = new SuggestService(new FakeCatalog(
@@ -505,6 +502,95 @@ public sealed class SuggestServiceTests
 
         response.MissingCapability.ShouldBeNull();
         response.Results.ShouldNotBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Delete a static property reference", 1)]
+    [InlineData("Delete a static property Count reference", 3)]
+    [InlineData("Delete a static property's reference", 1)]
+    [InlineData("Delete a static property’s reference", 3)]
+    [InlineData("Delete a static property or field reference", 1)]
+    [InlineData("Delete a static property/field reference", 3)]
+    [InlineData("Delete a static property or field's reference", 1)]
+    [InlineData("Delete a static property/field's reference", 3)]
+    [InlineData("Delete a static property or field named Count reference", 1)]
+    [InlineData("Delete a static property/field Count reference", 3)]
+    [InlineData("Delete a static property and field named Count's reference", 1)]
+    [InlineData("Remove a static field usage", 3)]
+    [InlineData("Update references to a static property", 1)]
+    [InlineData("Change all usages of static field Count", 3)]
+    [InlineData("Replace uses of the static property named Count", 1)]
+    [InlineData("Add a reference to a static property", 3)]
+    [InlineData("Edit references to a static property", 1)]
+    [InlineData("Edit usages of a static field", 3)]
+    [InlineData("Edit a static property reference", 1)]
+    [InlineData("Modify references to a static property", 3)]
+    [InlineData("Edit references for a static field", 1)]
+    [InlineData("Edit usages for a static field", 3)]
+    [InlineData("Modify references for a static property", 1)]
+    [InlineData("Update all references for static field Count", 3)]
+    [InlineData("Edit any references to a static field", 1)]
+    [InlineData("Edit each reference to a static field", 3)]
+    [InlineData("Update existing references to a static property", 1)]
+    [InlineData("Edit references to an existing static property", 3)]
+    [InlineData("Edit an existing static property reference", 1)]
+    [InlineData("Edit references to my static field", 3)]
+    [InlineData("Remove static from the references to a static property Count", 1)]
+    [InlineData("Change a static property reference to instance access", 3)]
+    [InlineData("Convert references to a static property to instance accesses", 1)]
+    [InlineData("Convert a static field reference to instance access", 3)]
+    [InlineData("Modify references for each static field", 1)]
+    [InlineData("Modify references for any static field", 3)]
+    [InlineData("Modify references for every static field", 1)]
+    [InlineData("Remove static from a static property reference", 3)]
+    [InlineData("Remove the static keyword from a static property reference", 1)]
+    [InlineData("Remove the static keyword from references to a static property", 3)]
+    [InlineData("Remove the static keyword from the references to a static property", 1)]
+    [InlineData("Remove the static modifier from usages of a static field", 3)]
+    public void static_member_reference_edits_report_missing_capability(string query, int top)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("delete-unreferenced", category: "refactor", whenToUse: "Delete an unreferenced symbol"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static"),
+            Info("relationships", category: "inspect", whenToUse: "Find symbol references")))
+            .Suggest(new SuggestRequest(query, Top: top));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("member-reference-edit");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull().ShouldContain("references");
+    }
+
+    [Theory]
+    [InlineData("Do not delete a static property's reference")]
+    [InlineData("Never update references to a static field")]
+    [InlineData("Do not edit references to a static property")]
+    [InlineData("Avoid editing usages of a static field")]
+    [InlineData("Avoid modifying references to a static property")]
+    [InlineData("Without updating a static property's reference")]
+    [InlineData("Do not edit references for a static field")]
+    [InlineData("Avoid editing any references to a static field")]
+    [InlineData("Never update existing references to a static property")]
+    [InlineData("Do not edit references to my static field")]
+    [InlineData("Do not remove static from the references to a static property Count")]
+    [InlineData("Never convert references to a static property to instance accesses")]
+    [InlineData("Do not remove static from a static property reference")]
+    [InlineData("Do not remove the static keyword from a static property reference")]
+    [InlineData("Do not remove the static keyword from references to a static property")]
+    [InlineData("Never remove the static modifier from usages of a static field")]
+    public void standalone_negated_static_member_reference_edit_has_no_mutation_route(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("delete-unreferenced", category: "refactor", whenToUse: "Delete an unreferenced symbol"),
+            Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
+            .Suggest(new SuggestRequest(query, Top: 3));
+
+        response.Outcome.ShouldBe(SuggestOutcome.NoMatch);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
     }
 
     [Theory]

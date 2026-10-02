@@ -490,6 +490,34 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task suggest_static_member_reference_edit_reports_missing_capability()
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query = "Delete a static property's reference", top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("member-reference-edit");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task suggest_static_class_injection_reports_missing_migration()
     {
         var request = JsonSerializer.Serialize(new

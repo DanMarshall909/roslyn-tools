@@ -333,12 +333,22 @@ negation, import, modifier, method, and attribute-context queries. A creation
 response was 336 stdout bytes versus 1,349 for the earlier unrelated import
 recommendation; this is a per-call comparison, not an end-to-end token claim.
 Access modifiers and explicit C# types, including nullable, generic, and tuple
-forms, before the member kind retain the
-creation/deletion route. Attribute, accessor, initializer, reference, and access
-changes on static members are
-not classified as member creation or deletion. They still fall through general
-ranking and can surface unrelated commands; the task-aware relevance threshold
-remains open.
+forms, preserve the creation/deletion route when they precede the member kind.
+Explicit edits to references or usages of a static
+property or field now return `Unsupported(member-reference-edit)` with empty
+results instead of suggesting `delete-unreferenced`, whose target is the member
+declaration. Standalone negations return `NoMatch`; named reference searches
+keep their read workflow. Reference-targeted staticness wording keeps the
+reference-edit route, while a preceding declaration conversion, including the
+`nonstatic` spelling, keeps its own route. Attribute, accessor, initializer, and access changes
+on static members remain outside the member creation/deletion route. They still
+fall through general ranking and can surface unrelated commands; the task-aware
+relevance threshold remains open.
+A 74-query source-built follow-up covered reference edits, negations, named
+reference reads, declaration deletion, staticness conversion, imports, and
+remaining context. The reference-edit response was 389 stdout bytes versus
+2,605 bytes for the earlier unrelated `delete-unreferenced` recommendation.
+This per-call comparison does not establish total agent token savings.
 The negated control “Do not convert an instance method to static; list its
 callers” now returns `Unsupported(method-relationship-target)` with empty
 results and asks for a named method. A standalone negation returns `NoMatch`;

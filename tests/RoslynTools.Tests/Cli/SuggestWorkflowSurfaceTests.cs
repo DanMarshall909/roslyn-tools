@@ -228,6 +228,27 @@ public sealed class SuggestWorkflowSurfaceTests
     }
 
     [Theory]
+    [InlineData("Delete a static property's reference")]
+    [InlineData("Update references to a static property")]
+    [InlineData("Edit references to a static property")]
+    [InlineData("Edit references for a static field")]
+    [InlineData("Edit references to an existing static property")]
+    [InlineData("Remove static from the references to a static property Count")]
+    [InlineData("Remove the static keyword from a static property reference")]
+    [InlineData("Remove the static keyword from references to a static property")]
+    public async Task static_member_reference_edit_reports_missing_capability(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("member-reference-edit");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Theory]
     [InlineData("Do not add a static field")]
     [InlineData("I do not want to add a static field")]
     [InlineData("Do not add a static int field")]
