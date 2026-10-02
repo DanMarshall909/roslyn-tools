@@ -1145,7 +1145,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 ## Current migration tensions
 
-- **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
+- **Typed-port migration and canonical-contract admission have different owners.** [RT-007](issues/resolved/architecture/rt-007-shared-command-descriptors.md) archives the typed-port and host-decoupling migration, including CLI bridge deletion. The [generated contract status](command-contract-status.md) links its recorded acceptance and current manifest work states to the still-open platform-hardening P1.1 admission matrix. Typed dispatch does not by itself prove uniform provenance, safety, cancellation, completeness, bounded output, or host parity.
 - **Daemon application routing is typed.** The legacy envelope accepts only
   exact lifecycle controls; application operations use structured typed RPC.
   Mutation RPC remains disabled during the separate mutation safety work.

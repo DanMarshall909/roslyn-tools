@@ -38,6 +38,11 @@ jobs:
       - name: Test local gate completion checks
         run: node --test tests/check-local-completion.test.mjs
 
+      - name: Verify command contract status authorities
+        run: |
+          node --test tests/command-contract-status.test.mjs
+          node scripts/generate-command-contract-status.mjs --check
+
       - name: Verify plain restore, Debug build, and test
         run: node scripts/check-build-purity.mjs
 

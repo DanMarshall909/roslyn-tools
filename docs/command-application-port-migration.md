@@ -22,7 +22,13 @@ change both its runtime metadata and manifest row to `review-default`.
 
 ## Scope and baseline
 
-The machine-readable catalog currently contains 56 category commands:
+The following table is the historical fan-out baseline from the original
+migration plan, not the current catalogue. [RT-007](issues/resolved/architecture/rt-007-shared-command-descriptors.md)
+archives the typed-port and host-decoupling work. The [generated contract status](command-contract-status.md)
+reads current manifest work states and links the still-open canonical-contract
+admission tasks to their owner.
+
+At that baseline, the machine-readable catalogue contained 56 category commands:
 
 | Category | Total | Port-backed | Remaining |
 |---|---:|---:|---:|

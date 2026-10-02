@@ -144,8 +144,10 @@
   `find_refs` guidance with public `relationships` references mode.
 - [x] Amend RT-012's daemon-as-execution-owner decision to acknowledge ADR-0008 and the
   daemon-free `0.1-preview` topology.
-- [ ] Reconcile RT-007 completed criteria, its remaining bridge work, and the unchecked
+- [x] Reconcile RT-007 completed criteria, its remaining bridge work, and the unchecked
   platform-hardening tasks so one generated status view links to authoritative facts.
+  See [command-contract-status.md](../../../docs/command-contract-status.md);
+  its generator preserves the broader P1.1 admission tasks at their original owner.
 - [x] Add the product-spine OpenSpec and RT-016 to architecture navigation without
   copying their narrative into another roadmap.
 
