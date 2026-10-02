@@ -325,10 +325,12 @@ discovery still ranks `add-static-import` for “Add a static property” and
 `make-static` for “Remove a static field”; member creation/deletion needs its
 own honest route before the pre-freeze discovery gate closes.
 The negated control “Do not convert an instance method to static; list its
-callers” still uses general catalogue discovery and ranks `make-instance` at
-`--top 1`. Negated conversion intent needs its own no-mutation discovery route
-before the pre-freeze decision gate; this slice does not claim that general
-ranking is safe for it.
+callers” now returns `Unsupported(method-relationship-target)` with empty
+results and asks for a named method. A standalone negation returns `NoMatch`;
+an exact separate `find references to method OrderService.Validate` clause
+returns one `relationships references` read step. Source-built `rt suggest`
+confirmed all three outcomes; positive conversion with a caller constraint
+still names `method-staticness-workflow`. Caller-specific routing remains open.
 “Make a static class injectable” still ranks `make-static`; broader class and
 injection intent discovery remains open.
 

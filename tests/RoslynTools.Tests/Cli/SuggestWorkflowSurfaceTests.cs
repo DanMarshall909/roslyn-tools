@@ -69,6 +69,20 @@ public sealed class SuggestWorkflowSurfaceTests
     }
 
     [Fact]
+    public async Task negated_method_conversion_with_generic_callers_reports_missing_target()
+    {
+        var result = await RtCliHost.RunAsync(
+            "suggest \"Do not convert an instance method to static; list its callers\" --top 1 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe("method-relationship-target");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task property_target_does_not_recommend_method_staticness()
     {
         var result = await RtCliHost.RunAsync(

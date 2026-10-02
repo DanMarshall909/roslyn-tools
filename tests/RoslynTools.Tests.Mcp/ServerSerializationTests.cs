@@ -339,6 +339,34 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task suggest_negated_method_conversion_with_generic_callers_reports_missing_target()
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new
+            {
+                name = "suggest_command",
+                arguments = new { query = "Do not convert an instance method to static; list its callers", top = 1 }
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe("method-relationship-target");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        using var content = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, content.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task suggest_property_target_reports_missing_member_kind_conversion()
     {
         var request = JsonSerializer.Serialize(new

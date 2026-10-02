@@ -232,7 +232,7 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   `--top 1`. If the matching command is absent, the outcome names the missing
   capability instead of recommending the opposite mutation. Compound requests
   name the missing `method-staticness-workflow` and give manual steps; standalone
-  negated, static-import, and static-class requests retain catalogue discovery. A
+  static-import and static-class requests retain catalogue discovery. A
   later negation or class task does not hide an earlier positive conversion;
   earlier class/import tasks do not hide a later conversion. Polite
   punctuation and recognized motives remain a single conversion request, while
@@ -264,9 +264,12 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   Named `make` and `remove static` forms also preserve
   direction. The independently named missing plan capability keeps its
   existing outcome.
-  A negated “do not convert …; list callers” query still ranks a
-  mutation through general catalogue discovery and needs a separate read or
-  unsupported route before the pre-freeze discovery gate can close.
+  Negated method conversion with no follow-on task now returns `NoMatch` rather
+  than ranking a mutation. Generic caller or usage inspection returns
+  `Unsupported(method-relationship-target)` until the query names a method;
+  a separate exact named-reference clause receives the existing read workflow.
+  Unrecognized follow-on tasks stay out of mutation ranking. General goal
+  routing and caller-specific workflows remain open.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text

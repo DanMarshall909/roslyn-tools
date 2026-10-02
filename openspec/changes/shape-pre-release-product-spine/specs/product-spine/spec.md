@@ -391,7 +391,13 @@ forcing an irrelevant command match.
 - **AND** a static-class request with a property or field qualifier retains general discovery
 - **AND** creating or deleting a static property or field retains general catalogue discovery rather than being labeled a staticness conversion
 - **AND** an independently named missing plan capability retains its existing `Unsupported` outcome
-- **AND** standalone negated, static-import, and static-class queries retain general catalogue discovery
+- **AND** static-import and static-class queries retain general catalogue discovery
+- **WHEN** a method staticness conversion is explicitly negated with no later positive task
+- **THEN** a standalone prohibition returns `NoMatch` without a mutation recommendation
+- **AND** a request to find callers or usages without an exact method target returns `Unsupported` with `method-relationship-target` and asks for a named method
+- **AND** a separate exact named-reference clause uses the existing `relationships references` read workflow without a mutation recommendation
+- **AND** any unrecognized follow-on clause does not fall through to mutation ranking
+- **AND** a later positive method conversion is not hidden by the earlier prohibition
 
 #### Scenario: explicit C# working-tree review has a platform-limited reader
 

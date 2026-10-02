@@ -79,6 +79,9 @@ internal sealed class SuggestService : IRtService
         if (IsUnparsedMethodStaticConversion(request.Query))
             return UnsupportedMethodStaticnessWorkflow();
 
+        if (SuggestNegatedMethodConversion(request.Query, request.Solution) is { } negatedConversion)
+            return negatedConversion;
+
         var scored = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
@@ -118,6 +121,104 @@ internal sealed class SuggestService : IRtService
     private static SuggestResponse UnsupportedMethodStaticnessWorkflow() =>
         new([], [], SuggestOutcome.Unsupported, "method-staticness-workflow",
             UnsupportedReason: "rt can suggest one method staticness recipe only for a recognized single-task request. Extra or unrecognized clauses or method syntax may require caller handling or another task. Make separate requests for caller/reference inspection and the selected conversion command; review its dry-run from a clean commit, then build and test before applying.");
+
+    private SuggestResponse? SuggestNegatedMethodConversion(string query, string? solution)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase
+                                     | RegexOptions.CultureInvariant
+                                     | RegexOptions.NonBacktracking;
+        var negation = Regex.Match(query,
+            @"^\s*(?:(?:please|kindly)[,;]?\s+)?(?:i\s+)?(?:do\s+not|don['’]t|never|avoid|without)(?:\s+(?:want|wish)\s+to)?\s+(?<verb>convert(?:ing)?|turn(?:ing)?|chang(?:e|ing)|mak(?:e|ing)|remov(?:e|ing))\b",
+            options);
+        if (!negation.Success)
+            return null;
+
+        var verb = negation.Groups["verb"];
+        var afterVerb = query[verb.Index..];
+        var separator = NegatedClauseSeparator(afterVerb);
+        var andTask = separator is not null
+            ? Match.Empty
+            : Regex.Match(afterVerb,
+                @"\s+and\s+(?<task>find|list|show|inspect|convert|turn|change|make|remove)\b", options);
+        var clauseEnd = separator?.Index ?? (andTask.Success ? andTask.Index : afterVerb.Length);
+        var clause = afterVerb[..clauseEnd];
+        var normalizedVerb = verb.Value.ToLowerInvariant() switch
+        {
+            "converting" => "convert",
+            "turning" => "turn",
+            "changing" => "change",
+            "making" => "make",
+            "removing" => "remove",
+            _ => verb.Value
+        };
+        var normalizedClause = normalizedVerb + clause[verb.Length..];
+        normalizedClause = Regex.Replace(normalizedClause, @"^make\s+this\b", "make the", options);
+        if (MethodStaticConversion(normalizedClause) is null)
+            return null;
+
+        var next = separator is { } boundary
+            ? afterVerb[(boundary.Index + boundary.Length)..].Trim()
+            : andTask.Success ? afterVerb[andTask.Groups["task"].Index..].Trim() : "";
+        if (next.Length == 0)
+            return new SuggestResponse([], [], SuggestOutcome.NoMatch);
+
+        if (ReferenceSearchTarget(next) is { } referenceTarget)
+            return SuggestReferences(referenceTarget.Symbol, referenceTarget.Kind, solution);
+
+        var namedTarget = Regex.Match(next,
+            @"\b(?:references?\s+(?:to|of)|callers?\s+of|usages?\s+of)\s+(?:(?:the|an?|method)\s+)*(?:(?<explicitName>named|called)\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
+            options);
+        if (namedTarget.Success && IsPlausibleReferenceSymbol(
+                namedTarget.Groups["symbol"].Value, namedTarget.Groups["explicitName"].Success))
+            return UnsupportedMethodStaticnessWorkflow();
+
+        if (Regex.IsMatch(next, @"^(?:find|list|show|inspect)\b.*\b(?:callers?|usages?|references?)\b", options))
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported, "method-relationship-target",
+                UnsupportedReason: "Supply a named method to inspect, for example: find references to method OrderService.Validate. A generic caller or usage request has no exact method target, and rt will not recommend a conversion for a negated action.");
+
+        return UnsupportedMethodStaticnessWorkflow();
+    }
+
+    private static (int Index, int Length)? NegatedClauseSeparator(string query)
+    {
+        var parentheses = 0;
+        var typeArguments = 0;
+        for (var index = 0; index < query.Length; index++)
+        {
+            switch (query[index])
+            {
+                case '(':
+                    parentheses++;
+                    break;
+                case ')':
+                    parentheses = Math.Max(0, parentheses - 1);
+                    break;
+                case '<':
+                    typeArguments++;
+                    break;
+                case '>':
+                    typeArguments = Math.Max(0, typeArguments - 1);
+                    break;
+            }
+
+            if (parentheses != 0 || typeArguments != 0)
+                continue;
+
+            if (query[index] == ';')
+                return (index, 1);
+            if (query[index] is not (',' or '.')
+                || index + 1 >= query.Length
+                || !char.IsWhiteSpace(query[index + 1]))
+                continue;
+
+            var next = index + 2;
+            while (next < query.Length && char.IsWhiteSpace(query[next]))
+                next++;
+            return (index, next - index);
+        }
+
+        return null;
+    }
 
     private static (string CommandName, bool RequiresWorkflow, bool OtherTarget)? MethodStaticConversion(string query)
     {
@@ -608,15 +709,20 @@ internal sealed class SuggestService : IRtService
                 options))
             return null;
         var symbol = match.Groups["symbol"].Value;
-        var leafName = symbol[(symbol.LastIndexOf('.') + 1)..];
         var kind = match.Groups["kind"].Value.ToLowerInvariant();
+        return IsPlausibleReferenceSymbol(symbol, match.Groups["explicitName"].Success)
+            ? (symbol, kind is "" or "symbol" ? null : kind)
+            : null;
+    }
+
+    private static bool IsPlausibleReferenceSymbol(string symbol, bool explicitName)
+    {
+        var leafName = symbol[(symbol.LastIndexOf('.') + 1)..];
         return char.IsUpper(leafName[0])
                || leafName[0] == '_'
                || leafName.Any(char.IsUpper)
                || symbol.Contains('.', StringComparison.Ordinal)
-               || match.Groups["explicitName"].Success
-            ? (symbol, kind is "" or "symbol" ? null : kind)
-            : null;
+               || explicitName;
     }
 
     private static string QuoteCliArgument(string value)

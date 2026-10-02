@@ -337,7 +337,6 @@ public sealed class SuggestServiceTests
     [InlineData("Remove a static property")]
     [InlineData("Remove a static field")]
     [InlineData("Make a static method async")]
-    [InlineData("Do not convert an instance method to static; list its callers")]
     [InlineData("Convert an instance method to a static class")]
     [InlineData("Make a static property thread-safe")]
     [InlineData("Mark a static field obsolete")]
@@ -367,6 +366,103 @@ public sealed class SuggestServiceTests
         response.MissingCapability.ShouldBeNull();
         response.Results.ShouldNotBeEmpty();
         response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Do not convert an instance method to static; list its callers")]
+    [InlineData("Do not convert instance method OrderService.Validate(int x, int y) to static; list its callers")]
+    [InlineData("Do not convert an instance method to static and list its callers")]
+    [InlineData("I do not want to convert an instance method to static; list its callers")]
+    [InlineData("Do not convert an instance method to static; list callers of this method")]
+    [InlineData("Do not convert an instance method to static; find references to it")]
+    [InlineData("Do not convert an instance method to static; show usages of the method")]
+    [InlineData("Never convert a static method to instance; show usages")]
+    [InlineData("Without converting an instance method to static, find its callers")]
+    public void negated_method_conversion_with_generic_relationship_request_needs_a_method_target(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static"),
+            Info("relationships", whenToUse: "Find method references")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-relationship-target");
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+        response.UnsupportedReason.ShouldNotBeNull().ShouldContain("named method");
+    }
+
+    [Theory]
+    [InlineData("Do not convert an instance method to static")]
+    [InlineData("Do not make this instance method static")]
+    [InlineData("Don't make an instance method static")]
+    [InlineData("Never convert a static method to instance")]
+    [InlineData("Do not convert instance method OrderService.Validate(int x, int y) to static")]
+    [InlineData("Do not convert instance method OrderService.Validate<First, Second> to static")]
+    [InlineData("Do not make the instance method OrderService.Validate(int x, int y) static")]
+    public void standalone_negated_method_conversion_does_not_recommend_a_mutation(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-instance", category: "refactor", whenToUse: "Convert a static method to an instance method"),
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.NoMatch);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Fact]
+    public void negated_method_conversion_with_named_reference_clause_uses_read_workflow()
+    {
+        var solution = Path.GetFullPath("RoslynTools.slnx");
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static"),
+            Info("relationships", whenToUse: "Find method references")))
+            .Suggest(new SuggestRequest(
+                "Do not convert an instance method to static; find references to method OrderService.Validate",
+                Top: 1, Solution: solution));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
+        response.Results.ShouldBeEmpty();
+        response.Related.ShouldBeEmpty();
+        var step = response.Workflow.ShouldNotBeNull().Steps.Single();
+        step.CliInvocation.ShouldBe($"rt inspect relationships references OrderService.Validate --kind method --solution {solution} --json");
+        step.McpTool.ShouldBe("relationships");
+        step.McpArguments.ShouldNotBeNull()["symbol"].ShouldBe("OrderService.Validate");
+    }
+
+    [Fact]
+    public void negated_conversion_with_multiple_named_reference_tasks_does_not_drop_the_extra_action()
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static"),
+            Info("relationships", whenToUse: "Find method references")))
+            .Suggest(new SuggestRequest(
+                "Do not convert an instance method to static; find references to method OrderService.Validate and delete it",
+                Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-staticness-workflow");
+        response.Results.ShouldBeEmpty();
+        response.Workflow.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("Do not convert an instance method to static; convert another instance method to static")]
+    [InlineData("Do not convert an instance method to static and convert another instance method to static")]
+    public void earlier_negated_conversion_does_not_hide_later_positive_conversion(string query)
+    {
+        var response = new SuggestService(new FakeCatalog(
+            Info("make-static", category: "refactor", whenToUse: "Convert an instance method to static")))
+            .Suggest(new SuggestRequest(query, Top: 1));
+
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe("method-staticness-workflow");
+        response.Results.ShouldBeEmpty();
     }
 
     [Theory]
