@@ -63,6 +63,17 @@ This decision establishes the payload and verification boundary. The durable pro
 plan store, parser, pinning rules, dispatch lease, ledger, and recovery writer remain
 separate implementation slices required before any restart-safe apply claim.
 
+## Version/profile scope
+
+[ADR-0106](0106-review-only-change-plan-profile.md) adds the public review target
+`rt.change-plan.v2` with mandatory `profile: "review-only"` under the same canonical
+owners. This follow-on decision preserves this ADR's v1 fields, projection and
+conformance bytes exactly; no profile field or relaxed guard/root requirement is added
+to v1. Imported review claims cannot convert into the durable model or its authority.
+For both profiles, unkeyed SHA-256 identifies and checks bytes; principal authentication,
+trusted acquisition and effect authority require their separate validated boundaries.
+The public v2 model and plan/verify implementation remain pending.
+
 ## Consequences
 
 - Review and a future apply can refer to one plan ID, exact payload, and digest without

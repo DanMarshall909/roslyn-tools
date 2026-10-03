@@ -499,13 +499,30 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 
 ### 5.1 Immutable plan model
 
-- [ ] Define `rt.change-plan.v1` with plan ID, operation, base revision/fingerprint,
-  stable input symbol, exact diff, affected paths, expected inputs, diagnostics,
-  assumptions, limitations, workspace state, verification actions, and expiry.
+The accepted compatibility decision is [ADR-0106](../../../docs/adr/0106-review-only-change-plan-profile.md):
+public review uses `rt.change-plan.v2` with mandatory `profile: "review-only"` through
+the existing canonical owners; existing durable v1 bytes and authority contracts stay
+unchanged. This documentation decision completes no M5 implementation or exit task.
+
+- [ ] Define `rt.change-plan.v2` / `review-only` with plan ID, operation, base
+  revision/fingerprint, stable input symbol, exact diff, affected paths, expected
+  inputs, diagnostics, assumptions, limitations, workspace state, verification
+  actions, and expiry; preserve the byte-exact durable v1 vectors.
+  - [ ] Implement the immutable review model and strict canonical reader with
+    independent conformance vectors under the existing canonical owners. This
+    model-only slice does not complete live planning, public transport, freshness,
+    no-write evidence, or verification.
+  - [ ] Keep imported input/workspace claims in separate types from trusted
+    acquisition receipts and `Verified` authority; an unkeyed SHA-256 digest
+    identifies bytes and does not authenticate a principal or authorize effects.
 - [ ] Bind preview generation and any later apply to the same exact plan bytes; never
   recompute a reviewed plan from command arguments.
 - [ ] Store or return plans without writing repository files and protect dirty working
-  trees through exact per-input content preconditions.
+  trees through exact per-input content preconditions, including unaffected semantic
+  inputs and external build/reference/analyzer/generator inputs.
+- [ ] Select and prove public transport against actual CLI/MCP response and token
+  limits or an explicit repository-external artifact handoff policy; do not truncate
+  a usable plan or assume a proposed decoded-envelope limit fits response bounds.
 - [ ] Add missing/expired/incompatible/corrupt/stale plan outcomes.
 
 ### 5.2 Plan-only mutation pilots
@@ -529,15 +546,28 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 - [ ] Implement `verify-plan` over the planned solution snapshot.
 - [ ] Report compiler/analyzer delta, semantic/public API delta, unresolved references
   and call sites, affected projects, candidate tests, workspace state, and limitations.
+- [ ] Enforce the trusted local policy's six mandatory verification stages,
+  independently of imported action names/capabilities/required flags; those fields
+  cannot waive stages or dispatch arbitrary capabilities.
+- [ ] Validate the actual complete input closure used throughout verification and
+  reject drift before publishing `Verified`, or prove an equivalent immutable
+  acquisition boundary.
 - [ ] Mark a plan verified only when every required verification completes; otherwise
   return partial/failed evidence without writing.
 - [ ] Add introduced compiler error, unresolved generated caller, partial workspace,
   stale plan, cancellation, and resource-bound tests.
 
-### 5.4 Optional experimental direct CLI apply
+### 5.4 Optional experimental direct CLI apply (omitted)
 
-- [ ] Decide explicitly whether the preview package includes any apply path. Omission
-  is acceptable and does not block the supported read/plan product.
+The target preview omits optional direct public apply. Existing hidden durable
+maintainer contracts keep their separate v1 authority requirements. This contract
+choice does not assert that current public apply-shaped requests have been removed.
+The original conditional requirements for a retained path are preserved below for
+a later accepted decision. Omission does not weaken M5.1–5.3 or the M5 exit requirements.
+
+- [ ] Enforce the chosen omission of direct public apply in the preview package,
+  reject apply-shaped public plan requests, and validate CLI/MCP discovery without
+  regressing hidden durable maintainer contracts.
 - [ ] If retained, restrict apply to explicit direct in-process CLI execution with no
   daemon/MCP, fallback, automatic retry, or ambient plan recomputation.
 - [ ] Require exact plan selection, complete workspace where appropriate, revision and

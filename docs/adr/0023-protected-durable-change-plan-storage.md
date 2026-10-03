@@ -77,6 +77,16 @@ consume it. Full dispatch identity and quotas, durable receipt/ledger transition
 cleanup bundles, the shared-authority provider, and recovery journaling remain required
 before restart-safe apply is available.
 
+## Version/profile scope
+
+[ADR-0106](0106-review-only-change-plan-profile.md) separates future public v2 review
+claims from this existing v1 durable reader/store contract. Public review transport
+cannot reuse this store by inventing a protection lease, convert review claims into
+v1, or relax physical isolation, authenticated ownership, pinning or authority checks.
+Unkeyed envelope SHA-256 verification establishes byte integrity/identity, not principal
+authentication or apply authorization. Imported workspace claims remain separate from
+trusted acquisition receipts; no public plan/verify implementation is implied here.
+
 ## Consequences
 
 - Review and a later process can exchange one immutable, verified envelope without

@@ -438,8 +438,27 @@ forcing an irrelevant command match.
 Preview mutation capabilities SHALL produce an immutable plan containing plan ID,
 schema version, source revision/fingerprint, stable input symbol identity, exact diff,
 affected paths, expected input states, diagnostics, assumptions, limitations,
-workspace state, verification actions, and expiry. Planning SHALL write no repository
-file. MCP SHALL expose planning and verification only.
+workspace state, verification actions, and expiry. The public canonical payload SHALL
+use `rt.change-plan.v2` with mandatory `profile: "review-only"` under the existing
+canonical writer/reader owners. Existing durable `rt.change-plan.v1` bytes, vectors,
+and guarded authority requirements SHALL remain unchanged. There SHALL be no automatic
+profile fallback, review-to-durable conversion, or invented apply/storage proofs.
+
+Imported plan input/workspace claims SHALL remain separate from trusted acquisition
+receipts and `Verified` authority. Unkeyed SHA-256 SHALL establish canonical byte
+integrity and identity, not principal authentication or execution authorization;
+a caller can replace both payload and claimed hash. Planning SHALL write no repository
+file. The target preview SHALL omit optional direct public CLI apply; MCP SHALL expose planning and verification only. Existing
+hidden durable maintainer contracts SHALL retain their separate requirements.
+
+Public transport SHALL retain complete exact review bytes while satisfying actual
+response/token bounds or an explicit repository-external artifact handoff policy.
+Encoded input, decoded bytes, item/scalar/depth growth and the complete host response
+SHALL be bounded before admitting a usable plan.
+A transport/resource limit SHALL produce an actionable bounded outcome rather than
+silently truncating a usable plan. Numeric lifetime, byte, item and scalar limits and
+stateless Base64 transport remain proposed implementation policy, not fixed public
+defaults established by this contract amendment.
 
 #### Scenario: rename plan is prepared through MCP
 
@@ -452,18 +471,37 @@ file. MCP SHALL expose planning and verification only.
 #### Scenario: source changes after plan review
 
 - **GIVEN** a plan bound to current source content
-- **AND** an affected input changes after planning
-- **WHEN** the plan is verified or an experimental CLI apply is requested
+- **AND** a captured content, semantic, or build input changes after planning
+- **WHEN** the plan is verified
 - **THEN** the plan is `Stale`
 - **AND** no file is written
 - **AND** the result requests preparation and review of a new plan
 - **AND** the old plan is not silently recomputed
+
+#### Scenario: imported plan claims a complete workspace
+
+- **GIVEN** canonical v2 review-only bytes with a matching unkeyed SHA-256 digest
+- **AND** the payload claims a complete workspace
+- **WHEN** the plan is imported for verification
+- **THEN** parsing produces untrusted review claims rather than a trusted acquisition receipt
+- **AND** fresh authorized acquisition and every required verification stage remain necessary
+- **AND** the payload cannot become durable v1 or apply authority
 
 ### Requirement: plan verification reports consequences without applying
 
 `verify-plan` SHALL report compiler/analyzer diagnostic delta, semantic/public API
 delta, unresolved references or call sites, affected projects, conservative candidate
 tests, workspace state, and limitations against the exact planned solution snapshot.
+Verification SHALL validate the actual complete input closure used throughout its
+stages and reject drift before publishing `Verified`, or prove an equivalent immutable
+acquisition boundary. It SHALL reconstruct the snapshot from frozen effects without
+rerunning the transformation from saved arguments. Trusted local policy SHALL mandate
+all six consequence stages independently of imported action fields: the profile SHALL
+contain that exact locally supported mandatory set with `required: true`; removing,
+renaming or disabling a stage SHALL NOT waive it or dispatch arbitrary capabilities.
+A plan SHALL be `Verified` only when every required stage completes over a nonstale
+Complete workspace. Partial workspace, disabled or failed required stages, cancellation
+and resource bounds SHALL return honest partial/failed evidence without repository writes.
 
 #### Scenario: planned change introduces a compiler error
 

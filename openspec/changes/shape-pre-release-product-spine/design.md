@@ -83,10 +83,11 @@ explicit trust / no-evaluation decision
                  v
                   verify plan
                  |
-                 +--> review-only completion (supported preview)
-                 |
-                 `--> explicit direct CLI apply (experimental, separately admitted)
+                 `--> review-only completion (supported preview)
+
 ```
+
+Optional direct public CLI apply is omitted from this preview target.
 
 Every arrow is a typed next action. Guidance may recommend a step but never executes
 it automatically.
@@ -101,9 +102,10 @@ writes no repository file.
 
 ### Experimental CLI profile
 
-Opt-in recipes and any direct mutation apply are CLI-only. They are absent from normal
-MCP discovery, carry no stable compatibility promise, and cannot make the stable
-preview claim weaker.
+Opt-in recipes are CLI-only and plan-only. They are absent from normal MCP discovery,
+carry no stable compatibility promise, and cannot make the stable preview claim
+weaker. Optional direct public apply is omitted; existing hidden durable maintainer
+contracts remain separate.
 
 ### Maintainer profile
 
@@ -339,43 +341,105 @@ Displayed result limits do not change total context counts.
 
 ## Revision-bound change planning
 
-A plan-only mutation returns an immutable plan:
+The accepted version/profile decision is
+[ADR-0106](../../../docs/adr/0106-review-only-change-plan-profile.md). It changes the
+public planning target, not current implementation status:
+
+| Canonical pair | Consumer and compatibility |
+|---|---|
+| Existing `rt.change-plan.v1`, implicit durable profile | Keep the existing immutable payload, envelope, reader, store/intake/apply proofs and conformance bytes unchanged. Do not add a profile field to v1. |
+| `rt.change-plan.v2`, mandatory `profile: "review-only"` | Future public prepare/verify input through the same canonical writer/reader owners, with a separate typed review reader. Reject unknown pairs and never convert review claims into durable authority. |
+
+A plan-only mutation will return immutable review fields:
 
 ```json
 {
+  "schemaVersion": "rt.change-plan.v2",
+  "profile": "review-only",
   "planId": "...",
-  "schemaVersion": "rt.change-plan.v1",
-  "operation": "rename",
-  "baseRevision": "...",
-  "inputSymbolId": "...",
-  "affectedPaths": [],
+  "repository": {
+    "root": "...",
+    "solutionPath": "...",
+    "baseRevision": "...",
+    "sourceFingerprint": "...",
+    "pathCaseSensitivity": "sensitive"
+  },
+  "createdAtUtc": "...",
+  "expiresAtUtc": "...",
+  "operations": [{"sequence": 1, "name": "rename", "stableInput": "...", "arguments": []}],
   "expectedInputs": [],
+  "effects": [],
+  "affectedPaths": [],
   "diff": "...",
   "diagnostics": [],
   "assumptions": [],
+  "confidence": {"level": "...", "basis": "...", "evidence": []},
   "limitations": [],
-  "workspaceState": "Complete",
-  "verification": [],
-  "expiresAt": "..."
+  "workspace": {"state": "Complete", "manifestDiscoveryState": "Closed"},
+  "verificationActions": []
 }
 ```
 
-Planning writes no repository file. `verify-plan` evaluates compiler diagnostics,
-semantic API changes, unresolved references, affected projects, and candidate tests
-against the planned solution snapshot.
+This is a field illustration, not a complete valid plan, conformance vector or current
+CLI output. The model implementation must establish independent exact-byte vectors.
+The payload retains exact original/replacement bytes, derived diff and affected paths,
+stable document/project bindings, and content/semantic/build input identities, including
+dirty, unaffected and external inputs. Reuse `ChangePlanDiff` through a typed review seam
+or private immutable projection; never fabricate durable `ChangePlanEffect` guards or
+physical preconditions to call its existing overload. Preserve v1 diff bytes and fix
+independent create/delete/replace/move, rename-plus-move, linked-context and
+Unicode/escaping vectors before freezing the new byte oracle. A rename that also moves
+a file freezes one move effect containing edited destination bytes; an unchanged rename returns a distinct
+NoChanges outcome without a fabricated effect.
 
-MCP ends at review and verification for `0.1-preview`. If a direct experimental CLI
-apply remains:
+The canonical envelope retains exact payload bytes plus their lowercase SHA-256 hash.
+This unkeyed digest establishes byte integrity/identity, not authentication or authority;
+a caller can replace payload and digest together. Imported review inputs and workspace
+values are untrusted claims in separate types from trusted host acquisition receipts and verified-stage results. The live host must
+validate the complete admitted closure and replay frozen effects into the exact planned
+snapshot; it must not rerun Renamer from saved arguments or elevate imported Complete
+claims into trusted receipts.
 
-- it runs in-process with no daemon or fallback;
-- the user explicitly selects the exact plan;
-- every input content/revision precondition is revalidated before effects;
-- no automatic retry occurs;
-- limitations and recovery material are reported truthfully;
-- failure cannot weaken the supported read/plan product.
+Stateless Base64 envelope return is proposed implementation policy, not an approved
+public transport default. The eventual CLI/MCP transport must preserve complete exact
+review bytes within actual response/token limits or use an explicitly authorized
+repository-external artifact handoff. A proposed 16 MiB decoded envelope does not imply
+that its Base64 form and review projection fit normal response bounds: 16 MiB becomes
+22,369,624 Base64 bytes before outer JSON, projection duplication and MCP overhead.
+Bound encoded input before decoding, decoded bytes before parsing, item/scalar/depth
+growth, and the actual complete host response. Proposed 30-minute lifetime, 16 MiB envelope, 32,768 input/binding records, 4,096 effects or
+diagnostics, and 64 KiB identity/argument scalars are unmeasured policy candidates, not
+ratified or fixed public defaults. Final limits need independent boundedness evidence;
+limits must return explicit outcomes rather than a truncated usable plan. Protected
+retention cannot borrow v1 store authority or fabricate a protection lease.
 
-The later durable prepare/apply/status/recover kernel remains owned by
-`critical-platform-hardening` and is required before distributed or stable apply.
+Planning and verification write no repository path, including during acquisition,
+generator/analyzer evaluation, stale rejection, cancellation and resource failure.
+`verify-plan` must report all required consequences over the exact frozen snapshot:
+compiler diagnostic delta, analyzer diagnostic delta, semantic/public API delta,
+unresolved references/call sites including generated callers, affected projects, and
+conservative candidate tests with workspace state and limitations. Trusted local policy
+mandates all six stages. The profile contains the exact locally supported set with
+required=true; imported action names/capabilities/flags cannot remove, rename or disable
+stages, dispatch arbitrary capabilities, or supply completion authority. Validate the
+actual complete closure used throughout verification and reject drift before publishing
+Verified, or prove equivalent immutable acquisition. Only every required stage
+completing over a nonstale Complete workspace permits Verified; syntax-only API
+comparison or missing/disabled/failed stages do not. Missing, expired, incompatible,
+corrupt and stale inputs remain distinct; stale means prepare and review a new plan,
+not silent recomputation.
+
+The target preview omits optional direct public CLI apply. Public review plans terminate
+at preparation and verification, with no MCP/daemon apply or daemon dependency. Current
+apply-shaped public requests still require later migration/rejection evidence. Existing
+hidden durable v1 maintainer contracts and the later prepare/apply/status/recover kernel
+remain owned by `critical-platform-hardening`; this decision grants them no new authority
+and relaxes none of their proofs. A future apply profile requires a separately accepted
+compatibility/authority decision and exact reviewed-byte binding.
+
+The initial model-only slice cannot complete M5.1, the public rename vertical slice,
+full verification or M5 exit criteria. All live input, no-write, cross-process, CLI/MCP,
+staleness, cancellation and resource acceptance evidence remains required.
 
 ## Rules and recipes
 

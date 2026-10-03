@@ -625,6 +625,30 @@ newer checkout under an older cursor.
 
 ### 6. Mutation prepare/apply/recover contract
 
+The accepted public planning target in
+[ADR-0106](adr/0106-review-only-change-plan-profile.md) uses `rt.change-plan.v2` with
+mandatory `profile: "review-only"`; the existing durable v1 byte contract remains
+unchanged under the same canonical writer/reader owners. A separate typed review reader
+must produce untrusted imported plan/input/workspace claims, not trusted acquisition
+receipts or Verified authority. Unkeyed SHA-256 supplies byte integrity/identity, not
+principal authentication or execution permission. No profile fallback, conversion to
+v1, fabricated guard/root identity, or borrowed durable store authority is permitted.
+
+The trusted local verifier policy mandates all six consequence stages independently
+of imported action fields, which cannot waive stages or dispatch arbitrary capabilities.
+Validate the actual complete inputs used throughout verification and reject drift
+before publishing Verified, or prove equivalent immutable acquisition. Reuse the diff
+owner through a typed review seam without fabricating durable preconditions.
+
+The target public preview omits optional direct CLI apply and retains the full M5
+prepare/verify/no-write contract. This is a contract decision, not a claim that public
+rename migration, the v2 model or consequence verification is implemented. Stateless
+Base64 transport and numeric lifetime/byte/item/scalar limits remain proposed policy;
+actual response/token bounds or an explicit external artifact handoff must be proved
+before admission. The initial model-only slice closes none of those public requirements.
+Existing hidden durable maintainer contracts and their proofs remain separate. The
+stable durable lifecycle described below is still a distinct platform-hardening target.
+
 A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 
 ```text

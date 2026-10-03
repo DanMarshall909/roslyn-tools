@@ -33,9 +33,11 @@ platform capability is complete?
 > trusted local repositories.
 
 Stable preview capabilities are read-only. Selected refactors may prepare immutable,
-revision-bound plans, but MCP and daemon paths do not apply them. An explicitly
-experimental direct CLI apply path may exist only if its narrower safety contract is
-implemented and tested; the package remains useful without it.
+revision-bound plans. The target preview omits the optional direct public CLI apply
+path; public plans support prepare and verify only, and MCP and daemon paths do not
+apply them. Existing hidden durable maintainer contracts remain separate. This contract
+decision does not claim that current command migration or plan/verify implementation
+is complete.
 
 ## What Changes
 
@@ -107,7 +109,7 @@ The target public capability families are:
 1. workspace truth: `doctor` and capabilities;
 2. symbols: search, outline, describe, source, and relationships;
 3. analysis: diagnostics, semantic diff, dependency graph, impact, check, inventory;
-4. change: prepare, verify, and—outside supported MCP preview—explicit lifecycle;
+4. change: prepare and verify; durable maintainer lifecycle remains separate;
 5. guidance: workflow recommendation.
 
 Typed operations with materially different schemas remain distinct. Internal engines
