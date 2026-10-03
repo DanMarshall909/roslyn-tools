@@ -114,6 +114,15 @@ revision-bound planning, and verification. Platform guarantees remain owned by
 
 ## Implementation progress
 
+- The [ADR-0106](../../../adr/0106-review-only-change-plan-profile.md) contract/docs
+  slice separates public v2/review-only from byte-exact durable v1 and omits optional
+  direct public apply. Imported claims and hashes grant no trusted receipt, Verified
+  or apply authority; local policy requires all six verification stages. Base64,
+  lifetime and numeric limits remain proposed. The docs checks passed Node 7/7,
+  fourteen local links/anchors, strict OpenSpec and whitespace checks; no runtime or
+  main integration/publication is claimed. The
+  [M5 model, planner, transport, verifier and admission gates](../../../../openspec/changes/shape-pre-release-product-spine/tasks.md#milestone-5-establish-revision-bound-planning-and-verification)
+  remain open.
 - Doctor result safety now includes `RepositoryCodeExecution` after trusted
   workspace acquisition begins, even if acquisition fails; installation-only,
   trust-required, and SDK-bootstrap failure results omit it. Mode-specific
