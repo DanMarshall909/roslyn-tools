@@ -13,7 +13,7 @@ internal static class HostCommandMetadata
         Mutates: false,
         JsonOutput: true,
         Category: "inspect",
-        "Use this when inspecting effective host configuration or diagnosing an invalid configuration file without a solution or repository trust.",
+        "Diagnose an invalid rt configuration file or inspect effective host configuration without a solution or repository trust.",
         ["rt config", "rt config --json"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json],
         SeeAlso: ["doctor", "trust"]);
@@ -81,7 +81,8 @@ internal static class HostCommandMetadata
         "analyze",
         Aliases: ["sdiff"],
         WhenToUse:
-        "Working-tree comparison requires Linux x64; on other platforms use two Git refs "
+        "Compare C# declarations between Git refs such as main and HEAD or between source files. "
+        + "Working-tree comparison requires Linux x64; on other platforms use two Git refs "
         + "(--from and --to) or two .cs files. Reviewing what *semantically* changed in C# "
         + "between two states. Prefer this over git diff: "
         + "it ignores comments and whitespace, treats a declaration moved to another file as "
@@ -123,7 +124,7 @@ internal static class HostCommandMetadata
         true,
         true,
         "meta",
-        "Recording rt dogfood feedback, bugs, missing features, and unexpected command behavior. "
+        "Record feedback about an rt tool problem: dogfood bugs, missing features, and unexpected command behavior. "
         + "Use rt maintainer feedback add to create an item or rt maintainer feedback list to review existing items.",
         [
             "rt maintainer feedback add --description \"rename should also preview related symbols\"",

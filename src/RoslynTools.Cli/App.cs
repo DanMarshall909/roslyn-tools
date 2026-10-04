@@ -350,7 +350,7 @@ internal static class App
                 {
                     var typed = pr.UnmatchedTokens[0];
                     var suggest = services.GetRequiredService<SuggestService>();
-                    var response = suggest.Suggest(new SuggestRequest(typed, Top: 3));
+                    var response = suggest.SuggestCommandName(typed, top: 3);
                     const double minScore = 1.0;
                     var hits = response.Results.Where(r => r.Score >= minScore).ToList();
                     if (hits.Count > 0)

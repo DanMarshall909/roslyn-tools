@@ -202,7 +202,7 @@ internal static class RenameCommandDefinition
         "refactor",
         Aliases: ["ren"],
         WhenToUse:
-        "Renaming a C# symbol (type, method, property, field, namespace) and updating every reference across the solution. Prefer this over Edit or a manual grep+sed: rt uses Roslyn semantic rename so references that only bind by type inference are also updated, and string literals/comments are not accidentally rewritten. Use --csv to batch-apply a curated rename mapping file.",
+        "Renaming a C# symbol (class, interface, type, method, property, field, namespace) and updating every reference across the solution. Prefer this over Edit or a manual grep+sed: rt uses Roslyn semantic rename so references that only bind by type inference are also updated, and string literals/comments are not accidentally rewritten. Use --csv to batch-apply a curated rename mapping file.",
         Examples:
         [
             "rt refactor rename OldTypeName NewTypeName --solution MySolution.sln",

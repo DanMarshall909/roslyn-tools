@@ -7,6 +7,48 @@ namespace RoslynTools.Tests.Cli;
 
 public sealed class SuggestWorkflowSurfaceTests
 {
+    [Theory]
+    [InlineData("Generate unit tests for BookingService")]
+    [InlineData("Remove unused TypeScript imports")]
+    public async Task suggest_reports_unrepresented_tasks_without_keyword_substitutions(string query)
+    {
+        var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 3 --json");
+
+        result.ExitCode.ShouldBe(0, result.Stderr);
+        using var payload = JsonDocument.Parse(result.Stdout);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe(query);
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.GetProperty("Related").GetArrayLength().ShouldBe(0);
+        payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task unknown_command_hints_keep_lexical_lookup()
+    {
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        Console.SetOut(stdout);
+        Console.SetError(stderr);
+        try
+        {
+            var exitCode = await App.RunAsync(["static-flights"]);
+
+            exitCode.ShouldBe(1);
+            stdout.ToString().ShouldBe(string.Empty, "Unknown-command hints belong on stderr; stdout must remain empty.");
+            var output = stderr.ToString();
+            output.ShouldContain("make-static");
+            output.Split('\n').Count(line => line.Contains("  - ", StringComparison.Ordinal)).ShouldBe(3);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+    }
+
     [Fact]
     public async Task suggest_help_exposes_optional_solution_for_populated_routes()
     {
@@ -194,15 +236,15 @@ public sealed class SuggestWorkflowSurfaceTests
     [InlineData("Make a static class accept an injectable service")]
     [InlineData("Convert a static class to an instance method")]
     [InlineData("Convert a static class to an instance property")]
-    public async Task non_migration_class_context_keeps_general_discovery(string query)
+    public async Task unrepresented_class_context_does_not_claim_static_class_migration(string query)
     {
         var result = await RtCliHost.RunAsync($"suggest \"{query}\" --top 1 --json");
 
         result.ExitCode.ShouldBe(0, result.Stderr);
         using var payload = JsonDocument.Parse(result.Stdout);
-        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Recommendations");
-        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(1);
-        payload.RootElement.TryGetProperty("MissingCapability", out _).ShouldBeFalse();
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe(query);
     }
 
     [Theory]
@@ -349,14 +391,16 @@ public sealed class SuggestWorkflowSurfaceTests
     [Theory]
     [InlineData("Find references to the constructor named WorkspaceLoader")]
     [InlineData("Find references to the namespace named RoslynTools")]
-    public async Task unsupported_reference_kind_keeps_catalogue_discovery(string query)
+    public async Task unrepresented_reference_kind_does_not_claim_a_reference_workflow(string query)
     {
         var result = await RtCliHost.RunAsync($"suggest \"{query}\" --solution RoslynTools.slnx --json");
 
         result.ExitCode.ShouldBe(0, result.Stderr);
         using var payload = JsonDocument.Parse(result.Stdout);
         payload.RootElement.TryGetProperty("Workflow", out _).ShouldBeFalse();
-        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBeGreaterThan(0);
+        payload.RootElement.GetProperty("Outcome").GetString().ShouldBe("Unsupported");
+        payload.RootElement.GetProperty("MissingCapability").GetString().ShouldBe(query);
+        payload.RootElement.GetProperty("Results").GetArrayLength().ShouldBe(0);
     }
 
     [Fact]

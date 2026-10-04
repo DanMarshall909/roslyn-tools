@@ -310,10 +310,15 @@ forcing an irrelevant command match.
 
 #### Scenario: requested capability is absent
 
-- **WHEN** no command or workflow exceeds the configured relevance threshold
+- **WHEN** no explicit workflow handles the task and no command meets the relevance admission threshold
 - **THEN** `suggest` returns `Unsupported`
 - **AND** names the missing capability
 - **AND** does not substitute an unrelated command merely to return a result
+- **AND** general discovery requires all substantive task terms to be represented in canonical names, aliases, established synonyms, or the primary capability sentence of `WhenToUse`, with a name or synonym anchor for a one-term task
+- **AND** examples alone do not establish task support, and read requests do not recommend repository mutators
+- **AND** explicit C# operand slots do not become missing capabilities, while foreign-language constraints remain substantive
+- **AND** the display limit is applied after admission and an unsupported response has empty recommendations and related entries, no workflow, and a bounded Unicode task label
+- **AND** unknown-command lexical repair retains its separate command-name lookup
 
 #### Scenario: package inventory or wholesale core dependency extraction is requested
 

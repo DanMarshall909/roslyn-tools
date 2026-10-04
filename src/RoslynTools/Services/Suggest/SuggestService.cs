@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Core;
@@ -111,19 +112,66 @@ internal sealed class SuggestService : IRtService
         if (IsStandaloneNegatedStaticMemberChange(request.Query))
             return new SuggestResponse([], [], SuggestOutcome.NoMatch);
 
-        var scored = Bm25Scorer.Score(
+        if (string.IsNullOrWhiteSpace(request.Query) || request.Top <= 0)
+            return new SuggestResponse([], [], SuggestOutcome.NoMatch);
+
+        var ranked = Bm25Scorer.Score(
             _catalog.All,
             request.Query,
-            request.Top,
+            _catalog.All.Count,
             Synonyms.NameSynonyms);
 
+        var rankedNames = ranked.Select(candidate => candidate.Command.Name).ToHashSet(StringComparer.Ordinal);
+        var candidates = ranked.Concat(_catalog.All
+            .Where(command => !rankedNames.Contains(command.Name))
+            .Select(command => new ScoredCommand(command, 0))).ToList();
+        var scored = SuggestRelevancePolicy.Admit(candidates, TaskAfterNegatedMemberClause(request.Query))
+            .Take(request.Top);
         var results = scored.Select(ToResult).ToList();
+        if (results.Count == 0)
+            return new SuggestResponse([], [], SuggestOutcome.Unsupported,
+                MissingCapability: BoundTaskLabel(request.Query),
+                UnsupportedReason: "No catalogue command satisfies this task's substantive terms and read intent. " +
+                                   "Refine the task or inspect rt dump-help --compact, then complete unsupported work manually.");
+
         var related = BuildRelated(results, _catalog.All);
 
         return new SuggestResponse(
             results,
             related,
+            SuggestOutcome.Recommendations);
+    }
+
+    /// <summary>Lexical hints for an unrecognized command token, independent of task admission.</summary>
+    public SuggestResponse SuggestCommandName(string query, int top = 3)
+    {
+        var results = Bm25Scorer.Score(_catalog.All, query, top, Synonyms.NameSynonyms)
+            .Select(ToResult).ToList();
+        return new SuggestResponse(results, BuildRelated(results, _catalog.All),
             results.Count == 0 ? SuggestOutcome.NoMatch : SuggestOutcome.Recommendations);
+    }
+
+    private static string BoundTaskLabel(string query)
+    {
+        const int limit = 160;
+        var runes = query.Trim().EnumerateRunes().Take(limit + 1).ToArray();
+        return string.Concat(runes.Take(limit).Select(rune => rune.ToString()))
+               + (runes.Length > limit ? "…" : "");
+    }
+
+    private static string TaskAfterNegatedMemberClause(string query)
+    {
+        foreach (Match separator in Regex.Matches(query,
+                     @"[;.!?]\s+|\band\s+(?<task>list|find|show|inspect)\b",
+                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
+        {
+            if (IsStandaloneNegatedStaticMemberChange(query[..separator.Index]))
+                return query[(separator.Groups["task"].Success
+                    ? separator.Groups["task"].Index
+                    : separator.Index + separator.Length)..];
+        }
+
+        return query;
     }
 
     private SuggestResponse SuggestMethodConversion(

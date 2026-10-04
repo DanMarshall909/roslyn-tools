@@ -272,6 +272,33 @@ public class ServerSerializationTests
     }
 
     [Theory]
+    [InlineData("Generate unit tests for BookingService")]
+    [InlineData("Remove unused TypeScript imports")]
+    public async Task suggest_unrepresented_tasks_are_typed_in_both_content_forms(string query)
+    {
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 2,
+            @params = new { name = "suggest_command", arguments = new { query, top = 3 } }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("missingCapability").GetString().ShouldBe(query);
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.GetProperty("related").GetArrayLength().ShouldBe(0);
+        structured.TryGetProperty("workflow", out _).ShouldBeFalse();
+        using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
+        JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData("Convert an instance method to static", "make-static")]
     [InlineData("Convert an instance method to static, please.", "make-static")]
     [InlineData("Convert an instance method to static, for performance and testability", "make-static")]
@@ -431,7 +458,7 @@ public class ServerSerializationTests
     [InlineData("Make a static property thread-safe")]
     [InlineData("Make a property thread-safe in a static method")]
     [InlineData("Make a property static analysis friendly")]
-    public async Task suggest_other_static_member_or_class_changes_keep_discovery(string query)
+    public async Task suggest_unrepresented_static_member_changes_do_not_claim_a_method_recipe(string query)
     {
         var request = JsonSerializer.Serialize(new
         {
@@ -450,9 +477,9 @@ public class ServerSerializationTests
         var result = document.RootElement.GetProperty("result");
         result.GetProperty("isError").GetBoolean().ShouldBeFalse();
         var structured = result.GetProperty("structuredContent");
-        structured.GetProperty("outcome").GetString().ShouldBe("Recommendations");
-        structured.GetProperty("results").GetArrayLength().ShouldBe(1);
-        structured.TryGetProperty("missingCapability", out _).ShouldBeFalse();
+        structured.GetProperty("outcome").GetString().ShouldBe("Unsupported");
+        structured.GetProperty("results").GetArrayLength().ShouldBe(0);
+        structured.GetProperty("missingCapability").GetString().ShouldBe(query);
         using var text = JsonDocument.Parse(result.GetProperty("content")[0].GetProperty("text").GetString()!);
         JsonElement.DeepEquals(structured, text.RootElement).ShouldBeTrue();
     }

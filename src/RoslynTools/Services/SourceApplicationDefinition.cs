@@ -12,7 +12,7 @@ internal static class SourceApplicationDefinition
         "inspect",
         Aliases: null,
         WhenToUse:
-        "Reading the bounded source of a specific method, property, type, or field by FQN without opening the file. Returns the declaration including XML doc comments, then lists source symbols referenced by its signature or body. Use include-related to retrieve those one-hop declarations too, and continue an explicitly truncated result with its revision-bound token. Prefer this over Read when you know the exact member you need.",
+        "Reading the bounded source of a specific method, property, class, interface, type, or field by FQN without opening the file. Returns the declaration including XML doc comments, then lists source symbols referenced by its signature or body. Use include-related to retrieve those one-hop declarations too, and continue an explicitly truncated result with its revision-bound token. Prefer this over Read when you know the exact member you need.",
         Examples:
         [
             "rt inspect source RoslynTools.Services.OutlineService.BuildTypeSummary --solution RoslynTools.slnx",

@@ -227,7 +227,7 @@ internal static class MoveCommandDefinition
         false,
         "refactor",
         WhenToUse:
-        "Use this instead of manual Edit when moving a type or namespace while preserving bound references and reviewing every file and project edit before application. Use --move-file to relocate declaration files for type-to-namespace or namespace moves; --to-project performs the physical cross-project move and forbids --move-file.",
+        "Use this instead of manual Edit when moving a type or namespace within or across projects while preserving bound references and reviewing every file and project edit before application. Use --move-file to relocate declaration files for type-to-namespace or namespace moves; --to-project performs the physical cross-project move and forbids --move-file.",
         Examples:
         [
             "rt refactor move --type ProjectX.Core.BookingService --to-namespace ProjectX.Domain --dry-run",

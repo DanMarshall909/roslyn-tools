@@ -214,7 +214,7 @@ internal static class ConvertConsoleLoggingCommandDefinition
         "refactor",
         Aliases: ["ccl"],
         WhenToUse:
-        "Use this instead of manual Edit calls when migrating Console.Write/WriteLine and Console.Error.Write/WriteLine calls to structured logger calls. Defaults to structured review; pass --apply to write changes.",
+        "Use this instead of manual Edit calls when converting console output from Console.Write/WriteLine and Console.Error.Write/WriteLine calls to structured logging through logger calls. Defaults to structured review; pass --apply to write changes.",
         Examples:
         [
             "rt refactor convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

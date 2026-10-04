@@ -9,7 +9,7 @@ namespace RoslynTools.Tests.Suggest;
 public sealed class DiscoveryCatalogTests
 {
     [Theory]
-    [InlineData("inspect a type public members", "outline", "describe")]
+    [InlineData("inspect a type and its members", "outline", "describe")]
     [InlineData("find callers of a method", "relationships", "relationships")]
     [InlineData("move a type across projects", "move-slice", "move")]
     [InlineData("extract an interface from a class", "extract-interface", "extract-interface")]

@@ -20,7 +20,7 @@ internal static class OutlineCommandDefinition
         false,
         true,
         "inspect",
-        "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Prefer this over Read when you only need the shape of the code, not its contents — a fraction of the tokens reading the files would cost. The default is a compact per-type view { name, kind, signatures: [...] } with no line numbers (stable across edits) — ideal for agents orienting in an unfamiliar module or diffing public surface area across branches. Use --with-locations for the legacy verbose grouped-members shape with line ranges, or --summary for a one-entry-per-type overview (fqn, kind, line range, optional XML doc description).",
+        "Getting a JSON summary of all class, interface, and other type declarations and their member signatures in a file or namespace. Prefer this over Read when you only need the shape of the code, not its contents — a fraction of the tokens reading the files would cost. The default is a compact per-type view { name, kind, signatures: [...] } with no line numbers (stable across edits) — ideal for agents orienting in an unfamiliar module or diffing public surface area across branches. Use --with-locations for the legacy verbose grouped-members shape with line ranges, or --summary for a one-entry-per-type overview (fqn, kind, line range, optional XML doc description).",
         [
             "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -227,7 +227,7 @@ internal static class LanguageFeaturesCommandDefinition
         "analyze",
         Aliases: ["lang-features"],
         WhenToUse:
-        "Use this when planning C# modernization or consistency refactors and you need to know which language features are established conventions, how dense their usage is, and where mechanically comparable exceptions remain. Prefer it over Grep because it counts Roslyn syntax and semantic constructs, reports stable feature IDs and valid denominators, and distinguishes unsupported compiler features from zero usage.",
+        "Use this when planning C# modernization or consistency refactors and you need to know which language features a solution uses as established conventions, how dense their usage is, and where mechanically comparable exceptions remain. Prefer it over Grep because it counts Roslyn syntax and semantic constructs, reports stable feature IDs and valid denominators, and distinguishes unsupported compiler features from zero usage.",
         Examples:
         [
             "rt analyze language-features --solution RoslynTools.slnx",
@@ -251,7 +251,7 @@ internal static class ListImportsCommandDefinition
         "analyze",
         Aliases: ["imports"],
         WhenToUse:
-        "Use this when auditing C# using directives before consolidating imports or introducing static member imports. Prefer it over Read when you need global, static, and alias directives across the solution.",
+        "Use this when auditing C# global, static, and alias using directives across the solution before consolidating imports or introducing static member imports. Prefer it over Read when you need a declaration inventory across files.",
         Examples:
         [
             "rt analyze list-imports --kind global --solution RoslynTools.slnx",

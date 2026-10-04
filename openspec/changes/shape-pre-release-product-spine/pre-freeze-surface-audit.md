@@ -753,3 +753,83 @@ Before the final surface freeze:
    workflow-aware suggestions, hidden internal lifecycle, diagnostics/impact,
    and reviewable plans. Then reduce output bytes and redundant calls with
    bounded agent views and measured per-workflow budgets.
+
+## 2026-10-02: Conservative task admission
+
+The source-built CLI was measured against 65 baseline requests from clean
+`158d43908efa99e0634eae7af3ea6ef373c47b5c`. The table compares 64 explicit queries;
+the empty query is excluded because omitted-query discovery depends on working-tree
+state. All requests used `--top 3 --json`. These are discovery responses, not
+completed operations or token counts.
+
+| Corpus group | Queries | Baseline stdout bytes | Candidate stdout bytes | Candidate outcomes |
+|---|---:|---:|---:|---|
+| Supported jobs | 20 | 68,514 | 23,239 | 14 recommendations, 6 unsupported |
+| Absent jobs | 18 | 46,256 | 5,957 | 18 unsupported |
+| Incidental keyword collisions | 14 | 49,808 | 4,636 | 14 unsupported |
+| Existing explicit guards/workflows | 6 | 2,700 | 2,700 | Same two recommendations and four unsupported outcomes |
+| Nonempty nonsense | 6 | 366 | 1,844 | 6 typed unsupported outcomes |
+
+The combined explicit responses decrease from 167,644 to 38,376 bytes (77.1%).
+Typed unsupported responses are larger than the previous bare no-match response
+for nonsense. The usefulness result is the rejection of all 32 absent/collision
+requests while retaining 14 represented jobs. This does not certify complete
+natural-language understanding.
+
+Six supported jobs remain unsupported with this phrasing: definition plus usages
+of a named type, what a named service exposes, callers without an explicit method
+marker, type dependencies between services, repeated code blocks in an application
+layer, and parameter removal plus caller updates. They need canonical metadata or
+explicit workflows; the threshold item does not close those jobs.
+
+[ADR-0104](../../../docs/adr/0104-task-relevance-admission.md) separates capability
+admission from BM25 ordering and command-token repair. Primary capability sentences
+establish admission; later explanations and examples only affect rank. Review
+probes cover read/write collisions, foreign-language constraints, metadata-only
+recall, aliases, lowercase/escaped/quoted rename targets, and bounded Unicode labels.
+Compact outline contains signatures for public and private members without
+accessibility, so public-only inventory remains unsupported rather than being
+substituted with heuristic SOLID checks.
+
+### Aggregated development findings
+
+- `prime` advertises an outline workflow without making its supported formats
+  clear; three independent agents tried `outline --llm`, which is rejected.
+  Fix the primer from canonical format metadata in a subsequent clean slice.
+- Outline inspection of this checkout reports Partial because ignored SDK sample
+  artifacts participate in workspace-input discovery. Its returned declarations
+  provide positive evidence; it cannot prove absence.
+- Real catalogue and top-three checks caught defects hidden by synthetic metadata
+  and top-one checks. Calibration must include the actual output scope: an
+  all-member signature list without accessibility cannot fulfil public-only inventory.
+- Numeric constraints need explicit negative and positive controls: silently
+  dropping a requested C# version made a general feature inventory appear suitable.
+  Integer and decimal values now retain their identity; digits within explicit
+  C# identifiers and paths remain operands. Inflected read requests also need
+  read/write collision controls.
+- Full line and branch coverage did not protect request framing and normalization.
+  Tests whose query and capability metadata share the same spelling can change
+  together under a mutation. Terse declarations, natural request framing, and
+  action-versus-inventory collisions provide independent behavior evidence.
+- Builds and test collectors must run sequentially when they share assembly output
+  paths. An overlapping rebuild produced `BadImageFormatException`; those results
+  were discarded and stable sequential checks replaced them.
+- Stryker text spans are UTF-16 character offsets, not line ranges. The initial
+  line-based filters yielded zero host/CLI outcomes and are superseded evidence.
+  Inspect actual eligible mutants and source-resolvable test links before treating
+  exit zero as useful evidence. See the
+  [Stryker configuration contract](https://stryker-mutator.io/docs/stryker-net/configuration/#mutate-glob-expressions).
+- The current pre-commit mutation driver depends on staged paths and does not
+  select separate production assemblies for a pre-review candidate. Explicit
+  candidate profiles are needed here; a future driver improvement should preserve
+  assembly ownership, end-to-end exclusions, and honest scope reporting.
+- `Category!=E2E` excludes no tests when the suite has no such traits. Mutation
+  selection must exclude the actual CLI and crash-probe subprocess methods while
+  retaining in-process tests from mixed classes, then verify the runner's test
+  catalogue. Full acceptance still includes these process boundaries.
+- Six obsolete synonym keys remain after command retirement: `add-test`,
+  `convert-static-class`, `find-callers`, `find-impl`, `find-refs`, and `replace-type`.
+  Remove them in a subsequent clean slice after verifying active replacement routes.
+
+These findings remain repository evidence. Transferable ai-rules updates are deferred
+until the complete command-surface goal reaches handoff.

@@ -119,7 +119,7 @@ internal static class ExtractClassCommandDefinition
         "refactor",
         Aliases: ["ec"],
         WhenToUse:
-        "Use this instead of manual Edit when moving a named set of members out of an oversized class into a new dedicated class file. When --static is not set, the command also wires the new class into the source class as a constructor-injected dependency, making it immediately usable without manual plumbing.",
+        "Use this instead of manual Edit when splitting a large or oversized class by moving selected named members into a new dedicated class file. When --static is not set, the command also wires the new class into the source class as a constructor-injected dependency, making it immediately usable without manual plumbing.",
         Examples:
         [
             "rt refactor extract-class --type AdminController --members ExportCsv,ImportCsv --new-type CsvController --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

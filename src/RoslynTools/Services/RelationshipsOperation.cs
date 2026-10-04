@@ -274,7 +274,7 @@ internal static class RelationshipsCommandDefinition
         false,
         true,
         "inspect",
-        "Use this when you need references, callers, or implementations for a resolved symbol through one bounded typed contract before planning a change.",
+        "Use this when you need references, callers of a method, or implementations for a resolved interface, type, or member symbol through one bounded typed contract before planning a change.",
         [
             "rt inspect relationships references IEmailService --kind type --solution RoslynTools.slnx --json",
             "rt inspect relationships callers ExecuteAsync --include-tests --solution RoslynTools.slnx --json",

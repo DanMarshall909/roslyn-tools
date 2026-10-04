@@ -327,8 +327,13 @@ or revision-bound plan producer without substituting an unrelated command; see
 task workflow returns a populated CLI `relationships implementations` call and,
 with an absolute solution path, the equivalent MCP call. It includes a stop
 condition when the result is partial or truncated.
-General workflow generation from command metadata and a relevance threshold
-remain open; see the [ADR-0002 amendment](adr/0002-suggestions-output-contract-and-proactive-session-start.md#2026-10-01-amendment-task-workflows).
+General discovery now admits candidates only when canonical capability metadata
+represents every substantive task term, with a name anchor for one-term requests
+and repository mutators excluded from read requests. Failed admission returns
+typed `Unsupported` through both hosts. Unknown-command lexical hints use a
+separate lookup; see [ADR-0104](adr/0104-task-relevance-admission.md).
+General workflow generation from command metadata remains open; see the
+[ADR-0002 amendment](adr/0002-suggestions-output-contract-and-proactive-session-start.md#2026-10-01-amendment-task-workflows).
 
 See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 

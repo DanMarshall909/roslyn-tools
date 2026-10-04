@@ -35,6 +35,7 @@ public sealed class SuggestServiceTests
     {
         var catalog = new FakeCatalog(
             Info("rename", whenToUse: "Rename a symbol across the solution"),
+            Info("mapping", whenToUse: "Rename a symbol using a mapping"),
             Info("safe-delete", whenToUse: "Delete an unused symbol safely"),
             Info("outline", whenToUse: "Print a JSON outline of a type or namespace"));
         var service = new SuggestService(catalog);
@@ -378,7 +379,7 @@ public sealed class SuggestServiceTests
     [InlineData("Convert a static class to an instance property")]
     [InlineData("Make a static class an instance property")]
     [InlineData("Convert a static class to an instance field")]
-    public void static_queries_outside_method_conversion_keep_catalogue_discovery(string query)
+    public void static_queries_outside_method_conversion_do_not_claim_method_recipes(string query)
     {
         var response = new SuggestService(new FakeCatalog(
             Info("list-imports", whenToUse: "Find static imports"),
@@ -386,9 +387,17 @@ public sealed class SuggestServiceTests
             Info("rename", category: "refactor", whenToUse: "Rename a method or class")))
             .Suggest(new SuggestRequest(query, Top: 3));
 
-        response.Outcome.ShouldBe(SuggestOutcome.Recommendations);
-        response.MissingCapability.ShouldBeNull();
-        response.Results.ShouldNotBeEmpty();
+        var expected = query switch
+        {
+            "List static classes" => SuggestOutcome.Recommendations,
+            _ => SuggestOutcome.Unsupported
+        };
+        response.Outcome.ShouldBe(expected);
+        if (expected == SuggestOutcome.Recommendations)
+            response.Results.Select(result => result.Name).ShouldBe(["static-class-inventory"]);
+        else
+            response.Results.ShouldBeEmpty();
+        response.MissingCapability.ShouldBe(expected == SuggestOutcome.Unsupported ? query : null);
         response.Workflow.ShouldBeNull();
     }
 
@@ -500,8 +509,11 @@ public sealed class SuggestServiceTests
             Info("static-class-inventory", category: "analyze", whenToUse: "List static classes")))
             .Suggest(new SuggestRequest(query, Top: 1));
 
-        response.MissingCapability.ShouldBeNull();
-        response.Results.ShouldNotBeEmpty();
+        var representsImport = query == "Add static using imports";
+        response.Outcome.ShouldBe(representsImport ? SuggestOutcome.Recommendations : SuggestOutcome.Unsupported);
+        response.Results.Select(result => result.Name).ShouldBe(representsImport ? ["add-static-import"] : []);
+        response.MissingCapability.ShouldBe(representsImport ? null : query);
+        response.Workflow.ShouldBeNull();
     }
 
     [Theory]
@@ -716,8 +728,9 @@ public sealed class SuggestServiceTests
             Info("make-static", category: "refactor", whenToUse: "Convert a method to static")))
             .Suggest(new SuggestRequest(query, Top: 1));
 
-        response.MissingCapability.ShouldBeNull();
-        response.Results.ShouldNotBeEmpty();
+        response.Outcome.ShouldBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldBe(query);
+        response.Results.ShouldBeEmpty();
     }
 
     [Fact]
@@ -1618,17 +1631,20 @@ public sealed class SuggestServiceTests
             "MCP requires an absolute solution path; call suggest_command again with one.");
     }
 
-    [Fact]
-    public void interface_creation_does_not_trigger_implementation_search()
+    [Theory]
+    [InlineData("Extract an interface from class BookingService", true)]
+    [InlineData("Extract an interface from BookingService", false)]
+    public void interface_creation_does_not_trigger_implementation_search(string query, bool recommended)
     {
         var catalog = new FakeCatalog(
             Info("relationships", whenToUse: "Inspect semantic relationships"),
-            Info("extract-interface", category: "refactor", whenToUse: "Extract an interface"));
-        var response = new SuggestService(catalog).Suggest(new SuggestRequest(
-            "Extract an interface from BookingService"));
+            Info("extract-interface", category: "refactor", whenToUse: "Extract an interface from a class"));
+        var response = new SuggestService(catalog).Suggest(new SuggestRequest(query));
         var payload = JsonSerializer.SerializeToElement(response);
 
-        response.Results[0].Name.ShouldBe("extract-interface");
+        response.Outcome.ShouldBe(recommended ? SuggestOutcome.Recommendations : SuggestOutcome.Unsupported);
+        response.Results.Select(result => result.Name).ShouldBe(
+            recommended ? ["extract-interface"] : Array.Empty<string>());
         payload.TryGetProperty("Workflow", out _).ShouldBeFalse();
     }
 
@@ -1797,6 +1813,6 @@ public sealed class SuggestServiceTests
             .Suggest(new SuggestRequest(query));
 
         response.Workflow.ShouldBeNull();
-        response.Outcome.ShouldNotBe(SuggestOutcome.Unsupported);
+        response.MissingCapability.ShouldNotBe("semantic-diff-working-tree");
     }
 }

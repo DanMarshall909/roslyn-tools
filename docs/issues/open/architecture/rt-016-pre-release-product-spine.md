@@ -297,6 +297,27 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   The same route now covers edits to read, write, and access sites. Declaration
   accessibility, attributes, accessors, and initializers remain separate
   relevance work; a named read search retains its inspection workflow.
+  General discovery now ranks the full catalogue before admitting commands whose
+  names, aliases, established synonyms, and primary capability sentence represent
+  all substantive task terms. Examples and later explanatory text cannot establish
+  support; read requests exclude repository mutators. A failed nonempty request
+  returns shared typed `Unsupported` with a bounded task label, empty results and
+  related entries, and a manual next step. Explicit target slots preserve lower-case,
+  escaped, and quoted rename operands; generic language constraints remain task
+  terms. Unknown-command hints retain a separate lexical lookup (ADR-0104).
+  Public-only member inventory remains unsupported: compact outline signatures
+  include private and public members without showing accessibility.
+  The representative discovery corpus still exposes valid phrasing and compound
+  jobs requiring workflows; this does not close general ordered workflow generation.
+  On 2026-10-04, the user requested committing this implementation as a
+  preservation checkpoint before mutation-performance and agent-token work.
+  The unchanged source candidate passed the full Release local gate (4,356 main
+  tests and 308 MCP tests; nine historical skips) and 176 focused policy cases.
+  Core mutation was interrupted after 15 hours 20 minutes with exit 130 and no
+  machine report; complete Core mutation evidence and final independent review
+  remain outstanding. The relevance acceptance task stays open. The next work
+  must address mutation performance and agent token usage before further
+  product-spine or Flo feature work.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text
