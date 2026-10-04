@@ -316,8 +316,9 @@ revision-bound planning, and verification. Platform guarantees remain owned by
   Core mutation was interrupted after 15 hours 20 minutes with exit 130 and no
   machine report; complete Core mutation evidence and final independent review
   remain outstanding. The relevance acceptance task stays open. The next work
-  must address mutation performance and agent token usage before further
-  product-spine or Flo feature work.
+  must address [RT-021 mutation performance and agent token usage](../testing/rt-021-mutation-performance-and-agent-token-usage.md)
+  ([GitHub #149](https://github.com/DanMarshall909/roslyn-tools/issues/149)) before
+  further product-spine or Flo feature work.
 - Prepared mutations now reject outside paths, parent traversal, and existing
   symlink components before staging, including extraction output (ADR-0084).
   Staged changed and added Roslyn documents now retain explicit source-text
