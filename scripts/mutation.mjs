@@ -56,6 +56,7 @@ function context(o) {
 
 function snapshot(c) {
     const paths = new Set(command('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard']).stdout.split('\0').filter(Boolean));
+    paths.add(c.configRelative);
     for (const p of command('git', ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', 'src', 'tests']).stdout.split('\0')) if (p) paths.add(p);
     const outputs = new Set(['bin', 'obj', 'artifacts', 'node_modules', 'StrykerOutput', 'TestResults']);
     const relevant = p => p === c.configRelative || ['global.json', '.config/dotnet-tools.json', '.editorconfig'].includes(p) || /\.(props|targets|slnx?|lock\.json)$/.test(p) || /^nuget\.config$/i.test(p) || /^(src|tests)\//.test(p) && !p.split('/').some(x => outputs.has(x));

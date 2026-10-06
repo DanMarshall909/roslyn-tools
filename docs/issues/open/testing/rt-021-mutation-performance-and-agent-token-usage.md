@@ -262,3 +262,31 @@ Shared guidance now includes these outcome, namespace, environment, attribution,
 durability and lifecycle lessons in ai-rules commit `befb088`. Incremental reuse,
 other-platform cancellation and final Core/discovery admission/review remain
 open. The existing frozen discovery gate is still authoritative.
+
+## Primary calibration and configuration binding follow-up
+
+The reviewed supervisor at `f56b258` completed a fresh primary-checkout Hosting
+seed in 179.949 seconds, preserving 71 outcomes (70 killed / one survived).
+Streams drained and no live owned worker remained; the receipt retained one
+exited zombie with zero RSS. Sampled peak group RSS was 2,861,476 KiB. Full
+stdout was 848 bytes; unchanged reuse was 926 bytes and launched no Stryker.
+These are stdout metrics, not agent token attribution.
+
+Actual production mutability, removal of an existing named test assertion,
+configuration concurrency and execution-environment changes each rejected reuse.
+Captured source bytes were restored, and HEAD/full status matched the clean
+anchor before each change and after restoration. Restored reuse retained 70/71.
+Evidence is retained in `artifacts/mutation-performance/rt-021/primary-driver-calibration/`.
+RT outlines returned the exact target types/members with Partial workspace
+evidence caused by ignored artifact build inputs; no full-workspace claim is made.
+
+Preparing the preserved Core gate exposed another configuration boundary: an
+explicitly selected configuration beneath ignored artifacts was absent from Git
+inventory and therefore absent from the fingerprint. A genuine named RED showed
+that changed owner scope incorrectly reused the old result. The selected path is
+now always inventoried explicitly; changed ignored configuration rejects reuse,
+and restoration permits it. All ten driver integration cases pass. This wrapper
+change deliberately invalidates earlier seeds; no old result is migrated by
+assumption. The existing Core scope, test filter and thresholds remain unchanged.
+The transferable explicit-input inventory lesson is published in global AI rules
+commit `8849c12`, with generation, convention and whitespace checks passing.

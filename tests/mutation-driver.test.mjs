@@ -156,6 +156,21 @@ test('corrupt evidence and an unreachable anchor fail honestly', { skip: !linux 
     assert.equal(f.nativeCalls(), 1);
 });
 
+test('an explicitly selected ignored configuration is bound to verified state', { skip: !linux }, t => {
+    const f = fixture(t), config = 'artifacts/frozen-config.json';
+    mkdirSync(join(f.root, 'artifacts'));
+    const path = join(f.root, config), original = readFileSync(join(f.root, 'stryker-config.json'), 'utf8');
+    writeFileSync(path, original);
+    assert.equal(f.call(['--config', config, '--full', '--update-baseline']).exit, 0);
+    const changed = JSON.parse(original);
+    changed['stryker-config'].mutate = ['**/Other.cs'];
+    writeFileSync(path, JSON.stringify(changed));
+    assert.equal(f.call(['--config', config]).data.code, 'baseline_incompatible');
+    writeFileSync(path, original);
+    assert.equal(f.call(['--config', config]).exit, 0);
+    assert.equal(f.nativeCalls(), 1);
+});
+
 test('the repository solution default and inherited behavior environment are bound', { skip: !linux }, t => {
     const f = fixture(t), p = join(f.root, 'stryker-config.json'), cfg = JSON.parse(readFileSync(p));
     delete cfg['stryker-config'].solution; writeFileSync(p, JSON.stringify(cfg));
