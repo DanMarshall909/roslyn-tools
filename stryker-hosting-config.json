@@ -1,0 +1,19 @@
+{
+  "stryker-config": {
+    "project": "src/RoslynTools.Hosting/RoslynTools.Hosting.csproj",
+    "test-projects": [
+      "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+      "tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj"
+    ],
+    "mutate": [
+      "**/HostCommandMetadata.cs",
+      "**/Output/RtContext.cs"
+    ],
+    "test-case-filter": "FullyQualifiedName~RoslynTools.Tests.Architecture.HostMetadataContractTests.|FullyQualifiedName~RoslynTools.Tests.OutputLayer.|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.shared_suggestion_catalogue_matches_cli_command_metadata|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.local_host_command_metadata_has_one_shared_source",
+    "configuration": "Release",
+    "solution": "RoslynTools.slnx",
+    "reporters": ["json", "cleartext", "progress"],
+    "thresholds": { "high": 100, "low": 95, "break": 0 },
+    "concurrency": 4
+  }
+}
