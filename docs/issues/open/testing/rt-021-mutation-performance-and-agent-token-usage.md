@@ -24,6 +24,9 @@ product-spine or Flo feature work. Useful long runtimes are acceptable; high
 agent token use is the more pressing concern. Preserve required mutation scope
 and behavioural evidence while reducing repeated work and supervision.
 
+On 2026-10-06, the user made applying verified transferable discoveries to the
+authored global rules and affected skills part of this goal's completion scope.
+
 The preceding discovery implementation is preserved in checkpoint commit
 `42d03a47c73b0406bc48adf78b709bce70cf6b44`. Its Release tests and formatting
 passed against the retained source candidate. Complete Core mutation evidence
@@ -81,3 +84,105 @@ capabilities. Increasing concurrency follows measurement of the main bottleneck.
 
 The local evidence paths are machine-local; the measurements and limitations
 above remain available in this versioned record and the linked issue.
+
+## Metadata profile measurements, 2026-10-06
+
+The new `stryker-hosting-config.json` retains both complete owner files,
+`HostCommandMetadata.cs` and `Output/RtContext.cs`, both test projects, Release,
+four workers and the historical 100/95/0 thresholds. Its positive filter selects
+48 independent host contract cases, five output-layer cases and two in-process
+host-boundary cases: 55 tests. Full regression and E2E verification remain
+separate requirements. This profile does not complete discovery admission.
+
+All 467 production/build-input entries and 306 pre-existing test-input entries
+in the retained source binding matched before the pilot. The new assertions
+specify command identity, placement, formats, aliases, examples, discovery
+triggers, effect/authority/workspace policies, resources and disclosed limits.
+Fresh isolated assembly loading observes output defaults without a fixture
+reset and checks independent changes and restoration of all six properties.
+
+| Run | Selected tests | Eligible mutants | Killed / survived | Total seconds | Sampled process-group peak GiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Retained baseline | 4,436 | 71 | 33 / 38 | 8,980.478 | Unavailable |
+| Initial compact pilot | 55 | 71 | 68 / 3 | 173.314 | 1.82 |
+| Final profile, first run | 55 | 71 | 70 / 1 | 98.338 | 1.83 |
+| Final profile, repeat | 55 | 71 | 70 / 1 | 185.990 | 1.86 |
+
+The two final runs are 48–91 times faster than the retained baseline. Their
+98–186 second range is material variability; its cause has not been isolated.
+These are same-machine comparisons with unchanged production and existing
+tests, rather than randomized measurements controlling all machine activity.
+All 71 eligible mutations matched by file, location, operator and replacement;
+every previously killed mutation remained killed. Authored input hashes stayed
+unchanged during each run and its owned process group was empty at completion.
+
+| Log milestone window | Baseline seconds | Final first / repeat seconds |
+| --- | ---: | ---: |
+| Startup and build | 31.725 | 21 / 20 |
+| Initial tests and mutation preparation | 576 | 15 / 20 |
+| Coverage capture and filtering | 543 | 8 / 8 |
+| Mutant execution and reporting | 7,829.753 | 54.338 / 137.990 |
+
+These are native log milestone windows, including the named overhead. Exact
+isolated initial-test time is unavailable at the retained info verbosity.
+No result reuse or changed-mutant subset was enabled for these pilots.
+
+### Fault calibration and remaining finding
+
+Native metadata faults resolve to named independent contract tests, including
+Config read effects/conditional mutation, Trust write effects/conditional
+mutation and Feedback mutation/JSON classification. RtContext has no generated
+native mutants in this pinned run, so its correctness is not inferred from the
+native score.
+
+An isolated clean-commit experiment rejected sixteen explicit source faults:
+six output defaults, a no-op setter, a coupled setter, Config/Trust authority
+and workspace requirements, the three explicit format lists and Trust placement.
+Every rejection was a named TRX assertion failure; setup failures cannot qualify.
+Both calibration groups passed all 48 cases before and after source restoration,
+and the experiment worktree returned clean.
+
+The current-source Release gate passed in 763.894 seconds: build, 308 MCP tests,
+4,404 main-project tests, nine pre-existing skips and whole-solution formatting.
+The 48 contract cases also passed with coverage collection: metadata 117/117
+lines and output context 6/6 lines. Coverage is execution evidence; the native
+and explicit source-fault rejections establish the assertions' effectiveness.
+
+The sole remaining native finding, ID 745, deletes the generic comparison and
+recommendation connective in SemanticDiff's prose. Independently asserted Git
+and file comparison modes and comment/whitespace behavior remain disclosed.
+The profile does not pin that wording verbatim solely to kill this mutation.
+The final native score is 98.59%; native success remains distinct from full
+repository and discovery acceptance.
+
+### Supervision, guidance and workflow findings
+
+The third pilot recorded three launch/collection tool calls and 465 bytes of
+serialized tool-response payload. Local sampling and waiting require no model
+calls. These figures exclude implementation, review and other inspection calls;
+they are not token counts. Mutation-attributed tokens remain unavailable.
+
+Transferable findings are published in shared AI rules:
+
+- `DanMarshall909/ai-rules@8ea321a`: compact independent contracts for static
+  metadata, real initialization checks and configured owner-scope comparison.
+- `DanMarshall909/ai-rules@ce0bec6`: identify entrypoint file types before text
+  inspection, bound composed tool output and use a script's declared interpreter.
+
+The first update passed ten repository checks; the second passed generator,
+convention, link and whitespace checks. Installed portable and Claude skill
+links resolve to the authored checkout; running-client reload is not proven.
+
+Flo's documented implementation cycle cannot express honest characterization
+RED for already-correct behavior. [FLO-036 / issue #1](https://github.com/DanMarshall909/flo-tdd/issues/1)
+records the observed usage/documentation gap and this explicit calibration
+fallback; no live-cycle rejection is claimed. RT's advertised Linux gate script
+is tracked as non-executable (100644); its initial launch failed with errno 13.
+The same full gate is invoked through Bash, retaining the failed launch record.
+
+Raw reports, source/tool/configuration bindings, sampled process identities,
+calibration TRX files, complete owned findings and compact summaries remain under
+ignored `artifacts/mutation-performance/rt-021/`. The scripts there are bounded
+investigation utilities, not the maintained unattended driver still required by
+this issue. Persistent reuse, cancellation calibration, the maintained driver
+and final discovery admission/review remain outstanding.
