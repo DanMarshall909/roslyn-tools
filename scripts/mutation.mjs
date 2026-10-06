@@ -186,8 +186,10 @@ async function full(c, o) {
         fs.writeSync(fd, chunk); buffer += chunk.toString();
         const lines = buffer.split(/[\r\n]/); buffer = lines.pop();
         for (const line of lines) {
-            const match = line.match(/(\d+)\s+total mutants will be tested/); if (match) scheduled = Number(match[1]);
-            if (/Initial test|coverage|total mutants will be tested|Time Elapsed/.test(line)) milestones.push({ elapsedSeconds: (performance.now() - start) / 1000, message: line.slice(0, 240) });
+            const record = line.match(/^\[\d{2}:\d{2}:\d{2} INF\] (.*)$/);
+            if (!record) continue;
+            const match = record[1].match(/^(\d+)\s+total mutants will be tested$/); if (match) scheduled = Number(match[1]);
+            if (match || /Initial test|coverage|Time Elapsed/.test(record[1])) milestones.push({ elapsedSeconds: (performance.now() - start) / 1000, message: line.slice(0, 240) });
         }
         if (buffer.length > 65536) buffer = buffer.slice(-65536);
     };

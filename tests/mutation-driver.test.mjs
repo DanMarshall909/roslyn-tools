@@ -32,7 +32,19 @@ if(s.mode==='wait'){
  const report={schemaVersion:'2',files:{'src/Owner.cs':{source:'true;\\n"text";',mutants}},testFiles:{'tests/OwnerTests.cs':{source:'// contract',tests:[{id:'t1',name:'owned behavior',location:{start:{line:1,column:1},end:{line:1,column:12}}}]}}};
  if(s.mode==='unattributed')delete mutants[0].killedBy;
  fs.writeFileSync(path.join(out,'reports/mutation-report.json'),s.mode==='malformed'?'broken':JSON.stringify(report));
- console.log((s.mode==='empty'?0:2)+' total mutants will be tested');
+ console.log('[10:00:02 INF] '+(s.mode==='empty'?0:2)+' total mutants will be tested');
+ if(s.mode==='progress'){
+  console.log('            // coverage: unreachable guard');
+  console.log('[10:00:02 DBG] Initial test run output: .');
+  console.log('var note = \"999 total mutants will be tested\";');
+  console.log('[10:00:02 DBG] 999 total mutants will be tested');
+  console.log('[10:00:03 INF] Number of tests found: 1 for project Owner.csproj. Initial test run started.');
+  console.log("[10:00:04 INF] Capture mutant coverage using 'CoverageBasedTest' mode.");
+  console.log('[10:00:05 INF] 2 total mutants will be tested');
+  console.log('[10:00:05 INF] Source note: 999 total mutants will be tested');
+  console.log('[10:00:05 INF] 999 total mutants will be tested in this source example');
+  console.log('[10:00:06 INF] Time Elapsed 00:00:04.0000000');
+ }
  console.log('All mutants have been tested');
  if(s.mode==='linger'){
   const worker=cp.spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});
@@ -102,6 +114,27 @@ test('a full seed preserves native outcomes and identical state launches no nati
     assert.equal(durable.exit, 0);
     assert.ok(existsSync(durable.data.receipt));
     assert.equal(JSON.parse(readFileSync(durable.data.receipt)).verification.complete, true);
+});
+
+test('progress metadata accepts INFO records and leaves source comments and DEBUG output in the raw log', { skip: !linux }, t => {
+    const f = fixture(t); f.settings({ mode: 'progress' });
+    const full = f.call(['--full']);
+    const receipt = JSON.parse(readFileSync(full.data.receipt, 'utf8'));
+    assert.equal(receipt.scheduledMutants, 2, 'Source examples must not overwrite the scheduled count.');
+    assert.equal(full.exit, 0);
+    assert.deepEqual(receipt.milestones.map(x => x.message), [
+        '[10:00:02 INF] 2 total mutants will be tested',
+        '[10:00:03 INF] Number of tests found: 1 for project Owner.csproj. Initial test run started.',
+        "[10:00:04 INF] Capture mutant coverage using 'CoverageBasedTest' mode.",
+        '[10:00:05 INF] 2 total mutants will be tested',
+        '[10:00:06 INF] Time Elapsed 00:00:04.0000000'
+    ]);
+    const raw = readFileSync(receipt.log, 'utf8');
+    assert.match(raw, /coverage: unreachable guard/);
+    assert.match(raw, /DBG\] Initial test run output/);
+    assert.match(raw, /999 total mutants will be tested/);
+    assert.match(raw, /INF\] Source note: 999 total mutants will be tested/);
+    assert.match(raw, /999 total mutants will be tested in this source example/);
 });
 
 test('source, test, shared fixture, configuration, tool, SDK and dependency changes invalidate reuse', { skip: !linux }, t => {

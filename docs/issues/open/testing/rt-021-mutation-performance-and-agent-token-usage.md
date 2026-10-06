@@ -432,3 +432,30 @@ observed benefit. The next representative pilot must use the full Core test
 selection with a whole owner to measure broad test reruns; the 176-test pilot
 cannot establish that cost. Global measurement lessons are published and pushed
 in ai-rules commit `6a04994`.
+
+### Progress-metadata correction
+
+The supervisor now accepts timestamped Native INFO records before extracting
+milestones or the scheduled count; the count must occupy the whole message.
+Instrumented source comments and DEBUG messages stay in the raw log. A real RED
+failed because four such lines appeared in metadata; the focused GREEN passes.
+The test uses observed Native 4.14.1 INFO formats and independently specifies the
+expected records and raw-log retention. Review identified that a later valid count
+masked false-count parsing; INFO examples with a prefix/suffix now follow the last
+valid count. Reverting only the whole-message count rule produces a second real
+RED; restoring it passes. These false INFO counts are also excluded from milestones. RT/Flo do not support this Node contract;
+the scoped fallback uses the existing Node integration driver.
+
+A post-hoc projection of the preserved DEBUG Native log selects four genuine
+records instead of 52, with scheduled count 158 matching its machine report.
+The source log is unchanged and SHA-bound in `native-log-calibration.json` under
+`artifacts/mutation-performance/rt-021/milestone-parser/`. This projection is not
+another mutation run. Changing the supervisor intentionally invalidates older
+wrapper baselines; no previous baseline is silently migrated. This narrows
+misleading receipt metadata while retaining raw diagnostics and all outcome,
+threshold, cancellation, stream-drain and process-ownership controls.
+
+All 11 supervisor integration cases passed, including exact-state reuse,
+invalidation, corrupt reports, owned-worker cleanup and graceful cancellation.
+Node syntax and whitespace checks passed. The preceding full Release gate covers
+the unchanged C# code; it is not rerun for this Node-only metadata slice.
