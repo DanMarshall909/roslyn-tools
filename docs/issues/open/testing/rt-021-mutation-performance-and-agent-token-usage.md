@@ -183,6 +183,82 @@ The same full gate is invoked through Bash, retaining the failed launch record.
 Raw reports, source/tool/configuration bindings, sampled process identities,
 calibration TRX files, complete owned findings and compact summaries remain under
 ignored `artifacts/mutation-performance/rt-021/`. The scripts there are bounded
-investigation utilities, not the maintained unattended driver still required by
-this issue. Persistent reuse, cancellation calibration, the maintained driver
-and final discovery admission/review remain outstanding.
+investigation utilities. At this first-slice checkpoint, persistent reuse,
+cancellation calibration, the maintained driver and final discovery review were
+outstanding; the supervisor slice below records the subsequent progress.
+
+## Native reuse calibration and maintained supervisor
+
+The installed 4.14.1 NuGet manifest identifies producer source commit
+`29cf66d848ae6d0d9272f86348e3a4eb57008158`. Primary producer files and raw
+reports are retained under the investigation artifacts. Native probes found:
+
+| Probe | Seconds | Native exit | Eligible outcomes |
+| --- | ---: | ---: | --- |
+| Missing baseline | 40.397 | 0 | All 71 ignored; no established score |
+| Standalone full baseline reporter | 169.096 | 1 | 70 killed / 1 survived, then reporter failure |
+| Same-input verified report preload | 47.848 | 0 | All 71 ignored despite a load message |
+
+The preload used the successful third whole-owner pilot after verifying every
+recorded input hash. It was a controlled provider probe, not an accepted native
+seed. Source/test change probes were deferred after unchanged reuse failed.
+The experimental worktree's provider reported branch `main` although its actual
+branch was `experiment/rt021-context-calibration`. The unchanged primary probe
+left one owned worker; PID/start-time verification preceded SIGINT, and the
+group was confirmed stopped. These findings rule out adopting native reuse here.
+
+`scripts/mutation.mjs` is the maintained alternative, discoverable through
+`npm run mutation`. It preserves whole-config native execution and thresholds,
+then reuses only identical verified state. Changed source, tests/shared fixtures,
+configuration, tool/SDK/dependencies or execution environment require an explicit
+full seed. Repository, checkout, branch and target namespaces remain separate.
+The durable atomic bundle contains the exact report, full verification and
+findings outside disposable build output. Native partial/incompatible reports
+never become reusable results. No subset is promoted to a whole score.
+
+Nine integration tests cover missing/corrupt/unreachable state, meaningful input
+invalidation, full versus seed/reset semantics, artifact cleanup, source-bound
+killer attribution, cancellation and lingering owned workers. Initial named RED
+failures were behavioral (`unsupported_operation` versus missing-state recovery,
+and exit 2 versus a successful full seed), rather than compiler/setup failures.
+The existing Flo workflow does not document Node verification commands; this
+additional friction is recorded on [FLO-036](https://github.com/DanMarshall909/flo-tdd/issues/1#issuecomment-6015325316)
+before using the repository's real Node harness as a manual fallback.
+Four separate named guard faults also fail the owning integration tests:
+compatibility bypass, ignored native failure, ignored mid-run input change and
+missing named killer validation. Each calibration starts at a clean frozen
+commit; source restoration and final clean status are recorded.
+
+Final independent review found that cached findings were not checked against the
+source-bound report. A named corruption test failed before the repair; deleted
+or tampered findings now reject reuse. The final nine-case GREEN run also
+captured subprocess V8 coverage: 19,633 of 22,851 UTF-16 source units executed
+across 47 driver captures. This diagnostic identifies remaining error branches,
+CLI input checks and forced signal escalation; it does not establish assertion
+strength or other-platform support. Raw ranges and their disposition remain in
+the review packet.
+
+The actual Hosting supervisor run completed in **178.312 seconds**, retaining
+all **71** terminal outcomes (**70 killed / 1 survived**) and all **55** named,
+source-bound test identities. Relevant inputs and HEAD remained unchanged,
+diagnostic streams drained and the owned process group ended empty. Sampled
+peak group RSS was **1,888,116 KiB**. A subsequent real fast invocation preserved
+those outcomes while launching **no Stryker process**. Source/configuration/tool
+scope remains the same as the admitted metadata profile; the prose deletion
+remains an observable survivor.
+These real producer measurements precede the final cached-findings repair and
+retain their original wrapper hash. The repaired wrapper deliberately rejects
+that older seed; final CLI seed/reuse tests cover the repair, while primary
+namespace native seeding remains follow-up work.
+
+Full execution emitted **852 stdout bytes** across its start and terminal JSON
+events; cached reuse emitted **928 stdout bytes**. These are supervisor stdout
+metrics, distinct from tool response envelopes, controller call counts and agent
+tokens. Agent token attribution remains unavailable. Linux process ownership,
+signals, disk observations and phase milestones are recorded in the receipts.
+Elapsed time alone does not cancel a run; interrupted outcomes are incomplete.
+
+Shared guidance now includes these outcome, namespace, environment, attribution,
+durability and lifecycle lessons in ai-rules commit `befb088`. Incremental reuse,
+other-platform cancellation and final Core/discovery admission/review remain
+open. The existing frozen discovery gate is still authoritative.

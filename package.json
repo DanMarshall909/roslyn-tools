@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "mutation": "node scripts/mutation.mjs",
+    "test:mutation-driver": "node --test tests/mutation-driver.test.mjs",
     "dev": "astro dev --port 3000",
     "generate:commands": "node scripts/generate-site-command-reference.mjs",
     "prebuild": "npm run generate:commands",

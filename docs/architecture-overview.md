@@ -1288,3 +1288,15 @@ When a decision changes a layer contract, trust boundary, mutation state, output
 5. Commit the decision, overview, specific document, and tests as one coherent change where practical.
 
 Architecture documents distinguish **accepted target**, **implemented evidence**, and **remaining migration**. A target statement is never presented as a runtime guarantee until its gate passes.
+
+## Maintained mutation verification
+
+The maintenance supervisor in `scripts/mutation.mjs` preserves native whole-owner
+Stryker execution, thresholds and separate regression/E2E gates. It reuses only
+identical source-bound verified state; changed or invalid state requires an
+explicit full seed. The per-user durable bundle retains the report, verification
+receipt and findings independently of disposable artifacts. Linux process-group
+ownership, stream drainage and cancellation keep execution unattended. This is
+verification tooling and does not alter application ports or host adapters.
+See [ADR 0105](adr/0105-verified-mutation-state.md) and the
+[mutation workflow](agent-playbook.md#mutation-testing).

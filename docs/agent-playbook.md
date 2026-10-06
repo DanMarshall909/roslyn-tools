@@ -152,6 +152,40 @@ The schema lives under `src/RoslynTools/Core/Decisions/`.
 Stryker.NET is pinned in `.config/dotnet-tools.json` and configured by
 `stryker-config.json`.
 
+Use the maintained supervisor for retained results and unattended execution:
+
+```sh
+npm run mutation -- --config stryker-hosting-config.json --full --update-baseline
+npm run mutation -- --config stryker-hosting-config.json
+npm run mutation -- --config stryker-hosting-config.json --show-baseline
+npm run test:mutation-driver
+```
+
+The default configuration targets Core. Choose Hosting explicitly for its compact
+metadata profile. Fast mode launches no Stryker process: it reuses only complete,
+source-bound results for an identical configuration, source/test inputs, SDK,
+resolved package graph, wrapper and normalized execution environment. Any change
+requires an explicit full seed. Native incremental reuse is unverified here;
+the pinned producer discarded known outcomes during RT-021 calibration.
+
+State lives outside disposable build output in the per-user `MutationBaselines`
+cache. `RT_MUTATION_CACHE_ROOT` overrides that location. Each checkout, branch and
+target has separate state. The durable bundle contains the exact report,
+verification receipt and findings; cleanup of `artifacts/` preserves that proof.
+`--full` verifies without updating state; `--reset-baseline` removes only the
+selected state. `--concurrency N` is explicit and part of the fingerprint.
+
+Full execution is currently verified on Linux. Logs, resource samples, phase
+milestones and findings remain under `artifacts/mutation/`. Ctrl+C forwards SIGINT
+to the owned process group, retains diagnostics and labels interrupted outcomes
+incomplete; escalation applies only after cancellation or native terminal exit.
+Completed native runs also stop lingering owned workers before returning. No
+elapsed-time budget automatically cancels mutation execution. The supervisor
+prints a start event and one terminal JSON summary; use the host's background
+completion mechanism without watcher agents. Byte counts describe supervisor
+stdout, not agent tokens. Agent attribution remains unavailable unless the
+controller measures it. See [ADR 0105](adr/0105-verified-mutation-state.md).
+
 ```powershell
 dotnet tool restore
 dotnet stryker
