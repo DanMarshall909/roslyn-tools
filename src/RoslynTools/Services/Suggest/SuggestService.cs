@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
@@ -161,7 +163,7 @@ internal sealed class SuggestService : IRtService
 
     private static string TaskAfterNegatedMemberClause(string query)
     {
-        foreach (Match separator in Regex.Matches(query,
+        foreach (Match separator in QueryRegex.Matches(query,
                      @"[;.!?]\s+|\band\s+(?<task>list|find|show|inspect)\b",
                      RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
         {
@@ -204,7 +206,7 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var negation = Regex.Match(query,
+        var negation = QueryRegex.Match(query,
             @"^\s*(?:(?:please|kindly)[,;]?\s+)?(?:i\s+)?(?:do\s+not|don['’]t|never|avoid|without)(?:\s+(?:want|wish)\s+to)?\s+(?<verb>convert(?:ing)?|turn(?:ing)?|chang(?:e|ing)|mak(?:e|ing)|remov(?:e|ing))\b",
             options);
         if (!negation.Success)
@@ -215,7 +217,7 @@ internal sealed class SuggestService : IRtService
         var separator = NegatedClauseSeparator(afterVerb);
         var andTask = separator is not null
             ? Match.Empty
-            : Regex.Match(afterVerb,
+            : QueryRegex.Match(afterVerb,
                 @"\s+and\s+(?<task>find|list|show|inspect|convert|turn|change|make|remove)\b", options);
         var clauseEnd = separator?.Index ?? (andTask.Success ? andTask.Index : afterVerb.Length);
         var clause = afterVerb[..clauseEnd];
@@ -229,7 +231,7 @@ internal sealed class SuggestService : IRtService
             _ => verb.Value
         };
         var normalizedClause = normalizedVerb + clause[verb.Length..];
-        normalizedClause = Regex.Replace(normalizedClause, @"^make\s+this\b", "make the", options);
+        normalizedClause = QueryRegex.Replace(normalizedClause, @"^make\s+this\b", "make the", options);
         if (MethodStaticConversion(normalizedClause) is null)
             return null;
 
@@ -242,14 +244,14 @@ internal sealed class SuggestService : IRtService
         if (ReferenceSearchTarget(next) is { } referenceTarget)
             return SuggestReferences(referenceTarget.Symbol, referenceTarget.Kind, solution);
 
-        var namedTarget = Regex.Match(next,
+        var namedTarget = QueryRegex.Match(next,
             @"\b(?:references?\s+(?:to|of)|callers?\s+of|usages?\s+of)\s+(?:(?:the|an?|method)\s+)*(?:(?<explicitName>named|called)\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
             options);
         if (namedTarget.Success && IsPlausibleReferenceSymbol(
                 namedTarget.Groups["symbol"].Value, namedTarget.Groups["explicitName"].Success))
             return UnsupportedMethodStaticnessWorkflow();
 
-        if (Regex.IsMatch(next, @"^(?:find|list|show|inspect)\b.*\b(?:callers?|usages?|references?)\b", options))
+        if (QueryRegex.IsMatch(next, @"^(?:find|list|show|inspect)\b.*\b(?:callers?|usages?|references?)\b", options))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "method-relationship-target",
                 UnsupportedReason: "Supply a named method to inspect, for example: find references to method OrderService.Validate. A generic caller or usage request has no exact method target, and rt will not recommend a conversion for a negated action.");
 
@@ -308,43 +310,43 @@ internal sealed class SuggestService : IRtService
         const string destination = @"(?:instance(?:\s+class(?:es)?|-based)?|regular\s+class|non[- ]?static|"
                                    + @"injectable(?:\s+service)?|instantiable|dependency[- ]injected\s+service|"
                                    + @"service\s+that\s+can\s+be\s+injected)";
-        foreach (Match action in Regex.Matches(query, classAction, options))
+        foreach (Match action in QueryRegex.Matches(query, classAction, options))
         {
             var beforeAction = query[..action.Index];
             var previousClause = Math.Max(beforeAction.LastIndexOf(';'), beforeAction.LastIndexOf('.'));
-            if (Regex.IsMatch(beforeAction[(previousClause + 1)..],
+            if (QueryRegex.IsMatch(beforeAction[(previousClause + 1)..],
                     @"\b(?:do\s+not|don't|never|without)\s+(?:(?:ever|want\s+to)\s+)*$", options))
                 continue;
 
             var afterClass = query[(action.Index + action.Length)..];
-            var nextTask = Regex.Match(afterClass,
+            var nextTask = QueryRegex.Match(afterClass,
                 @";|[.!?]\s+|\b(?:and|but|then|while)\s+(?:(?:also|then)\s+)*(?:make|convert|turn|change|refactor|migrate|replace|list|find|show|add|remove|delete|create|introduce)\b",
                 options);
             var targetText = afterClass[..Math.Min(nextTask.Success ? nextTask.Index : afterClass.Length, 120)]
                 .TrimStart();
-            if (Regex.IsMatch(targetText,
+            if (QueryRegex.IsMatch(targetText,
                     @"\b(?:not|never|no\s+longer)\s+(?:injectable|instantiable|instance|non[- ]?static|usable|use|support)\b",
                     options))
                 continue;
 
             // Bare type names need C# type casing and cannot be task words.
             // Quoted or explicitly named identifiers may use any casing or word.
-            var className = Regex.Match(targetText,
+            var className = QueryRegex.Match(targetText,
                 @"^(?:(?:named|called)\s+[""']?@?\w+(?:\.@?\w+)*[""']?|[""']@?\w+(?:\.@?\w+)*[""']|(?<bare>@?(?-i:[A-Z_])\w*(?:\.@?\w+)*))\s+",
                 options);
-            if (className.Success && !Regex.IsMatch(className.Groups["bare"].Value,
+            if (className.Success && !QueryRegex.IsMatch(className.Groups["bare"].Value,
                     @"^(?:to|into|as|with|for|from|return|accept|work|compatible|callable|injectable|"
                     + @"instantiable|instance|regular|nonstatic|usable|use|support|dependency|di|an?|the|be|not|never|no)$",
                     options))
                 targetText = targetText[className.Length..];
 
-            var qualifier = Regex.Match(targetText,
+            var qualifier = QueryRegex.Match(targetText,
                 @"^with\s+(?:properties|fields|methods|members)(?:\s*(?:,\s*(?:and\s+)?|and\s+)(?:properties|fields|methods|members))*\s+",
                 options);
             if (qualifier.Success)
                 targetText = targetText[qualifier.Length..];
 
-            var staticSource = Regex.Match(targetText, @"^from\s+static\s+", options);
+            var staticSource = QueryRegex.Match(targetText, @"^from\s+static\s+", options);
             if (staticSource.Success)
                 targetText = targetText[staticSource.Length..];
 
@@ -352,22 +354,22 @@ internal sealed class SuggestService : IRtService
             var directionWord = verb.Equals("replace", StringComparison.OrdinalIgnoreCase)
                 ? @"(?:to|into|as|with)"
                 : @"(?:to|into|as)";
-            var directionalMatch = Regex.Match(targetText,
+            var directionalMatch = QueryRegex.Match(targetText,
                 @"^" + directionWord + @"\s+(?:be\s+)?(?:(?:an?|the)\s+)?" + destination + @"\b",
                 options);
-            var injectionPurpose = Regex.IsMatch(targetText,
+            var injectionPurpose = QueryRegex.IsMatch(targetText,
                 @"^(?:for|to\s+(?:support|use))\s+(?:dependency\s+injection|DI)\b",
                 options);
             var directMatch = verb.Equals("make", StringComparison.OrdinalIgnoreCase)
-                ? Regex.Match(targetText,
+                ? QueryRegex.Match(targetText,
                     @"^(?:(?:an?|the)\s+)?(?:instance(?:\s+class(?:es)?|-based)?|"
                     + @"injectable|instantiable|non[- ]?static|usable\s+(?:with|for)\s+(?:dependency\s+injection|DI)|"
                     + @"(?:use|support)\s+(?:dependency\s+injection|DI))\b",
                     options)
                 : Match.Empty;
-            var directional = directionalMatch.Success && !Regex.IsMatch(targetText[directionalMatch.Length..],
+            var directional = directionalMatch.Success && !QueryRegex.IsMatch(targetText[directionalMatch.Length..],
                 @"^\s+(?:methods?|fields?|propert(?:y|ies)|events?)\b", options);
-            var directMake = directMatch.Success && !Regex.IsMatch(targetText[directMatch.Length..],
+            var directMake = directMatch.Success && !QueryRegex.IsMatch(targetText[directMatch.Length..],
                 @"^\s+(?:methods?|fields?|propert(?:y|ies)|events?)\b", options);
             if (directional || injectionPurpose || directMake)
                 return true;
@@ -417,7 +419,7 @@ internal sealed class SuggestService : IRtService
             return null;
         var conversion = toStatic ?? toInstance!;
         if (IsNegatedAction(query, conversion.Index, options)
-            || Regex.IsMatch(query[(conversion.Index + conversion.Length)..],
+            || QueryRegex.IsMatch(query[(conversion.Index + conversion.Length)..],
                 @"^\s+(?:class(?:es)?|imports?)\b", options))
             return null;
         return (toStatic is not null ? "make-static" : "make-instance",
@@ -433,23 +435,23 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.NonBacktracking;
         const string direction = @"\bfrom\s+(?:instance|static)\s+(?:to|into)\s+(?:an?\s+)?(?:static|instance|non[- ]static)\b"
                                  + @"|\b(?:instance|static)\s+methods?\b.{0,120}?\b(?:to|into)\s+(?:an?\s+)?(?:static|instance|non[- ]static)\b";
-        foreach (Match conversion in Regex.Matches(query, direction, options))
+        foreach (Match conversion in QueryRegex.Matches(query, direction, options))
         {
             var after = query[(conversion.Index + conversion.Length)..];
-            if (Regex.IsMatch(after, @"^\s+(?:class(?:es)?|imports?)\b", options))
+            if (QueryRegex.IsMatch(after, @"^\s+(?:class(?:es)?|imports?)\b", options))
                 continue;
 
             var before = query[..conversion.Index];
             Match? action = null;
-            foreach (Match candidate in Regex.Matches(before,
+            foreach (Match candidate in QueryRegex.Matches(before,
                          @"\b(?:convert|turn|change|make|remove)\b", options))
                 action = candidate;
             if (action is null || IsNegatedAction(query, action.Index, options))
                 continue;
 
             var requestedSubject = query[action.Index..(conversion.Index + conversion.Length)];
-            var method = Regex.Match(requestedSubject, @"\bmethods?\b", options);
-            var classOrImport = Regex.Match(requestedSubject,
+            var method = QueryRegex.Match(requestedSubject, @"\bmethods?\b", options);
+            var classOrImport = QueryRegex.Match(requestedSubject,
                 @"\b(?:static|instance)\s+class(?:es)?\b|\bclass(?:es)?\s+from\s+(?:static|instance)\b"
                 + @"|\b(?:static\s+imports?|using\s+static)\b", options);
             if (classOrImport.Success && !method.Success)
@@ -467,9 +469,9 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
         const string member = @"\b(?:property|properties|fields?)\b";
-        foreach (var clause in Regex.Split(query, @"[.;]\s", options))
+        foreach (var clause in QueryRegex.Split(query, @"[.;]\s", options))
         {
-            foreach (Match modifierAction in Regex.Matches(clause,
+            foreach (Match modifierAction in QueryRegex.Matches(clause,
                          @"\b(?:remove|add|set|apply)\s+(?:the\s+)?static(?:\s+(?:modifier|keyword))?\s+(?:from|to|on|off)\b.{0,80}?"
                          + member, options))
             {
@@ -477,19 +479,19 @@ internal sealed class SuggestService : IRtService
                     return true;
             }
 
-            foreach (Match action in Regex.Matches(clause,
+            foreach (Match action in QueryRegex.Matches(clause,
                          @"\b(?:convert|turn|change|make|mark|set|apply)\b", options))
             {
                 if (IsNegatedAction(clause, action.Index, options))
                     continue;
                 var afterAction = clause[(action.Index + action.Length)..];
-                var source = Regex.Match(afterAction, member, options);
+                var source = QueryRegex.Match(afterAction, member, options);
                 if (!source.Success)
                     continue;
 
                 var afterSource = afterAction[(source.Index + source.Length)..].TrimStart();
                 if (action.Value.Equals("mark", StringComparison.OrdinalIgnoreCase)
-                    && Regex.IsMatch(afterSource,
+                    && QueryRegex.IsMatch(afterSource,
                         @"^with\s+(?:the\s+)?static\s+(?:modifier|keyword)\b", options))
                     return true;
                 if (HasStaticnessTarget(afterSource, options))
@@ -510,19 +512,19 @@ internal sealed class SuggestService : IRtService
                                + StaticMemberUseSiteNoun
                                + @"|values?|modifiers?|keywords?|backing\s+fields?)\b";
         const string name = @"(?:@?[\w.:<>]+|`[^`]+`|""[^""]+""|'[^']+')";
-        foreach (Match action in Regex.Matches(query,
+        foreach (Match action in QueryRegex.Matches(query,
                      @"\b(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning)\b", options))
         {
             if (IsNegatedAction(query, action.Index, options))
                 continue;
 
             var afterAction = query[(action.Index + action.Length)..];
-            var nextTask = Regex.Match(afterAction,
+            var nextTask = QueryRegex.Match(afterAction,
                 @";|[.!]\s+|\band\s+(?:add|create|introduce|declare|remove|delete|make|convert|turn|change|list|find|show)\b",
                 options);
             var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
             var suffix = StaticMemberSuffix(task, options);
-            var contextMatch = suffix is null ? null : Regex.Match(suffix,
+            var contextMatch = suffix is null ? null : QueryRegex.Match(suffix,
                 @"^(?:['’]s?)?(?:\s+|/\s*)(?:(?:(?:or|and)\s+|[/&]\s*)?"
                 + @"(?:the\s+)?(?:static\s+)?" + member + @"(?:['’]s?)?\s+)?(?:(?:(?:named|called)\s+)?"
                 + name + @"(?:['’]s)?\s+)?(?<context>" + context + @")",
@@ -533,11 +535,11 @@ internal sealed class SuggestService : IRtService
                     suffix[contextMatch.Length..], options))
                 return "member-reference-edit";
 
-            if (!Regex.IsMatch(action.Value,
+            if (!QueryRegex.IsMatch(action.Value,
                     @"^(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting)$",
                     options))
                 continue;
-            var qualified = Regex.IsMatch(task,
+            var qualified = QueryRegex.IsMatch(task,
                 @"^\s+(?:(?:an?|the|this|these|those)\s+)?" + member
                 + @"(?:\s+(?:(?:named|called)\s+)?(?:@?[\w.]+|`[^`]+`|""[^""]+""|'[^']+'))?"
                 + @"\s+(?:with\s+(?:the\s+)?static\s+(?:modifier|keyword)|as\s+static)\b",
@@ -556,7 +558,7 @@ internal sealed class SuggestService : IRtService
 
     private static bool IsStaticMemberUseSiteContext(string context, string after, RegexOptions options)
     {
-        return Regex.IsMatch(context, "^" + StaticMemberUseSiteNoun + "$", options)
+        return QueryRegex.IsMatch(context, "^" + StaticMemberUseSiteNoun + "$", options)
                && !IsDeclarationAccessTail(context, after, options);
     }
 
@@ -565,30 +567,30 @@ internal sealed class SuggestService : IRtService
         const string visibility = @"(?:public|private(?:\s+protected)?|protected(?:\s+internal)?|internal(?:\s+protected)?)";
         const string only = @"(?:(?:get(?:ter)?|set(?:ter)?|read|write|init)[-\s]?only|readonly|writeonly)";
         const string location = @"(?:\s+(?:in|within|on)\s+.+)?[.!?]?\s*$";
-        if (Regex.IsMatch(tail,
+        if (QueryRegex.IsMatch(tail,
                 @"^\s+(?:accessors?|modifiers?|keywords?|levels?|rights?|permissions?|visibility|accessibility)\b|^[-‐‑]only\b",
                 options))
             return true;
 
         // A named reference or access site can itself point to a private helper or public wrapper.
-        if (!Regex.IsMatch(site, @"\baccess$", options))
+        if (!QueryRegex.IsMatch(site, @"\baccess$", options))
             return false;
 
-        foreach (Match destination in Regex.Matches(tail,
+        foreach (Match destination in QueryRegex.Matches(tail,
                      @"\b(?:to|as)\s+(?:(?:an?|the)\s+)?(?:" + visibility + "|" + only + @")\b",
                      options))
         {
             var remainder = tail[(destination.Index + destination.Length)..].TrimStart();
-            if (remainder.Length == 0 || Regex.IsMatch(remainder,
+            if (remainder.Length == 0 || QueryRegex.IsMatch(remainder,
                     @"^(?:to|from|as|for|so|because|in|within|on|please|when|while|that|which|now|getters?|setters?|levels?|modifiers?|accessors?|rights?|permissions?|visibility)\b|^[.!?]",
                     options))
                 return true;
         }
 
-        return Regex.IsMatch(tail,
+        return QueryRegex.IsMatch(tail,
                    @"\b(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + only + @"\b" + location,
                    options)
-               || Regex.IsMatch(tail,
+               || QueryRegex.IsMatch(tail,
                    @"\b(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + visibility + @"\b"
                    + @"(?:\s+(?:(?:to|from|as)\s+(?:(?:an?|the)\s+)?" + visibility
                    + @"|getters?|setters?|levels?|modifiers?|accessors?))*" + location,
@@ -599,18 +601,18 @@ internal sealed class SuggestService : IRtService
     {
         const string member = @"(?:propert(?:y|ies)|fields?)\b";
         const string modifiers = @"(?:(?:public|private|protected|internal|file|new|readonly|const|volatile|required|unsafe)\s+)*";
-        var directPrefix = Regex.Match(task,
+        var directPrefix = QueryRegex.Match(task,
             @"^\s+(?:(?:an?|the|this|these|those|my|any|each|every|all|some)\s+|both\s+(?:the\s+)?)?(?:existing\s+)?" + modifiers
             + @"static\s+" + modifiers, options);
         if (!directPrefix.Success)
             return null;
 
         var declaration = task[directPrefix.Length..];
-        foreach (Match candidate in Regex.Matches(declaration, member, options))
+        foreach (Match candidate in QueryRegex.Matches(declaration, member, options))
         {
             var type = declaration[..candidate.Index].Trim();
             if (type.Length > 0
-                && (Regex.IsMatch(type,
+                && (QueryRegex.IsMatch(type,
                         @"^(?:from|to|into|on|off|in|of|for|with|as|using|imports?|classes?|methods?)$", options)
                     || SyntaxFactory.ParseTypeName(type, consumeFullText: true).ContainsDiagnostics))
                 continue;
@@ -626,22 +628,22 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        foreach (Match action in Regex.Matches(query,
+        foreach (Match action in QueryRegex.Matches(query,
                      @"\b(?:add|adding|create|creating|delete|deleting|remove|removing|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning)\b", options))
         {
             if (IsNegatedAction(query, action.Index, options))
                 continue;
 
             var afterAction = query[(action.Index + action.Length)..];
-            var nextTask = Regex.Match(afterAction,
+            var nextTask = QueryRegex.Match(afterAction,
                 @";|[.!]\s+|\band\s+(?:add|create|delete|remove|update|change|replace|modify|rewrite|list|find|show)\b",
                 options);
             var task = afterAction[..(nextTask.Success ? nextTask.Index : afterAction.Length)];
-            var modifier = Regex.Match(task,
+            var modifier = QueryRegex.Match(task,
                 @"^\s+(?:the\s+)?static(?:\s+(?:modifier|keyword))?\s+(?:from|to|on|off)\s+",
                 options);
             var target = modifier.Success ? " " + task[modifier.Length..] : task;
-            var references = Regex.Match(target,
+            var references = QueryRegex.Match(target,
                 @"^\s+(?:(?:all|every|the|an?|some|these|those|any|each|existing|both)\s+)*(?<site>"
                 + StaticMemberUseSiteNoun + @")\s+(?<relation>to|of|on|from|in|for)\s+",
                 options);
@@ -669,7 +671,7 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var nextTask = Regex.Match(query,
+        var nextTask = QueryRegex.Match(query,
             @";|[.!]\s+|(?:,\s*)?\bthen\s+|\band\s+(?:add|adding|create|creating|introduce|introducing|declare|declaring|remove|removing|delete|deleting|edit|editing|update|updating|change|changing|replace|replacing|modify|modifying|rewrite|rewriting|convert|converting|turn|turning|make|making|mark|marking|set|setting|apply|applying)\b",
             options);
         var firstTask = query[..(nextTask.Success ? nextTask.Index : query.Length)];
@@ -682,22 +684,22 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var negation = Regex.Match(query,
+        var negation = QueryRegex.Match(query,
             @"^\s*(?:(?:please|kindly)[,;]?\s+)?(?:i\s+)?(?:do\s+not|don['’]t|never|avoid|without)\s+(?:(?:ever|(?:want|wish)\s+to)\s+)*",
             options);
         if (!negation.Success)
             return false;
 
         var task = query[negation.Length..];
-        if (Regex.IsMatch(task,
+        if (QueryRegex.IsMatch(task,
                 @"[;.!]\s+\S|\b(?:and|but|then|while)\s+(?:list|find|show|add|create|introduce|declare|remove|delete|make|convert|turn|change)\b",
                 options))
             return false;
-        foreach (Match question in Regex.Matches(task, @"\?\s+(?<next>[^\s?]+)", options))
+        foreach (Match question in QueryRegex.Matches(task, @"\?\s+(?<next>[^\s?]+)", options))
         {
             if (IsInsideTypeDelimiters(task, question.Index))
                 continue;
-            if (!Regex.IsMatch(question.Groups["next"].Value,
+            if (!QueryRegex.IsMatch(question.Groups["next"].Value,
                     @"^(?:propert(?:y|ies)|fields?)\b", options))
                 return false;
         }
@@ -724,32 +726,32 @@ internal sealed class SuggestService : IRtService
     {
         const string direction = @"(?:static|instance|non[- ]?static)\b";
         const string article = @"(?:(?:an?|the)\s+)?";
-        var fromTo = Regex.Match(afterMember,
+        var fromTo = QueryRegex.Match(afterMember,
             @"^from\s+" + direction + @"\s+(?:to|into)\s+" + article + direction, options);
         if (fromTo.Success && !afterMember[fromTo.Length..].StartsWith('-'))
             return true;
 
-        var target = Regex.Match(afterMember,
+        var target = QueryRegex.Match(afterMember,
             @"^(?:(?:to|into|as)\s+)?" + article + direction, options);
         if (target.Success && !afterMember[target.Length..].StartsWith('-'))
-            return !Regex.IsMatch(afterMember[target.Length..],
+            return !QueryRegex.IsMatch(afterMember[target.Length..],
                 @"^\s+(?:class(?:es)?|imports?|analysis)\b", options);
 
-        var names = Regex.Match(afterMember,
+        var names = QueryRegex.Match(afterMember,
             @"^@?[\w.:<>]+\s+and\s+@?[\w.:<>]+\s+", options);
         if (names.Success && HasStaticnessTarget(afterMember[names.Length..], options, false))
             return true;
 
-        var memberList = Regex.Match(afterMember,
+        var memberList = QueryRegex.Match(afterMember,
             @"^@?[\w.:<>]+\s+and\s+(?:(?:an?|the)\s+)?(?:property|properties|fields?)\s+@?[\w.:<>]+\s+",
             options);
         if (memberList.Success && HasStaticnessTarget(afterMember[memberList.Length..], options, false))
             return true;
 
-        var name = Regex.Match(afterMember,
+        var name = QueryRegex.Match(afterMember,
             @"^(?:(?:named|called)\s+)?(?:@?[\w.:<>]+(?:\([^)]*\))?|`[^`]+`|""[^""]+""|'[^']+')\s+",
             options);
-        if (!allowName || !name.Success || Regex.IsMatch(name.Value,
+        if (!allowName || !name.Success || QueryRegex.IsMatch(name.Value,
                 @"^(?:from|in|for|with|on|of|to|into|as)\b", options))
             return false;
 
@@ -757,14 +759,14 @@ internal sealed class SuggestService : IRtService
     }
 
     private static bool IsNegatedAction(string query, int actionIndex, RegexOptions options) =>
-        Regex.IsMatch(query[..actionIndex],
+        QueryRegex.IsMatch(query[..actionIndex],
             @"\b(?:not|never|avoid|without|don['’]t)(?:\s+(?:ever|(?:want|wish)\s+to))*\s*$", options);
 
     private static Match? FirstMatch(string query, RegexOptions options, params string[] patterns)
     {
         foreach (var pattern in patterns)
         {
-            var match = Regex.Match(query, pattern, options);
+            var match = QueryRegex.Match(query, pattern, options);
             if (match.Success)
                 return match;
         }
@@ -772,7 +774,7 @@ internal sealed class SuggestService : IRtService
     }
 
     private static bool HasDifferentTargetKind(string after, RegexOptions options) =>
-        Regex.IsMatch(after,
+        QueryRegex.IsMatch(after,
             @"^\s+(?:property|properties|fields?|events?|structs?|records?|interfaces?|namespaces?|types?|constructors?|parameters?|operators?|indexers?|local\s+functions?)\b",
             options);
 
@@ -786,17 +788,17 @@ internal sealed class SuggestService : IRtService
         const string prefix = @"^\s*(?:(?:(?:please|kindly)[,;]?\s*)|(?:(?:can|could|would)\s+you\s+(?:(?:please|kindly)\s+)?)|(?:i\s+(?:need|want)\s+to\s+))?$";
         const string motive = @"(?:(?:for\s+|because\s+it\s+(?:improves?|helps?)\s+|to\s+improve\s+)"
             + qualityList + @"|in\s+(?:an?\s+)?test\s+project|safely)";
-        if (!Regex.IsMatch(query[..conversion.Index], prefix, options))
+        if (!QueryRegex.IsMatch(query[..conversion.Index], prefix, options))
             return true;
         var after = query[(conversion.Index + conversion.Length)..].Trim();
-        if (Regex.IsMatch(after, @"^[,;.!?]*\s*(?:(?:please|thanks|thank\s+you)\b[.!?]*)?$", options))
+        if (QueryRegex.IsMatch(after, @"^[,;.!?]*\s*(?:(?:please|thanks|thank\s+you)\b[.!?]*)?$", options))
             return false;
         after = after.TrimStart(',', ';', '.', '!', '?', ':').TrimStart();
-        if (Regex.IsMatch(after,
+        if (QueryRegex.IsMatch(after,
                 @"^and\s+(?:nothing\s+else|only\s+that|no\s+other\s+(?:changes|edits|updates|tasks?))(?:,\s*please)?[.!?]*$",
                 options))
             return false;
-        return !Regex.IsMatch(after, @"^" + motive + @"(?:,\s*please)?[.!?]*$", options);
+        return !QueryRegex.IsMatch(after, @"^" + motive + @"(?:,\s*please)?[.!?]*$", options);
     }
 
     private static bool IsProposedChangeImpactRequest(string query)
@@ -812,9 +814,9 @@ internal sealed class SuggestService : IRtService
             + @"|\bhow\s+(?:would|will|could)\s+(?:\S+\s+){1,8}(?:impact|affect)\b"
             + @"|\b(?:what|which|who|will|would|could|does|do)\b.{0,100}\bbreaks?\b"
             + @"|\bwhat\s+happens?\s+(?:if|when)\b";
-        var impactIntent = Regex.IsMatch(query, impactIntentPattern, options);
+        var impactIntent = QueryRegex.IsMatch(query, impactIntentPattern, options);
         return impactIntent
-               && Regex.IsMatch(query,
+               && QueryRegex.IsMatch(query,
                    @"\b(?:mov(?:e|ing|ed)|renam(?:e|ing|ed)|chang(?:e|ing|ed)|modif(?:y|ying|ied)|refactor(?:ing|ed)?|add(?:ing|ed)?|remov(?:e|ing|ed)|delet(?:e|ing|ed)|replac(?:e|ing|ed)|extract(?:ing|ed)?)\b",
                    options);
     }
@@ -853,34 +855,34 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
         var normalized = query.Replace('\\', '/');
-        if (Regex.IsMatch(normalized, @"\b(?:refactor|change|modify|move|fix|apply|rewrite|edit|baseline|SOLID|principles?)\b", options))
+        if (QueryRegex.IsMatch(normalized, @"\b(?:refactor|change|modify|move|fix|apply|rewrite|edit|baseline|SOLID|principles?)\b", options))
             return false;
-        if (Regex.IsMatch(normalized, @"--config\b", options))
+        if (QueryRegex.IsMatch(normalized, @"--config\b", options))
         {
-            var selectedConfig = Regex.Match(normalized, @"--config(?:=|\s+)(?<path>\S+)", options);
+            var selectedConfig = QueryRegex.Match(normalized, @"--config(?:=|\s+)(?<path>\S+)", options);
             if (!selectedConfig.Success
                 || !IsDefaultArchitectureConfigPath(selectedConfig.Groups["path"].Value.Trim('`', '(', ')', '\'', '"')))
                 return false;
         }
-        foreach (Match path in Regex.Matches(normalized,
+        foreach (Match path in QueryRegex.Matches(normalized,
                      @"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]{2,10}\b|[A-Za-z0-9_.-]+\.(?:json|ya?ml|toml)\b|(?:config|configs|\.rt)/[A-Za-z0-9_.-]+\b", options))
         {
             if (!IsDefaultArchitectureConfigPath(path.Value))
                 return false;
         }
-        foreach (Match contextPath in Regex.Matches(normalized,
+        foreach (Match contextPath in QueryRegex.Matches(normalized,
                      @"\b(?:in|with|using|from|under|at)\s+(?<path>[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)", options))
         {
             if (!IsDefaultArchitectureConfigPath(contextPath.Groups["path"].Value))
                 return false;
         }
 
-        return Regex.IsMatch(normalized, @"\b(?:configured|configuration|config)\b|\.rt/architecture\.json\b", options)
-               && (Regex.IsMatch(normalized, @"\b(?:check|validate|enforce)\b", options)
-                   && Regex.IsMatch(normalized, @"\b(?:violations?|boundaries?|rules?)\b", options)
-                   || Regex.IsMatch(normalized, @"\b(?:find|show|list|detect|report)\b", options)
-                   && Regex.IsMatch(normalized, @"\bviolations?\b", options))
-               && Regex.IsMatch(normalized,
+        return QueryRegex.IsMatch(normalized, @"\b(?:configured|configuration|config)\b|\.rt/architecture\.json\b", options)
+               && (QueryRegex.IsMatch(normalized, @"\b(?:check|validate|enforce)\b", options)
+                   && QueryRegex.IsMatch(normalized, @"\b(?:violations?|boundaries?|rules?)\b", options)
+                   || QueryRegex.IsMatch(normalized, @"\b(?:find|show|list|detect|report)\b", options)
+                   && QueryRegex.IsMatch(normalized, @"\bviolations?\b", options))
+               && QueryRegex.IsMatch(normalized,
                    @"\bproject\s+(?:layer(?:ing)?|dependenc(?:y|ies)|boundar(?:y|ies))\b|\bproject\s*/\s*layer(?:ing)?\b|\blayer(?:ing)?\s+(?:rules?|boundaries?|violations?|dependenc(?:y|ies))\b|\barchitecture\s+(?:rules?|boundaries?|violations?)\b",
                    options);
     }
@@ -898,7 +900,7 @@ internal sealed class SuggestService : IRtService
         if (!_workingTreeReadsAvailable)
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, capability,
                 UnsupportedReason: "Working-tree C# semantic diff requires Linux x64; compare two Git refs or two .cs files instead.");
-        if (Regex.IsMatch(query, @"\bunstaged\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
+        if (QueryRegex.IsMatch(query, @"\bunstaged\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported, "semantic-diff-unstaged",
                 UnsupportedReason: "Semantic diff compares a Git baseline with current files and includes staged changes; an unstaged-only comparison is unavailable.");
         if (!TryGetWorkingTreeBaseline(query, out var baseline))
@@ -937,10 +939,10 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        return Regex.IsMatch(query, @"\b(?:working[ -]tree|uncommitted|unstaged)\b", options)
-               && Regex.IsMatch(query, @"(?:C#|\bCSharp\b)", options)
-               && Regex.IsMatch(query, @"\b(?:review|inspect|analy[sz]e|compare|diff)\b", options)
-               && !Regex.IsMatch(query, @"^\s*(?:please\s+)?(?:apply|refactor|edit|rewrite|modify|commit|stage|rename)\b", options);
+        return QueryRegex.IsMatch(query, @"\b(?:working[ -]tree|uncommitted|unstaged)\b", options)
+               && QueryRegex.IsMatch(query, @"(?:C#|\bCSharp\b)", options)
+               && QueryRegex.IsMatch(query, @"\b(?:review|inspect|analy[sz]e|compare|diff)\b", options)
+               && !QueryRegex.IsMatch(query, @"^\s*(?:please\s+)?(?:apply|refactor|edit|rewrite|modify|commit|stage|rename)\b", options);
     }
 
     private static bool TryGetWorkingTreeBaseline(string query, out string? baseline)
@@ -951,16 +953,16 @@ internal sealed class SuggestService : IRtService
                                      | RegexOptions.NonBacktracking;
         const string comparator = @"(?:\b(?:against|since|from|versus|compared\s+(?:with|to)|relative\s+to)\b|\bvs\b\.?)";
         var found = false;
-        foreach (Match comparative in Regex.Matches(query, comparator, options))
+        foreach (Match comparative in QueryRegex.Matches(query, comparator, options))
         {
             var tail = query[(comparative.Index + comparative.Length)..];
             if (comparative.Value.Equals("from", StringComparison.OrdinalIgnoreCase)
-                && Regex.IsMatch(tail,
+                && QueryRegex.IsMatch(tail,
                     @"^\s+(?:(?:my|the|our|your|this)\s+)?working[ -]tree\b", options))
                 continue;
             if (found)
                 return false;
-            var target = Regex.Match(tail,
+            var target = QueryRegex.Match(tail,
                 @"^\s+(?<ref>[A-Za-z0-9][A-Za-z0-9._~^/-]*)", options);
             if (!target.Success)
                 return false;
@@ -969,8 +971,8 @@ internal sealed class SuggestService : IRtService
                 reference = reference[..^1];
             var remainder = tail[(target.Groups["ref"].Index + target.Groups["ref"].Length)..];
             if (reference.Contains("..", StringComparison.Ordinal)
-                || Regex.IsMatch(reference, @"^(?:my|the|our|your|this)$", options)
-                || !Regex.IsMatch(remainder, @"^\s*[!?]?\s*$", options))
+                || QueryRegex.IsMatch(reference, @"^(?:my|the|our|your|this)$", options)
+                || !QueryRegex.IsMatch(remainder, @"^\s*[!?]?\s*$", options))
                 return false;
             baseline = reference.Equals("HEAD", StringComparison.Ordinal)
                 ? null
@@ -1048,7 +1050,7 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var match = Regex.Match(query,
+        var match = QueryRegex.Match(query,
             @"\b(?:find|show|list)\s+(?:(?:all|every|the)\s+)?(?:implementations?|implementers?)\s+of\s+(?:(?:the|an?)\s+)?(?:interface\s+|type\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
             options);
         if (!match.Success)
@@ -1056,7 +1058,7 @@ internal sealed class SuggestService : IRtService
         var next = match.Index + match.Length;
         if (next < query.Length && query[next] is '.' or '<' or '[' or ':' or '?')
             return null;
-        if (Regex.IsMatch(query[next..],
+        if (QueryRegex.IsMatch(query[next..],
                 @"^\s*(?:,|\band\b|\bor\b)\s+[A-Za-z_][A-Za-z0-9_.]*", options))
             return null;
         var symbol = match.Groups["symbol"].Value;
@@ -1069,18 +1071,18 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var match = Regex.Match(query,
+        var match = QueryRegex.Match(query,
             @"\b(?:find|show|list)\s+(?:(?:all|every|the)\s+)?references?\s+(?:to|of)\s+(?:(?:the|an?)\s+)?(?:(?<kind>method|field|property|event|type|symbol)\s+)?(?:(?<explicitName>named|called)\s+)?(?<symbol>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b",
             options);
         if (!match.Success)
             return null;
         var prefix = query[..match.Index].Trim();
-        if (!Regex.IsMatch(prefix,
+        if (!QueryRegex.IsMatch(prefix,
                 @"^(?:please|can you|could you|I need to|I'd like to)?$", options))
             return null;
         var next = match.Index + match.Length;
         var tail = query[next..].Trim();
-        if (!Regex.IsMatch(tail,
+        if (!QueryRegex.IsMatch(tail,
                 @"^(?:[.!?]?|,\s*please[.!?]?|before\s+(?:(?:I|we|you)\s+)?(?:review|edit|change|modify|rename|move|refactor|delete|reviewing|editing|changing|modifying|renaming|moving|refactoring|deleting)(?:\s+(?:it|the\s+(?:symbol|type|method|interface)))?[.!?]?)$",
                 options))
             return null;
@@ -1106,7 +1108,7 @@ internal sealed class SuggestService : IRtService
         var safeCharacters = OperatingSystem.IsWindows()
             ? @"^[A-Za-z0-9_./:\-]+$"
             : @"^[A-Za-z0-9_./-]+$";
-        if (Regex.IsMatch(value, safeCharacters, RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
+        if (QueryRegex.IsMatch(value, safeCharacters, RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
             return value;
 
         return OperatingSystem.IsWindows()
@@ -1126,23 +1128,23 @@ internal sealed class SuggestService : IRtService
             return "prepare-plan";
 
         // A symbol or source file named Plan is not a request for a change-plan artifact.
-        var task = Regex.Replace(query,
+        var task = QueryRegex.Replace(query,
             @"\b(?:named|called|class|struct|interface|type|method|file)\s+Plan\b|\bPlan\s+(?:class|struct|interface|type|method|file)\b|\bPlan\.(?:cs|csproj)\b",
             " ", options);
-        if (!Regex.IsMatch(task, @"\bplans?\b", options))
+        if (!QueryRegex.IsMatch(task, @"\bplans?\b", options))
             return null;
-        if (Regex.IsMatch(task,
+        if (QueryRegex.IsMatch(task,
                 @"\b(?:verify|validate|check|review)\s+(?:(?:a|an|the|my|our|existing|prepared|reviewed|immutable|revision-bound|change|stored|saved|proposed|pending|rename|signature|refactor|refactoring)\s+){0,6}plans?\b",
                 options)
-            || Regex.IsMatch(task, @"\bplans?\s+(?:verification|validation)\b", options)
-            || Regex.IsMatch(task,
+            || QueryRegex.IsMatch(task, @"\bplans?\s+(?:verification|validation)\b", options)
+            || QueryRegex.IsMatch(task,
                 @"\bplans?\s+(?:and|then)\s+(?:verify|validate|check|review)\s+(?:it|them)\b",
                 options))
             return "verify-plan";
-        return Regex.IsMatch(task,
+        return QueryRegex.IsMatch(task,
                    @"\b(?:prepare|preparing|create|generate|produce|build)\b(?:\s+[\w-]+){0,8}\s+plans?\b",
                    options)
-               || Regex.IsMatch(task,
+               || QueryRegex.IsMatch(task,
                    @"\b(?:immutable|revision-bound)\b(?:\s+[\w-]+){0,8}\s+plans?\b",
                    options)
             ? "prepare-plan"
@@ -1154,19 +1156,19 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var dependency = Regex.IsMatch(query, @"\b(?:dependenc(?:y|ies)|references?|packages?)\b", options);
-        var coreLayer = Regex.IsMatch(query, @"\b(?:core|domain)\s+(?:layers?|projects?)\b", options);
-        var thirdParty = Regex.IsMatch(query,
+        var dependency = QueryRegex.IsMatch(query, @"\b(?:dependenc(?:y|ies)|references?|packages?)\b", options);
+        var coreLayer = QueryRegex.IsMatch(query, @"\b(?:core|domain)\s+(?:layers?|projects?)\b", options);
+        var thirdParty = QueryRegex.IsMatch(query,
             @"\b(?:non[- ]Microsoft|third[- ]party|external|other\s+than\s+Microsoft|excluding\s+Microsoft)\b",
             options);
         if (dependency && coreLayer && thirdParty
-            && Regex.IsMatch(query, @"\b(?:extract(?:ed)?|remov(?:e|ed|ing)|mov(?:e|ed)|decoupl(?:e|ed)|isolat(?:e|ed))\b", options)
-            && Regex.IsMatch(query, @"\b(?:all|every)\b", options))
+            && QueryRegex.IsMatch(query, @"\b(?:extract(?:ed)?|remov(?:e|ed|ing)|mov(?:e|ed)|decoupl(?:e|ed)|isolat(?:e|ed))\b", options)
+            && QueryRegex.IsMatch(query, @"\b(?:all|every)\b", options))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported,
                 "third-party-dependency-extraction",
                 UnsupportedReason: "rt has no verified workflow to extract all non-Microsoft dependencies from core layers. Inventory package and project references and source usage first, then change and verify one dependency at a time.");
 
-        if (Regex.IsMatch(query,
+        if (QueryRegex.IsMatch(query,
                 @"\bNuGet\s+(?:packages?|dependenc(?:y|ies)|references?)\b|\b(?:third[- ]party|external)\s+packages?\b|\bpackages?\s+(?:dependenc(?:y|ies)|references?|inventory|versions?|licenses?|used|installed)\b|\bPackageReference\s+(?:entries|items)\b",
                 options))
             return new SuggestResponse([], [], SuggestOutcome.Unsupported,
@@ -1181,51 +1183,51 @@ internal sealed class SuggestService : IRtService
         const RegexOptions options = RegexOptions.IgnoreCase
                                      | RegexOptions.CultureInvariant
                                      | RegexOptions.NonBacktracking;
-        var diagnosticKind = Regex.Match(query,
+        var diagnosticKind = QueryRegex.Match(query,
             @"\b(?:compiler|analy[sz]er)\s+(?:diagnostics?|errors?|warnings?)\b|\bCS[0-9]{4}\b",
             options);
-        var sourceComparison = Regex.Match(query,
+        var sourceComparison = QueryRegex.Match(query,
             @"\b(?:C#|CSharp|source|code)\s+(?:declarations?|symbols?)\b|^\s*(?:please\s+)?(?:compare|diff|review)\s+(?:C#|CSharp|source|code|declarations?|symbols?)(?:\b|\s)",
             options);
-        var repairVerb = Regex.Match(query, @"\b(?:fix|repair|resolve|suppress)\b", options);
-        var comparisonVerb = Regex.Match(query, @"\b(?:compare|diff)\b", options);
-        var repairIsNoun = repairVerb.Success && Regex.IsMatch(query[..repairVerb.Index],
+        var repairVerb = QueryRegex.Match(query, @"\b(?:fix|repair|resolve|suppress)\b", options);
+        var comparisonVerb = QueryRegex.Match(query, @"\b(?:compare|diff)\b", options);
+        var repairIsNoun = repairVerb.Success && QueryRegex.IsMatch(query[..repairVerb.Index],
             @"\b(?:a|an|the|this|that|code)\s+$", options);
         var repairRequest = repairVerb.Success
                             && !repairIsNoun
                             && (!comparisonVerb.Success || repairVerb.Index < comparisonVerb.Index);
-        var explicitDiagnosticComparison = Regex.IsMatch(query,
+        var explicitDiagnosticComparison = QueryRegex.IsMatch(query,
             @"\b(?:compare|diff)\s+(?:(?:the|all|current|new)\s+)*(?:(?:compiler|analy[sz]er)\s+(?:diagnostics?|errors?|warnings?)|CS[0-9]{4})\b",
             options);
         if (!diagnosticKind.Success
             || !explicitDiagnosticComparison
             && (sourceComparison.Success && sourceComparison.Index < diagnosticKind.Index
                 || repairRequest
-                || Regex.IsMatch(query,
+                || QueryRegex.IsMatch(query,
                     @"^\s*(?:please\s+)?(?:edit|change|apply|refactor)\b",
                     options)))
             return false;
 
-        var beforeAndAfter = Regex.IsMatch(query, @"\bbefore\b", options)
-                             && Regex.IsMatch(query, @"\bafter\b", options);
+        var beforeAndAfter = QueryRegex.IsMatch(query, @"\bbefore\b", options)
+                             && QueryRegex.IsMatch(query, @"\bafter\b", options);
         const string revisionRef = @"(?:HEAD|main|(?:release|feature|hotfix|bugfix)/[\w.-]+)";
-        var againstBranch = Regex.IsMatch(query, $@"\bagainst\s+{revisionRef}\b", options)
-                            && !Regex.IsMatch(query,
+        var againstBranch = QueryRegex.IsMatch(query, $@"\bagainst\s+{revisionRef}\b", options)
+                            && !QueryRegex.IsMatch(query,
                                 @"\bagainst\s+main\s+(?:project|application|assembly)\b",
                                 options);
-        var pairedRevisions = Regex.IsMatch(query,
+        var pairedRevisions = QueryRegex.IsMatch(query,
             $@"\bbetween\s+{revisionRef}\s+and\s+{revisionRef}\b|\bfrom\s+{revisionRef}\s+to\s+{revisionRef}\b",
             options);
         var revisionCue = againstBranch
                           || pairedRevisions
-                          || Regex.IsMatch(query, @"\b(?:since|relative\s+to|(?:Git\s+)?(?:branches?|revisions?|commits?))\b", options)
-                          || Regex.IsMatch(query,
+                          || QueryRegex.IsMatch(query, @"\b(?:since|relative\s+to|(?:Git\s+)?(?:branches?|revisions?|commits?))\b", options)
+                          || QueryRegex.IsMatch(query,
                               @"\b(?:previous|prior|last)\s+(?:build|commit|revision|branch)\b|\b(?:current|this|last|previous)\s+(?:change|commit|branch|revision)\b|\b(?:after|before)\s+(?:this\s+)?(?:change|commit|revision)\b",
                               options)
-                          || Regex.Count(query,
+                          || QueryRegex.Count(query,
                               @"\b(?:release|feature|hotfix|bugfix)/[\w.-]+\b",
                               options) >= 2;
-        var deltaIntent = Regex.IsMatch(query,
+        var deltaIntent = QueryRegex.IsMatch(query,
             @"\b(?:compare|comparison|diff|difference|delta|introduc(?:e|ed|ing)|appeared|removed|resolved|regressions?|since)\b",
             options);
         return beforeAndAfter || revisionCue && deltaIntent;
@@ -1265,5 +1267,35 @@ internal sealed class SuggestService : IRtService
                 AllExamples: info.Examples));
         }
         return related;
+    }
+
+    // Cache only the closed set of patterns constructed by this service. Each
+    // request still runs the matcher; no query results or user input are cached.
+    // The framework's small global Regex cache churns across these many patterns.
+    private static class QueryRegex
+    {
+        private static readonly ConcurrentDictionary<(string Pattern, RegexOptions Options, string Culture), Regex> Patterns = new();
+
+        private static Regex Get(string pattern, RegexOptions options) =>
+            Patterns.GetOrAdd((pattern, options, CultureInfo.CurrentCulture.ToString()),
+                static key => new Regex(key.Pattern, key.Options));
+
+        internal static bool IsMatch(string input, string pattern, RegexOptions options) =>
+            Get(pattern, options).IsMatch(input);
+
+        internal static Match Match(string input, string pattern, RegexOptions options) =>
+            Get(pattern, options).Match(input);
+
+        internal static MatchCollection Matches(string input, string pattern, RegexOptions options) =>
+            Get(pattern, options).Matches(input);
+
+        internal static string Replace(string input, string pattern, string replacement, RegexOptions options) =>
+            Get(pattern, options).Replace(input, replacement);
+
+        internal static string[] Split(string input, string pattern, RegexOptions options) =>
+            Get(pattern, options).Split(input);
+
+        internal static int Count(string input, string pattern, RegexOptions options) =>
+            Get(pattern, options).Count(input);
     }
 }

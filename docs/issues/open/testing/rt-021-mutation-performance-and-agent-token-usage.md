@@ -290,3 +290,85 @@ change deliberately invalidates earlier seeds; no old result is migrated by
 assumption. The existing Core scope, test filter and thresholds remain unchanged.
 The transferable explicit-input inventory lesson is published in global AI rules
 commit `8849c12`, with generation, convention and whitespace checks passing.
+
+## Core performance priority change (2026-10-07)
+
+The 2026-10-06 Core run was cancelled through its verified Node supervisor
+following a diagnostic window shorter than three minutes. Elapsed execution was
+31,922.665 seconds (8h 52m), exit 130. Streams drained and all owned worker identities
+exited. No machine mutation report exists: outcomes remain incomplete and no
+resume claim is made. Raw diagnostics are retained under
+`artifacts/mutation-performance/rt-021/core-stop-performance/`.
+
+Measured phase boundaries: build 22s; initial testing and instrumentation 8m 54s;
+coverage 8m 47s; remaining 8h 35m mutation execution. A supported 25-second managed
+thread-time trace of one active test worker attributed 25.319s to Regex
+construction within 25.602s sampled suggestion-test time (98.9%). This is a
+single-worker sample, not whole-run CPU attribution. Existing unmutated TRX
+contains 758 SuggestService cases totalling 195.536s and 176 relevance cases
+totalling 49.362s. SuggestService contains 126 direct static regex operations across more
+patterns than .NET 10's default 15-entry global cache. The trace exposes repeated
+symbolic-regex construction rather than slow matching or blocked execution.
+
+The smallest candidate change retains matching arguments/options and reuses only
+regex instances for the finite service-owned pattern set. Queries, results and
+assertions are not cached; active mutant pattern/options and ambient culture are
+evaluated before lookup. Independent source review passed. RT inspection was
+attempted first; outline does not support LLM output and its workspace acquisition
+was partial or unstable during mutation. No absence-of-reference claim relies on
+it. RT suggest found no supported local regex-cache refactoring; a bounded manual
+preview/apply retained clean identical HEAD/status. Flo's existing characterization
+workflow gap (FLO036) applies: these independently asserted contracts already
+pass, so no fabricated RED cycle is claimed.
+
+Static-initializer test expansion is supported by pinned Stryker 4.14.1 source.
+The relevance baseline pilot identifies 51 static mutants, all killed; its
+contribution to the interrupted full run remains unquantified. Workspace/build
+setup contributes to baseline cost; the sample does not show it as the active
+suggestion hot path. Timeout/restart contributions are unproved. 1,261 intake temp
+directories were observed after shutdown; none has modification time inside the
+run window, so their count does not establish a leak from this run. No directories
+were deleted. RAM/disk snapshots showed headroom, not exhaustion.
+
+Whole-owner pilots and frozen behavioral assertions precede another full run.
+Thresholds, controls, survivors and final full qualification remain unchanged.
+Shared lessons were published in ai-rules commit `d7f1462`; generated policy,
+conventions and synchronization checks passed.
+
+### Whole-owner comparison
+
+Both before/after runs used Stryker.NET 4.14.1, SDK 10.0.301, Release,
+concurrency 4, thresholds 100/95/0, unchanged owner source and unchanged selected
+test catalogues. Native runs were sequential. Checkout/solution roots differed;
+reports bind those paths explicitly. No baseline reuse or changed-mutant subset
+was used. The invalid logging-config attempt ended before testing and is excluded.
+
+| Whole owner | Tests | Scheduled | Before | After | Total gain | Mutation-phase gain |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| SuggestRelevancePolicy | 176 | 158 | 684.594s | 209.676s | 3.27x | 4.51x |
+| OperationRequestIdentity | 8 | 67 | 102.889s | 94.199s | 1.09x | 1.12x |
+
+Relevance retains 157 killed, one survivor, eight ignored and four compile errors.
+Identity retains 67 killed and 23 ignored. Every generated owner mutant identity,
+owner source, selected test ID/name/location and status matched. The survivor
+is `Append` to `Prepend` in `CapabilityTerms`; it remains visible and unclassified
+by this performance slice. One baseline identity worker was recorded as a zombie
+with zero RSS; no live owned workers remained. Outcomes are terminal for these
+pilots, separate from the incomplete full Core run.
+
+All 934 existing query cases passed. Summed duration was 244.898s in the retained
+unmutated baseline TRX and 2.787s in the fresh candidate TRX (87.89x). This is
+historical per-test duration evidence, not contemporaneous end-to-end timing.
+Focused coverage executed all nine cache lines; existing SuggestService coverage
+was 817/822 lines. No assertion or test file changed.
+
+The 10x mutation target is not achieved. Relevance setup remains about 94s and
+mutation execution 115s; the 51 static mutants remain static. Cold construction,
+early activation and restart contributions need a separate measurement before
+another production optimization. The other owner changed little, confirming
+that the query optimization is local. A reliable whole-Core runtime estimate
+cannot be derived from these 225 scheduled mutants or the interrupted full run;
+no new full run was launched. Preserve the full
+scope, controls and final qualification while obtaining representative static
+and workspace costs. Raw artifacts remain under
+`artifacts/mutation-performance/rt-021/core-performance-pilots/` in both checkouts.
