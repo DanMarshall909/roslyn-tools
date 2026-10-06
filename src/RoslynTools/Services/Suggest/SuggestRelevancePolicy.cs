@@ -8,9 +8,9 @@ namespace RoslynTools.Services.Suggest;
 ///     Conservative task admission, separate from BM25 ranking and command-name lookup.
 ///     Every substantive term must be represented by the candidate's declared capability.
 /// </summary>
-internal static partial class SuggestRelevancePolicy
+internal sealed partial class SuggestRelevancePolicy
 {
-    private static readonly HashSet<string> Filler = new(StringComparer.Ordinal)
+    private readonly HashSet<string> Filler = new(StringComparer.Ordinal)
     {
         "a", "an", "the", "is", "are", "of", "to", "in", "for", "this", "that",
         "all", "every", "my", "our", "your", "its", "it", "me", "us", "i", "we", "you",
@@ -19,29 +19,34 @@ internal static partial class SuggestRelevancePolicy
         "find", "show", "list", "get", "inspect", "read", "also", "instead", "they"
     };
 
+    private SuggestRelevancePolicy()
+    {
+    }
+
     internal static IReadOnlyList<ScoredCommand> Admit(
         IReadOnlyList<ScoredCommand> ranked,
         string query)
     {
-        var capabilities = ranked.Select(candidate => (Candidate: candidate, Terms: CapabilityTerms(candidate.Command)))
+        var policy = new SuggestRelevancePolicy();
+        var capabilities = ranked.Select(candidate => (Candidate: candidate, Terms: policy.CapabilityTerms(candidate.Command)))
             .ToList();
         var vocabulary = capabilities.SelectMany(candidate => candidate.Terms).ToHashSet(StringComparer.Ordinal);
-        var taskTerms = QueryTerms(query, vocabulary).Where(term => !Filler.Contains(term)).ToList();
+        var taskTerms = policy.QueryTerms(query, vocabulary).Where(term => !policy.Filler.Contains(term)).ToList();
         var requested = taskTerms.ToHashSet(StringComparer.Ordinal);
         if (requested.Count == 0)
             return [];
 
-        var reads = IsReadTask(query, taskTerms);
+        var reads = policy.IsReadTask(query, taskTerms);
         return capabilities.Where(candidate =>
             (!reads || !candidate.Candidate.Command.Mutates)
             && requested.IsSubsetOf(candidate.Terms)
             && (requested.Count != 1
-                || requested.IsSubsetOf(Terms(string.Join(' ', Names(candidate.Candidate.Command))).ToHashSet(StringComparer.Ordinal))))
+                || requested.IsSubsetOf(policy.Terms(string.Join(' ', Names(candidate.Candidate.Command))).ToHashSet(StringComparer.Ordinal))))
             .Select(candidate => candidate.Candidate)
             .ToList();
     }
 
-    private static bool IsReadTask(string query, IReadOnlyList<string> taskTerms)
+    private bool IsReadTask(string query, IReadOnlyList<string> taskTerms)
     {
         // Filename punctuation and words cannot establish a task clause.
         var withoutPaths = QueryWords().Replace(query, match => match.Groups["path"].Success ? " " : match.Value);
@@ -55,7 +60,7 @@ internal static partial class SuggestRelevancePolicy
         return NounRequestSubject().IsMatch(subject);
     }
 
-    private static bool IsReadClause(string clause)
+    private bool IsReadClause(string clause)
     {
         foreach (Match word in QueryWords().Matches(clause))
         {
@@ -69,7 +74,7 @@ internal static partial class SuggestRelevancePolicy
         return false;
     }
 
-    private static HashSet<string> CapabilityTerms(RtCommandInfo command)
+    private HashSet<string> CapabilityTerms(RtCommandInfo command)
     {
         var primaryCapability = SentenceBoundary().Split(command.WhenToUse, 2)[0];
         return Terms(string.Join(' ', Names(command).Append(primaryCapability)))
@@ -80,10 +85,10 @@ internal static partial class SuggestRelevancePolicy
         new[] { command.Name }.Concat(Synonyms.NameSynonyms.GetValueOrDefault(command.Name) ?? [])
             .Concat(command.Aliases ?? []);
 
-    private static IEnumerable<string> Terms(string text) =>
+    private IEnumerable<string> Terms(string text) =>
         Words().Matches(text).Select(match => Normalize(match.Value));
 
-    private static IEnumerable<string> QueryTerms(string query, HashSet<string> vocabulary)
+    private IEnumerable<string> QueryTerms(string query, HashSet<string> vocabulary)
     {
         var renameTargets = RenameTargets().Match(query).Groups["target"].Captures;
         foreach (Match match in QueryWords().Matches(query))
@@ -117,7 +122,7 @@ internal static partial class SuggestRelevancePolicy
         }
     }
 
-    private static string Normalize(string term)
+    private string Normalize(string term)
     {
         var lower = term.ToLowerInvariant();
         return lower switch

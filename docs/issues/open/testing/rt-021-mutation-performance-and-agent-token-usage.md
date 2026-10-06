@@ -372,3 +372,63 @@ no new full run was launched. Preserve the full
 scope, controls and final qualification while obtaining representative static
 and workspace costs. Raw artifacts remain under
 `artifacts/mutation-performance/rt-021/core-performance-pilots/` in both checkouts.
+
+### Static-input activation comparison
+
+A second clean-commit refactoring keeps the static `Admit` entrypoint and its
+algorithm in place, but constructs a private policy instance for each admission.
+The same 51 filler words and ordinal comparisons are instance inputs. Generated
+regex factories remain static. No query answer, test assertion, selected test,
+threshold or mutation operator changed. The allocation of one small set per
+admission is a deliberate trade-off measured against existing behavior.
+
+Matched DEBUG-verbosity whole-owner runs used the same checkout, Native 4.14.1,
+SDK 10.0.301, Release, concurrency 4 and all 176 relevance tests:
+
+| Measurement | Before | After | Gain |
+| --- | ---: | ---: | ---: |
+| Complete supervised run | 188.183s | 172.619s | 1.09x |
+| Scheduled mutation phase, including final drain | 97.667s | 89.499s | 1.09x |
+| Static mutants | 51 | 0 | |
+| Summed runner-session seconds | 370s | 349s | |
+
+Runner debug messages pair 51 static sessions totalling 148 runner-seconds and
+99 ordinary sessions totalling 222 seconds before the change; afterwards all
+150 sessions are ordinary. These sums describe concurrent occupancy at one-second
+log resolution, not CPU time or elapsed wall time. The modest observed difference
+does not support attributing most remaining runtime to static activation. This
+single pair is not a precise estimate of a 9% gain under variable system load.
+
+All 158 scheduled outcomes remain 157 killed and one survivor; eight ignored
+and four compile errors remain visible. Logical mapping retains all 51 former
+static faults, each killed, and all other scheduled identities and statuses.
+Mapping uses the owning member, operator, original UTF-16 source snippet and
+replacement, preserving duplicate multiplicity/source order and normalizing only
+the introduced `policy.` receiver. The ignored whole-`Admit` block-removal mutation
+has changed source text because construction was added; its before/after records
+are explicitly unmatched, not silently credited as identical. Numeric IDs and
+shifted source coordinates are not used as identity proof. The complete selected
+test catalogue is unchanged.
+
+All 934 existing query cases passed. Focused coverage executes all 98 authored
+policy lines across its generated closure/iterator classes, including the new
+construction path. Raw reports, clean preview/apply checkpoints, logical mappings,
+runner timings and verification logs are retained under
+`artifacts/mutation-performance/rt-021/static-inputs/` in the candidate worktree.
+RT/Flo's previously recorded refactoring/characterization gaps still apply; no
+unsupported automated refactor or artificial RED qualification is claimed.
+
+The DEBUG pilot exposed a supervisor metadata defect: its unanchored milestone
+matcher captures instrumented source comments containing "coverage". Benchmark
+phase extraction requires actual timestamped INFO scheduling messages. Fixing
+that parser is a separate slice; raw native logs remain the authority. The 10x
+mutation target and a defensible full-Core estimate remain unmet. No new full
+Core run was launched.
+
+The full Release local gate also passed: 4,404 CLI/Core and 308 MCP tests, with
+the same nine skips and no format changes. Main-suite duration was 6m 10s.
+Independent benchmark/source review confirmed the logical mapping and the modest
+observed benefit. The next representative pilot must use the full Core test
+selection with a whole owner to measure broad test reruns; the 176-test pilot
+cannot establish that cost. Global measurement lessons are published and pushed
+in ai-rules commit `6a04994`.
