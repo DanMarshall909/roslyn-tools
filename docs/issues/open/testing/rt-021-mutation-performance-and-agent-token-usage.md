@@ -533,3 +533,93 @@ owned workflows advance while agents are idle, pause automatic goal work only
 with the required user instruction, and preserve representative test selection
 when measuring static activation costs. Issue #149 remains open for the remaining
 reuse, runtime-estimation and full-gate evidence.
+
+
+### Startup caching and early-filter experiment
+
+A bounded fixture study found no demonstrated high-value immutable cache to add.
+`AdhocProjectBuilder` already shares immutable BCL metadata references. Journaled
+apply fixtures must execute production preparation against fresh temporary
+ledger/lease state; caching those results would mask mutations. Two workspace
+acquisition tests compile identical external fixture bytes, but their retained
+whole-test durations total only 0.473s. That is an upper bound on potential savings,
+not measured cache improvement. No fixture cache was added.
+
+Pinned Native 4.14.1 mutates and compiles the whole project before applying the
+configured file/span filter. The representative owner pilot generated 29,957
+faults to schedule 158, with compilation recovery in excluded files. Inspection
+of the official 5.0.0 release source found the same order; upgrading alone is not
+a supported remedy. The pinned upstream revision is
+`29cf66d848ae6d0d9272f86348e3a4eb57008158`.
+
+An isolated source-built stock/candidate pair measured an early file filter. The
+[experimental patch](rt-021-stryker-early-filter.patch) preserves all original
+semantic inputs and compiles unselected files unchanged. Partial-span filtering
+remains with Native's existing filter. This patch is evidence, not an installed
+or supported RT dependency. Local imported stock/candidate commits are
+`cb4054e40521ab3966f95ad7fb11748219331f57` and
+`63fc6a3eb7d92cb07c103c5c977e2d9fdcd15ca0`.
+
+Both runs used the same whole owner, original 4,484 Core tests, Release, SDK
+10.0.301, concurrency four, thresholds 100/95/0, configuration and supervisor.
+An owned OS controller advanced from stock to candidate automatically, without
+requiring an agent call. The checkout
+remained at clean commit `43b7908`. Native binaries were hashed before and after
+execution; environment binding differs only in the classified candidate DLL path.
+Both builds have the same resolved dependency graph, including upstream Roslyn
+version warnings. A source-built pair is not equivalent to measuring the published
+binary; selected stock fault identities/outcomes were separately checked against
+the retained published-tool report.
+
+| Measurement | Source-built stock | Early filter | Gain |
+| --- | ---: | ---: | ---: |
+| Native receipt elapsed | 696.560s | 532.193s | 1.31x |
+| Setup before scheduling | 500.226s | 410.329s | 1.22x |
+| Scheduled phase and terminal drain | 196.334s | 121.864s | 1.61x |
+| Entire controller phase including preflight | 700.059s | 535.709s | 1.31x |
+| Generated faults | 29,957 | 170 | |
+| Scheduled faults | 158 | 158 | |
+
+Initial discovery/build/test-discovery milestones occur at 19.490s/29.396s;
+initial-test plus instrumentation/compilation buckets take 279.144s/199.505s;
+coverage and late filtering take 201.592s/181.429s. These log buckets overlap
+internal activities and do not isolate fixture CPU, disk latency or compiler time.
+The pair is sequential and unrepeated: cache warming, order effects and variance
+are not isolated. The prototype cannot establish a whole-Core runtime estimate
+or a 10x improvement. It still spends 410s before scheduling this small owner.
+
+All 170 selected fault identities, statuses, static flags, coverage links, test
+catalogue and test source bytes match. Both reports retain 157 killed, one survivor,
+eight ignored and four compile errors; all four compile-error identities match.
+The source-built stock also matches the published reference's selected outcomes.
+Forty-five faults have different killing-test attribution, with zero unresolved
+IDs; each attributed killer belongs to its fault's coverage set. Scheduling or
+first-failure nondeterminism is a hypothesis, not demonstrated equivalence.
+The strict attribution comparison therefore does not pass.
+
+The candidate's Native report completed with exit zero and streams drained, but
+its terminal receipt records `cleanupRequired: true` and one owned zero-RSS zombie.
+The supervisor also recorded an owned live worker requiring SIGINT during cleanup.
+The controller correctly rejected this terminal control. A subsequent identity
+check at 01:52:44Z found all 405 stock and 258 candidate recorded identities absent.
+That supplementary check does not rewrite or clear the original failure. The
+terminal audit exits nonzero and retains both control and attribution differences.
+No missing outcomes are fabricated; neither this pilot nor the prototype is
+accepted as the final mutation gate or adopted tool.
+
+Evidence remains under `artifacts/mutation-performance/rt-021/startup-optimization/`:
+source archive and commits, patch/build logs, binary/input bindings, controller
+state, both Native reports/receipts, `terminal-validation.json`, attribution summary
+and post-terminal identity check. Raw logs remain in artifacts; bounded summaries
+carry the analysis. Independent review passed for these bounded claims, while
+explicitly rejecting candidate-gate readiness and adoption. The
+terminal comparison SHA-256 is
+`4b1b4fc7c06d85aa9bc0bb78d47ab512d6125835d08984c379ddb34745884b22`.
+RT supplied discovery/analysis where supported; Flo has no maintained workflow for
+this external Native prototype, so no artificial RED or tool adoption was claimed.
+
+Transferable scope/provenance findings were published and pushed in ai-rules
+commit `8bfec73`, with generated-rule and convention checks passing. Issue #149
+remains open for supported startup optimization, cleanup/attribution verification,
+changed-state reuse, a defensible Core estimate and the required full gate. No new
+full Core run has been launched.

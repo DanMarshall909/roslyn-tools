@@ -1,0 +1,33 @@
+diff --git a/src/Stryker.Core/Stryker.Core/MutationTest/CsharpMutationProcess.cs b/src/Stryker.Core/Stryker.Core/MutationTest/CsharpMutationProcess.cs
+index f918582..0ff70ed 100644
+--- a/src/Stryker.Core/Stryker.Core/MutationTest/CsharpMutationProcess.cs
++++ b/src/Stryker.Core/Stryker.Core/MutationTest/CsharpMutationProcess.cs
+@@ -13,6 +13,7 @@ using Stryker.Core.ProjectComponents;
+ using Stryker.Core.ProjectComponents.Csharp;
+ using Stryker.Core.ProjectComponents.TestProjects;
+ using Stryker.Utilities.Buildalyzer;
++using Stryker.Utilities;
+ 
+ namespace Stryker.Core.MutationTest;
+ 
+@@ -42,6 +43,20 @@ public class CsharpMutationProcess : IMutationProcess
+         // Mutate source files
+         foreach (var file in projectInfo.GetAllFiles().Cast<CsharpFileLeaf>())
+         {
++            var fullPath = FilePathUtils.NormalizePathSeparators(file.FullPath);
++            var relativePath = FilePathUtils.NormalizePathSeparators(file.RelativePath);
++            var included = options.Mutate.Any(pattern => !pattern.IsExclude &&
++                (pattern.Glob.IsMatch(fullPath) || pattern.Glob.IsMatch(relativePath)));
++            var fileSpan = file.SyntaxTree.GetRoot().FullSpan;
++            var whollyExcluded = options.Mutate.Any(pattern => pattern.IsExclude &&
++                (pattern.IsMatch(fullPath, fileSpan) || pattern.IsMatch(relativePath, fileSpan)));
++            if (!included || whollyExcluded)
++            {
++                file.MutatedSyntaxTree = file.SyntaxTree;
++                file.Mutants = Enumerable.Empty<IMutant>();
++                continue;
++            }
++
+             _logger.LogDebug("Mutating {FilePath}", file.FullPath);
+             // Mutate the syntax tree
+             var mutatedSyntaxTree = orchestrator.Mutate(file.SyntaxTree, semanticModels.First(x => x.SyntaxTree == file.SyntaxTree));
