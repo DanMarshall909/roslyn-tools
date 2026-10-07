@@ -459,3 +459,77 @@ All 11 supervisor integration cases passed, including exact-state reuse,
 invalidation, corrupt reports, owned-worker cleanup and graceful cancellation.
 Node syntax and whitespace checks passed. The preceding full Release gate covers
 the unchanged C# code; it is not rerun for this Node-only metadata slice.
+
+### Full-selection whole-owner comparison
+
+The same entire relevance owner was then measured with the original full Core
+filter: 4,484 source-bound test cases in each report, all original exclusions,
+Native 4.14.1, SDK 10.0.301, Release, concurrency four and thresholds 100/95/0.
+Both source revisions already include the regex reuse change. Both roots ran the
+same supervisor bytes; configuration differs only in the absolute solution root.
+
+| Measurement | Before | After | Gain |
+| --- | ---: | ---: | ---: |
+| Complete supervised run | 2,034.170s | 644.294s | 3.16x |
+| Scheduled mutation phase, including final drain | 1,588.267s | 180.400s | 8.80x |
+| Initial/coverage/setup before scheduling | 445.903s | 463.894s | |
+| Summed runner-session seconds | 6,285s | 677s | |
+
+Both terminal receipts are complete, exit zero, streams drained, with no remaining
+owned processes. Reports retain 157 killed, one survivor, eight ignored and four
+compile errors. Logical mapping retains 169 identities, including all 51 former
+static faults as killed. As in the earlier comparison, the changed ignored whole
+`Admit` block-removal records remain explicitly unmatched. All scheduled identities,
+statuses and the entire selected test catalogue match. No test or assertion changed.
+
+Before the change, 51 static sessions account for 6,005 of 6,285 summed
+runner-seconds (95.5%); 101 ordinary sessions account for 280. Afterwards all 152
+sessions are ordinary, totalling 677 seconds. These are concurrent occupancy sums
+at one-second log resolution, not wall time or CPU consumption. A first parser
+incorrectly expected an `id:` prefix and could not resolve these payloads; the
+retained projection now parses the observed `ID: mutator` records, validates every
+ID against its current report and exposes unmatched/pending records.
+
+A supported 25-second managed thread-time trace sampled one baseline worker
+executing `JournaledApplyAuthorityTests`. Its dominant project frames prepare
+fixtures and persist ledger/change-plan records. `ApplyFixture.Prepare` has 38.55%
+of CPU_TIME-tagged sampled weight; ledger `WriteRecordBytes` contains 11.23s of
+inclusive unmanaged thread time, and ledger/change-plan directory metadata flush
+frames contain 4.87s/3.24s. These overlapping samples do not quantify disk latency
+or global CPU. Snapshot owned RSS was 6.96 GiB, available memory 12.38 GiB and disk
+free 61 GiB. Completion/restarts were observed; the 250,535ms configured per-run
+timeout is not evidence that a timeout occurred. No Timeout outcome exists in
+these owner reports. The trace was taken only during the baseline: disclose that
+sampling load and do not subtract a guessed profiler cost from elapsed timings.
+This is a single pair without a variance estimate. Environment hashes also differ;
+that difference is unclassified. These observations do not isolate causality or
+establish repeatability.
+
+The owner-only 176-test pilot had hidden the cost of broad static reruns. Keep
+representative test selection as well as whole-owner scope when interpreting
+activation improvements. The 10x target is still not met in either complete or
+mutation-phase elapsed time; no multiplied gain is claimed by combining separate
+cache and activation experiments. A whole-Core estimate still needs evidence for
+the remaining owner distribution. No full Core run has been launched.
+
+Raw evidence is under `artifacts/mutation-performance/rt-021/static-wide/` in the
+primary and baseline worktrees. The baseline receipt finished at 23:44:41Z, while
+the candidate started at 00:10:33Z: a 25m 52s phase gap during the goal pause. Native
+compute continued independently, but these timestamps do not establish that the
+yielded host orchestration advances all queued phases while unattended. For a
+workflow that must do so, use one owned OS process for the sequence and verify
+phase advancement without model polling. Do not infer that property merely from
+a live yielded tool cell.
+
+Independent benchmark review passed for these bounded claims: the entire owner,
+selected test catalogue, source bytes, logical identities, outcomes and terminal
+receipts were checked. The reviewed comparison SHA-256 is
+`8db5c044680208bf54e68db140495c11590bd9d6f8bfe317be909b5d06c1d3b0`.
+This review does not approve a whole-Core runtime estimate or substitute for the
+required final gate.
+
+Transferable lessons were published in ai-rules commit `5950349`: verify that
+owned workflows advance while agents are idle, pause automatic goal work only
+with the required user instruction, and preserve representative test selection
+when measuring static activation costs. Issue #149 remains open for the remaining
+reuse, runtime-estimation and full-gate evidence.
