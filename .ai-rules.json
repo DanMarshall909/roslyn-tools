@@ -3,8 +3,18 @@
   "resources": {
     "memory": {
       "reserveMiBPerActiveWorktree": 8192,
-      "basis": "estimated",
-      "estimateReason": "Allow 8 GiB for a .NET solution build, both test projects, Roslyn workspace analysis, and scoped mutation work until a representative successful process-group peak is measured."
+      "basis": "measured",
+      "observedPeakMiB": 5506,
+      "measurement": {
+        "workload": "Stryker.NET 4.14.1 whole FindDuplicatesService with solution build, concurrency 4: first solution-expanded core+MCP scope (4693 cases), then qualified owning-core scope (4212 cases)",
+        "date": "2026-10-08",
+        "evidence": "docs/experiments/flo-issue-118/README.md#timing-and-resources",
+        "completedRunDurationsSeconds": [
+          1236.862,
+          587.06
+        ],
+        "notes": "Maximum sampled process-group RSS across two completed native runs with different documented test selections; durations are not repeated observations of one workload. Original receipts/report digests and scope inventories are documented. The first run fails the E2E-exclusion selection gate; the final run satisfies it. The 8 GiB reserve retains headroom; other workloads can differ."
+      }
     }
   }
 }
