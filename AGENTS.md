@@ -14,6 +14,13 @@ one accepted criterion at a time; review RED evidence and mutation findings
 before integration. Agents already executing a Flo phase should perform that
 phase without starting a nested cycle.
 
+We are dogfooding Flo. When a Flo defect or workflow gap appears during RT
+work, record a reproducible finding in Flo's tracker and fix it in a separate
+Flo Git worktree. Complete Flo's applicable tests and independent review, then
+merge and push the verified fix to Flo's `main` as soon as the gates pass.
+Refresh the Flo runtime used by RT at a safe cycle boundary, preserving any
+active cycle's pinned runtime and evidence.
+
 For C# work, start with [use-rt](skills/use-rt/SKILL.md), then `rt prime` and
 `rt suggest "<task>" --top 3 --llm`. Apply
 [continuous reflection](docs/agent-playbook.md#continuous-reflection) quietly
