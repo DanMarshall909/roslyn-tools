@@ -32,6 +32,45 @@ rt refactor rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --soluti
 Check exit code, stdout/stderr separation, sensible dry-run diffs, and workspace
 load warnings.
 
+## Development with Flo
+
+Use the installed `flo` skill for C# implementation cycles, one accepted
+criterion at a time. The repository's [flo.json](../flo.json) saves the
+`RoslynTools.slnx` build target, core/CLI test project, Release configuration,
+Codex transport, and full `scripts/check-local.sh` verification gate. Override
+`--test-project` for a criterion owned by the MCP test project.
+
+Build Flo from a trusted source checkout before selecting its absolute DLL
+path. When another session is changing Flo, build from an export of a pinned
+commit and retain its provenance rather than sharing mutable build output.
+The current Flo checkout's README and CLI usage take precedence over older
+skill examples. RT keeps its existing SDK and `.config/dotnet-tools.json`
+Stryker.NET 4.14.1 pin.
+
+Start from a clean, synchronized branch with a passing baseline. Substitute
+the actual new test, criterion and expected assertion fragment:
+
+```bash
+flo_dll=/absolute/path/to/Flo/src/Flo/bin/Debug/net10.0/Flo.dll
+repo="$(git rev-parse --show-toplevel)"
+dotnet "$flo_dll" cycle --project "$repo" \
+  --test-name RoslynTools.Tests.ExampleTests.Required_behavior \
+  --criterion "The accepted observable behavior" \
+  --red-error-contains "The expected failing assertion"
+```
+
+Review the named RED failure and test-only diff before approving the recorded
+artifact. Flo then verifies GREEN, changed-source coverage and REFACTOR, and
+runs the selected full repository gate. Inspect the exact candidate and its
+mutation findings before local integration; RT's remaining completion and
+publication gates still apply. `.flo/` worktrees and private evidence are ignored.
+
+Use serial cycles initially. Characterization of existing behavior, mutation
+performance experiments and Node-only contracts need their applicable
+workflows; do not invent a failing expectation to fit them into a C# RED cycle.
+The outstanding characterization workflow is tracked in
+[FLO-036](https://github.com/DanMarshall909/flo-tdd/issues/1).
+
 ## Continuous reflection
 
 Apply the shared Reflection rule and `reflect` procedure throughout the task.

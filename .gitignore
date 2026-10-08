@@ -13,6 +13,9 @@ nupkg/
 ## Repository-local .NET tool installation
 .tools/
 
+## Flo worktrees and private cycle evidence
+.flo/
+
 ## IDE
 .vs/
 .idea/

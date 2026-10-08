@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "buildTarget": "RoslynTools.slnx",
+  "testProject": "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+  "configuration": "Release",
+  "agentProtocol": "codex",
+  "verificationDriver": "scripts/check-local.sh",
+  "verificationScope": "solution"
+}
