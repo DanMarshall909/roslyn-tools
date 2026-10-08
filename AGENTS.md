@@ -7,6 +7,13 @@ Guidance for agentic coding tools working in this repository.
 @.agents/skills/session-log/SKILL.md
 @.agents/skills/refactoring-slices/SKILL.md
 
+Use Flo for C# implementation cycles, following the installed `flo` skill and
+the [development workflow](docs/agent-playbook.md#development-with-flo).
+[flo.json](flo.json) saves the repository defaults. Start with serial cycles,
+one accepted criterion at a time; review RED evidence and mutation findings
+before integration. Agents already executing a Flo phase should perform that
+phase without starting a nested cycle.
+
 For C# work, start with [use-rt](skills/use-rt/SKILL.md), then `rt prime` and
 `rt suggest "<task>" --top 3 --llm`. Apply
 [continuous reflection](docs/agent-playbook.md#continuous-reflection) quietly
