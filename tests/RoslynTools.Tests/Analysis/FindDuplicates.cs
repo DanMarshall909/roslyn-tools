@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -35,7 +37,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -80,7 +82,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -114,7 +116,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -150,7 +152,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(5));
@@ -186,7 +188,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinOccurrences: 3));
@@ -226,7 +228,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -283,7 +285,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -327,7 +329,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(1));
@@ -363,7 +365,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -403,7 +405,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -441,7 +443,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -479,7 +481,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -523,7 +525,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -560,7 +562,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -598,7 +600,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -643,7 +645,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -697,7 +699,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -734,7 +736,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -777,7 +779,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -840,7 +842,7 @@ public class FindDuplicates
                                         }
                                         """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups =
@@ -900,7 +902,7 @@ public class FindDuplicates
                                }
                                """);
 
-        var (workspace, sln) = builder.Build();
+        var (workspace, sln) = await BuildFixtureAsync(builder);
         using (workspace)
         {
             var groups =
@@ -947,7 +949,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = builder.Build();
+        var (workspace, sln) = await BuildFixtureAsync(builder);
         using (workspace)
         {
             var groups =
@@ -990,7 +992,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = builder.Build();
+        var (workspace, sln) = await BuildFixtureAsync(builder);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
@@ -998,6 +1000,98 @@ public class FindDuplicates
             groups.ShouldNotBeEmpty();
             var g = groups.First(gr => gr.StatementCount == 3);
             g.Occurrences.Count.ShouldBe(2);
+        }
+    }
+
+    [Fact]
+    public async Task excludes_test_framework_projects_unless_explicitly_included()
+    {
+        const string source = """
+                              public class Duplicates
+                              {
+                                  public void First()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+
+                                  public void Second()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+                              }
+                              """;
+        var frameworkProjects = new[]
+        {
+            (ProjectName: "RoslynTools.Tests.Mcp", AssemblyName: "xunit.core"),
+            (ProjectName: "ValidationFixtures", AssemblyName: "xunit.v3.core"),
+            (ProjectName: "ApprovalFixtures", AssemblyName: "nunit.framework"),
+            (ProjectName: "AcceptanceFixtures", AssemblyName: "Microsoft.VisualStudio.TestPlatform.TestFramework")
+        };
+        using var builder = new AdhocProjectBuilder("Production");
+        builder.AddSource("Duplicates.cs", source);
+        builder.AddProject("FilenameControl").AddSource("Duplicates.cs", source);
+        builder.AddProject("Legacy.Tests").AddSource("Duplicates.cs", source);
+        foreach (var (projectName, _) in frameworkProjects)
+            builder.AddProject(projectName).AddSource("Duplicates.cs", source);
+
+        var (workspace, solution) = await BuildFixtureAsync(builder);
+        using (workspace)
+        {
+            // Opaque filenames require classification by the emitted assembly identity.
+            foreach (var (projectName, assemblyName) in frameworkProjects)
+            {
+                var project = solution.Projects.Single(p => p.Name == projectName);
+                solution = solution.AddMetadataReference(project.Id,
+                    CreateAssemblyReference(assemblyName, Path.Combine(builder.Directory, projectName + ".dll")));
+            }
+
+            // A framework-looking filename alone must not hide production duplicates.
+            var filenameControl = solution.Projects.Single(p => p.Name == "FilenameControl");
+            solution = solution.AddMetadataReference(filenameControl.Id,
+                CreateAssemblyReference("Production.Dependency", Path.Combine(builder.Directory, "xunit.core.dll")));
+
+            var service = new FindDuplicatesService();
+            var defaultGroups = await service.RunAsync(solution, new FindDuplicatesOptions());
+            var defaultGroup = Assert.Single(defaultGroups);
+            Assert.Equal(3, defaultGroup.StatementCount);
+            foreach (var projectName in new[] { "Production", "FilenameControl" })
+            {
+                var path = Path.Combine(builder.Directory, projectName, "Duplicates.cs");
+                Assert.Contains(defaultGroup.Occurrences, o => o.FilePath == path && o.ContainingMember == "First");
+                Assert.Contains(defaultGroup.Occurrences, o => o.FilePath == path && o.ContainingMember == "Second");
+            }
+
+            var fallbackPath = Path.Combine(builder.Directory, "Legacy.Tests", "Duplicates.cs");
+            Assert.DoesNotContain(defaultGroup.Occurrences, o => o.FilePath == fallbackPath);
+
+            var includedGroups = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            var includedGroup = Assert.Single(includedGroups);
+            Assert.Equal(3, includedGroup.StatementCount);
+            var expectedPaths = frameworkProjects.Select(p => p.ProjectName)
+                .Concat(["Production", "FilenameControl", "Legacy.Tests"])
+                .Select(name => Path.Combine(builder.Directory, name, "Duplicates.cs"))
+                .ToArray();
+            var expectedOccurrences = expectedPaths
+                .SelectMany(path => new[] { path + ":First", path + ":Second" })
+                .Order(StringComparer.Ordinal);
+            Assert.Equal(expectedOccurrences, includedGroup.Occurrences
+                .Select(o => o.FilePath + ":" + o.ContainingMember)
+                .Order(StringComparer.Ordinal));
+
+            var repeatedGroups = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            Assert.Equal(CaptureJson(includedGroups, builder.Directory), CaptureJson(repeatedGroups, builder.Directory));
+
+            var frameworkPaths = frameworkProjects
+                .Select(p => Path.Combine(builder.Directory, p.ProjectName, "Duplicates.cs"))
+                .ToHashSet(StringComparer.Ordinal);
+            var leakedOccurrences = defaultGroups.SelectMany(g => g.Occurrences)
+                .Where(o => frameworkPaths.Contains(o.FilePath))
+                .ToArray();
+            Assert.Empty(leakedOccurrences);
         }
     }
 
@@ -1034,7 +1128,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MaxStatements: 3));
@@ -1070,7 +1164,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1130,7 +1224,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1172,7 +1266,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1224,7 +1318,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1272,7 +1366,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1318,7 +1412,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1358,7 +1452,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1401,7 +1495,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
@@ -1444,7 +1538,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1498,7 +1592,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = builder.Build();
+        var (workspace, sln) = await BuildFixtureAsync(builder);
         using (workspace)
         {
             // "CaptureTest" ends with "Test" so it would be excluded as a test project;
@@ -1542,7 +1636,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1595,7 +1689,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1633,7 +1727,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1672,7 +1766,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1712,7 +1806,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1747,7 +1841,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
@@ -1765,6 +1859,39 @@ public class FindDuplicates
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    private static async Task<(Workspace Workspace, Solution Solution)> BuildFixtureAsync(AdhocProjectBuilder builder)
+    {
+        var (workspace, solution) = builder.Build();
+        // The builder copies all test-host TPA references, including xUnit. Remove only
+        // incidental primary test frameworks here so these fixtures model production.
+        foreach (var project in solution.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            Assert.NotNull(compilation);
+            var references = project.MetadataReferences.Where(reference =>
+                compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol
+                {
+                    Identity.Name: "xunit.core" or "xunit.v3.core" or "nunit.framework"
+                        or "Microsoft.VisualStudio.TestPlatform.TestFramework"
+                });
+            solution = solution.WithProjectMetadataReferences(project.Id, references);
+        }
+
+        return (workspace, solution);
+    }
+
+    private static PortableExecutableReference CreateAssemblyReference(string assemblyName, string filePath)
+    {
+        var compilation = CSharpCompilation.Create(assemblyName,
+            [CSharpSyntaxTree.ParseText("public class ReferenceMarker { }")],
+            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var image = new MemoryStream();
+        var emitted = compilation.Emit(image);
+        Assert.True(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
+        return MetadataReference.CreateFromImage(image.ToArray(), filePath: filePath);
+    }
 
     private static string CaptureJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
     {
@@ -1823,7 +1950,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(1));
@@ -1883,7 +2010,7 @@ public class FindDuplicates
                                   }
                                   """);
 
-        var (workspace, sln) = project.Build();
+        var (workspace, sln) = await BuildFixtureAsync(project);
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(2));

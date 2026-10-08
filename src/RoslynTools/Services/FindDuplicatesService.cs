@@ -122,6 +122,15 @@ internal class FindDuplicatesService : IRtService
                 && !ScopeCouldMatchProject(project, options.Scope))
                 continue;
 
+            if (!options.IncludeTests)
+            {
+                var compilation = await project.GetCompilationAsync();
+                if (compilation?.ReferencedAssemblyNames.Any(assembly => assembly.Name is
+                    "xunit.core" or "xunit.v3.core" or "nunit.framework" or
+                    "Microsoft.VisualStudio.TestPlatform.TestFramework") == true)
+                    continue;
+            }
+
             foreach (var document in project.Documents)
             {
                 if (document.FilePath is null || rtIgnore.IsIgnored(document.FilePath))

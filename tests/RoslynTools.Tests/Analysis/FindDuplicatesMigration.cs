@@ -7,6 +7,7 @@ using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
+// Rendering fixtures inherit the host's xUnit reference, so analysis includes tests explicitly.
 public class FindDuplicatesMigration : IDisposable
 {
     public FindDuplicatesMigration()
@@ -50,7 +51,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
@@ -79,7 +80,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             result.RenderText(sw);
@@ -117,7 +118,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
@@ -175,7 +176,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
@@ -220,7 +221,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
@@ -271,7 +272,7 @@ public class FindDuplicatesMigration : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
             groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);

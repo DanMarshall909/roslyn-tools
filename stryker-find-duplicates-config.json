@@ -1,0 +1,16 @@
+{
+  "stryker-config": {
+    "project": "src/RoslynTools/RoslynTools.csproj",
+    "test-projects": [
+      "tests/RoslynTools.Tests/RoslynTools.Tests.csproj"
+    ],
+    "mutate": [
+      "**/Services/FindDuplicatesService.cs"
+    ],
+    "configuration": "Release",
+    "solution": "RoslynTools.slnx",
+    "reporters": ["json", "cleartext", "progress"],
+    "thresholds": { "high": 100, "low": 95, "break": 0 },
+    "concurrency": 4
+  }
+}
