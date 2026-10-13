@@ -1,8 +1,18 @@
 # Flo dogfooding: duplicate-analysis test-project detection
 
-This experiment delivers one criterion toward [GitHub #118](https://github.com/DanMarshall909/roslyn-tools/issues/118), originally FB-375: default duplicate analysis excludes projects referencing the primary xUnit, xUnit v3, NUnit or MSTest assembly identity. Explicit inclusion restores their occurrences deterministically, production duplicates remain, and the existing name fallback remains effective.
+This experiment tracks [GitHub #118](https://github.com/DanMarshall909/roslyn-tools/issues/118), originally FB-375. The first criterion excluded projects referencing the primary xUnit, xUnit v3, NUnit or MSTest assembly identity. The follow-up criteria detect neutral-named test projects from evaluated `IsTestProject` metadata or an exact `Microsoft.NET.Test.Sdk` package reference in the active target-framework context. Explicit inclusion restores their occurrences deterministically, production duplicates remain, and the existing name fallback remains effective.
 
-Issue #118 remains open. Neutral-name projects identified only by `IsTestProject` or `Microsoft.NET.Test.Sdk`, without those primary framework references, require another criterion. This change does not claim complete metadata-based test-project detection.
+## 2026-10-13 metadata completion
+
+- Flo checkpoints: metadata `c0467f0` (run `20261013015956704-00e2c364`), mixed-framework correction `462ff61` (run `20261013053246102-fc10ed50`), and Test SDK `16bb1f3` (run `20261013071014196-994dec3b`). The final feature commit is `2ff53a2`; the Flo worktrees and their evidence remain local.
+- The final RED assertion failed on unchanged production source, then the GREEN and REFACTOR suites each passed 4,409 executed tests. Flo recorded zero uncovered criterion lines, and its Release repository gate passed 4,726 tests. Independent review found no P1/P2 issues.
+- Native Stryker.NET 4.14.1 completed on the final unchanged source. All five applicable mutants on the new Test SDK lines were killed; two block-removal mutants were ignored by Stryker. The whole-service report also contains 34 survivors, 13 no-coverage mutants, three timeouts and 57 compile errors outside this criterion. The retained report SHA-256 is `1CF7985FBBB29C07C953C45C84F3A45139677175C42F3B98D4414DFE7F0BE4A4`.
+- The reported min-six CLI scan now has 16 default groups with 34 production occurrences and no test occurrences. `--include-tests` yields 316 groups with 999 test occurrences, including 92 from `RoslynTools.Tests.Mcp`, while retaining all 34 production occurrences. Repeated inclusion output is byte-identical (`caf76244c5aabc1a60bc29d9ab0ee7a972c10d67677635ae3879cf06c5055b42`).
+- The first Test SDK RED attempt stopped at an analyzer build failure (`CA1861`) and remains evidence for Flo tracker `FLO-050`. The corrected test-only fixture produced the expected RED assertion in a fresh Flo cycle; the failed attempt was not erased.
+
+Two older artifacts are parked as experiment evidence, not pending product work: the cancelled first Flo cycle at `/home/dan/code/roslyn-tools/.flo/worktrees/current-cycle` (run `20261008094902860-f0484937`, detached at `bf63bd7`) remains dirty and untouched; the unmerged local branch `backup/rt-flo-checkpoint-subject-20261008` at `41007c9` preserves the original checkpoint subject for provenance and recovery. Revisit disposal only after their evidence value is reviewed.
+
+The sections below retain the first framework-assembly criterion's original evidence and limitations.
 
 ## Candidate and checks
 

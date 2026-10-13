@@ -2,8 +2,10 @@ using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Commands.Results;
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
@@ -1092,6 +1094,574 @@ public class FindDuplicates
                 .Where(o => frameworkPaths.Contains(o.FilePath))
                 .ToArray();
             Assert.Empty(leakedOccurrences);
+        }
+    }
+
+    [Fact]
+    public async Task excludes_neutral_named_msbuild_test_projects_unless_explicitly_included()
+    {
+        const string source = """
+                              public class Duplicates
+                              {
+                                  public void First()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+
+                                  public void Second()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+                              }
+                              """;
+        var scenarios = new[]
+        {
+            (Directory: "ImportedTrue", IsTestProject: "true", ViaImport: true),
+            (Directory: "DirectTrue", IsTestProject: "true", ViaImport: false),
+            (Directory: "DirectFalse", IsTestProject: "false", ViaImport: false)
+        };
+        using var fixture = new WorkspaceLoaderTestProject();
+        MsBuildFixture.Ensure();
+
+        foreach (var scenario in scenarios)
+        {
+            var sln = fixture.AddSolution(scenario.Directory, "Metadata", "Catalog", source);
+            var projectDirectory = Path.Combine(fixture.RootDir, scenario.Directory, "Catalog");
+            var projectPath = Path.Combine(projectDirectory, "Catalog.csproj");
+            var projectXml = await File.ReadAllTextAsync(projectPath);
+            if (scenario.ViaImport)
+            {
+                await File.WriteAllTextAsync(Path.Combine(projectDirectory, "Identity.props"),
+                    "<Project><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>");
+                projectXml = projectXml.Replace("</Project>",
+                    "  <Import Project=\"Identity.props\" />\n</Project>", StringComparison.Ordinal);
+            }
+            else
+            {
+                projectXml = projectXml.Replace("</PropertyGroup>",
+                    $"  <IsTestProject>{scenario.IsTestProject}</IsTestProject>\n  </PropertyGroup>",
+                    StringComparison.Ordinal);
+            }
+
+            await File.WriteAllTextAsync(projectPath, projectXml);
+            using (var projects = new Microsoft.Build.Evaluation.ProjectCollection())
+            {
+                var evaluated = projects.LoadProject(projectPath);
+                Assert.Equal(scenario.IsTestProject, evaluated.GetPropertyValue("IsTestProject"));
+            }
+
+            var (workspace, solution) = await WorkspaceLoader.LoadAsync(sln.SolutionPath);
+            using (workspace)
+            {
+                var project = Assert.Single(solution.Projects);
+                Assert.Equal("Catalog", project.Name);
+                var compilation = await project.GetCompilationAsync();
+                Assert.NotNull(compilation);
+                Assert.False(compilation.ReferencedAssemblyNames.Any(assembly => assembly.Name is
+                    "xunit.core" or "xunit.v3.core" or "nunit.framework" or
+                    "Microsoft.VisualStudio.TestPlatform.TestFramework"),
+                    "The fixture must not reference a recognized test framework.");
+
+                var sourcePath = Path.Combine(projectDirectory, "Marker.cs");
+                var expected = new[] { sourcePath + ":First", sourcePath + ":Second" };
+                var service = new FindDuplicatesService();
+                var included = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+                var includedGroup = Assert.Single(included);
+                Assert.Equal(3, includedGroup.StatementCount);
+                var occurrences = includedGroup.Occurrences
+                    .Select(o => o.FilePath + ":" + o.ContainingMember)
+                    .Order(StringComparer.Ordinal)
+                    .ToArray();
+                Assert.Equal(expected, occurrences);
+
+                var repeated = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+                Assert.Equal(CaptureJson(included, fixture.RootDir), CaptureJson(repeated, fixture.RootDir));
+
+                var defaultGroups = await service.RunAsync(solution, new FindDuplicatesOptions());
+                if (scenario.IsTestProject == "true")
+                {
+                    Assert.DoesNotContain(defaultGroups.SelectMany(g => g.Occurrences),
+                        occurrence => occurrence.FilePath == sourcePath);
+                }
+                else
+                {
+                    var defaultGroup = Assert.Single(defaultGroups);
+                    Assert.Equal(expected, defaultGroup.Occurrences
+                        .Select(o => o.FilePath + ":" + o.ContainingMember)
+                        .Order(StringComparer.Ordinal));
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task excludes_neutral_named_multitarget_projects_with_inner_test_metadata()
+    {
+        const string source = """
+                              public class Duplicates
+                              {
+                                  public void First()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+
+                                  public void Second()
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+                              }
+                              """;
+        using var fixture = new WorkspaceLoaderTestProject();
+        var sln = fixture.AddSolution("InnerMetadata", "Metadata", "Catalog", source);
+        var projectDirectory = Path.Combine(fixture.RootDir, "InnerMetadata", "Catalog");
+        var projectPath = Path.Combine(projectDirectory, "Catalog.csproj");
+        await File.WriteAllTextAsync(projectPath, """
+                                                 <Project Sdk="Microsoft.NET.Sdk">
+                                                   <PropertyGroup>
+                                                     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+                                                     <IsTestProject>false</IsTestProject>
+                                                     <IsTestProject Condition="'$(TargetFramework)' != '' and '$(CatalogValidation)' == 'true'">true</IsTestProject>
+                                                   </PropertyGroup>
+                                                 </Project>
+                                                 """);
+
+        MsBuildFixture.Ensure();
+        using var workspace = Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace.Create(
+            new Dictionary<string, string> { ["CatalogValidation"] = "true" });
+        var solution = await workspace.OpenSolutionAsync(sln.SolutionPath);
+        Assert.Equal(2, solution.ProjectIds.Count);
+
+        // Verify the evaluated fixture using the same global properties as its workspace.
+        using (var projects = new Microsoft.Build.Evaluation.ProjectCollection(
+                   new Dictionary<string, string>(workspace.Properties)))
+        {
+            var outer = projects.LoadProject(projectPath);
+            Assert.Equal(string.Empty, outer.GetPropertyValue("TargetFramework"));
+            Assert.Equal("false", outer.GetPropertyValue("IsTestProject"));
+        }
+
+        foreach (var targetFramework in new[] { "net8.0", "net10.0" })
+        {
+            var properties = new Dictionary<string, string>(workspace.Properties)
+            {
+                ["TargetFramework"] = targetFramework
+            };
+            using var projects = new Microsoft.Build.Evaluation.ProjectCollection(properties);
+            var inner = projects.LoadProject(projectPath);
+            Assert.Equal("true", inner.GetPropertyValue("IsTestProject"));
+        }
+
+        foreach (var project in solution.Projects)
+        {
+            Assert.Equal(projectPath, project.FilePath);
+            Assert.StartsWith("Catalog", project.Name);
+            var compilation = await project.GetCompilationAsync();
+            Assert.NotNull(compilation);
+            Assert.False(compilation.ReferencedAssemblyNames.Any(assembly => assembly.Name is
+                "xunit.core" or "xunit.v3.core" or "nunit.framework" or
+                "Microsoft.VisualStudio.TestPlatform.TestFramework"),
+                "The fixture must not reference a recognized test framework.");
+        }
+
+        var sourcePath = Path.Combine(projectDirectory, "Marker.cs");
+        // Both compilation contexts contribute the two source occurrences when included.
+        var expected = new[]
+        {
+            sourcePath + ":First", sourcePath + ":First",
+            sourcePath + ":Second", sourcePath + ":Second"
+        };
+        var service = new FindDuplicatesService();
+        var included = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+        var includedGroup = Assert.Single(included);
+        Assert.Equal(3, includedGroup.StatementCount);
+        Assert.Equal(expected, includedGroup.Occurrences
+            .Select(occurrence => occurrence.FilePath + ":" + occurrence.ContainingMember)
+            .Order(StringComparer.Ordinal));
+
+        var repeated = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+        Assert.Equal(CaptureJson(included, fixture.RootDir), CaptureJson(repeated, fixture.RootDir));
+
+        var defaultGroups = await service.RunAsync(solution, new FindDuplicatesOptions());
+        Assert.DoesNotContain(defaultGroups.SelectMany(group => group.Occurrences),
+            occurrence => occurrence.FilePath == sourcePath);
+    }
+
+    [Fact]
+    public async Task excludes_only_test_framework_context_in_mixed_neutral_named_project()
+    {
+        const string source = """
+                              public class Duplicates
+                              {
+                              #if NET8_0
+                                  public void Net8First()
+                              #else
+                                  public void Net10First()
+                              #endif
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+
+                              #if NET8_0
+                                  public void Net8Second()
+                              #else
+                                  public void Net10Second()
+                              #endif
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+                              }
+                              """;
+        using var fixture = new WorkspaceLoaderTestProject();
+        var sln = fixture.AddSolution("MixedMetadata", "Metadata", "Catalog", source);
+        var projectDirectory = Path.Combine(fixture.RootDir, "MixedMetadata", "Catalog");
+        var projectPath = Path.Combine(projectDirectory, "Catalog.csproj");
+
+        var sourcePath = Path.Combine(projectDirectory, "Marker.cs");
+        var net8Occurrences = new[] { sourcePath + ":Net8First", sourcePath + ":Net8Second" };
+        var net10Occurrences = new[] { sourcePath + ":Net10First", sourcePath + ":Net10Second" };
+        var scenarios = new[]
+        {
+            (TargetFramework: (string?)null, CatalogValidation: "true", OuterIsTestProject: "false"),
+            (TargetFramework: "net8.0", CatalogValidation: "true", OuterIsTestProject: "false"),
+            (TargetFramework: "net10.0", CatalogValidation: "true", OuterIsTestProject: "false"),
+            (TargetFramework: (string?)null, CatalogValidation: "false", OuterIsTestProject: "false"),
+            (TargetFramework: (string?)null, CatalogValidation: "true", OuterIsTestProject: "true"),
+            (TargetFramework: "net8.0", CatalogValidation: "true", OuterIsTestProject: "true"),
+            (TargetFramework: "net10.0", CatalogValidation: "true", OuterIsTestProject: "true")
+        };
+        MsBuildFixture.Ensure();
+
+        foreach (var scenario in scenarios)
+        {
+            await File.WriteAllTextAsync(projectPath, $$"""
+                                                       <Project Sdk="Microsoft.NET.Sdk">
+                                                         <PropertyGroup>
+                                                           <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+                                                           <IsTestProject>{{scenario.OuterIsTestProject}}</IsTestProject>
+                                                           <IsTestProject Condition="'$(TargetFramework)' == 'net8.0' and '$(CatalogValidation)' == 'true'">false</IsTestProject>
+                                                           <IsTestProject Condition="'$(TargetFramework)' == 'net10.0' and '$(CatalogValidation)' == 'true'">true</IsTestProject>
+                                                         </PropertyGroup>
+                                                       </Project>
+                                                       """);
+
+            var properties = new Dictionary<string, string>
+            {
+                ["CatalogValidation"] = scenario.CatalogValidation
+            };
+            if (scenario.TargetFramework is not null)
+            {
+                properties["TargetFramework"] = scenario.TargetFramework;
+            }
+
+            using var workspace = Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace.Create(properties);
+            var solution = await workspace.OpenSolutionAsync(sln.SolutionPath);
+            // Roslyn adds properties such as SolutionDir while opening the solution.
+            var loadedProperties = workspace.Properties
+                .OrderBy(property => property.Key, StringComparer.Ordinal)
+                .ToArray();
+            var targetFrameworks = scenario.TargetFramework is null
+                ? new[] { "net8.0", "net10.0" }
+                : new[] { scenario.TargetFramework };
+            Assert.Equal(targetFrameworks.Length, solution.ProjectIds.Count);
+
+            // Check the fixture's metadata independently of duplicate analysis.
+            if (scenario.TargetFramework is null)
+            {
+                using var projects = new Microsoft.Build.Evaluation.ProjectCollection(
+                    new Dictionary<string, string>(workspace.Properties));
+                var outer = projects.LoadProject(projectPath);
+                Assert.Equal(string.Empty, outer.GetPropertyValue("TargetFramework"));
+                Assert.Equal(scenario.OuterIsTestProject, outer.GetPropertyValue("IsTestProject"));
+            }
+
+            foreach (var targetFramework in targetFrameworks)
+            {
+                var innerProperties = new Dictionary<string, string>(workspace.Properties)
+                {
+                    ["TargetFramework"] = targetFramework
+                };
+                using var projects = new Microsoft.Build.Evaluation.ProjectCollection(innerProperties);
+                var inner = projects.LoadProject(projectPath);
+                var expectedIsTestProject = targetFramework == "net10.0" && scenario.CatalogValidation == "true";
+                Assert.Equal(expectedIsTestProject ? "true" : "false", inner.GetPropertyValue("IsTestProject"));
+            }
+
+            foreach (var project in solution.Projects)
+            {
+                Assert.Equal(projectPath, project.FilePath);
+                Assert.StartsWith("Catalog", project.Name);
+                var compilation = await project.GetCompilationAsync();
+                Assert.NotNull(compilation);
+                Assert.False(compilation.ReferencedAssemblyNames.Any(assembly => assembly.Name is
+                    "xunit.core" or "xunit.v3.core" or "nunit.framework" or
+                    "Microsoft.VisualStudio.TestPlatform.TestFramework"),
+                    "The fixture must not reference a recognized test framework.");
+            }
+
+            var expectedIncluded = targetFrameworks
+                .SelectMany(targetFramework => targetFramework == "net8.0" ? net8Occurrences : net10Occurrences)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            var expectedDefault = targetFrameworks
+                .Where(targetFramework => targetFramework != "net10.0" || scenario.CatalogValidation != "true")
+                .SelectMany(targetFramework => targetFramework == "net8.0" ? net8Occurrences : net10Occurrences)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            var service = new FindDuplicatesService();
+            var included = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            var includedGroup = Assert.Single(included);
+            Assert.Equal(3, includedGroup.StatementCount);
+            Assert.Equal(expectedIncluded, includedGroup.Occurrences
+                .Select(occurrence => occurrence.FilePath + ":" + occurrence.ContainingMember)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+
+            var repeatedIncluded = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            Assert.Equal(CaptureJson(included, fixture.RootDir), CaptureJson(repeatedIncluded, fixture.RootDir));
+
+            var defaultGroups = await service.RunAsync(solution, new FindDuplicatesOptions());
+            // An unpinned workspace must retain the two net8.0 occurrences, even
+            // though the same project file is a test project in its net10.0 context.
+            Assert.Equal(expectedDefault, defaultGroups.SelectMany(group => group.Occurrences)
+                .Select(occurrence => occurrence.FilePath + ":" + occurrence.ContainingMember)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+            if (expectedDefault.Length == 0)
+            {
+                Assert.Empty(defaultGroups);
+            }
+            else
+            {
+                Assert.Equal(3, Assert.Single(defaultGroups).StatementCount);
+            }
+
+            var repeatedDefault = await service.RunAsync(solution, new FindDuplicatesOptions());
+            Assert.Equal(CaptureJson(defaultGroups, fixture.RootDir), CaptureJson(repeatedDefault, fixture.RootDir));
+            Assert.Equal(loadedProperties, workspace.Properties
+                .OrderBy(property => property.Key, StringComparer.Ordinal)
+                .ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task excludes_neutral_named_test_sdk_projects_in_evaluated_framework_context()
+    {
+        const string source = """
+                              public class Duplicates
+                              {
+                              #if NET8_0
+                                  public void Net8First()
+                              #else
+                                  public void Net10First()
+                              #endif
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+
+                              #if NET8_0
+                                  public void Net8Second()
+                              #else
+                                  public void Net10Second()
+                              #endif
+                                  {
+                                      int x = 1;
+                                      int y = 2;
+                                      System.Console.WriteLine(x + y);
+                                  }
+                              }
+                              """;
+        var scenarios = new[]
+        {
+            (Directory: "DirectSdk", Package: "Microsoft.NET.Test.Sdk", ViaImport: false,
+                Multitarget: false, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "ImportedSdk", Package: "mIcRoSoFt.NeT.tEsT.sDk", ViaImport: true,
+                Multitarget: false, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "UnrelatedPackage", Package: "System.Text.Json", ViaImport: false,
+                Multitarget: false, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "SimilarPackage", Package: "Microsoft.NET.Test.Sdk.Extensions", ViaImport: true,
+                Multitarget: false, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "MixedDirectSdk", Package: "Microsoft.NET.Test.Sdk", ViaImport: false,
+                Multitarget: true, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "MixedImportedSdk", Package: "mIcRoSoFt.NeT.tEsT.sDk", ViaImport: true,
+                Multitarget: true, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: false),
+            (Directory: "PinnedNet8", Package: "Microsoft.NET.Test.Sdk", ViaImport: true,
+                Multitarget: true, TargetFramework: "net8.0", CatalogValidation: "true", RenameContexts: false),
+            (Directory: "PinnedNet10", Package: "Microsoft.NET.Test.Sdk", ViaImport: true,
+                Multitarget: true, TargetFramework: "net10.0", CatalogValidation: "true", RenameContexts: false),
+            (Directory: "DisabledSdk", Package: "Microsoft.NET.Test.Sdk", ViaImport: true,
+                Multitarget: true, TargetFramework: (string?)null, CatalogValidation: "false", RenameContexts: false),
+            (Directory: "UnmatchedContexts", Package: "Microsoft.NET.Test.Sdk", ViaImport: true,
+                Multitarget: true, TargetFramework: (string?)null, CatalogValidation: "true", RenameContexts: true)
+        };
+        using var fixture = new WorkspaceLoaderTestProject();
+        MsBuildFixture.Ensure();
+
+        foreach (var scenario in scenarios)
+        {
+            var sln = fixture.AddSolution(scenario.Directory, "Packages", "Catalog", source);
+            var projectDirectory = Path.Combine(fixture.RootDir, scenario.Directory, "Catalog");
+            var projectPath = Path.Combine(projectDirectory, "Catalog.csproj");
+            var sourcePath = Path.Combine(projectDirectory, "Marker.cs");
+            var frameworkProperty = scenario.Multitarget
+                ? "<TargetFrameworks>net8.0;net10.0</TargetFrameworks>"
+                : "<TargetFramework>net8.0</TargetFramework>";
+            var condition = scenario.Multitarget
+                ? " Condition=\"'$(TargetFramework)' == 'net10.0' and '$(CatalogValidation)' == 'true'\""
+                : string.Empty;
+            // Only evaluated package identity is evidence here: no restore or
+            // imported package build assets should supply test metadata/references.
+            var packageItems = $"<ItemGroup{condition}><PackageReference Include=\"{scenario.Package}\" Version=\"18.4.0\" /></ItemGroup>";
+            if (scenario.ViaImport)
+            {
+                await File.WriteAllTextAsync(Path.Combine(projectDirectory, "Packages.props"),
+                    $"<Project>{packageItems}</Project>");
+            }
+
+            await File.WriteAllTextAsync(projectPath, $$"""
+                                                       <Project Sdk="Microsoft.NET.Sdk">
+                                                         <PropertyGroup>
+                                                           {{frameworkProperty}}
+                                                           <IsTestProject>false</IsTestProject>
+                                                         </PropertyGroup>
+                                                         {{(scenario.ViaImport ? "<Import Project=\"Packages.props\" />" : packageItems)}}
+                                                       </Project>
+                                                       """);
+            var properties = new Dictionary<string, string>
+            {
+                ["CatalogValidation"] = scenario.CatalogValidation
+            };
+            if (scenario.TargetFramework is not null)
+            {
+                properties["TargetFramework"] = scenario.TargetFramework;
+            }
+
+            using var workspace = Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace.Create(properties);
+            var solution = await workspace.OpenSolutionAsync(sln.SolutionPath);
+            var loadedProperties = workspace.Properties
+                .OrderBy(property => property.Key, StringComparer.Ordinal)
+                .ToArray();
+            var targetFrameworks = scenario.TargetFramework is not null
+                ? new[] { scenario.TargetFramework }
+                : scenario.Multitarget ? new[] { "net8.0", "net10.0" } : new[] { "net8.0" };
+            Assert.Equal(targetFrameworks.Length, solution.ProjectIds.Count);
+
+            // Independently evaluate the outer and loaded inner contexts rather
+            // than using duplicate analysis to establish the fixture's identity.
+            if (scenario.Multitarget && scenario.TargetFramework is null)
+            {
+                using var projects = new Microsoft.Build.Evaluation.ProjectCollection(
+                    new Dictionary<string, string>(workspace.Properties));
+                var outer = projects.LoadProject(projectPath);
+                Assert.Equal(string.Empty, outer.GetPropertyValue("TargetFramework"));
+                Assert.Equal("false", outer.GetPropertyValue("IsTestProject"));
+                Assert.Empty(outer.GetItems("PackageReference"));
+            }
+
+            foreach (var targetFramework in targetFrameworks)
+            {
+                var innerProperties = new Dictionary<string, string>(workspace.Properties)
+                {
+                    ["TargetFramework"] = targetFramework
+                };
+                using var projects = new Microsoft.Build.Evaluation.ProjectCollection(innerProperties);
+                var inner = projects.LoadProject(projectPath);
+                Assert.Equal(targetFramework, inner.GetPropertyValue("TargetFramework"));
+                Assert.Equal("false", inner.GetPropertyValue("IsTestProject"));
+                var hasPackage = !scenario.Multitarget
+                    || targetFramework == "net10.0" && scenario.CatalogValidation == "true";
+                Assert.Equal(hasPackage ? new[] { scenario.Package } : Array.Empty<string>(),
+                    inner.GetItems("PackageReference").Select(item => item.EvaluatedInclude).ToArray());
+            }
+
+            foreach (var project in solution.Projects)
+            {
+                Assert.Equal(projectPath, project.FilePath);
+                if (scenario.Multitarget && scenario.TargetFramework is null)
+                {
+                    Assert.True(targetFrameworks.Any(framework => project.Name.EndsWith($"({framework})", StringComparison.OrdinalIgnoreCase)), $"{scenario.Directory}: {project.Name}");
+                }
+                else if (scenario.Multitarget)
+                {
+                    Assert.StartsWith("Catalog", project.Name);
+                }
+                else
+                {
+                    Assert.Equal("Catalog", project.Name);
+                }
+
+                var compilation = await project.GetCompilationAsync();
+                Assert.NotNull(compilation);
+                Assert.False(compilation.ReferencedAssemblyNames.Any(assembly => assembly.Name is
+                    "xunit.core" or "xunit.v3.core" or "nunit.framework" or
+                    "Microsoft.VisualStudio.TestPlatform.TestFramework"),
+                    "The fixture must not reference a recognized test framework.");
+            }
+
+            if (scenario.RenameContexts)
+            {
+                // A context name that matches no framework must keep outer
+                // evaluation; choosing an arbitrary inner context hides code.
+                foreach (var project in solution.Projects.ToArray())
+                {
+                    solution = solution.WithProjectName(project.Id,
+                        project.Name.Replace("Catalog (", "Catalog context ", StringComparison.Ordinal)
+                            .Replace(")", string.Empty, StringComparison.Ordinal));
+                }
+            }
+
+            string[] OccurrencesFor(string targetFramework) => targetFramework == "net8.0"
+                ? new[] { sourcePath + ":Net8First", sourcePath + ":Net8Second" }
+                : new[] { sourcePath + ":Net10First", sourcePath + ":Net10Second" };
+            var expectedIncluded = targetFrameworks.SelectMany(OccurrencesFor)
+                .Order(StringComparer.Ordinal).ToArray();
+            var isTestSdk = scenario.Package is "Microsoft.NET.Test.Sdk" or "mIcRoSoFt.NeT.tEsT.sDk";
+            var expectedDefault = targetFrameworks
+                .Where(targetFramework => !isTestSdk || scenario.RenameContexts
+                    || scenario.Multitarget && (targetFramework != "net10.0" || scenario.CatalogValidation != "true"))
+                .SelectMany(OccurrencesFor)
+                .Order(StringComparer.Ordinal).ToArray();
+            var service = new FindDuplicatesService();
+            var included = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            Assert.Equal(3, Assert.Single(included).StatementCount);
+            Assert.Equal(expectedIncluded, included.SelectMany(group => group.Occurrences)
+                .Select(occurrence => occurrence.FilePath + ":" + occurrence.ContainingMember)
+                .Order(StringComparer.Ordinal).ToArray());
+            var repeatedIncluded = await service.RunAsync(solution, new FindDuplicatesOptions(IncludeTests: true));
+            Assert.Equal(CaptureJson(included, fixture.RootDir), CaptureJson(repeatedIncluded, fixture.RootDir));
+
+            var defaultGroups = await service.RunAsync(solution, new FindDuplicatesOptions());
+            // RED must fail here for DirectSdk: expected no occurrences while
+            // the unchanged service still includes both Catalog methods.
+            Assert.Equal(expectedDefault, defaultGroups.SelectMany(group => group.Occurrences)
+                .Select(occurrence => occurrence.FilePath + ":" + occurrence.ContainingMember)
+                .Order(StringComparer.Ordinal).ToArray());
+            if (expectedDefault.Length == 0)
+            {
+                Assert.Empty(defaultGroups);
+            }
+            else
+            {
+                Assert.Equal(3, Assert.Single(defaultGroups).StatementCount);
+            }
+
+            var repeatedDefault = await service.RunAsync(solution, new FindDuplicatesOptions());
+            Assert.Equal(CaptureJson(defaultGroups, fixture.RootDir), CaptureJson(repeatedDefault, fixture.RootDir));
+            Assert.Equal(loadedProperties, workspace.Properties
+                .OrderBy(property => property.Key, StringComparer.Ordinal).ToArray());
         }
     }
 

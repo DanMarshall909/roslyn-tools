@@ -451,6 +451,45 @@ internal class FindDuplicatesService : IRtService
     // AdhocWorkspace tests use project names only — no metadata references to check.
     private bool IsTestProject(Project project)
     {
+        if (project.Solution.Workspace is Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace workspace
+            && project.FilePath is { } projectPath
+            && File.Exists(projectPath))
+        {
+            using var projects = new Microsoft.Build.Evaluation.ProjectCollection(
+                new Dictionary<string, string>(workspace.Properties));
+            var evaluated = projects.LoadProject(projectPath);
+            if (string.IsNullOrWhiteSpace(evaluated.GetPropertyValue("TargetFramework")))
+            {
+                // Roslyn names each unpinned multitarget context "Project (framework)".
+                // Resolve this context before metadata that an inner build may override.
+                var targetFrameworks = evaluated.GetPropertyValue("TargetFrameworks")
+                    .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                var targetFramework = targetFrameworks
+                    .FirstOrDefault(framework =>
+                        project.Name.EndsWith(
+                            $"({framework})",
+                            StringComparison.OrdinalIgnoreCase));
+                if (targetFramework is not null)
+                {
+                    evaluated.SetGlobalProperty("TargetFramework", targetFramework);
+                    evaluated.ReevaluateIfNecessary();
+                }
+            }
+
+            if (bool.TryParse(evaluated.GetPropertyValue("IsTestProject"), out var isTestProject)
+                && isTestProject)
+            {
+                return true;
+            }
+
+            if (evaluated.GetItems("PackageReference").Any(item =>
+                string.Equals(item.EvaluatedInclude, "Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
         var name = project.Name;
         return name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
                || name.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
