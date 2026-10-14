@@ -9,7 +9,7 @@
       "**/HostCommandMetadata.cs",
       "**/Output/RtContext.cs"
     ],
-    "test-case-filter": "FullyQualifiedName~RoslynTools.Tests.Architecture.HostMetadataContractTests.|FullyQualifiedName~RoslynTools.Tests.OutputLayer.|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.shared_suggestion_catalogue_matches_cli_command_metadata|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.local_host_command_metadata_has_one_shared_source",
+    "test-case-filter": "(FullyQualifiedName~RoslynTools.Tests.Architecture.HostMetadataContractTests.|FullyQualifiedName~RoslynTools.Tests.OutputLayer.|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.shared_suggestion_catalogue_matches_cli_command_metadata|FullyQualifiedName=RoslynTools.Tests.Mcp.Architecture.HostAssemblyBoundaryTests.local_host_command_metadata_has_one_shared_source)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)",
     "configuration": "Release",
     "solution": "RoslynTools.slnx",
     "reporters": ["json", "cleartext", "progress"],

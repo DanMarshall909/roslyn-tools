@@ -1116,6 +1116,13 @@ Protocol version and server version are release facts derived from one source, n
 
 Coverage and mutation-testing claims are executable CI configuration, not only documentation. Skipped tests for known defects remain linked to tracked work and do not count as safety evidence.
 
+The [slow regression lane](adr/0106-slow-regression-lane.md) retains the complete
+suggestion CLI journey and journaled apply groups for one final ticket check.
+Routine feedback excludes them. Mutation profiles and entrypoints must exclude
+them even when a caller supplies another test filter; they are ordinary boundary
+regression evidence, never mutation evidence. The complete Release gate includes
+both fast and slow lanes, while documentation and purity feedback use fast tests.
+
 ## Hermetic build and release
 
 A normal `dotnet restore`, `dotnet build`, or `dotnet test` does not:

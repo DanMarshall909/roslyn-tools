@@ -145,7 +145,7 @@ test('custom-domain and deployment configuration follow the sibling-site convent
   assert.equal(read('site/public/CNAME').trim(), 'roslyn-tools.danmarshall.dev');
 
   const workflow = read('.github/workflows/publish-docs.yml');
-  assert.match(workflow, /dotnet test/);
+  assert.match(workflow, /scripts\/check-local\.sh --full --lane fast/);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm test/);
   assert.match(workflow, /peaceiris\/actions-gh-pages@v4/);

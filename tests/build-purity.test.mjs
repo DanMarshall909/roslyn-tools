@@ -125,6 +125,8 @@ test('the executable exits nonzero and names writes made before a failed command
       await mkdir(fakeBin);
       await copyFile(fileURLToPath(new URL('../scripts/check-build-purity.mjs', import.meta.url)),
         join(scripts, 'check-build-purity.mjs'));
+      await copyFile(fileURLToPath(new URL('../scripts/test-lanes.mjs', import.meta.url)),
+        join(scripts, 'test-lanes.mjs'));
       const fakeDotnet = join(fakeBin, 'dotnet');
       await writeFile(fakeDotnet, `#!/usr/bin/env node
 const { writeFileSync } = require('node:fs');
@@ -145,5 +147,40 @@ process.exit(17);
       assert.equal(result.status, 1, result.stderr);
       assert.match(result.stderr, /restore: checkout\/docs\/COMMANDS\.md created/);
       assert.match(result.stderr, /exited 17/);
+    });
+  });
+
+test('the routine purity test phase excludes the ticket-only slow groups',
+  { skip: process.platform === 'win32' }, async () => {
+    await fixture(async ({ checkout }) => {
+      const scripts = join(checkout, 'scripts');
+      const fakeBin = join(checkout, 'fake-bin');
+      await mkdir(scripts);
+      await mkdir(fakeBin);
+      for (const name of ['check-build-purity.mjs', 'test-lanes.mjs']) {
+        await copyFile(fileURLToPath(new URL(`../scripts/${name}`, import.meta.url)),
+          join(scripts, name));
+      }
+      const fakeDotnet = join(fakeBin, 'dotnet');
+      await writeFile(fakeDotnet, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === 'test') {
+  const filter = args[args.indexOf('--filter') + 1];
+  if (filter !== 'FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.') {
+    console.error('routine purity selected the slow lane');
+    process.exit(47);
+  }
+}
+`);
+      await chmod(fakeDotnet, 0o755);
+      assert.equal(spawnSync('git', ['init', '-q', checkout]).status, 0);
+      const result = spawnSync(process.execPath,
+        [join(scripts, 'check-build-purity.mjs')], {
+          cwd: checkout,
+          env: { ...process.env, PATH: `${fakeBin}${delimiter}${process.env.PATH}` },
+          encoding: 'utf8', timeout: 10_000,
+        });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /^build-purity: test clean$/m);
     });
   });

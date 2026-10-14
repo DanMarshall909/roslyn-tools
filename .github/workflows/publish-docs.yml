@@ -38,7 +38,7 @@ jobs:
         run: npm ci
 
       - name: Run .NET Release tests
-        run: dotnet test RoslynTools.slnx --configuration Release --no-restore -m:1 -nr:false
+        run: ./scripts/check-local.sh --full --lane fast --configuration Release --skip-format
 
       - name: Build and test documentation site
         run: npm test

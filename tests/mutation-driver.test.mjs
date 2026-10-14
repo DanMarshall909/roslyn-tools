@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, rmSync, existsSync, copyFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync, spawn } from 'node:child_process';
@@ -14,6 +14,7 @@ if(a[0]==='--version'){console.log(s.sdk||'10.0.100');process.exit(0)}
 if(a[0]==='list'){console.log(JSON.stringify({version:1,projects:[{path:path.join(r,'src/Owner.csproj'),frameworks:[{framework:'net10.0',topLevelPackages:[{id:'Adapter',resolvedVersion:s.dependency||'1.0.0'}]}]}]}));process.exit(0)}
 if(a[0]!=='stryker')process.exit(20);
 fs.appendFileSync(path.join(r,'native-calls.txt'),'run\\n');
+fs.writeFileSync(path.join(r,'native-args.json'),JSON.stringify(a));
 if(a.some(x=>x.startsWith('--since')||x.startsWith('--with-baseline')))process.exit(21);
 console.log('Version: '+(s.tool||'4.14.1'));
 if(s.mode==='wait'){
@@ -29,7 +30,7 @@ if(s.mode==='wait'){
  const mutants=s.mode==='empty'?[{id:'1',status:'Ignored'}]:[
  {id:'1',status:'Killed',mutatorName:'Boolean',replacement:'false',location:{start:{line:1,column:1},end:{line:1,column:5}},coveredBy:[],killedBy:['t1']},
  {id:'2',status:'Survived',mutatorName:'String',replacement:'""',location:{start:{line:2,column:1},end:{line:2,column:5}},coveredBy:[]}];
- const report={schemaVersion:'2',files:{'src/Owner.cs':{source:'true;\\n"text";',mutants}},testFiles:{'tests/OwnerTests.cs':{source:'// contract',tests:[{id:'t1',name:'owned behavior',location:{start:{line:1,column:1},end:{line:1,column:12}}}]}}};
+ const report={schemaVersion:'2',files:{'src/Owner.cs':{source:'true;\\n"text";',mutants}},testFiles:{[s.testFile||'tests/OwnerTests.cs']:{source:'// contract',tests:[{id:'t1',name:s.testName||'owned behavior',location:{start:{line:1,column:1},end:{line:1,column:12}}}]}}};
  if(s.mode==='unattributed')delete mutants[0].killedBy;
  fs.writeFileSync(path.join(out,'reports/mutation-report.json'),s.mode==='malformed'?'broken':JSON.stringify(report));
  console.log('[10:00:02 INF] '+(s.mode==='empty'?0:2)+' total mutants will be tested');
@@ -68,13 +69,16 @@ function fixture(t) {
     writeFileSync(join(root, 'stryker-config.json'), JSON.stringify(cfg));
     writeFileSync(join(root, 'other-config.json'), JSON.stringify(cfg));
     writeFileSync(join(root, 'tools/dotnet'), mock, { mode: 0o755 });
+    const fixtureDriver = join(root, 'tools/mutation.mjs');
+    copyFileSync(driver, fixtureDriver);
+    copyFileSync(resolve(import.meta.dirname, '../scripts/test-lanes.mjs'), join(root, 'tools/test-lanes.mjs'));
     writeFileSync(join(root, 'native-settings.json'), '{}');
     for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['-c', 'user.name=Tests', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture']]) {
         assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
     }
     const env = { ...process.env, PATH: join(root, 'tools') + ':' + process.env.PATH, RT_MUTATION_CACHE_ROOT: join(root, 'cache') };
     function call(args = []) {
-        const r = spawnSync(process.execPath, [driver, ...args], { cwd: root, env, encoding: 'utf8', timeout: 20000 });
+        const r = spawnSync(process.execPath, [fixtureDriver, ...args], { cwd: root, env, encoding: 'utf8', timeout: 20000 });
         assert.equal(r.error, undefined, String(r.error));
         const lines = r.stdout.trim().split('\n').filter(Boolean);
         let data;
@@ -92,6 +96,49 @@ test('missing state and invalid seed requests fail before native execution', { s
     assert.match(missing.data.recovery, /--full --update-baseline/);
     assert.equal(f.call(['--update-baseline']).data.code, 'seed_requires_full');
     assert.equal(f.nativeCalls(), 0);
+});
+
+test('mutation intersects custom test selection with mandatory slow-lane exclusions', { skip: !linux }, t => {
+    const f = fixture(t);
+    const path = join(f.root, 'stryker-config.json');
+    const config = JSON.parse(readFileSync(path));
+    config['stryker-config']['test-case-filter'] = 'FullyQualifiedName~Wanted|FullyQualifiedName~JournaledApplyAuthorityTests';
+    writeFileSync(path, JSON.stringify(config));
+
+    const full = f.call(['--full']);
+    assert.equal(full.exit, 0);
+    const args = JSON.parse(readFileSync(join(f.root, 'native-args.json')));
+    const nativeConfig = JSON.parse(readFileSync(args[args.indexOf('--config-file') + 1]));
+    assert.equal(nativeConfig['stryker-config']['test-case-filter'], '(FullyQualifiedName~Wanted|FullyQualifiedName~JournaledApplyAuthorityTests)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)');
+});
+
+test('a native catalogue containing a slow test cannot become verified mutation evidence', { skip: !linux }, t => {
+    const f = fixture(t);
+    for (const testName of [
+        'RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.method_conversion_top_one_follows_the_requested_direction',
+        'RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.child_process_cleanup_crash_probe',
+    ]) {
+        f.settings({ testName });
+        const full = f.call(['--full', '--update-baseline']);
+        assert.notEqual(full.exit, 0);
+        assert.equal(full.data.code, 'incomplete_report');
+        assert.match(full.data.message, /slow.*test/i);
+        assert.equal(f.call().data.code, 'baseline_missing');
+    }
+    writeFileSync(join(f.root, 'tests/JournaledApplyAuthorityTests.cs'), '// contract');
+    f.settings({ testFile: 'tests/JournaledApplyAuthorityTests.cs', testName: 'Friendly display name' });
+    const customName = f.call(['--full', '--update-baseline']);
+    assert.notEqual(customName.exit, 0);
+    assert.match(customName.data.message, /slow.*test/i);
+    assert.equal(f.call().data.code, 'baseline_missing');
+});
+
+test('a lane policy change invalidates reusable mutation evidence without native execution', { skip: !linux }, t => {
+    const f = fixture(t);
+    assert.equal(f.call(['--full', '--update-baseline']).exit, 0);
+    appendFileSync(join(f.root, 'tools/test-lanes.mjs'), '\n// changed policy validator\n');
+    assert.equal(f.call().data.code, 'baseline_incompatible');
+    assert.equal(f.nativeCalls(), 1);
 });
 
 test('a full seed preserves native outcomes and identical state launches no native process', { skip: !linux }, t => {

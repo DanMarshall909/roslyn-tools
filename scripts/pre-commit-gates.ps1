@@ -122,6 +122,9 @@ if ($LASTEXITCODE -ne 0) {
 
 $scopedConfig = $config.'stryker-config'.PSObject.Copy()
 $scopedConfig.mutate = $coveredGlobs
+$testFilter = & node "$PSScriptRoot/test-lanes.mjs" fast $scopedConfig.'test-case-filter'
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$scopedConfig | Add-Member -NotePropertyName "test-case-filter" -NotePropertyValue $testFilter -Force
 $scopedWrapper = [pscustomobject]@{ 'stryker-config' = $scopedConfig }
 $tempConfig = Join-Path ([System.IO.Path]::GetTempPath()) "stryker-pre-commit-$([guid]::NewGuid()).json"
 $scopedWrapper | ConvertTo-Json -Depth 10 | Set-Content -Path $tempConfig -Encoding UTF8

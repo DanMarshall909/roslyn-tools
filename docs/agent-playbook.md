@@ -71,6 +71,53 @@ workflows; do not invent a failing expectation to fit them into a C# RED cycle.
 The outstanding characterization workflow is tracked in
 [FLO-036](https://github.com/DanMarshall909/flo-tdd/issues/1).
 
+## Test lanes and ticket completion
+
+`scripts/check-local.sh` and `scripts/check-local.ps1` default to the fast lane,
+including when `--full`/`-Full` selects all test projects. Use fast feedback in
+implementation cycles. A caller's test filter is intersected with the lane.
+
+The slow lane owns the complete `SuggestWorkflowSurfaceTests` and
+`JournaledApplyAuthorityTests` groups, including their real process probes.
+Their assertions and parameterized rows stay intact. Owning suggestion policy
+and relevance tests remain in fast feedback.
+
+Run the slow lane once on the final candidate before completing a ticket:
+
+```sh
+./scripts/check-local.sh --lane slow --configuration Release
+```
+
+The complete ticket gate can run both lanes once instead:
+
+```sh
+./scripts/check-local.sh --full --lane all --configuration Release --results-directory artifacts/test-results
+```
+
+PowerShell uses `-Lane slow` or `-Full -Lane all`. A focused slow test may run
+earlier when it is the sole oracle for the current criterion; retain the final
+ticket gate. Changes after verification invalidate evidence for affected inputs.
+Do not rerun an unchanged slow lane after every criterion or refactoring phase.
+
+The lane policy in `scripts/test-lanes.mjs` is also mandatory in every mutation
+profile, the supervisor and the staged mutation gate. Configured selections are
+intersected with its exclusions; a slow test in a Native report prevents baseline
+admission. Policy bytes and the effective filter invalidate reusable mutation
+state. Do not override these exclusions or remove owned production mutation
+scope to hide uncovered outcomes. Ordinary per-lane coverage must eventually
+identify slow-only source sections for calibrated exclusions; shared/fast-covered
+sections stay eligible and genuinely uncovered sections stay visible. That
+adapter and automated disposal of owned mutation output remain pending in
+[RT-021](issues/open/testing/rt-021-mutation-performance-and-agent-token-usage.md).
+The current supervisor's worker-stop handling does not establish disk cleanup.
+Review timing candidates on each ordinary run, and repeat candidates under
+comparable conditions before future lane moves in either direction. See
+[ADR 0106](adr/0106-slow-regression-lane.md).
+
+CI runs the complete Release gate; documentation and build-purity feedback use
+the fast lane. `npm run test:lanes` and `npm run test:mutation-driver` verify the
+selection and evidence controls without launching Native mutation work.
+
 ## Continuous reflection
 
 Apply the shared Reflection rule and `reflect` procedure throughout the task.

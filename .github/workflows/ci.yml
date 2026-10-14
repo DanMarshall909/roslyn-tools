@@ -36,7 +36,10 @@ jobs:
         run: node --test tests/build-purity.test.mjs
 
       - name: Test local gate completion checks
-        run: node --test tests/check-local-completion.test.mjs
+        run: npm run test:lanes
+
+      - name: Test mutation supervisor selection and evidence controls
+        run: npm run test:mutation-driver
 
       - name: Verify plain restore, Debug build, and test
         run: node scripts/check-build-purity.mjs
@@ -71,7 +74,7 @@ jobs:
         run: dotnet build RoslynTools.slnx --configuration Release --no-restore
 
       - name: Test
-        run: ./scripts/check-local.sh --full --configuration Release --skip-build --skip-format --results-directory TestResults
+        run: ./scripts/check-local.sh --full --lane all --configuration Release --skip-build --skip-format --results-directory TestResults
 
       - name: Upload test results
         if: always()

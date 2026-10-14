@@ -17,6 +17,98 @@ owns priority, workflow status and acceptance criteria. This file retains the
 investigation and decisions; its open location means the investigation is not
 archived.
 
+## Slow-lane decision, 2026-10-14
+
+The user authorized moving the measured suggestion journeys and journaled apply
+tests into a slow lane, run once on the final candidate before ticket completion,
+and required that they never participate in mutation runs.
+
+The read-only audit at `15fe44f` found 127 rows in
+`SuggestWorkflowSurfaceTests` (122.132 summed seconds) and 221 rows in
+`JournaledApplyAuthorityTests` (82.727 seconds). Both complete groups, including
+the journal child probe and the lexical unknown-command case, are slow. Cheap
+owning suggestion/relevance tests remain eligible for routine feedback and
+mutation. No assertion, C# source, data row or production mutation glob changes.
+
+The implementation criteria are:
+
+- **RT-021-S1:** routine local feedback excludes both slow groups, including when
+  a user supplies a test filter.
+- **RT-021-S2:** an explicit slow lane preserves those groups, and the unfiltered
+  `--full --lane all` completion gate executes every owner once with completed,
+  nonempty TRX evidence. CI retains that complete Release checkpoint; normal
+  documentation and purity feedback use fast selection.
+- **RT-021-S3:** all maintained Native profiles, custom supervisor configurations
+  and the staged mutation gate exclude both groups. Slow catalogue entries
+  cannot seed or reuse verified evidence. Policy bytes/effective selection
+  invalidate old mutation state.
+- **RT-021-S4:** the fast/slow partition loses no test identities or regression
+  assertions. Real VSTest discovery and full completion reports calibrate the
+  inexpensive driver/configuration contract tests.
+
+The local driver owns this Node/configuration change; it requires no C# Flo RED
+cycle. The same five existing dirty Flo worktrees and unintegrated RT-118 refs
+were preserved while continuing this already-authorized RT-021 work. No new
+independent worktree, nested Flo cycle or Native mutation run was started.
+
+See [ADR 0106](../../../adr/0106-slow-regression-lane.md) and the
+[ticket workflow](../../../agent-playbook.md#test-lanes-and-ticket-completion).
+Evidence is retained under
+`artifacts/mutation-performance/rt-021/slow-lane/`: named driver RED/GREEN logs,
+real discovery/selection calibration, Node coverage, the completion gate and
+build-purity verification. Remaining RT-021 reuse, whole-Core estimation and
+final admission requirements are unchanged.
+
+### Global policy follow-up, 2026-10-14
+
+The user additionally required these rules globally in every repository and
+suite. The shared `ai-rules` policy owns that guidance; this bounded RT selection
+slice does not claim that its runtime has already implemented the new adapter.
+RT-021 retains these necessary follow-ups before the next affected mutation run:
+
+- Collect source-bound ordinary fast/slow coverage, preferably using the final
+  slow checkpoint, and calibrate exact exclusions for sections covered only by
+  slow tests. Shared/fast-covered code remains eligible; genuinely uncovered
+  code remains visible. Bind membership, coverage inputs and section exclusions
+  to mutation state. Unsupported/stale attribution leaves affected mutation
+  scope pending, rather than guessing or running slow tests in Native phases.
+- Review per-test and fixture timing on each ordinary run; confirm prospective
+  lane moves in either direction with comparable repeated measurements rather
+  than reacting to one anomaly. This lane decision was explicitly requested for
+  the two measured groups; it is not an automated classification engine.
+- Add verified disposal of run-owned sandboxes, instrumented copies and transient
+  output after success, failure and cancellation. Preserve compact reports and
+  reusable baselines, verify workers stopped, and record reclaimed space and
+  cleanup failures. Existing process-stop receipts do not establish disk cleanup.
+
+No production mutation score or coverage-adapter readiness is established by
+the ordinary verification or Native stand-in tests in this slice.
+
+### Selection-slice verification
+
+Real Core discovery is an exact multiset partition: 4,041 fast entries plus
+348 slow entries equals all 4,389 entries, with no overlap or missing identity.
+The runtime-expanded completion suite retains all 4,726 baseline rows: 4,717
+passed and the same nine skipped. All 766 baseline C# files are byte-identical.
+The completed Release build/test/format gate took 565.138 seconds; plain
+restore/Debug build/fast test purity verification passed in 273.944 seconds.
+These are different configurations and workload orders, not a controlled
+before/after optimization comparison.
+
+All 50 Node contract cases passed, including actual PowerShell-on-Linux local
+and staged-gate parity; distribution checks passed. Retained V8 invocation
+evidence includes policy copies used by isolated mutation fixtures and does not
+substitute for behavior assertions. The Native stand-in verifies frozen config,
+slow-catalogue rejection and reuse invalidation; no Native mutation was launched.
+Full Native attribution, slow-only section exclusions and output disposal remain
+pending as described above. The broader RT-021 ticket remains open.
+
+Independent review caught the Bash gate's missing executable mode: direct CI
+invocation failed with `EACCES`, despite the earlier `bash scripts/check-local.sh`
+verification passing. A direct-invocation contract records that RED, the driver
+now has executable mode, all 50 Node cases pass, and a real named MCP Release test
+passes through the documented direct command. No C# bytes changed in this repair.
+
 ## Priority decision
 
 On 2026-10-04, the user required this to be the next RT task before other

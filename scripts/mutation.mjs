@@ -3,6 +3,7 @@ import { resolve, relative, join, dirname, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { isSlowTest, testFilter } from './test-lanes.mjs';
 
 const hash = x => createHash('sha256').update(x).digest('hex');
 const stable = value => JSON.stringify(value, (_, x) => x && !Array.isArray(x) && typeof x === 'object' ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
@@ -74,7 +75,7 @@ function snapshot(c) {
     try { packages = JSON.parse(command('dotnet', ['list', c.solution, 'package', '--include-transitive', '--format', 'json', '--no-restore']).stdout); } catch (e) { if (e.code) throw e; fail('dependency_graph_unavailable', 'The resolved dependency graph is unavailable.', `dotnet restore ${c.solution}`); }
     if (!Array.isArray(packages.projects) || !packages.projects.length) fail('dependency_graph_unavailable', 'No resolved projects were reported.');
     const graph = packages.projects.map(p => ({ ...p, path: relative(c.root, resolve(p.path)).split(sep).join('/') })).sort((a, b) => a.path.localeCompare(b.path));
-    const binding = { files, sourceHashes, tool, sdk, graph, solution: c.solution, concurrency: c.concurrency || c.config.concurrency || null, wrapper: hash(fs.readFileSync(new URL(import.meta.url))), node: process.version, platform: process.platform, arch: process.arch, environmentHash: hash(stable(env)) };
+    const binding = { files, sourceHashes, tool, sdk, graph, solution: c.solution, concurrency: c.concurrency || c.config.concurrency || null, wrapper: hash(fs.readFileSync(new URL(import.meta.url))), lanePolicy: hash(fs.readFileSync(new URL('./test-lanes.mjs', import.meta.url))), testCaseFilter: testFilter('fast', c.config['test-case-filter']), node: process.version, platform: process.platform, arch: process.arch, environmentHash: hash(stable(env)) };
     return { binding, fingerprint: hash(stable(binding)) };
 }
 
@@ -96,6 +97,7 @@ function reportSummary(raw, binding, root) {
         if (!data.tests.length) continue;
         const text = source(file, data.source);
         for (const t of data.tests) {
+            if (isSlowTest(t.name, file)) throw new Error(`Mutation catalogue contains a slow-lane test: ${t.name}`);
             if (typeof t.id !== 'string' || !t.id || !t.name || testIds.has(t.id)) throw new Error('Named test identity is invalid.');
             span(t.location, text); testIds.add(t.id);
         }
@@ -156,7 +158,9 @@ async function full(c, o) {
     const run = join(c.root, 'artifacts', 'mutation', c.namespace.slice(0, 16), new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8));
     fs.mkdirSync(run, { recursive: true });
     const log = join(run, 'native.log'), receiptPath = join(run, 'receipt.json'), findingsPath = join(run, 'findings.json');
-    const argv = ['stryker', '--config-file', c.configPath, '--solution', c.solution, '--output', join(run, 'native'), '--reporter', 'json', '--reporter', 'cleartext'];
+    const nativeConfigPath = join(run, 'stryker-config.json');
+    fs.writeFileSync(nativeConfigPath, JSON.stringify({ 'stryker-config': { ...c.config, 'test-case-filter': before.binding.testCaseFilter } }, null, 2) + '\n');
+    const argv = ['stryker', '--config-file', nativeConfigPath, '--solution', c.solution, '--output', join(run, 'native'), '--reporter', 'json', '--reporter', 'cleartext'];
     if (c.concurrency) argv.push('--concurrency', c.concurrency);
     const start = performance.now(), fd = fs.openSync(log, 'w'), identities = new Map(), signals = [], milestones = [];
     let cancelled = false, cleanupRequired = false, peak = 0, samples = 0, timer, escalation, force, buffer = '', scheduled;

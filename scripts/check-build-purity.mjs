@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { testFilter } from './test-lanes.mjs';
 import {
   lstat,
   mkdir,
@@ -186,7 +187,7 @@ async function main() {
   const phases = [
     ['restore', ['restore', 'RoslynTools.slnx', '-v', 'minimal']],
     ['build', ['build', 'RoslynTools.slnx', '-c', 'Debug', '--no-restore', '-v', 'minimal']],
-    ['test', ['test', 'RoslynTools.slnx', '-c', 'Debug', '--no-build', '-v', 'minimal']],
+    ['test', ['test', 'RoslynTools.slnx', '-c', 'Debug', '--no-build', '-v', 'minimal', '--filter', testFilter('fast')]],
   ];
   try {
     await verifyOutputExclusions();

@@ -20,6 +20,6 @@
     "mutate": [
       "**/*.cs"
     ],
-    "test-case-filter": "FullyQualifiedName~RoslynTools.Tests.Decisions.DecisionStore|FullyQualifiedName~RoslynTools.Tests.Infrastructure.SolutionWriter|FullyQualifiedName~WriteFixesAsync|FullyQualifiedName~SemanticDiffTextRendererTests|FullyQualifiedName~HostAssemblyBoundaryTests|FullyQualifiedName~HostDependencyRatchetTests|FullyQualifiedName~McpDependencyInjectionTests|FullyQualifiedName~PreparedChangeSetContractTests"
+    "test-case-filter": "(FullyQualifiedName~RoslynTools.Tests.Decisions.DecisionStore|FullyQualifiedName~RoslynTools.Tests.Infrastructure.SolutionWriter|FullyQualifiedName~WriteFixesAsync|FullyQualifiedName~SemanticDiffTextRendererTests|FullyQualifiedName~HostAssemblyBoundaryTests|FullyQualifiedName~HostDependencyRatchetTests|FullyQualifiedName~McpDependencyInjectionTests|FullyQualifiedName~PreparedChangeSetContractTests)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
   }
 }

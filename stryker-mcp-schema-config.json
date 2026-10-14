@@ -19,6 +19,6 @@
     "mutate": [
       "**/Tools/ToolSchemaBuilder.cs"
     ],
-    "test-case-filter": "FullyQualifiedName~CommandDescriptorContracts|FullyQualifiedName~ChangeSignatureHandlerTests|FullyQualifiedName~PrimeHandlerTests|FullyQualifiedName~McpDependencyInjectionTests|FullyQualifiedName~Descriptor_is_a_typed_review_default_mutation_hidden_from_untrusted_hosts|FullyQualifiedName~discovery_works_with_an_empty_persistent_trust_registry"
+    "test-case-filter": "(FullyQualifiedName~CommandDescriptorContracts|FullyQualifiedName~ChangeSignatureHandlerTests|FullyQualifiedName~PrimeHandlerTests|FullyQualifiedName~McpDependencyInjectionTests|FullyQualifiedName~Descriptor_is_a_typed_review_default_mutation_hidden_from_untrusted_hosts|FullyQualifiedName~discovery_works_with_an_empty_persistent_trust_registry)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
   }
 }

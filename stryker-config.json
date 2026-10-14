@@ -101,6 +101,7 @@
       "low": 95,
       "break": 0
     },
-    "concurrency": 16
+    "concurrency": 16,
+    "test-case-filter": "FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests."
   }
 }

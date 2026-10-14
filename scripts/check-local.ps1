@@ -3,6 +3,8 @@ param(
     [string]$Solution = "RoslynTools.slnx",
     [string]$TestProject = "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
     [string]$Filter,
+    [ValidateSet("fast", "slow", "all")]
+    [string]$Lane = "fast",
     [string]$Configuration,
     [string]$ResultsDirectory,
     [switch]$Full,
@@ -70,6 +72,9 @@ Push-Location $repoRoot
 $resultsRun = $null
 $gatePassed = $false
 try {
+    $Lane = $Lane.ToLowerInvariant()
+    $Filter = & node "$PSScriptRoot/test-lanes.mjs" $Lane $Filter
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $configurationArgs = @()
     if ($Configuration) {
         $configurationArgs = @("-c", $Configuration)
@@ -96,8 +101,18 @@ try {
     $resultsRun = Join-Path $resultsBase ("rt-check-local-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $resultsRun | Out-Null
 
+    $executedProjects = 0
     for ($index = 0; $index -lt $testProjects.Count; $index++) {
         $project = $testProjects[$index]
+        if ($Lane -eq "slow") {
+            $hasSlowTests = & node "$PSScriptRoot/test-lanes.mjs" has-slow-tests $project
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if ($hasSlowTests -ne "true") {
+                Write-Host "check-local: no slow tests in $project" -ForegroundColor DarkGray
+                continue
+            }
+        }
+        $executedProjects++
         $projectResults = Join-Path $resultsRun ("project-" + ($index + 1))
         New-Item -ItemType Directory -Path $projectResults | Out-Null
         $report = Join-Path $projectResults "results.trx"
@@ -110,6 +125,9 @@ try {
         & dotnet @testArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Assert-CompletedTrx -Report $report -Project $project
+    }
+    if ($executedProjects -eq 0) {
+        throw "check-local: no test projects own the $Lane lane"
     }
 
     if (-not $SkipFormat) {

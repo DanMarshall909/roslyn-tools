@@ -381,7 +381,7 @@ RID-specific publishes are configured as self-contained because Roslyn's MSBuild
 
 ## Development
 
-Run the local verification gate before handing off changes:
+Use the fast local verification gate during implementation:
 
 ```powershell
 pwsh -NoProfile -File scripts/check-local.ps1
@@ -411,12 +411,31 @@ npm run dev
 npm test
 ```
 
-Run the standard checks directly with:
+Suggestion CLI journeys and journaled apply tests belong to the slow lane.
+Run it once on the final ticket candidate, or include it with the complete gate:
+
+```sh
+./scripts/check-local.sh --lane slow --configuration Release
+./scripts/check-local.sh --full --lane all --configuration Release
+```
+
+PowerShell equivalents use `-Lane slow` or `-Full -Lane all`. The gate requires
+Node.js 22 or later; the Unix report guard also requires Python 3. `--full`
+selects every test project; `--lane` selects fast, slow, or both within those
+projects. The default is `fast`. A user `--filter` is intersected with the lane.
+Use the unfiltered `--full --lane all` gate before completing a ticket.
+
+Every maintained Stryker profile and mutation entrypoint excludes the slow lane,
+including custom supervisor configurations. Slow tests remain full regression
+evidence and never contribute to mutation results. Raw `dotnet test` runs both
+lanes; use the local driver for routine feedback.
+
+Run the standard build and completion checks with:
 
 ```powershell
 dotnet format RoslynTools.slnx --verify-no-changes
 dotnet build RoslynTools.slnx -c Release
-dotnet test RoslynTools.slnx -c Release -v minimal
+pwsh -NoProfile -File scripts/check-local.ps1 -Full -Lane all -Configuration Release
 ```
 
 The test suite creates throwaway C# projects, runs Roslyn operations against them, and cleans them up automatically.

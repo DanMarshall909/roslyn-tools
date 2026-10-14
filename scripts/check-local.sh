@@ -8,6 +8,7 @@ cd "$repo_root"
 solution="RoslynTools.slnx"
 test_project="tests/RoslynTools.Tests/RoslynTools.Tests.csproj"
 filter=""
+lane="fast"
 full=0
 format_changed=0
 mutation=0
@@ -21,6 +22,7 @@ while [ "$#" -gt 0 ]; do
         --solution) solution="$2"; shift 2 ;;
         --test-project) test_project="$2"; shift 2 ;;
         --filter) filter="$2"; shift 2 ;;
+        --lane) lane="$2"; shift 2 ;;
         --full) full=1; shift ;;
         --format-changed) format_changed=1; shift ;;
         --mutation) mutation=1; shift ;;
@@ -33,6 +35,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 configuration_args=()
+filter="$(node "$script_dir/test-lanes.mjs" "$lane" "$filter")"
 if [ -n "$configuration" ]; then
     configuration_args=(-c "$configuration")
 fi
@@ -68,6 +71,10 @@ fi
 
 project_index=0
 for project in "${test_projects[@]}"; do
+    if [ "$lane" = slow ] && [ "$(node "$script_dir/test-lanes.mjs" has-slow-tests "$project")" != true ]; then
+        echo "check-local: no slow tests in $project" >&2
+        continue
+    fi
     project_index=$((project_index + 1))
     project_results="$results_run/project-$project_index"
     mkdir -p "$project_results"
@@ -80,6 +87,11 @@ for project in "${test_projects[@]}"; do
     dotnet "${test_args[@]}"
     python3 "$script_dir/verify-test-trx.py" "$project_results/results.trx" "$project"
 done
+
+if [ "$project_index" -eq 0 ]; then
+    echo "check-local: no test projects own the $lane lane" >&2
+    exit 1
+fi
 
 if [ "$skip_format" -eq 0 ]; then
     if [ "$format_changed" -eq 1 ]; then

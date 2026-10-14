@@ -161,6 +161,14 @@ dotnet run --project "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"
 
 ## Local verification gate
 
+The default local gate runs fast feedback. Suggestion CLI journeys and journaled
+apply belong to the slow lane and must never run under mutation testing. Run
+`./scripts/check-local.sh --lane slow --configuration Release` once on the final
+ticket candidate, or use the complete ticket gate
+`./scripts/check-local.sh --full --lane all --configuration Release` instead.
+PowerShell uses `-Lane slow` or `-Full -Lane all`. See the
+[test-lane workflow](docs/agent-playbook.md#test-lanes-and-ticket-completion).
+
 Prefer the repository gate before handoff:
 
 ```powershell
@@ -205,6 +213,15 @@ dotnet format "RoslynTools.slnx"
 Keep formatting changes limited to task-relevant files unless a broader cleanup is explicitly requested.
 
 ## Test commands
+
+Prefer the local driver for routine feedback:
+
+```sh
+./scripts/check-local.sh --full --lane fast --configuration Release
+./scripts/check-local.sh --filter "FullyQualifiedName~TypeName" --configuration Release
+```
+
+The raw `dotnet test` commands below run both lanes when no test filter is supplied.
 
 Run all tests:
 
@@ -340,7 +357,7 @@ For most changes:
 ```powershell
 dotnet format "RoslynTools.slnx" --verify-no-changes
 dotnet build "RoslynTools.slnx" -c Release
-dotnet test "RoslynTools.slnx" -c Release -v minimal
+pwsh -NoProfile -File "scripts/check-local.ps1" -Full -Lane all -Configuration Release
 ```
 
 For a narrow change, run the smallest meaningful test first. Before handoff, use the local verification gate unless the task explicitly requires a different workflow.
