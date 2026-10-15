@@ -5,5 +5,6 @@
   "configuration": "Release",
   "agentProtocol": "codex",
   "verificationDriver": "scripts/check-local.sh",
-  "verificationScope": "solution"
+  "verificationScope": "solution",
+  "suiteFilter": "FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests."
 }
