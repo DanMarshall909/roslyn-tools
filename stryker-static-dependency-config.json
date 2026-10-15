@@ -1,0 +1,26 @@
+{
+  "stryker-config": {
+    "project": "src/RoslynTools/RoslynTools.csproj",
+    "solution": "RoslynTools.slnx",
+    "test-projects": [
+      "tests/RoslynTools.Tests/RoslynTools.Tests.csproj"
+    ],
+    "mutate": [
+      "**/Core/StaticDependency*.cs",
+      "**/Services/StaticDependency*.cs"
+    ],
+    "mutation-level": "Complete",
+    "coverage-analysis": "perTest",
+    "reporters": [
+      "json",
+      "cleartext"
+    ],
+    "thresholds": {
+      "high": 100,
+      "low": 95,
+      "break": 0
+    },
+    "concurrency": 4,
+    "test-case-filter": "(FullyQualifiedName~RoslynTools.Tests.Mutation.StaticDependencyMapping)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
+  }
+}
