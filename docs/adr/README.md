@@ -169,3 +169,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0102](0102-config-host-discovery-profile.md) | Publish config as a host-only product | Accepted | 2026-10-02 |
 | [0103](0103-separate-local-trust-control.md) | Separate local trust control from repository refactoring | Accepted | 2026-10-02 |
 | [0104](0104-task-relevance-admission.md) | Admit represented tasks before ranking recommendations | Accepted | 2026-10-02 |
+| [0107](0107-semantic-static-dependency-planning.md) | Semantic static dependency planning | Accepted | 2026-10-15 |

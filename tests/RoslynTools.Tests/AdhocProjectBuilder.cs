@@ -173,9 +173,7 @@ public sealed class AdhocProjectBuilder : IDisposable
                 metadataReferences: BclReferences)
                 .WithDefaultNamespace(p.DefaultNamespace)
                 .WithAdditionalDocuments(additionalDocs)
-                .WithAnalyzerReferences(p.GeneratedSources.Count == 0
-                    ? []
-                    : [new GeneratedSourceAnalyzerReference(p.GeneratedSources)]));
+                .WithAnalyzerReferences(p.CreateAnalyzerReferences()));
         }
 
         var workspace = new AdhocWorkspace();
@@ -235,6 +233,8 @@ public sealed class AdhocProjectBuilder : IDisposable
         internal List<(string RelativePath, string Content)> Files { get; } = new();
         internal List<(string RelativePath, string Content)> AdditionalFiles { get; } = new();
         internal List<(string HintName, string Content)> GeneratedSources { get; } = new();
+        internal List<(string HintName, string Needle, string BeforeSource, string AfterSource)> TriggeredGeneratedSources { get; } = new();
+        internal List<(string HintName, string Needle, string Content, bool EmitWhenMatched)> ConditionalGeneratedSources { get; } = new();
         internal List<string> ProjectReferenceNames { get; } = new();
 
         public ProjectDef AddSource(string relativePath, string content)
@@ -255,6 +255,26 @@ public sealed class AdhocProjectBuilder : IDisposable
             return this;
         }
 
+        public ProjectDef AddGeneratedSource(string hintName, string needle, string beforeSource, string afterSource)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(needle);
+            TriggeredGeneratedSources.Add((hintName, needle, beforeSource, afterSource));
+            return this;
+        }
+
+        public ProjectDef AddConditionalGeneratedSource(string hintName, string needle, string content, bool emitWhenMatched)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(needle);
+            ConditionalGeneratedSources.Add((hintName, needle, content, emitWhenMatched));
+            return this;
+        }
+
+        // Also lets pure Roslyn fixtures use the same controlled reference without Build's disk setup.
+        internal ImmutableArray<AnalyzerReference> CreateAnalyzerReferences() =>
+            GeneratedSources.Count == 0 && TriggeredGeneratedSources.Count == 0 && ConditionalGeneratedSources.Count == 0
+                ? []
+                : [new GeneratedSourceAnalyzerReference(GeneratedSources, TriggeredGeneratedSources, ConditionalGeneratedSources)];
+
         public ProjectDef ReferenceProject(string otherProjectName)
         {
             if (!ProjectReferenceNames.Contains(otherProjectName))
@@ -264,10 +284,12 @@ public sealed class AdhocProjectBuilder : IDisposable
     }
 
     private sealed class GeneratedSourceAnalyzerReference(
-        IReadOnlyList<(string HintName, string Content)> sources) : AnalyzerReference
+        IReadOnlyList<(string HintName, string Content)> sources,
+        IReadOnlyList<(string HintName, string Needle, string BeforeSource, string AfterSource)> triggeredSources,
+        IReadOnlyList<(string HintName, string Needle, string Content, bool EmitWhenMatched)> conditionalSources) : AnalyzerReference
     {
         private readonly ImmutableArray<ISourceGenerator> _generators =
-            [new FixedSourceGenerator(sources)];
+            [new FixedSourceGenerator(sources, triggeredSources, conditionalSources)];
 
         public override string FullPath => string.Empty;
 
@@ -285,7 +307,9 @@ public sealed class AdhocProjectBuilder : IDisposable
 
 #pragma warning disable RS1042 // Test-only in-memory generator; it is never distributed as an analyzer.
     private sealed class FixedSourceGenerator(
-        IReadOnlyList<(string HintName, string Content)> sources) : ISourceGenerator
+        IReadOnlyList<(string HintName, string Content)> sources,
+        IReadOnlyList<(string HintName, string Needle, string BeforeSource, string AfterSource)> triggeredSources,
+        IReadOnlyList<(string HintName, string Needle, string Content, bool EmitWhenMatched)> conditionalSources) : ISourceGenerator
     {
         public void Initialize(GeneratorInitializationContext context)
         {
@@ -295,6 +319,19 @@ public sealed class AdhocProjectBuilder : IDisposable
         {
             foreach (var (hintName, content) in sources)
                 context.AddSource(hintName, content);
+            foreach (var (hintName, needle, beforeSource, afterSource) in triggeredSources)
+            {
+                var matched = context.Compilation.SyntaxTrees.Any(tree =>
+                    tree.GetText(context.CancellationToken).ToString().Contains(needle, StringComparison.Ordinal));
+                context.AddSource(hintName, matched ? afterSource : beforeSource);
+            }
+            foreach (var (hintName, needle, content, emitWhenMatched) in conditionalSources)
+            {
+                var matched = context.Compilation.SyntaxTrees.Any(tree =>
+                    tree.GetText(context.CancellationToken).ToString().Contains(needle, StringComparison.Ordinal));
+                if (matched == emitWhenMatched)
+                    context.AddSource(hintName, content);
+            }
         }
     }
 #pragma warning restore RS1042

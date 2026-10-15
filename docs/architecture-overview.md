@@ -68,6 +68,18 @@ mutations.
 
 ## Contracts that bind the layers
 
+### Static dependency planning
+
+The internal static dependency planner separates exact-symbol and candidate
+binding checks from caller-declared receiver and adapter preconditions. Core
+owns its versioned mapping, selection and plan records; the shared service
+returns complete document diffs through `PreparedChangeSet` without a writer.
+An unsupported selected site blocks the entire selection. Original authoritative
+acquisition, authored and generated inventories, and candidate compilation are
+separate evidence. The first grammar uses an existing instance field and leaves
+constructor introduction, the UTC preset and host admission to later slices.
+See [ADR-0107](adr/0107-semantic-static-dependency-planning.md).
+
 ### CI rule enforcement
 
 `rt ci check` uses the typed `CiCheckOperation` in-process for CLI and MCP. The
