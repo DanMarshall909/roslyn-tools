@@ -220,3 +220,14 @@ constant while varying the hidden binding, and to assert every selected site's
 terminal disposition after each refusal stage. This is retained with the owning
 planner evidence; no standing agent guidance changes. All three subsequent
 slices and final whole-ticket slow verification remain mandatory.
+
+### Dependency-introduction contract scaffold
+
+The next internal slice has separate exact source/receiver-type/target inputs,
+preferred new names, explicit caller parameter identities, optional exact
+existing-field reuse, and a typed closure/result contract. Preferred names do
+not change the existing mapping contract's exact field identity. The service is
+deliberately unwired pending its reviewed RED cycle; these types do not establish
+constructor, caller or composition support. Its starting-point Release build,
+140 existing semantic/workspace-proof tests and scoped formatting checks pass.
+No public surface or new behavior is claimed by this scaffold.
