@@ -21,6 +21,7 @@
       "break": 0
     },
     "concurrency": 4,
-    "test-case-filter": "(FullyQualifiedName~RoslynTools.Tests.Mutation.StaticDependencyMapping)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
+    "test-case-filter": "(FullyQualifiedName~RoslynTools.Tests.Mutation.StaticDependencyMapping)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)",
+    "configuration": "Release"
   }
 }
