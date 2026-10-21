@@ -691,6 +691,11 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 ## Current migration tensions
 
+Host trust-scope entry points share the core `RepositoryTrustErrors` classification and
+are guarded by `RepositoryTrustBoundaryContracts`. Hosts own error presentation, not
+independent lists of expected trust-storage exceptions; behavioral tests verify their
+typed failure output alongside the structural architecture guard.
+
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
 - **The staged prepared writer is still process-local.** It now preflights and stages supported writes/moves/deletes, backs up originals, suppresses cancellation during commit, and attempts compensating rollback. It does not yet provide a durable plan store, complete path/metadata coverage, a durable journal and status ledger, handle-safe symlink/reparse containment, restart reconciliation, or recovery commands.

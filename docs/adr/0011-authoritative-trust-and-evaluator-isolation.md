@@ -140,6 +140,14 @@ This convenience registry does not implement the authoritative physical-identity
 registry or active lease revocation described above. Missing or linked saved roots fail
 closed, but same-path replacement without links is not an authenticated identity binding.
 
+Routine trust-scope failures are classified by the shared `RepositoryTrustErrors` policy,
+including malformed registry data (`InvalidDataException`, which is not an `IOException`).
+CLI and MCP retain their own typed-error renderers but may not duplicate this exception
+list. `RepositoryTrustBoundaryContracts` checks every host scope-entry call for the shared
+filter; negative detector fixtures and real CLI/MCP malformed-registry tests guard the
+structural and behavioral contracts separately. Cancellation and unexpected failures are
+not classified as routine trust errors.
+
 ### Workspace evidence implementation boundary
 
 Workspace completeness now uses a pre-load requested-input manifest, snapshot-bound

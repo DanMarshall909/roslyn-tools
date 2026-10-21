@@ -34,6 +34,47 @@ public sealed class FindUnusedModuleInitializers
     }
 
     [Fact]
+    public async Task excludes_every_enclosing_type_of_a_nested_initializer_but_keeps_unrelated_siblings()
+    {
+        using var builder = new AdhocProjectBuilder();
+        builder.AddSource("Nested.cs", """
+            using System.Runtime.CompilerServices;
+            internal static class Outer
+            {
+                internal static class Middle
+                {
+                    internal static class InitializerContainer
+                    {
+                        [ModuleInitializer]
+                        internal static void Initialize() { }
+                        internal static void OrphanMethod() { }
+                    }
+                    internal static class UnrelatedNestedSibling { }
+                }
+                internal static class UnrelatedOuterSibling { }
+            }
+            internal static class UnrelatedTopLevel { }
+            """);
+        var (workspace, solution) = builder.Build();
+        using (workspace)
+        {
+            var compilation = (await solution.Projects.Single().GetCompilationAsync()).ShouldNotBeNull();
+            compilation.GetDiagnostics().ShouldNotContain(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+            var findings = await new FindUnusedService().AnalyzeAsync(solution);
+
+            findings.ShouldNotContain(finding => finding.Name == "Initialize");
+            findings.ShouldNotContain(finding => finding.Name == "InitializerContainer");
+            findings.ShouldNotContain(finding => finding.Name == "Middle");
+            findings.ShouldNotContain(finding => finding.Name == "Outer");
+            findings.ShouldContain(finding => finding.Name == "OrphanMethod");
+            findings.ShouldContain(finding => finding.Name == "UnrelatedNestedSibling");
+            findings.ShouldContain(finding => finding.Name == "UnrelatedOuterSibling");
+            findings.ShouldContain(finding => finding.Name == "UnrelatedTopLevel");
+        }
+    }
+
+    [Fact]
     public async Task same_named_custom_attribute_does_not_establish_module_activation()
     {
         using var builder = new AdhocProjectBuilder();

@@ -260,6 +260,11 @@ internal class FindUnusedService : IRtService
         method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString()
             == "System.Runtime.CompilerServices.ModuleInitializerAttribute");
 
+    // Removing any enclosing type also removes its nested module initializer.
+    private static bool ContainsModuleInitializer(INamedTypeSymbol type) =>
+        type.GetMembers().OfType<IMethodSymbol>().Any(IsModuleInitializer)
+        || type.GetTypeMembers().Any(ContainsModuleInitializer);
+
     /// <summary>
     /// A derived type can introduce an external interface implemented by an inherited
     /// source method whose declaring type has no interfaces. Collect those mappings once
@@ -370,7 +375,7 @@ internal class FindUnusedService : IRtService
             if (DeclaresEntryPoint(type))
                 return true;
 
-            if (type.GetMembers().OfType<IMethodSymbol>().Any(IsModuleInitializer))
+            if (ContainsModuleInitializer(type))
                 return true;
 
             if (IsXunitFixture(type))
