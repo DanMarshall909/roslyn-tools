@@ -124,7 +124,7 @@ internal static class StaticDependencyMappingInventory
         return sites;
     }
 
-    internal static string? UnsupportedReason(StaticDependencyReference entry)
+    internal static string? UnsupportedReason(StaticDependencyReference entry, bool allowConstructor = false)
     {
         if (entry.Document is SourceGeneratedDocument)
             return $"Generated selected context '{entry.Document.Name}' is unsupported; select authored sites or change the generator through a separately reviewed operation.";
@@ -133,9 +133,12 @@ internal static class StaticDependencyMappingInventory
         if (call.Ancestors().Any(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
             return "Lambda, local-function, anonymous-function and expression-tree contexts are unsupported; select an ordinary instance method invocation.";
         var method = call.Ancestors().OfType<BaseMethodDeclarationSyntax>().FirstOrDefault();
-        if (method is not MethodDeclarationSyntax declaration)
+        var isSupportedConstructor = allowConstructor
+            && method is ConstructorDeclarationSyntax { Body: not null, Initializer: null } constructor
+            && !constructor.Modifiers.Any(SyntaxKind.StaticKeyword);
+        if (method is not MethodDeclarationSyntax && !isSupportedConstructor)
             return "Initializer, constructor and accessor contexts are unsupported; select an ordinary instance method invocation.";
-        if (declaration.Modifiers.Any(SyntaxKind.StaticKeyword))
+        if (method is MethodDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.StaticKeyword))
             return "A static method cannot use the existing instance receiver; select an instance method site.";
         if (call.Expression is not (IdentifierNameSyntax or MemberAccessExpressionSyntax))
             return "The static callee expression shape is unsupported; argument or expression adaptation is not available.";

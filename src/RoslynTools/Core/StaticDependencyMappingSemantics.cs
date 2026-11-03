@@ -84,7 +84,7 @@ internal static class StaticDependencyMappingSemantics
             : $"Target binding resolved '{candidate.TargetMethod.GetDocumentationCommentId()}' in assembly '{candidate.TargetMethod.ContainingAssembly.Identity}'; expected exact target '{mapping.Target.DocumentationId}' in '{mapping.Target.AssemblyIdentity}' on this instance's field '{receiver.GetDocumentationCommentId()}' in '{receiver.ContainingAssembly.Identity}', with unchanged ordered parameter/argument bindings and conversions. Argument adaptation is unsupported.";
     }
 
-    private static bool SameArgumentBinding(IArgumentOperation before, IArgumentOperation after) =>
+    internal static bool SameArgumentBinding(IArgumentOperation before, IArgumentOperation after) =>
         before.Parameter?.Ordinal == after.Parameter?.Ordinal
         && before.ArgumentKind == after.ArgumentKind
         && TypeIdentity(before.Parameter?.Type) == TypeIdentity(after.Parameter?.Type)

@@ -149,46 +149,9 @@ internal sealed class StaticDependencyMappingService : IRtService
         if (selected.Length == 0)
             return Empty(StaticDependencyPlanStatus.NoOp);
 
-        // Only the callee is replaced. Arguments, separators and named associations
-        // retain their syntax and trivia. Annotations survive changed source offsets.
-        var candidate = solution;
-        var annotations = selected.ToDictionary(entry => entry.Site.Id, _ => new SyntaxAnnotation());
-        foreach (var group in selected.GroupBy(entry => entry.Document.Id))
-        {
-            var document = solution.GetDocument(group.Key)!;
-            var root = (await document.GetSyntaxRootAsync(cancellationToken))!;
-            var byNode = group.ToDictionary(entry => entry.Reference);
-            var rewritten = root.ReplaceNodes(byNode.Keys, (original, current) =>
-            {
-                var entry = byNode[original];
-                var call = (InvocationExpressionSyntax)current;
-                var expression = SyntaxFactory.ParseExpression("this." + Escape(receiver!.Name) + "." + Escape(target!.Name))
-                    .WithTriviaFrom(call.Expression);
-                return call.WithExpression(expression).WithAdditionalAnnotations(annotations[entry.Site.Id]);
-            });
-            candidate = candidate.WithDocumentSyntaxRoot(group.Key, rewritten);
-        }
-
-        foreach (var entry in selected)
-        {
-            var document = candidate.GetDocument(entry.Document.Id)!;
-            var root = (await document.GetSyntaxRootAsync(cancellationToken))!;
-            var call = (InvocationExpressionSyntax)root.GetAnnotatedNodes(annotations[entry.Site.Id]).Single();
-            var model = (await document.GetSemanticModelAsync(cancellationToken))!;
-            var operation = model.GetOperation(call, cancellationToken) as IInvocationOperation;
-            string? reason;
-            if (operation is null)
-                reason = "Target binding failed (inaccessible or ambiguous receiver call): "
-                    + string.Join("; ", model.GetDiagnostics(call.Span, cancellationToken)
-                        .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Select(diagnostic => diagnostic.ToString()).Order(StringComparer.Ordinal));
-            else
-                reason = StaticDependencyMappingSemantics.ValidateBinding(entry.Operation!, operation, mapping, receiver!);
-            if (reason is not null)
-            {
-                var index = sites.FindIndex(site => site.Id == entry.Site.Id);
-                sites[index] = entry.Site with { Disposition = StaticDependencySiteDisposition.Blocked, Code = "mapping.binding", Message = reason };
-            }
-        }
+        var (candidate, bindingBlockers) = await RewriteAsync(solution, selected, mapping, receiver!, target!, cancellationToken);
+        foreach (var blocker in bindingBlockers)
+            sites[sites.FindIndex(site => site.Id == blocker.Id)] = blocker;
 
         // Acquisition was assessed on the complete original scope. Candidate compilation
         // is additional evidence and never creates or upgrades an acquisition receipt.
@@ -232,6 +195,57 @@ internal sealed class StaticDependencyMappingService : IRtService
         return new StaticDependencyPlan("rt.static-dependency.plan.v1", fingerprint, mappingFingerprint,
             request, StaticDependencyPlanStatus.Prepared, OrderSites(sites), documents,
             new PreparedChangeSet(solution, candidate));
+    }
+
+    // Shared by existing-field mapping and constructor introduction. References retain
+    // original operations/sites even when their annotated syntax has moved in a candidate.
+    internal static async Task<(Solution Candidate, IReadOnlyList<StaticDependencySite> Blockers)> RewriteAsync(
+        Solution solution, IReadOnlyList<StaticDependencyReference> selected,
+        StaticDependencyMethodMapping mapping, IFieldSymbol receiver, IMethodSymbol target,
+        CancellationToken cancellationToken)
+    {
+        // Only the callee is replaced. Arguments, separators and named associations
+        // retain their syntax and trivia. Annotations survive changed source offsets.
+        var blockers = new List<StaticDependencySite>();
+        var candidate = solution;
+        var annotations = selected.ToDictionary(entry => entry.Site.Id, _ => new SyntaxAnnotation());
+        foreach (var group in selected.GroupBy(entry => entry.Document.Id))
+        {
+            var document = solution.GetDocument(group.Key)!;
+            var root = (await document.GetSyntaxRootAsync(cancellationToken))!;
+            var byNode = group.ToDictionary(entry => entry.Reference);
+            var rewritten = root.ReplaceNodes(byNode.Keys, (original, current) =>
+            {
+                var entry = byNode[original];
+                var call = (InvocationExpressionSyntax)current;
+                var expression = SyntaxFactory.ParseExpression("this." + Escape(receiver!.Name) + "." + Escape(target!.Name))
+                    .WithTriviaFrom(call.Expression);
+                return call.WithExpression(expression).WithAdditionalAnnotations(annotations[entry.Site.Id]);
+            });
+            candidate = candidate.WithDocumentSyntaxRoot(group.Key, rewritten);
+        }
+
+        foreach (var entry in selected)
+        {
+            var document = candidate.GetDocument(entry.Document.Id)!;
+            var root = (await document.GetSyntaxRootAsync(cancellationToken))!;
+            var call = (InvocationExpressionSyntax)root.GetAnnotatedNodes(annotations[entry.Site.Id]).Single();
+            var model = (await document.GetSemanticModelAsync(cancellationToken))!;
+            var operation = model.GetOperation(call, cancellationToken) as IInvocationOperation;
+            string? reason;
+            if (operation is null)
+                reason = "Target binding failed (inaccessible or ambiguous receiver call): "
+                    + string.Join("; ", model.GetDiagnostics(call.Span, cancellationToken)
+                        .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Select(diagnostic => diagnostic.ToString()).Order(StringComparer.Ordinal));
+            else
+                reason = StaticDependencyMappingSemantics.ValidateBinding(entry.Operation!, operation, mapping, receiver!);
+            if (reason is not null)
+            {
+                blockers.Add(entry.Site with { Disposition = StaticDependencySiteDisposition.Blocked, Code = "mapping.binding", Message = reason });
+            }
+        }
+
+        return (candidate, blockers);
     }
 
     private static string Escape(string name) => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None
