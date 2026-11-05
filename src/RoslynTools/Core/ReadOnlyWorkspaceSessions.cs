@@ -67,6 +67,8 @@ internal sealed class ReadOnlyWorkspaceLease : IDisposable
 
     internal string SourceRevision { get; }
 
+    internal WorkspaceCompleteness? CompletenessEvidence => _completeness;
+
     internal WorkspaceCompleteness Completeness => _completeness
         ?? throw new InvalidOperationException("The workspace lease crossed the application boundary without completeness evidence.");
 

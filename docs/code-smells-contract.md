@@ -80,3 +80,50 @@ Preserve native Flo RED and later phases. Final local Release build, formatting,
 fast/slow gates and independent exact-candidate review precede publication.
 Mutation is a separate final-snapshot post-session gate and must be reported
 honestly if pending. Existing worktrees are parked under the decision in #158.
+
+## Retained first-cycle evidence and required corrections
+
+The first native Flo run `20261105034211587-4afcc56f` is retained unchanged in
+`/home/dan/code/roslyn-tools-worktrees/code-smells-config/.flo/worktrees/current-cycle`.
+It has genuine reviewed RED, passing GREEN and a coverage collection. Refactor
+could not launch: the pinned Flo runtime passes a >128 KiB prompt in one Linux
+argument. Flo repair is separately owned; do not rewrite this cycle or its
+pinned runtime. Coverage collection is not adequate coverage: follow-up tests
+and final whole-ticket gates remain mandatory.
+
+The copied candidate is an unreviewed local checkpoint, not finished behavior.
+Before completion, a fresh Flo criterion must establish that every reviewed
+candidate is the exact allowed declaration and every advertised result matches
+the configuration and public contract:
+
+- Apply `.rtignore` and generated-source exclusions consistently to SOLID as well
+  as size and semantic candidates, before source preparation/transmission.
+- Preserve exact syntax identity for methods, including nested types, overloads
+  and two methods on one line; never reconstruct a method by line alone or
+  substitute a containing type's source. Candidate IDs must distinguish them.
+- Enforce the global preparation cap before sanitizing later declarations, not
+  only before provider invocation. Keep raw/plan reasons without over-preparing.
+- Require all selector threshold keys or materialize documented defaults into
+  effective rules before hashing and returning them. Do not report a catalogue
+  that differs from the thresholds actually used.
+- Either apply configured classification descriptions in Jev requests or reject
+  edits to invariant vocabulary. Validate policy threshold relationships.
+- Match the file's camelCase response schema at real CLI and MCP serialization
+  boundaries. A first real CLI preview returned PascalCase root fields and failed
+  independent JSON Schema validation (19 errors); internal Web-default serializer
+  tests missed that mismatch. Do not weaken the schema to accept both shapes.
+- Preserve existing workspace completeness invariants. The new nullable lease
+  accessor is not necessary justification for a new core contract; fix synthetic
+  workspace fixtures to supply valid completeness evidence and use the established
+  lease contract. Missing/partial acquisition must never appear as a complete
+  negative result. Return actionable limitations/failed or partial outcomes.
+- Strengthen the provider HTTP boundary for custom question/exception choices and
+  stale response choices, fault-specific validation diagnostics, configured
+  policy, semantic selectors, default fallback, and CLI/MCP binding/trust.
+  Validate real preview/live serialized responses with independent JSON Schema
+  tooling. Do not rely on an incomplete handwritten schema interpreter silently
+  ignoring new schema keywords.
+
+These are corrections within the original accepted behavior, not new features.
+The new RED witness should fail for the ignored-source/candidate identity boundary;
+additional cases preserve all required output and configuration invariants.

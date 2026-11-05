@@ -28,6 +28,7 @@ for preview support.
 | `probe-di` | Trusted `recipe inspect-di` CLI | Experimental | Executes repository code; absent from normal MCP. |
 | `semantic-diff` | `semantic-diff` | Stable candidate | Keep with explicit parse-only/rename limits. Local CLI two-file mode needs mode-specific metadata; MCP file mode returns `Unsupported` until contained reads are available. Git-mode MCP retains trust admission. |
 | `solid` | Concrete `check` rules | Preview | Remove SOLID violation branding. |
+| `code-smells` | analyze | Experimental | Accepted #158 catalogue-driven bounded review; preview by default, explicit trusted live transmission. |
 | `solid-review` | Optional external semantic triage | Experimental | Preserve deterministic findings; classify actual external/source-transmission effects per mode and require explicit consent. |
 | `static-class-inventory` | `inventory static-types` | Experimental -> Preview | Input to a future staticness recipe. |
 

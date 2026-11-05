@@ -68,7 +68,11 @@ internal sealed record SemanticReviewProviderRequest(
     string RepositoryRevision,
     string SourceEvidenceHash,
     string RequestedModel,
-    string QuestionSetVersion);
+    string QuestionSetVersion,
+    string? ReviewQuestion = null,
+    string? RuleDescription = null,
+    IReadOnlyDictionary<string, string>? AcceptedExceptions = null,
+    IReadOnlyList<string>? EvidenceGuidance = null);
 
 internal sealed record SemanticReviewProviderResponse(
     string Classification,
@@ -192,7 +196,9 @@ internal static class SolidReviewPolicy
         double meaningfulDesignProblem,
         double acceptedException,
         string falsePositiveReason,
-        double falsePositiveReasonProbability)
+        double falsePositiveReasonProbability,
+        double minimumAutomaticProbability = MinimumAutomaticProbability,
+        double maximumContradictoryProbability = MaximumContradictoryProbability)
     {
         if (!SemanticReviewClassifications.All.Contains(providerClassification))
             return Uncertain("invalid_provider_classification");
@@ -200,7 +206,7 @@ internal static class SolidReviewPolicy
         if (!evidenceComplete)
             return Uncertain("evidence_incomplete");
 
-        if (classificationProbability < MinimumAutomaticProbability)
+        if (classificationProbability < minimumAutomaticProbability)
             return Uncertain("classification_probability_below_threshold");
 
         if (providerClassification == SemanticReviewClassifications.Uncertain)
@@ -208,13 +214,13 @@ internal static class SolidReviewPolicy
 
         if (providerClassification == SemanticReviewClassifications.LikelyViolation)
         {
-            if (acceptedException >= MinimumAutomaticProbability)
+            if (acceptedException >= minimumAutomaticProbability)
                 return Uncertain("accepted_exception_conflicts_with_violation");
 
-            if (meaningfulDesignProblem < MinimumAutomaticProbability)
+            if (meaningfulDesignProblem < minimumAutomaticProbability)
                 return Uncertain("meaningful_design_problem_not_supported");
 
-            if (acceptedException > MaximumContradictoryProbability)
+            if (acceptedException > maximumContradictoryProbability)
                 return Uncertain("accepted_exception_remains_plausible");
 
             return new SolidReviewDecision(
@@ -223,14 +229,14 @@ internal static class SolidReviewPolicy
                 ["meaningful_design_problem_supported"]);
         }
 
-        if (acceptedException < MinimumAutomaticProbability)
+        if (acceptedException < minimumAutomaticProbability)
             return Uncertain("accepted_exception_not_supported");
 
-        if (meaningfulDesignProblem > MaximumContradictoryProbability)
+        if (meaningfulDesignProblem > maximumContradictoryProbability)
             return Uncertain("meaningful_design_problem_conflicts_with_exception");
 
         if (falsePositiveReason == SemanticReviewFalsePositiveReasons.NoAcceptedException
-            || falsePositiveReasonProbability < MinimumAutomaticProbability)
+            || falsePositiveReasonProbability < minimumAutomaticProbability)
         {
             return Uncertain("false_positive_reason_not_supported");
         }

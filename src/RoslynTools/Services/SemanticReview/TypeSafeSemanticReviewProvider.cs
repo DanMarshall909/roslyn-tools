@@ -152,7 +152,9 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
             ["review_classification"] = new
             {
                 type = "choice",
-                instructions = ClassificationInstruction(request.Principle),
+                instructions = request.ReviewQuestion is null
+                    ? ClassificationInstruction(request.Principle)
+                    : new { contract = ClassificationInstruction(request.Principle), question = request.ReviewQuestion, description = request.RuleDescription, evidenceGuidance = request.EvidenceGuidance },
                 criteria = new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     [SemanticReviewClassifications.LikelyViolation] = new
@@ -176,7 +178,7 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
                 type = "noul",
                 instructions = new
                 {
-                    question = $"Does `candidate` show a meaningful {request.Principle} design problem?",
+                    question = request.ReviewQuestion ?? $"Does `candidate` show a meaningful {request.Principle} design problem?",
                     focus = "Require concrete change risk, substitution failure, or consumer pain in the supplied source and deterministic evidence. Do not treat a pattern name or heuristic count alone as harm."
                 },
                 criteria = BinaryCriteria(
@@ -203,7 +205,7 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
                     question = $"If `candidate` is an accepted {request.Principle} exception, which reason best explains it?",
                     focus = "Choose no_accepted_exception when no listed reason is supported. This question is diagnostic and does not itself decide the final classification."
                 },
-                criteria = FalsePositiveReasonCriteria(request.Principle)
+                criteria = EffectiveReasonCriteria(request)
             }
         }
     };
@@ -265,6 +267,14 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
         };
         criteria[SemanticReviewFalsePositiveReasons.NoAcceptedException] = Reason(
             "No listed accepted exception is supported by the bounded evidence.");
+        return criteria;
+    }
+
+    private static Dictionary<string, object> EffectiveReasonCriteria(SemanticReviewProviderRequest request)
+    {
+        if (request.AcceptedExceptions is null) return FalsePositiveReasonCriteria(request.Principle);
+        var criteria = request.AcceptedExceptions.ToDictionary(pair => pair.Key, pair => Reason(pair.Value), StringComparer.Ordinal);
+        criteria[SemanticReviewFalsePositiveReasons.NoAcceptedException] = Reason("No listed accepted exception is supported by the bounded evidence.");
         return criteria;
     }
 
@@ -331,7 +341,7 @@ internal sealed class TypeSafeSemanticReviewProvider : ISemanticReviewProvider, 
             || !parsed.Answers.TryGetValue("false_positive_reason", out var reasonAnswer)
             || !TryParseChoice(
                 reasonAnswer,
-                SemanticReviewFalsePositiveReasons.ForPrinciple(request.Principle),
+                EffectiveReasonCriteria(request).Keys.ToHashSet(StringComparer.Ordinal),
                 out var falsePositiveReason,
                 out var falsePositiveReasonProbabilities,
                 out var falsePositiveReasonConfidence))

@@ -368,7 +368,9 @@
       "limitations",
       "provider",
       "requestedModel",
-      "questionSetVersion"
+      "questionSetVersion",
+      "responseSchema",
+      "catalog"
     ],
     "properties": {
       "schemaVersion": {
@@ -707,7 +709,8 @@
                 "resolvedModel",
                 "requestId",
                 "questionSetVersion",
-                "sourceEvidenceHash"
+                "sourceEvidenceHash",
+                "repositoryRevision"
               ],
               "properties": {
                 "provider": {
@@ -741,6 +744,10 @@
                   ]
                 },
                 "sourceEvidenceHash": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "repositoryRevision": {
                   "type": "string",
                   "minLength": 1
                 }
@@ -852,6 +859,12 @@
       "questionSetVersion": {
         "type": "string",
         "minLength": 1
+      },
+      "responseSchema": {
+        "type": "object"
+      },
+      "catalog": {
+        "type": "object"
       }
     }
   }

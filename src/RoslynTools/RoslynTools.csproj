@@ -6,6 +6,7 @@
         <RootNamespace>RoslynTools</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
+        <EmbeddedResource Include="../../code-smells.json" LogicalName="RoslynTools.code-smells.json" />
         <InternalsVisibleTo Include="RoslynTools.Tests"/>
         <InternalsVisibleTo Include="RoslynTools.Mcp"/>
         <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
