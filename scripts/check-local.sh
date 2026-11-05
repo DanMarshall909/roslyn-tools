@@ -34,6 +34,14 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+if [ "$mutation" -eq 1 ]; then
+    mutation_enabled="$(node "$script_dir/mutation-policy.mjs")"
+    if [ "$mutation_enabled" = false ]; then
+        echo "check-local: mutation testing is disabled by repository policy" >&2
+        exit 2
+    fi
+fi
+
 configuration_args=()
 filter="$(node "$script_dir/test-lanes.mjs" "$lane" "$filter")"
 if [ -n "$configuration" ]; then

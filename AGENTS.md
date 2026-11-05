@@ -10,9 +10,16 @@ Guidance for agentic coding tools working in this repository.
 Use Flo for C# implementation cycles, following the installed `flo` skill and
 the [development workflow](docs/agent-playbook.md#development-with-flo).
 [flo.json](flo.json) saves the repository defaults. Start with serial cycles,
-one accepted criterion at a time; review RED evidence and mutation findings
+one accepted criterion at a time; review RED evidence and coverage findings
 before integration. Agents already executing a Flo phase should perform that
 phase without starting a nested cycle.
+
+Mutation testing is disabled by the repository owner. `mutation-testing.json`
+records the disabled policy. Do not run or queue Stryker, Flo mutation phases,
+or post-session mutation for this repository, and do not treat mutation as a
+completion gate. This overrides shared mutation defaults. Keep ordinary tests,
+coverage, formatting, independent review and publication gates. Preserve existing
+mutation reports and profiles; re-enabling requires an explicit owner decision.
 
 We are dogfooding Flo. When a Flo defect or workflow gap appears during RT
 work, record a reproducible finding in Flo's tracker and fix it in a separate
@@ -336,7 +343,7 @@ Follow nearby code first. Repository architecture tests enforce many structural 
 
 - Continue until the requested outcome is genuinely complete or a concrete blocker requires user authority.
 - Do not describe partial progress, a plan, or focused test results as completion.
-- Before finishing, verify applicable acceptance criteria, tests, formatting, coverage, mutation gates, ticket status, commits, pushes, and repository synchronization.
+- Before finishing, verify applicable acceptance criteria, tests, formatting, coverage, ticket status, commits, pushes, and repository synchronization. Mutation testing is disabled.
 - Commit and push each completed atomic slice promptly.
 - Every commit must have a concise subject and a detailed body explaining why, what changed, verification, constraints, and follow-up.
 - Update linked tickets after every commit.

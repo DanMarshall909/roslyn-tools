@@ -62,11 +62,11 @@ dotnet "$flo_dll" cycle --project "$repo" \
 Review the named RED failure and test-only diff before approving the recorded
 artifact. Flo then verifies GREEN, changed-source coverage and REFACTOR, and
 runs the selected full repository gate. Inspect the exact candidate and its
-mutation findings before local integration; RT's remaining completion and
+coverage findings before local integration; RT's remaining completion and
 publication gates still apply. `.flo/` worktrees and private evidence are ignored.
 
-Use serial cycles initially. Characterization of existing behavior, mutation
-performance experiments and Node-only contracts need their applicable
+Use serial cycles initially. Characterization of existing behavior and
+Node-only contracts need their applicable
 workflows; do not invent a failing expectation to fit them into a C# RED cycle.
 The outstanding characterization workflow is tracked in
 [FLO-036](https://github.com/DanMarshall909/flo-tdd/issues/1).
@@ -235,58 +235,23 @@ The schema lives under `src/RoslynTools/Core/Decisions/`.
 
 ## Mutation Testing
 
-Stryker.NET is pinned in `.config/dotnet-tools.json` and configured by
-`stryker-config.json`.
+Mutation testing is disabled by the repository owner (2026-11-05).
+`mutation-testing.json` records `enabled: false`. Do not run Stryker directly,
+invoke Flo mutation phases, or queue post-session mutation. Mutation is not a
+completion or publication gate. Ordinary tests, coverage, formatting and
+independent review remain required.
 
-Use the maintained supervisor for retained results and unattended execution:
+`npm run mutation` returns the structured `mutation_disabled` error before
+starting native tools. `check-local --mutation` / `-Mutation` rejects the request
+before building; omit that option to run the ordinary gate. The installed commit
+hook and direct staged mutation gate explicitly skip mutation. Missing or invalid
+policy fails closed. Re-enabling requires an explicit owner decision.
 
-```sh
-npm run mutation -- --config stryker-hosting-config.json --full --update-baseline
-npm run mutation -- --config stryker-hosting-config.json
-npm run mutation -- --config stryker-hosting-config.json --show-baseline
-npm run test:mutation-driver
-```
-
-The default configuration targets Core. Choose Hosting explicitly for its compact
-metadata profile. Fast mode launches no Stryker process: it reuses only complete,
-source-bound results for an identical configuration, source/test inputs, SDK,
-resolved package graph, wrapper and normalized execution environment. Any change
-requires an explicit full seed. Native incremental reuse is unverified here;
-the pinned producer discarded known outcomes during RT-021 calibration.
-
-State lives outside disposable build output in the per-user `MutationBaselines`
-cache. `RT_MUTATION_CACHE_ROOT` overrides that location. Each checkout, branch and
-target has separate state. The durable bundle contains the exact report,
-verification receipt and findings; cleanup of `artifacts/` preserves that proof.
-`--full` verifies without updating state; `--reset-baseline` removes only the
-selected state. `--concurrency N` is explicit and part of the fingerprint.
-
-Full execution is currently verified on Linux. Logs, resource samples, phase
-milestones and findings remain under `artifacts/mutation/`. Ctrl+C forwards SIGINT
-to the owned process group, retains diagnostics and labels interrupted outcomes
-incomplete; escalation applies only after cancellation or native terminal exit.
-Completed native runs also stop lingering owned workers before returning. No
-elapsed-time budget automatically cancels mutation execution. The supervisor
-prints a start event and one terminal JSON summary; use the host's background
-completion mechanism without watcher agents. Byte counts describe supervisor
-stdout, not agent tokens. Agent attribution remains unavailable unless the
-controller measures it. See [ADR 0105](adr/0105-verified-mutation-state.md).
-
-```powershell
-dotnet tool restore
-dotnet stryker
-dotnet stryker --config-file stryker-adapters-config.json
-dotnet stryker --config-file stryker-mcp-schema-config.json
-```
-
-Each configuration targets one production assembly. The adapter and MCP schema
-configurations select owning in-process tests and exclude spawned-process
-journeys. Moving code across projects requires changing the mutation target;
-a glob under the Core configuration cannot mutate an outer assembly.
-
-For surviving mutants, choose one valid response: add the missing test, delete
-dead code, or document a genuinely equivalent mutant and add it to the ignore
-configuration. Do not weaken assertions to improve score.
+The supervisor, pinned tool, profiles, retained reports and evidence remain for
+recovery. [ADR 0105](adr/0105-verified-mutation-state.md) describes their historical
+design; it does not authorize execution while disabled. `npm run
+test:mutation-driver` tests the policy and supervisor with isolated fake producers;
+it does not run native mutation testing against this repository.
 
 ## Refactoring Philosophy
 

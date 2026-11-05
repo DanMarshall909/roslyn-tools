@@ -16,6 +16,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($Mutation) {
+    $mutationEnabled = & node "$PSScriptRoot/mutation-policy.mjs"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($mutationEnabled -eq "false") {
+        [Console]::Error.WriteLine("check-local: mutation testing is disabled by repository policy")
+        exit 2
+    }
+}
+
 function Get-TrxCount {
     param([System.Xml.XmlElement]$Counters, [string]$Name)
 
