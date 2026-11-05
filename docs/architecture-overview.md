@@ -1308,6 +1308,16 @@ When a decision changes a layer contract, trust boundary, mutation state, output
 
 Architecture documents distinguish **accepted target**, **implemented evidence**, and **remaining migration**. A target statement is never presented as a runtime guarantee until its gate passes.
 
+## Configurable semantic review target
+
+[ADR-0108](adr/0108-configurable-code-smell-catalogue.md) defines the accepted
+`code-smells.json` catalogue and shared `code-smells`/`code_smells` operation.
+Rule definitions and the response contract are separate from host configuration;
+detector scope, trust and transmission authority remain in application code.
+The existing size/SOLID commands retain their contracts. Implementation and
+boundary verification are pending in issue #158; this target is not evidence of
+completed runtime behavior. See the [catalogue guide](code-smells.md).
+
 ## Maintained mutation verification
 
 The maintenance supervisor in `scripts/mutation.mjs` preserves native whole-owner
