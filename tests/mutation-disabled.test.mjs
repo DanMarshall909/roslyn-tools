@@ -52,7 +52,7 @@ for (const [script, args, expected] of [
     ['scripts/check-local.ps1', ['-Mutation'], 2],
     ['scripts/pre-commit-gates.ps1', [], 0],
 ]) {
-    test(`PowerShell disabled policy stops native work: ${script}`, { skip: !pwsh }, t => {
+    test(`PowerShell disabled policy stops native work: ${script}`, { skip: !pwsh || process.platform === 'win32' }, t => {
         const result = invoke(t, pwsh, ['-NoProfile', '-File', script, ...args]);
         assert.equal(result.status, expected);
         assert.match(result.stderr, /mutation testing is disabled/i);
