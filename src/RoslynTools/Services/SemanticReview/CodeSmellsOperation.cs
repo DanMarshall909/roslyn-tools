@@ -213,17 +213,27 @@ internal sealed class CodeSmellsOperation(IReadOnlyWorkspaceSessions sessions, I
             policy["minimumAutomaticProbability"]!.GetValue<double>(), policy["maximumContradictoryProbability"]!.GetValue<double>());
         return JsonSerializer.SerializeToNode(new
         {
-            candidateId = candidate.Raw.CandidateId, ruleId = candidate.Raw.RuleId,
-            ruleName = Text(candidate.Rule, "name"), severity = Text(candidate.Rule, "severity"), location = candidate.Raw.Location,
-            classification = decision.Classification, summary = Text(candidate.Rule, "description"),
+            candidateId = candidate.Raw.CandidateId,
+            ruleId = candidate.Raw.RuleId,
+            ruleName = Text(candidate.Rule, "name"),
+            severity = Text(candidate.Rule, "severity"),
+            location = candidate.Raw.Location,
+            classification = decision.Classification,
+            summary = Text(candidate.Rule, "description"),
             evidence = new[] { new { description = candidate.Raw.Detail, source = "roslyn" } },
-            evidenceComplete = candidate.Complete, confidence = value.Confidence, probabilities = value.Probabilities,
-            acceptedException = decision.FalsePositiveReason, policyReasons = decision.Reasons,
+            evidenceComplete = candidate.Complete,
+            confidence = value.Confidence,
+            probabilities = value.Probabilities,
+            acceptedException = decision.FalsePositiveReason,
+            policyReasons = decision.Reasons,
             remediation = candidate.Rule["remediation"]!.DeepClone(),
             provenance = new { provider = value.Provider, requestedModel = value.RequestedModel, resolvedModel = value.ResolvedModel, requestId = value.RequestId, questionSetVersion = value.QuestionSetVersion, sourceEvidenceHash = hash, repositoryRevision },
-            providerClassification = value.Classification, meaningfulDesignProblem = value.MeaningfulDesignProblem,
-            acceptedExceptionProbability = value.AcceptedException, providerFalsePositiveReason = value.FalsePositiveReason,
-            falsePositiveReasonProbabilities = value.FalsePositiveReasonProbabilities, falsePositiveReasonConfidence = value.FalsePositiveReasonConfidence,
+            providerClassification = value.Classification,
+            meaningfulDesignProblem = value.MeaningfulDesignProblem,
+            acceptedExceptionProbability = value.AcceptedException,
+            providerFalsePositiveReason = value.FalsePositiveReason,
+            falsePositiveReasonProbabilities = value.FalsePositiveReasonProbabilities,
+            falsePositiveReasonConfidence = value.FalsePositiveReasonConfidence,
             rawEvidence = candidate.Evidence
         }, Json)!.AsObject();
     }
