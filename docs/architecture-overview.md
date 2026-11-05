@@ -1126,7 +1126,7 @@ Protocol version and server version are release facts derived from one source, n
 - **Dependency/supply-chain gates** include locked release restore, vulnerability/dependency review, static security analysis, and controlled action dependencies.
 - **Command admission** blocks stable commands without executable examples, validation, typed expected failures, limits, provenance/confidence, cancellation, and proportional fault-injection evidence.
 
-Coverage and mutation-testing claims are executable CI configuration, not only documentation. Skipped tests for known defects remain linked to tracked work and do not count as safety evidence.
+Coverage claims are backed by executable verification. Mutation testing is disabled under ADR-0109. Skipped tests for known defects remain linked to tracked work and do not count as safety evidence.
 
 The [slow regression lane](adr/0106-slow-regression-lane.md) retains the complete
 suggestion CLI journey and journaled apply groups for one final ticket check.
@@ -1145,7 +1145,7 @@ A normal `dotnet restore`, `dotnet build`, or `dotnet test` does not:
 - start or depend on a daemon; or
 - modify anything outside declared build/temp outputs.
 
-Formatting, document generation, skill deployment, dogfood analysis, mutation testing, and installation are explicit commands or opt-in targets.
+Formatting, document generation, skill deployment, dogfood analysis, and installation are explicit commands or opt-in targets. Mutation testing is disabled.
 
 Assembly, NuGet, MCP manifest, archive, and release versions derive from one source. Documentation advertises only artifacts actually published and smoke-tested. Native release jobs install, launch, exercise, upgrade, roll back, and uninstall each supported RID while preserving files they do not own.
 
@@ -1157,7 +1157,7 @@ Agent or developer runs rt on a real task
      -> limitation/bug is captured with request context and redacted diagnostics
         -> triage links it to one authoritative issue/spec
            -> TDD: failing regression -> implementation -> refactor
-              -> parity + fault injection + coverage/mutation gates
+              -> parity + fault injection + coverage gates
                  -> generated metadata/examples verified
                     -> release/admission evidence recorded
                        -> next user benefits
@@ -1309,6 +1309,13 @@ When a decision changes a layer contract, trust boundary, mutation state, output
 Architecture documents distinguish **accepted target**, **implemented evidence**, and **remaining migration**. A target statement is never presented as a runtime guarantee until its gate passes.
 
 ## Maintained mutation verification
+
+Mutation testing is disabled by owner decision under
+[ADR-0109](adr/0109-disable-mutation-testing.md). `mutation-testing.json` gates the
+retained supervisor and optional local/hook execution paths. Missing or invalid
+policy fails closed. No mutation run, including post-session Flo/Stryker work, is
+required or authorized while disabled. The following describes retained tooling,
+not active execution policy.
 
 The maintenance supervisor in `scripts/mutation.mjs` preserves native whole-owner
 Stryker execution, thresholds and separate regression/E2E gates. It reuses only

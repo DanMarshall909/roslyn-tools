@@ -71,6 +71,8 @@ function fixture(t) {
     writeFileSync(join(root, 'tools/dotnet'), mock, { mode: 0o755 });
     const fixtureDriver = join(root, 'tools/mutation.mjs');
     copyFileSync(driver, fixtureDriver);
+    copyFileSync(resolve(import.meta.dirname, '../scripts/mutation-policy.mjs'), join(root, 'tools/mutation-policy.mjs'));
+    writeFileSync(join(root, 'mutation-testing.json'), JSON.stringify({ schemaVersion: 1, enabled: true }));
     copyFileSync(resolve(import.meta.dirname, '../scripts/test-lanes.mjs'), join(root, 'tools/test-lanes.mjs'));
     writeFileSync(join(root, 'native-settings.json'), '{}');
     for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['-c', 'user.name=Tests', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture']]) {
@@ -85,7 +87,25 @@ function fixture(t) {
         try { data = JSON.parse(lines.at(-1)); } catch { assert.fail(`Expected compact JSON: ${r.stdout} ${r.stderr}`); }
         return { exit: r.status, data };
     }
-    return { root, env, call, settings: value => writeFileSync(join(root, 'native-settings.json'), JSON.stringify(value)), nativeCalls: () => existsSync(join(root, 'native-calls.txt')) ? readFileSync(join(root, 'native-calls.txt'), 'utf8').trim().split('\n').length : 0 };
+    return { root, env, driver: fixtureDriver, call, settings: value => writeFileSync(join(root, 'native-settings.json'), JSON.stringify(value)), nativeCalls: () => existsSync(join(root, 'native-calls.txt')) ? readFileSync(join(root, 'native-calls.txt'), 'utf8').trim().split('\n').length : 0 };
+}
+
+for (const fault of ['missing', 'malformed', 'wrong-version', 'nonboolean']) {
+    test(`invalid mutation policy fails closed: ${fault}`, { skip: !linux }, t => {
+        const f = fixture(t);
+        const policy = join(f.root, 'mutation-testing.json');
+        if (fault === 'missing') rmSync(policy);
+        else writeFileSync(policy, fault === 'malformed' ? '{broken'
+            : JSON.stringify({ schemaVersion: fault === 'wrong-version' ? 2 : 1, enabled: fault === 'nonboolean' ? 'false' : true }));
+        const result = f.call(['--full']);
+        assert.equal(result.exit, 2);
+        assert.equal(result.data.code, 'mutation_policy_invalid');
+        assert.equal(f.nativeCalls(), 0);
+        const cli = spawnSync(process.execPath, [join(f.root, 'tools/mutation-policy.mjs')], { cwd: f.root, env: f.env, encoding: 'utf8' });
+        assert.equal(cli.status, 1);
+        assert.notEqual(cli.stderr.trim(), '');
+        assert.equal(f.nativeCalls(), 0);
+    });
 }
 
 test('missing state and invalid seed requests fail before native execution', { skip: !linux }, t => {
@@ -303,7 +323,7 @@ test('full verification without update preserves the seed and reset affects only
 
 test('cancellation retains diagnostics, stops the owned worker and admits no baseline', { skip: !linux }, async t => {
     const f = fixture(t); f.settings({ mode: 'wait' });
-    const child = spawn(process.execPath, [driver, '--full', '--update-baseline'], { cwd: f.root, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [f.driver, '--full', '--update-baseline'], { cwd: f.root, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; child.stdout.on('data', b => output += b);
     t.after(() => { if (child.exitCode === null) child.kill('SIGINT'); });
     const done = new Promise(resolve => child.on('exit', code => resolve(code)));

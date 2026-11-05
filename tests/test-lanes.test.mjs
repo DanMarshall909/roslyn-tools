@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -72,6 +72,11 @@ test('the staged mutation gate intersects its scoped configuration with slow exc
     t.after(() => rmSync(scratch, { recursive: true, force: true }));
     mkdirSync(join(scratch, 'src'));
     mkdirSync(join(scratch, 'bin'));
+    mkdirSync(join(scratch, 'scripts'));
+    for (const script of ['pre-commit-gates.ps1', 'mutation-policy.mjs', 'test-lanes.mjs']) {
+        copyFileSync(join(root, 'scripts', script), join(scratch, 'scripts', script));
+    }
+    writeFileSync(join(scratch, 'mutation-testing.json'), JSON.stringify({ schemaVersion: 1, enabled: true }));
     writeFileSync(join(scratch, 'src/Owner.cs'), 'class Owner;');
     writeFileSync(join(scratch, 'stryker-config.json'), JSON.stringify({
         'stryker-config': { project: 'src/Owner.csproj', mutate: ['**/Owner.cs'],
@@ -86,7 +91,7 @@ fs.copyFileSync(args[args.indexOf('--config-file') + 1], 'captured-config.json')
 `, { mode: 0o755 });
     assert.equal(spawnSync('git', ['init', '-q', '-b', 'main', scratch]).status, 0);
     assert.equal(spawnSync('git', ['add', 'src/Owner.cs'], { cwd: scratch }).status, 0);
-    const result = spawnSync('pwsh', ['-NoProfile', '-File', join(root, 'scripts/pre-commit-gates.ps1')], {
+    const result = spawnSync('pwsh', ['-NoProfile', '-File', join(scratch, 'scripts/pre-commit-gates.ps1')], {
         cwd: scratch, env: { ...process.env, PATH: join(scratch, 'bin') + delimiter + process.env.PATH },
         encoding: 'utf8', timeout: 20_000,
     });

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "mutation": "node scripts/mutation.mjs",
-    "test:mutation-driver": "node --test tests/mutation-driver.test.mjs",
+    "test:mutation-driver": "node --test tests/mutation-driver.test.mjs tests/mutation-disabled.test.mjs",
     "test:lanes": "node --test tests/test-lanes.test.mjs tests/check-local-completion.test.mjs",
     "dev": "astro dev --port 3000",
     "generate:commands": "node scripts/generate-site-command-reference.mjs",
