@@ -1,0 +1,858 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "1.0.0",
+  "description": "Extensible code-smell definitions and the complete catalogue-driven MCP response contract.",
+  "reviewPolicy": {
+    "classifications": {
+      "likely_violation": "The evidence supports concrete design harm under this rule, with no supported exception explaining it.",
+      "uncertain": "Evidence is incomplete, contradictory, or insufficient to distinguish harm from an accepted exception.",
+      "likely_false_positive": "A specific accepted exception explains the candidate and the evidence does not support material harm."
+    },
+    "minimumAutomaticProbability": 0.6,
+    "maximumContradictoryProbability": 0.4,
+    "incompleteEvidenceClassification": "uncertain",
+    "noAcceptedExceptionId": "no_accepted_exception"
+  },
+  "rules": [
+    {
+      "id": "large-class",
+      "name": "Large class",
+      "category": "size",
+      "enabled": true,
+      "severity": "warning",
+      "description": "A large type may combine responsibilities that should change independently.",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "LargeClass",
+        "thresholds": {
+          "maxClassLines": 300
+        }
+      },
+      "review": {
+        "question": "Does this type combine independent responsibilities, rather than merely contain many lines?",
+        "acceptedExceptions": [
+          {
+            "id": "cohesive_type",
+            "description": "Members implement one cohesive domain concept."
+          },
+          {
+            "id": "generated_or_framework_code",
+            "description": "The generated or framework-owned shape is necessary."
+          }
+        ],
+        "evidenceGuidance": [
+          "declarationLineCount",
+          "cohesive member groups",
+          "reasons for change"
+        ]
+      },
+      "remediation": [
+        "Identify groups of members that change for different reasons.",
+        "Extract a cohesive responsibility only when the resulting boundary reduces coupling."
+      ]
+    },
+    {
+      "id": "long-method",
+      "name": "Long method",
+      "category": "size",
+      "enabled": true,
+      "severity": "warning",
+      "description": "A long method may mix distinct operations or abstraction levels.",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "LongMethod",
+        "thresholds": {
+          "maxMethodLines": 40
+        }
+      },
+      "review": {
+        "question": "Does this method combine separable operations in a way that makes changes or reasoning harder?",
+        "acceptedExceptions": [
+          {
+            "id": "cohesive_algorithm",
+            "description": "A single algorithm is clearer when kept together."
+          },
+          {
+            "id": "generated_or_framework_code",
+            "description": "Generated or framework-required code fixes the method shape."
+          }
+        ],
+        "evidenceGuidance": [
+          "declarationLineCount",
+          "control flow",
+          "data dependencies"
+        ]
+      },
+      "remediation": [
+        "Identify a named operation with clear inputs and outputs.",
+        "Extract it while preserving evaluation order, exceptions, and state changes."
+      ]
+    },
+    {
+      "id": "too-many-dependencies",
+      "name": "Too many constructor dependencies",
+      "category": "coupling",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Many constructor parameters may indicate responsibilities that should be separated.",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "TooManyDependencies",
+        "thresholds": {
+          "maxParams": 7
+        }
+      },
+      "review": {
+        "question": "Does the dependency set reveal separate responsibilities rather than a cohesive workflow?",
+        "acceptedExceptions": [
+          {
+            "id": "application_orchestration",
+            "description": "A handler coordinates a cohesive outcome without owning its dependencies policies."
+          },
+          {
+            "id": "composition_root",
+            "description": "The type exists to construct and connect dependencies."
+          }
+        ],
+        "evidenceGuidance": [
+          "constructorParameterCount",
+          "dependency usage by member",
+          "responsibilities"
+        ]
+      },
+      "remediation": [
+        "Group dependencies by the responsibilities that use them.",
+        "Split responsibilities instead of hiding unrelated dependencies in a parameter bag."
+      ]
+    },
+    {
+      "id": "srp",
+      "name": "Single responsibility",
+      "category": "SOLID",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Does this type have independent reasons to change?",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "SRP",
+        "thresholds": {
+          "minMethods": 10,
+          "minDeps": 5
+        }
+      },
+      "review": {
+        "question": "Does this type have independent reasons to change?",
+        "acceptedExceptions": [
+          {
+            "id": "cohesive_workflow",
+            "description": "Several steps implement one cohesive business outcome."
+          },
+          {
+            "id": "application_orchestration",
+            "description": "An application handler coordinates dependencies without owning their policies."
+          },
+          {
+            "id": "boundary_adapter",
+            "description": "An adapter translates one external contract."
+          },
+          {
+            "id": "generated_or_framework_code",
+            "description": "A generator or framework fixes the class shape."
+          }
+        ],
+        "evidenceGuidance": [
+          "publicMethodCount",
+          "dependencyCount",
+          "member responsibilities"
+        ]
+      },
+      "remediation": [
+        "Separate policies that change for independent reasons."
+      ]
+    },
+    {
+      "id": "isp",
+      "name": "Interface segregation",
+      "category": "SOLID",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Are consumers forced to depend on members they do not need?",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "ISP",
+        "thresholds": {
+          "minMembers": 7
+        }
+      },
+      "review": {
+        "question": "Are consumers forced to depend on members they do not need?",
+        "acceptedExceptions": [
+          {
+            "id": "cohesive_protocol",
+            "description": "Members form one protocol used together."
+          },
+          {
+            "id": "framework_contract",
+            "description": "A framework requires this interface shape."
+          },
+          {
+            "id": "marker_or_capability_contract",
+            "description": "The interface models one capability or marker."
+          },
+          {
+            "id": "shared_consumer_usage",
+            "description": "Known consumers use the members cohesively."
+          }
+        ],
+        "evidenceGuidance": [
+          "memberCount",
+          "consumer-to-member usage",
+          "implementation obligations"
+        ]
+      },
+      "remediation": [
+        "Use actual consumer usage to identify smaller role interfaces.",
+        "Keep shared protocol obligations intact."
+      ]
+    },
+    {
+      "id": "dip",
+      "name": "Dependency inversion",
+      "category": "SOLID",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Does a high-level policy directly depend on a substitutable low-level implementation?",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "DIP",
+        "thresholds": {}
+      },
+      "review": {
+        "question": "Does a high-level policy directly depend on a substitutable low-level implementation?",
+        "acceptedExceptions": [
+          {
+            "id": "composition_root",
+            "description": "Construction occurs at the dependency-wiring boundary."
+          },
+          {
+            "id": "immutable_value",
+            "description": "The constructed object is an immutable value, not a service."
+          },
+          {
+            "id": "framework_construction",
+            "description": "A framework requires direct construction."
+          },
+          {
+            "id": "exception_construction",
+            "description": "The constructed exception reports failure and is not a service."
+          }
+        ],
+        "evidenceGuidance": [
+          "concreteType",
+          "construction or injection site",
+          "dependency role"
+        ]
+      },
+      "remediation": [
+        "Introduce a role abstraction where substitution is useful.",
+        "Move concrete construction to the composition boundary."
+      ]
+    },
+    {
+      "id": "ocp",
+      "name": "Open/closed",
+      "category": "SOLID",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Do likely extensions require repeatedly modifying a central concrete-type dispatch?",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "OCP",
+        "thresholds": {
+          "minBranches": 2
+        }
+      },
+      "review": {
+        "question": "Do likely extensions require repeatedly modifying a central concrete-type dispatch?",
+        "acceptedExceptions": [
+          {
+            "id": "closed_set_classification",
+            "description": "The branches cover a deliberately closed stable set."
+          },
+          {
+            "id": "boundary_dispatch",
+            "description": "Branching is confined to an extensibility boundary."
+          },
+          {
+            "id": "serializer_or_protocol_mapping",
+            "description": "Branches map a fixed protocol vocabulary."
+          },
+          {
+            "id": "generated_or_framework_code",
+            "description": "A generator or framework fixes the branch shape."
+          }
+        ],
+        "evidenceGuidance": [
+          "concrete-type branches",
+          "variation point",
+          "expected extension mechanism"
+        ]
+      },
+      "remediation": [
+        "Model the demonstrated variation point through polymorphism or a strategy.",
+        "Retain explicit closed-set dispatch where it expresses the domain."
+      ]
+    },
+    {
+      "id": "lsp",
+      "name": "Liskov substitution",
+      "category": "SOLID",
+      "enabled": true,
+      "severity": "warning",
+      "description": "Does a subtype break behavior that callers can rely on from the base contract?",
+      "detection": {
+        "kind": "roslyn",
+        "selector": "LSP",
+        "thresholds": {}
+      },
+      "review": {
+        "question": "Does a subtype break behavior that callers can rely on from the base contract?",
+        "acceptedExceptions": [
+          {
+            "id": "explicitly_constrained_adapter",
+            "description": "The adapter explicitly enforces a narrower supported capability."
+          },
+          {
+            "id": "platform_guard",
+            "description": "An exception reports an unavailable platform capability."
+          },
+          {
+            "id": "optional_framework_member",
+            "description": "The framework allows this optional member to be unsupported."
+          },
+          {
+            "id": "base_contract_permits_behavior",
+            "description": "The base contract permits the behavior."
+          }
+        ],
+        "evidenceGuidance": [
+          "base or interface contract",
+          "override behavior",
+          "preconditions and exceptions"
+        ]
+      },
+      "remediation": [
+        "Align subtype preconditions, postconditions, and supported operations with the base contract.",
+        "Split unsupported capabilities into explicit contracts where appropriate."
+      ]
+    }
+  ],
+  "responseSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Catalogue-driven code smell review response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schemaVersion",
+      "outcome",
+      "dryRun",
+      "catalogVersion",
+      "catalogHash",
+      "repositoryRevision",
+      "estimatedRequestCount",
+      "rules",
+      "raw",
+      "plan",
+      "findings",
+      "failures",
+      "limitations",
+      "provider",
+      "requestedModel",
+      "questionSetVersion"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "const": "rt.code-smells.v1"
+      },
+      "outcome": {
+        "enum": [
+          "Planned",
+          "Complete",
+          "Partial",
+          "Failed"
+        ]
+      },
+      "dryRun": {
+        "type": "boolean"
+      },
+      "catalogVersion": {
+        "type": "string",
+        "minLength": 1
+      },
+      "catalogHash": {
+        "type": "string",
+        "minLength": 1
+      },
+      "repositoryRevision": {
+        "type": "string",
+        "minLength": 1
+      },
+      "estimatedRequestCount": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "rules": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "The exact effective rule definitions used for this response; validated against the catalogue contract."
+        }
+      },
+      "raw": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidateId",
+            "ruleId",
+            "location",
+            "detail"
+          ],
+          "properties": {
+            "candidateId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ruleId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "location": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "filePath",
+                "symbol",
+                "startLine",
+                "endLine"
+              ],
+              "properties": {
+                "filePath": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "symbol": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "startLine": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "endLine": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              }
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "plan": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidateId",
+            "ruleId",
+            "disposition",
+            "reason",
+            "sourceBytes",
+            "evidenceComplete"
+          ],
+          "properties": {
+            "candidateId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ruleId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "disposition": {
+              "enum": [
+                "eligible",
+                "disabled",
+                "beyond_limit",
+                "incomplete",
+                "unsupported",
+                "skipped",
+                "prefiltered"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sourceBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "evidenceComplete": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidateId",
+            "ruleId",
+            "ruleName",
+            "severity",
+            "location",
+            "classification",
+            "summary",
+            "evidence",
+            "evidenceComplete",
+            "confidence",
+            "probabilities",
+            "acceptedException",
+            "policyReasons",
+            "remediation",
+            "provenance",
+            "providerClassification",
+            "meaningfulDesignProblem",
+            "acceptedExceptionProbability",
+            "providerFalsePositiveReason",
+            "falsePositiveReasonProbabilities",
+            "falsePositiveReasonConfidence",
+            "rawEvidence"
+          ],
+          "properties": {
+            "candidateId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ruleId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ruleName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severity": {
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ]
+            },
+            "location": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "filePath",
+                "symbol",
+                "startLine",
+                "endLine"
+              ],
+              "properties": {
+                "filePath": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "symbol": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "startLine": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "endLine": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              }
+            },
+            "classification": {
+              "enum": [
+                "likely_violation",
+                "uncertain",
+                "likely_false_positive"
+              ]
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "description",
+                  "source"
+                ],
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source": {
+                    "enum": [
+                      "roslyn",
+                      "semantic-review",
+                      "configuration"
+                    ]
+                  }
+                }
+              }
+            },
+            "evidenceComplete": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "probabilities": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "likely_violation",
+                    "uncertain",
+                    "likely_false_positive"
+                  ],
+                  "properties": {
+                    "likely_violation": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "uncertain": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "likely_false_positive": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "acceptedException": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policyReasons": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "remediation": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "requestedModel",
+                "resolvedModel",
+                "requestId",
+                "questionSetVersion",
+                "sourceEvidenceHash"
+              ],
+              "properties": {
+                "provider": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "requestedModel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "resolvedModel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "requestId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "questionSetVersion": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sourceEvidenceHash": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "providerClassification": {
+              "enum": [
+                "likely_violation",
+                "uncertain",
+                "likely_false_positive"
+              ]
+            },
+            "meaningfulDesignProblem": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "acceptedExceptionProbability": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "providerFalsePositiveReason": {
+              "type": "string"
+            },
+            "falsePositiveReasonProbabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "falsePositiveReasonConfidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "rawEvidence": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "failures": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidateId",
+            "ruleId",
+            "kind",
+            "message",
+            "retryable",
+            "statusCode"
+          ],
+          "properties": {
+            "candidateId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ruleId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "statusCode": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "limitations": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "provider": {
+        "type": "string",
+        "minLength": 1
+      },
+      "requestedModel": {
+        "type": "string",
+        "minLength": 1
+      },
+      "questionSetVersion": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

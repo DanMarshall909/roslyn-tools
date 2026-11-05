@@ -6,5 +6,5 @@
   "agentProtocol": "codex",
   "verificationDriver": "scripts/check-local.sh",
   "verificationScope": "solution",
-  "suiteFilter": "(FullyQualifiedName~RoslynTools.Tests.Mutation.StaticDependencyMapping|FullyQualifiedName~RoslynTools.Tests.Infrastructure.WorkspaceCompleteness|FullyQualifiedName~RoslynTools.Tests.Infrastructure.WorkspaceAcquisition)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
+  "suiteFilter": "(FullyQualifiedName~CodeSmells|FullyQualifiedName~SemanticReview|FullyQualifiedName~ListSmells)&(FullyQualifiedName!~RoslynTools.Tests.Cli.SuggestWorkflowSurfaceTests.&FullyQualifiedName!~RoslynTools.Tests.Infrastructure.JournaledApplyAuthorityTests.)"
 }

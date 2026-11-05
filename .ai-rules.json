@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resources": {
     "memory": {
       "reserveMiBPerActiveWorktree": 8192,
@@ -14,6 +14,26 @@
           587.06
         ],
         "notes": "Maximum sampled process-group RSS across two completed native runs with different documented test selections; durations are not repeated observations of one workload. Original receipts/report digests and scope inventories are documented. The first run fails the E2E-exclusion selection gate; the final run satisfies it. The 8 GiB reserve retains headroom; other workloads can differ."
+      }
+    },
+    "disk": {
+      "workloads": {
+        "checks": {
+          "reserveMiB": 8192,
+          "outputGrowthMiB": 4096,
+          "tempGrowthMiB": 2048,
+          "retainedBudgetMiB": 8192,
+          "basis": "estimated",
+          "estimateReason": "Conservative allowance for a cold .NET10 solution restore/build, fast or slow tests, coverage and first dependency-cache growth on the observed shared volume; replace after representative measurement."
+        },
+        "flo-cycle": {
+          "reserveMiB": 8192,
+          "outputGrowthMiB": 8192,
+          "tempGrowthMiB": 4096,
+          "retainedBudgetMiB": 16384,
+          "basis": "estimated",
+          "estimateReason": "Isolated serial Flo worktree, .NET solution build/test/coverage outputs and retained phase evidence; uses the existing pinned runtime and shared package cache. Replace after representative measurement."
+        }
       }
     }
   }
