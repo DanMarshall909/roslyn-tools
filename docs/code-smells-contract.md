@@ -78,8 +78,9 @@ synthetic calibration after ordinary verification. No bulk live evaluation.
 
 Preserve native Flo RED and later phases. Final local Release build, formatting,
 fast/slow gates and independent exact-candidate review precede publication.
-Mutation is a separate final-snapshot post-session gate and must be reported
-honestly if pending. Existing worktrees are parked under the decision in #158.
+Mutation testing is disabled by the subsequent owner instruction and ADR-0109;
+do not queue a post-session run. Existing worktrees are parked under the decision
+in #158.
 
 ## Retained first-cycle evidence and required corrections
 
