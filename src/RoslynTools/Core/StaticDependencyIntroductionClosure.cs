@@ -30,6 +30,25 @@ internal sealed class StaticDependencyIntroductionClosure
 
     internal string FieldName => _request.PreferredFieldName;
 
+    internal static string? SelectedReceiverUnsupportedReason(IInvocationOperation call, SemanticModel model,
+        CancellationToken cancellationToken)
+    {
+        // The rewrite introduces this even when the original static call has no
+        // consumer receiver. Follow operations so implicit query functions count,
+        // while eagerly evaluated query sources remain outside those functions.
+        IOperation body = call;
+        for (var parent = call.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is IAnonymousFunctionOperation or ILocalFunctionOperation)
+                return "The selected replacement would capture the consumer instance in a deferred function; move the selected call outside deferred functions.";
+            body = parent;
+        }
+        if (model.GetEnclosingSymbol(call.Syntax.SpanStart, cancellationToken) is IMethodSymbol method
+            && (method.IsAsync || IsIterator(body, method, model, cancellationToken)))
+            return "The selected replacement would retain the consumer instance in an async or iterator state machine; move the selected call to an ordinary synchronous member.";
+        return null;
+    }
+
     internal async Task<IReadOnlyList<StaticDependencySite>> AnalyzeAsync(
         IReadOnlyList<IParameterSymbol> callers, CancellationToken cancellationToken)
     {

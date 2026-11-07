@@ -76,8 +76,16 @@ owns its versioned mapping, selection and plan records; the shared service
 returns complete document diffs through `PreparedChangeSet` without a writer.
 An unsupported selected site blocks the entire selection. Original authoritative
 acquisition, authored and generated inventories, and candidate compilation are
-separate evidence. The first grammar uses an existing instance field and leaves
-constructor introduction, the UTC preset and host admission to later slices.
+separate evidence. The method grammar can use an existing instance field. A
+separate internal introduction service prepares a new field, one ordinary
+constructor and every explicitly bound synchronous caller in one candidate.
+Original consumer confinement and the receiver usage introduced by replacement
+are separate proof obligations; deferred captures and unsupported state-machine
+execution refuse the whole selection. The bounded introduction currently requires
+one internal sealed, nongeneric, nonpartial class and one unchained constructor.
+Dependency reuse through introduction, partial declarations/chains, explicit
+parameter bindings, the UTC preset and public host admission remain separate
+delivery gates in issue 153.
 See [ADR-0107](adr/0107-semantic-static-dependency-planning.md).
 
 ### CI rule enforcement

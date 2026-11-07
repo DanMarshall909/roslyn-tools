@@ -3,6 +3,11 @@
 Live requirements and workflow status belong to [issue 153](https://github.com/DanMarshall909/roslyn-tools/issues/153).
 This document records design and verification evidence, not a second task list.
 
+Mutation testing is disabled by the repository owner as of 2026-11-07. Historical
+mutation reports and requirements below are retained as dated evidence; they are
+not current execution or completion gates. Ordinary tests, coverage, formatting,
+independent review and publication gates still apply.
+
 ## Design boundary
 
 The first slice is an internal, unwired planner. A versioned mapping identifies
@@ -231,3 +236,40 @@ deliberately unwired pending its reviewed RED cycle; these types do not establis
 constructor, caller or composition support. Its starting-point Release build,
 140 existing semantic/workspace-proof tests and scoped formatting checks pass.
 No public surface or new behavior is claimed by this scaffold.
+
+
+### Bounded constructor safety evidence, 2026-11-07
+
+The internal introduction service now prepares the bounded one-constructor case
+and its complete explicitly parameter-bound synchronous caller closure. It shares
+the original method rewriter and retains original acquisition authority while
+verifying field, constructor, assignment, caller and selected-call bindings.
+[ADR-0107](../../../adr/0107-semantic-static-dependency-planning.md) records the
+supported shape, atomic refusal and original-versus-introduced capture boundaries.
+
+The resumed native correction `20261107042759739-c28a8f42` and subsequent explicit
+and implicit escape cycles remain preserved with their original source and
+records. The final safety run `20261107054801191-0c439389` addresses capture that
+a static-to-instance replacement itself can introduce in a query or state machine.
+Its independently reviewed named RED artifact is
+`C2849B3AEC7115B6D8A25FF479CEFD43F8022B05A3031314A76EFAD8D2628A32`.
+The complete constructor group had five intended refusal failures and 76 passing
+controls before implementation; the earlier analyzer build stop is retained and
+is not counted as behavioral RED evidence. Eager query sources remain supported.
+
+The native checkpoint fingerprint is
+`0424B8C2EAEFC93057C1AEFD8741DBECA138C0EB6BF890AA3DFD423939359B33`.
+GREEN, coverage and refactor verification passed 221 focused cases. Ordinary
+coverage reached all 980 instrumented lines across the static-dependency owner;
+coverage alone does not prove behavioral completeness. The final Release fast
+gate passed 4,523 tests with nine existing skips, including all 308 MCP tests,
+a zero-warning build and formatting verification. Refactoring retained production
+and frozen tests unchanged. The publication candidate adds this documentation
+while preserving every tested C# and configuration input.
+
+This is bounded internal planning evidence, not completion of issue 153. Exact
+reuse through introduction, authored partial declarations and constructor chains,
+explicit parameter/dependency bindings, characterized UTC conversion, shared
+recipe/host planning and final whole-ticket slow verification remain required.
+MCP remains plan-only. Current delivery status and independent completion review
+belong to [issue 153](https://github.com/DanMarshall909/roslyn-tools/issues/153).

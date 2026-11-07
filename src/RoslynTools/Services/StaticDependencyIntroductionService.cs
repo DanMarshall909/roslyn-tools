@@ -87,6 +87,11 @@ internal sealed class StaticDependencyIntroductionService : IRtService
         foreach (var entry in selected)
         {
             var reason = StaticDependencyMappingInventory.UnsupportedReason(entry, allowConstructor: true);
+            if (reason is null)
+            {
+                var model = (await entry.Document.GetSemanticModelAsync(cancellationToken))!;
+                reason = StaticDependencyIntroductionClosure.SelectedReceiverUnsupportedReason(entry.Operation!, model, cancellationToken);
+            }
             if (reason is null && selected.Any(other => other != entry && entry.Document.Id == other.Document.Id
                 && entry.Reference.Span.Contains(other.Reference.Span)))
                 reason = "Nested selected calls require unsupported argument rewriting.";
