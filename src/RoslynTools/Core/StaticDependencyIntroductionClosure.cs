@@ -107,6 +107,17 @@ internal sealed class StaticDependencyIntroductionClosure
                             "Every creation must be an explicitly bound ordinary caller's confined local; escaping, generated, external and unsupported consumers are refused."));
                         continue;
                     }
+                    var callerOperation = model.GetOperation(methodSyntax!, cancellationToken)!;
+                    var isIterator = IsIterator(callerOperation, method, model, cancellationToken);
+                    // Confined source locals can still be retained by compiler-generated
+                    // caller state machines. This slice admits only synchronous callers.
+                    if (method.IsAsync || isIterator)
+                    {
+                        var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
+                        blockers.Add(Block("caller-state-machine:" + document.FilePath + ":" + creation.SpanStart,
+                            "The " + form + " caller state machine can retain the consumer local; construct and use the consumer in an ordinary synchronous caller."));
+                        continue;
+                    }
                     _creations.Add(new Creation(document, explicitCreation, operation, bindings[0], new SyntaxAnnotation()));
                 }
             }
@@ -131,17 +142,23 @@ internal sealed class StaticDependencyIntroductionClosure
 
         // A selected instance may not escape through its own implementation either.
         var typeModel = (await _document.GetSemanticModelAsync(cancellationToken))!;
-        foreach (var deferred in _type.DescendantNodes()
-                     .Where(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
+        // Discover operation roots, including initializers and accessors, then walk
+        // their actual trees: query selectors have no lambda syntax to inventory.
+        var typeOperations = _type.DescendantNodes()
+            .Select(node => typeModel.GetOperation(node, cancellationToken))
+            .Where(operation => operation is { Parent: null }).Distinct()
+            .SelectMany(operation => operation!.DescendantsAndSelf());
+        foreach (var deferred in typeOperations
+                     .Where(operation => operation is IAnonymousFunctionOperation or ILocalFunctionOperation))
         {
-            var operation = typeModel.GetOperation(deferred, cancellationToken)!;
-            var capture = operation.Descendants().OfType<IInstanceReferenceOperation>().FirstOrDefault(IsConsumerInstance);
+            var capture = deferred.Descendants().OfType<IInstanceReferenceOperation>().FirstOrDefault(IsConsumerInstance);
             if (capture is not null)
             {
-                var form = deferred is LocalFunctionStatementSyntax ? "local function" : "lambda";
+                var form = deferred is ILocalFunctionOperation ? "local function"
+                    : deferred.Syntax.AncestorsAndSelf().Any(node => node is QueryExpressionSyntax) ? "query selector" : "lambda";
                 var receiver = capture.IsImplicit ? "Implicit" : "Explicit";
                 var code = capture.IsImplicit ? "implicit-instance-capture:" : "explicit-instance-capture:";
-                blockers.Add(Block(code + deferred.SpanStart,
+                blockers.Add(Block(code + deferred.Syntax.SpanStart,
                     receiver + " instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
             }
         }
@@ -153,10 +170,7 @@ internal sealed class StaticDependencyIntroductionClosure
                 || typeModel.GetOperation(member, cancellationToken) is not { } memberOperation)
                 continue;
             var operations = memberOperation.Descendants().ToArray();
-            var isIterator = operations.Any(operation =>
-                (operation.Kind is OperationKind.YieldReturn or OperationKind.YieldBreak)
-                && SymbolEqualityComparer.Default.Equals(
-                    typeModel.GetEnclosingSymbol(operation.Syntax.SpanStart, cancellationToken), method));
+            var isIterator = IsIterator(memberOperation, method, typeModel, cancellationToken);
             // No suspension/lifetime proof is attempted: any selected-instance access in
             // an async or iterator member is outside this bounded constructor closure.
             // Nested functions' yields do not turn an ordinary member into an iterator.
@@ -195,6 +209,11 @@ internal sealed class StaticDependencyIntroductionClosure
         ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
     } instance && SameSymbol(instance.Type, _preparation.Type);
 
+    private static bool IsIterator(IOperation body, IMethodSymbol method, SemanticModel model,
+        CancellationToken cancellationToken) => body.Descendants().Any(operation =>
+        (operation.Kind is OperationKind.YieldReturn or OperationKind.YieldBreak)
+        && SymbolEqualityComparer.Default.Equals(model.GetEnclosingSymbol(operation.Syntax.SpanStart, cancellationToken), method));
+
     private bool IsConfinedLocal(ObjectCreationExpressionSyntax creation, MethodDeclarationSyntax method,
         SemanticModel model, CancellationToken cancellationToken)
     {
@@ -208,8 +227,7 @@ internal sealed class StaticDependencyIntroductionClosure
         {
             if (!SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier, cancellationToken).Symbol, symbol))
                 continue;
-            if (identifier.Ancestors().Any(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
-                || identifier.Parent is not MemberAccessExpressionSyntax member || member.Expression != identifier
+            if (identifier.Parent is not MemberAccessExpressionSyntax member || member.Expression != identifier
                 || member.Parent is not InvocationExpressionSyntax invocation || invocation.Expression != member
                 || model.GetOperation(invocation, cancellationToken) is not IInvocationOperation call
                 || !SameSymbol(call.TargetMethod.ContainingType, _preparation.Type)
@@ -217,6 +235,13 @@ internal sealed class StaticDependencyIntroductionClosure
                 || call.TargetMethod.ReturnsByRef || call.TargetMethod.ReturnsByRefReadonly
                 || SameSymbol(call.TargetMethod.ReturnType, _preparation.Type))
                 return false;
+            // Compiler-generated query functions can capture this exact bound local
+            // even when no enclosing lambda or local function appears in the syntax.
+            for (IOperation? parent = call.Parent; parent is not null; parent = parent.Parent)
+            {
+                if (parent is IAnonymousFunctionOperation or ILocalFunctionOperation)
+                    return false;
+            }
         }
         return true;
     }

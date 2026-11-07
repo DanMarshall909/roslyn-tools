@@ -110,6 +110,11 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         plan.SourceFingerprint.ShouldBe(request.ExpectedSourceFingerprint);
         plan.MappingFingerprint.ShouldNotBeNullOrWhiteSpace();
         plan.Resolution.ShouldBe(new StaticDependencyIntroductionResolution(false, FieldId, "_reader", "reader"));
+        var resolution = plan.Resolution.ShouldNotBeNull();
+        resolution.ReusedExistingReceiver.ShouldBeFalse();
+        resolution.FieldDocumentationId.ShouldBe(FieldId);
+        resolution.FieldName.ShouldBe("_reader");
+        resolution.ParameterName.ShouldBe("reader");
         plan.Changes.OriginalSolution.ShouldBeSameAs(original);
         plan.Changes.HasChanges.ShouldBeTrue();
         AssertNoFileEffects(plan.Changes);
@@ -331,6 +336,184 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     }
 
     [Fact]
+    public async Task refuses_consumer_retention_in_async_caller()
+    {
+        using var fixture = await CreateAsync(callerForm: "async");
+        var selectedCalls = await AssertCallerRetentionAsync(fixture, isAsync: true);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked,
+            "async caller retention must block dependency introduction");
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "async", "introduction.caller-state-machine:");
+    }
+
+    [Fact]
+    public async Task refuses_consumer_retention_in_iterator_caller()
+    {
+        using var fixture = await CreateAsync(callerForm: "iterator");
+        var selectedCalls = await AssertCallerRetentionAsync(fixture, isAsync: false);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked,
+            "iterator caller retention must block dependency introduction");
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "iterator", "introduction.caller-state-machine:");
+    }
+
+    [Fact]
+    public async Task refuses_compiler_generated_query_selector_capture_in_caller()
+    {
+        using var fixture = await CreateAsync(callerForm: "query");
+        var compilation = await AssertCompilesAsync(fixture.Solution);
+        await AssertCompleteAsync(fixture.Solution);
+        var (consumerRoot, consumerModel) = await InspectAsync(fixture.Solution, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(consumerRoot, consumerModel, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+        selectedCalls.Select(call => consumerModel.GetEnclosingSymbol(call.SpanStart)!.GetDocumentationCommentId())
+            .ShouldBe([OriginalConstructorId, "M:Fixture.Consumer.Read(System.String)"]);
+        var (root, model) = await InspectAsync(fixture.Solution, "Callers.cs");
+        var first = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "First");
+        var caller = model.GetDeclaredSymbol(first).ShouldNotBeNull();
+        caller.MethodKind.ShouldBe(MethodKind.Ordinary);
+        caller.IsAsync.ShouldBeFalse();
+        var binding = fixture.Request.Callers[0];
+        var resolved = DocumentationCommentId.GetSymbolsForDeclarationId(binding.MethodDocumentationId, compilation)
+            .ShouldHaveSingleItem();
+        SymbolEqualityComparer.Default.Equals(resolved, caller).ShouldBeTrue();
+        caller.Parameters[binding.ParameterOrdinal].Type.GetDocumentationCommentId().ShouldBe("T:Fixture.IReader");
+        var body = model.GetOperation(first.Body!).ShouldBeAssignableTo<IBlockOperation>()!;
+        body.Operations.Length.ShouldBe(2);
+        var variable = body.Operations[0].DescendantsAndSelf().OfType<IVariableDeclaratorOperation>().ShouldHaveSingleItem();
+        var creation = variable.Initializer.ShouldNotBeNull().Value.ShouldBeAssignableTo<IObjectCreationOperation>()!;
+        creation.Constructor!.GetDocumentationCommentId().ShouldBe(OriginalConstructorId);
+        creation.Syntax.ToString().ShouldBe("new Consumer(Stamp(code), path: Trace(path))");
+        SymbolEqualityComparer.Default.Equals(variable.Symbol.Type, compilation.GetTypeByMetadataName("Fixture.Consumer"))
+            .ShouldBeTrue();
+        var selector = AssertQuerySelector(model, first);
+        var read = selector.Body.DescendantsAndSelf().OfType<IInvocationOperation>().ShouldHaveSingleItem();
+        read.TargetMethod.GetDocumentationCommentId().ShouldBe("M:Fixture.Consumer.Read(System.String)");
+        var capture = read.Instance.ShouldBeAssignableTo<ILocalReferenceOperation>()!;
+        SymbolEqualityComparer.Default.Equals(capture.Local, variable.Symbol).ShouldBeTrue(
+            "the compiler-generated selector captures the exact constructed consumer local");
+        var query = first.DescendantNodes().OfType<QueryExpressionSyntax>().ShouldHaveSingleItem();
+        query.Parent.ShouldBeAssignableTo<ReturnStatementSyntax>();
+        creation.Syntax.Span.End.ShouldBeLessThan(query.SpanStart);
+        var second = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Second");
+        var originalSecond = SyntaxFactory.ParseCompilationUnit(Callers).DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Second");
+        second.ToFullString().ShouldBe(originalSecond.ToFullString(), "the second synchronous caller must remain unchanged");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked,
+            "compiler-generated caller query capture must block dependency introduction");
+        var diagnostic = "introduction.consumer:" + fixture.PathFor("Callers.cs") + ":" + creation.Syntax.SpanStart;
+        plan.Sites.Count(site => site.Code == diagnostic).ShouldBe(1);
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "caller", diagnostic);
+    }
+
+    [Fact]
+    public async Task refuses_compiler_generated_query_selector_capture()
+    {
+        using var fixture = await CreateAsync(deferredForm: "query", deferredExpression: "_initial");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var selector = AssertQuerySelector(model, escape);
+        var capture = selector.Body.DescendantsAndSelf().OfType<IFieldReferenceOperation>().ShouldHaveSingleItem();
+        capture.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        receiver.IsImplicit.ShouldBeTrue();
+        SymbolEqualityComparer.Default.Equals(receiver.Type,
+            model.Compilation.GetTypeByMetadataName("Fixture.Consumer")).ShouldBeTrue(
+            "the compiler-generated selector captures the selected consumer, not its range variable");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked,
+            "compiler-generated query capture must block dependency introduction");
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "query", "introduction.implicit-instance-capture:");
+    }
+
+    [Fact]
+    public async Task refuses_iterator_property_retention_reached_through_ordinary_wrapper()
+    {
+        using var fixture = await CreateAsync(deferredForm: "iterator property");
+        await AssertCompilesAsync(fixture.Solution);
+        await AssertCompleteAsync(fixture.Solution);
+        var (root, model) = await InspectAsync(fixture.Solution, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(root, model, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+        var property = root.DescendantNodes().OfType<PropertyDeclarationSyntax>().ShouldHaveSingleItem();
+        var getter = property.AccessorList!.Accessors.ShouldHaveSingleItem();
+        var getterSymbol = model.GetDeclaredSymbol(getter).ShouldNotBeNull();
+        getterSymbol.MethodKind.ShouldBe(MethodKind.PropertyGet);
+        var yielded = model.GetOperation(getter).ShouldNotBeNull().DescendantsAndSelf()
+            .OfType<IReturnOperation>().Single(operation => operation.Kind == OperationKind.YieldReturn);
+        var capture = yielded.ReturnedValue.ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        capture.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        SymbolEqualityComparer.Default.Equals(receiver.Type, getterSymbol.ContainingType).ShouldBeTrue();
+        receiver.Type!.GetDocumentationCommentId().ShouldBe(ConsumerId);
+        var wrapper = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "GetEscape");
+        var wrapperSymbol = model.GetDeclaredSymbol(wrapper).ShouldNotBeNull();
+        wrapperSymbol.MethodKind.ShouldBe(MethodKind.Ordinary);
+        wrapperSymbol.IsAsync.ShouldBeFalse();
+        var wrapperOperation = model.GetOperation(wrapper).ShouldNotBeNull();
+        wrapperOperation.DescendantsAndSelf().ShouldNotContain(operation => operation.Kind == OperationKind.YieldReturn);
+        var access = wrapperOperation.DescendantsAndSelf().OfType<IPropertyReferenceOperation>().ShouldHaveSingleItem();
+        SymbolEqualityComparer.Default.Equals(access.Property.GetMethod, getterSymbol).ShouldBeTrue();
+        var (callerRoot, callerModel) = await InspectAsync(fixture.Solution, "Callers.cs");
+        var call = CallsBoundTo(callerRoot, callerModel, "M:Fixture.Consumer.GetEscape(System.String)").ShouldHaveSingleItem();
+        call.Parent.ShouldBeAssignableTo<ReturnStatementSyntax>();
+        var invocation = callerModel.GetOperation(call).ShouldBeAssignableTo<IInvocationOperation>()!;
+        invocation.Instance.ShouldBeAssignableTo<ILocalReferenceOperation>()!.Local.Type
+            .GetDocumentationCommentId().ShouldBe(ConsumerId);
+        callerModel.GetDeclaredSymbol(call.Ancestors().OfType<MethodDeclarationSyntax>().First())
+            .ShouldNotBeNull().IsAsync.ShouldBeFalse();
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        // Existing accessor scanning already refuses this; preserve it as a characterization.
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "iterator", "introduction.state-machine-capture:");
+    }
+
+    [Theory]
+    [InlineData("query")]
+    [InlineData("async")]
+    [InlineData("iterator")]
+    public async Task prepares_deferred_members_without_selected_instance_operations(string form)
+    {
+        using var fixture = await CreateAsync(deferredForm: form, deferredExpression: "string.Empty");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var operation = model.GetOperation(escape).ShouldNotBeNull();
+        operation.DescendantsAndSelf().OfType<IInstanceReferenceOperation>().ShouldNotContain(receiver =>
+            receiver.ReferenceKind == InstanceReferenceKind.ContainingTypeInstance
+            && SymbolEqualityComparer.Default.Equals(receiver.Type, model.Compilation.GetTypeByMetadataName("Fixture.Consumer")));
+        var field = operation.DescendantsAndSelf().OfType<IFieldReferenceOperation>().ShouldHaveSingleItem();
+        field.Field.GetDocumentationCommentId().ShouldBe("F:System.String.Empty");
+        field.Field.IsStatic.ShouldBeTrue();
+        field.Instance.ShouldBeNull();
+        if (form == "query")
+            AssertQuerySelector(model, escape).Body.DescendantsAndSelf().OfType<IInstanceReferenceOperation>().ShouldBeEmpty();
+        else if (form == "async")
+        {
+            model.GetDeclaredSymbol(escape).ShouldNotBeNull().IsAsync.ShouldBeTrue();
+            operation.DescendantsAndSelf().OfType<IAwaitOperation>().ShouldHaveSingleItem();
+        }
+        else
+            operation.DescendantsAndSelf().Count(value => value.Kind == OperationKind.YieldReturn).ShouldBe(1);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        await AssertDeferredPreparedAsync(fixture, plan, selectedCalls);
+    }
+
+    [Fact]
     public async Task prepares_noncapturing_lambda_without_changing_original_acquisition()
     {
         using var fixture = await CreateAsync(deferredForm: "lambda", deferredExpression: "string.Empty");
@@ -345,6 +528,12 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
 
         var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
 
+        await AssertDeferredPreparedAsync(fixture, plan, selectedCalls);
+    }
+
+    private static async Task AssertDeferredPreparedAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        InvocationExpressionSyntax[] selectedCalls)
+    {
         plan.Status.ShouldBe(StaticDependencyPlanStatus.Prepared);
         plan.Changes.OriginalSolution.ShouldBeSameAs(fixture.Solution);
         plan.Changes.HasChanges.ShouldBeTrue();
@@ -478,6 +667,181 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         sourceCalls.ShouldAllBe(site => site.Disposition == StaticDependencySiteDisposition.Skipped);
         plan.Sites.ShouldNotContain(site => site.Id == "unknown-original-site");
         await fixture.AssertUntouchedAsync();
+    }
+
+    [Theory]
+    [InlineData("T:Fixture.IReader")]
+    [InlineData("T:Fixture.Callers")]
+    [InlineData("T:Fixture.Unknown")]
+    public async Task refuses_invalid_consumer_type_before_selecting_source_sites(string typeId)
+    {
+        using var fixture = await CreateAsync();
+        var compilation = await AssertCompilesAsync(fixture.Solution);
+        await AssertCompleteAsync(fixture.Solution);
+        var types = DocumentationCommentId.GetSymbolsForDeclarationId(typeId, compilation).OfType<INamedTypeSymbol>().ToArray();
+        if (typeId == "T:Fixture.Unknown")
+            types.ShouldBeEmpty();
+        else if (typeId == "T:Fixture.IReader")
+            types.ShouldHaveSingleItem().TypeKind.ShouldBe(TypeKind.Interface);
+        else
+            types.ShouldHaveSingleItem().IsStatic.ShouldBeTrue();
+        var request = fixture.Request with { Selection = fixture.Request.Selection with { TypeDocumentationId = typeId } };
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, request);
+
+        AssertBlockedWithoutCandidate(plan, fixture.Solution);
+        AssertSelectionBlocker(plan.Sites, request.Selection, "introduction.type");
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Fact]
+    public async Task refuses_original_acquisition_authority_drift_even_when_replacement_is_complete()
+    {
+        using var fixture = await CreateAsync();
+        var original = fixture.Solution;
+        await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var receipt = fixture.Receipt.ShouldNotBeNull();
+        var acquired = await StaticDependencyPreparation.AcquireAsync(original, fixture.Request.Selection,
+            fixture.Request.ExpectedSourceFingerprint, CancellationToken.None);
+        acquired.Blockers.ShouldBeEmpty();
+        var preparation = acquired.Preparation.ShouldNotBeNull();
+        preparation.Original.ShouldBeSameAs(original);
+        var replacement = new WorkspaceAcquisitionReceipt(original, receipt.Manifest, receipt.Outcomes, receipt.Provenance);
+        replacement.ShouldNotBeSameAs(receipt);
+        replacement.Solution.ShouldBeSameAs(receipt.Solution);
+        replacement.Manifest.ShouldBeSameAs(receipt.Manifest);
+        replacement.Outcomes.ShouldBe(receipt.Outcomes);
+        replacement.Provenance.ShouldBeSameAs(receipt.Provenance);
+        WorkspaceAcquisitionRegistry.Attach(fixture.Workspace, replacement);
+        try
+        {
+            await AssertCompleteAsync(original);
+
+            var blockers = await preparation.VerifyAsync(original, CancellationToken.None);
+
+            AssertSelectionBlocker(blockers, fixture.Request.Selection, "introduction.original-drift");
+            preparation.Original.ShouldBeSameAs(original);
+            preparation.Fingerprint.ShouldBe(fixture.Request.ExpectedSourceFingerprint);
+            // The deliberate receipt replacement is the only input change; verification must leave it intact.
+            await (fixture with { Receipt = replacement }).AssertUntouchedAsync();
+        }
+        finally
+        {
+            WorkspaceAcquisitionRegistry.Attach(fixture.Workspace, receipt);
+        }
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Fact]
+    public async Task refuses_ambiguous_project_path_in_complete_multiple_context_acquisition()
+    {
+        using var fixture = await CreateAsync();
+        using var workspace = CreateWorkspace(fixture.Root, fixture.Sources);
+        var first = workspace.CurrentSolution.Projects.Single();
+        var secondId = ProjectId.CreateNewId();
+        workspace.AddProject(ProjectInfo.Create(secondId, VersionStamp.Create(), "AlternateContext", "AlternateContext",
+            LanguageNames.CSharp, filePath: first.FilePath, compilationOptions: first.CompilationOptions,
+            parseOptions: first.ParseOptions, metadataReferences: first.MetadataReferences));
+        foreach (var (name, source) in fixture.Sources)
+            workspace.AddDocument(DocumentInfo.Create(DocumentId.CreateNewId(secondId), name,
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From(source), VersionStamp.Create())),
+                filePath: fixture.PathFor(name)));
+        var original = workspace.CurrentSolution;
+        var projects = original.Projects.ToArray();
+        projects.Length.ShouldBe(2);
+        projects.Select(project => project.FilePath).Distinct(StringComparer.Ordinal).ShouldHaveSingleItem()
+            .ShouldBe(fixture.Request.Selection.ProjectPath);
+        foreach (var project in projects)
+        {
+            var compilation = (await project.GetCompilationAsync()).ShouldNotBeNull();
+            compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        }
+        var fingerprint = await SolutionRevision.ComputeAsync(original);
+        var receipt = AttachMultipleContextAcquisition(original, fixture.Receipt.ShouldNotBeNull(), fingerprint);
+        receipt.Manifest.Inputs.Where(input => input.Kind == SemanticInputKind.Project).ShouldHaveSingleItem();
+        var contexts = receipt.Manifest.Inputs.Where(input => input.Kind == SemanticInputKind.CompilationContext).ToArray();
+        contexts.Length.ShouldBe(2);
+        contexts.Select(input => input.Context).Distinct(StringComparer.Ordinal).Count().ShouldBe(2);
+        contexts.Select(input => input.Context).Order(StringComparer.Ordinal)
+            .ShouldBe(projects.Select(WorkspaceCompleteness.CompilationContextIdentity).Order(StringComparer.Ordinal));
+        foreach (var context in contexts)
+        {
+            receipt.Manifest.Inputs.Where(input => input.Kind == SemanticInputKind.SourceDocument && input.Context == context.Context)
+                .Select(input => input.Path).Order(StringComparer.Ordinal)
+                .ShouldBe(fixture.Sources.Keys.Select(fixture.PathFor).Order(StringComparer.Ordinal));
+            receipt.Manifest.Inputs.Count(input => input.Kind == SemanticInputKind.MetadataReference && input.Context == context.Context)
+                .ShouldBe(first.MetadataReferences.Count);
+        }
+        var completeness = await WorkspaceCompleteness.AssessSemanticAsync(original, CancellationToken.None);
+        completeness.State.ShouldBe(WorkspaceCompletenessState.Complete, string.Join("; ", completeness.Diagnostics));
+        WorkspaceProofPolicy.Evaluate(completeness).CanUseAbsenceEvidence.ShouldBeTrue();
+        completeness.RequestedProjects.ShouldBe([fixture.Request.Selection.ProjectPath]);
+        var request = fixture.Request with { ExpectedSourceFingerprint = fingerprint };
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        AssertSelectionBlocker(plan.Sites, request.Selection, "introduction.project");
+        workspace.CurrentSolution.ShouldBeSameAs(original);
+        WorkspaceAcquisitionRegistry.Get(workspace).Receipt.ShouldBeSameAs(receipt);
+        (await SolutionRevision.ComputeAsync(original)).ShouldBe(fingerprint);
+        await fixture.AssertUntouchedAsync();
+    }
+
+    private static WorkspaceAcquisitionReceipt AttachMultipleContextAcquisition(Solution solution,
+        WorkspaceAcquisitionReceipt template, string fingerprint)
+    {
+        // Reuse the controlled fixture's inputs, but declare its shared physical project once.
+        // Each Roslyn context gets distinct source/reference declarations, as in the real collector.
+        var inputs = new List<ExpectedSemanticInput>();
+        var outcomes = new List<SemanticInputOutcome>();
+        foreach (var input in template.Manifest.Inputs)
+        {
+            var outcome = template.Outcomes.Single(value => value.InputId == input.Id);
+            if (input.Kind is SemanticInputKind.SourceSnapshot or SemanticInputKind.WorkspaceInputSet)
+            {
+                inputs.Add(input with { Fingerprint = fingerprint });
+                outcomes.Add(outcome with { ObservedFingerprint = fingerprint });
+            }
+            else if (input.ProjectPath is null || input.Kind == SemanticInputKind.Project)
+            {
+                inputs.Add(input);
+                outcomes.Add(outcome);
+            }
+            else
+            {
+                foreach (var project in solution.Projects)
+                {
+                    var id = input.Id + ":" + project.Name;
+                    inputs.Add(input with { Id = id, Context = WorkspaceCompleteness.CompilationContextIdentity(project) });
+                    outcomes.Add(outcome with { InputId = id });
+                }
+            }
+        }
+        var manifest = new SemanticInputManifest(solution.FilePath, inputs, ManifestDiscoveryState.Closed);
+        var provenance = template.Provenance with
+        {
+            SourceFingerprint = fingerprint,
+            Configuration = "Two controlled in-memory contexts sharing one physical project"
+        };
+        var receipt = new WorkspaceAcquisitionReceipt(solution, manifest, outcomes, provenance);
+        WorkspaceAcquisitionRegistry.Attach(solution.Workspace, receipt);
+        return receipt;
+    }
+
+    private static void AssertSelectionBlocker(IReadOnlyList<StaticDependencySite> sites,
+        StaticDependencySelection selection, string code)
+    {
+        var blocker = sites.ShouldHaveSingleItem("selection failure must not invent original selected source sites");
+        blocker.Code.ShouldBe(code);
+        blocker.Disposition.ShouldBe(StaticDependencySiteDisposition.Blocked);
+        blocker.ProjectPath.ShouldBe(selection.ProjectPath);
+        blocker.TypeDocumentationId.ShouldBe(selection.TypeDocumentationId);
+        blocker.Path.ShouldBe(selection.ProjectPath);
+        blocker.SpanStart.ShouldBe(0);
+        blocker.SpanLength.ShouldBe(0);
+        blocker.Message.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Theory]
@@ -704,6 +1068,80 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await fixture.AssertUntouchedAsync();
     }
 
+    private static IAnonymousFunctionOperation AssertQuerySelector(SemanticModel model, MethodDeclarationSyntax escape)
+    {
+        var query = escape.DescendantNodes().OfType<QueryExpressionSyntax>().ShouldHaveSingleItem();
+        query.DescendantNodes().OfType<AnonymousFunctionExpressionSyntax>().ShouldBeEmpty();
+        var translated = model.GetOperation(query).ShouldBeAssignableTo<ITranslatedQueryOperation>()!;
+        var select = translated.Operation.ShouldBeAssignableTo<IInvocationOperation>()!;
+        select.TargetMethod.Name.ShouldBe("Select");
+        select.TargetMethod.ContainingType.ToDisplayString().ShouldBe("System.Linq.Enumerable");
+        var selector = translated.Operation.DescendantsAndSelf().OfType<IAnonymousFunctionOperation>().ShouldHaveSingleItem();
+        selector.IsImplicit.ShouldBeTrue("the selector is compiler-generated rather than an explicit source lambda");
+        selector.Symbol.Parameters.ShouldHaveSingleItem().Type.SpecialType.ShouldBe(SpecialType.System_Int32);
+        return selector;
+    }
+
+    private static async Task<InvocationExpressionSyntax[]> AssertCallerRetentionAsync(Fixture fixture, bool isAsync)
+    {
+        var compilation = await AssertCompilesAsync(fixture.Solution);
+        await AssertCompleteAsync(fixture.Solution);
+        var (consumerRoot, consumerModel) = await InspectAsync(fixture.Solution, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(consumerRoot, consumerModel, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+        selectedCalls.Select(call => consumerModel.GetEnclosingSymbol(call.SpanStart)!.GetDocumentationCommentId())
+            .ShouldBe([OriginalConstructorId, "M:Fixture.Consumer.Read(System.String)"]);
+        var (root, model) = await InspectAsync(fixture.Solution, "Callers.cs");
+        var first = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "First");
+        var caller = model.GetDeclaredSymbol(first).ShouldNotBeNull();
+        caller.IsAsync.ShouldBe(isAsync);
+        caller.MethodKind.ShouldBe(MethodKind.Ordinary);
+        var binding = fixture.Request.Callers[0];
+        var resolved = DocumentationCommentId.GetSymbolsForDeclarationId(binding.MethodDocumentationId, compilation)
+            .ShouldHaveSingleItem();
+        SymbolEqualityComparer.Default.Equals(resolved, caller).ShouldBeTrue();
+        caller.Parameters[binding.ParameterOrdinal].Type.GetDocumentationCommentId().ShouldBe("T:Fixture.IReader");
+        var body = model.GetOperation(first.Body!).ShouldBeAssignableTo<IBlockOperation>()!;
+        body.Operations.Length.ShouldBe(3);
+        var variable = body.Operations[0].DescendantsAndSelf().OfType<IVariableDeclaratorOperation>().ShouldHaveSingleItem();
+        var creation = variable.Initializer.ShouldNotBeNull().Value.ShouldBeAssignableTo<IObjectCreationOperation>()!;
+        creation.Constructor!.GetDocumentationCommentId().ShouldBe(OriginalConstructorId);
+        creation.Syntax.ToString().ShouldBe("new Consumer(Stamp(code), path: Trace(path))");
+        SymbolEqualityComparer.Default.Equals(variable.Symbol.Type, compilation.GetTypeByMetadataName("Fixture.Consumer"))
+            .ShouldBeTrue();
+        IOperation suspension;
+        if (isAsync)
+        {
+            suspension = body.Operations[1].ShouldBeAssignableTo<IExpressionStatementOperation>()!.Operation;
+            suspension.ShouldBeAssignableTo<IAwaitOperation>()!.Operation.ShouldBeAssignableTo<IInvocationOperation>()!
+                .TargetMethod.GetDocumentationCommentId().ShouldBe("M:System.Threading.Tasks.Task.Yield");
+        }
+        else
+        {
+            suspension = body.Operations[1];
+            suspension.Kind.ShouldBe(OperationKind.YieldReturn);
+            suspension.ShouldBeAssignableTo<IReturnOperation>()!.ReturnedValue
+                .ShouldBeAssignableTo<IFieldReferenceOperation>()!.Field.GetDocumentationCommentId().ShouldBe("F:System.String.Empty");
+        }
+        var returned = body.Operations[2].ShouldBeAssignableTo<IReturnOperation>()!;
+        returned.Kind.ShouldBe(isAsync ? OperationKind.Return : OperationKind.YieldReturn);
+        var read = returned.ReturnedValue.ShouldBeAssignableTo<IInvocationOperation>()!;
+        read.TargetMethod.GetDocumentationCommentId().ShouldBe("M:Fixture.Consumer.Read(System.String)");
+        var use = read.Instance.ShouldBeAssignableTo<ILocalReferenceOperation>()!;
+        SymbolEqualityComparer.Default.Equals(use.Local, variable.Symbol).ShouldBeTrue(
+            "the exact constructed local must be retained for the read after suspension");
+        creation.Syntax.Span.End.ShouldBeLessThan(suspension.Syntax.SpanStart);
+        suspension.Syntax.Span.End.ShouldBeLessThan(use.Syntax.SpanStart);
+        var second = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Second");
+        var originalSecond = SyntaxFactory.ParseCompilationUnit(Callers).DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Second");
+        second.ToFullString().ShouldBe(originalSecond.ToFullString(), "the second synchronous caller must remain unchanged");
+        model.GetDeclaredSymbol(second).ShouldNotBeNull().IsAsync.ShouldBeFalse();
+        return selectedCalls;
+    }
+
     private static async Task<(SemanticModel Model, MethodDeclarationSyntax Escape, InvocationExpressionSyntax[] SelectedCalls)>
         AssertDeferredConsumerAsync(Fixture fixture)
     {
@@ -743,11 +1181,12 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     }
 
     private static async Task AssertDeferredRefusalAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
-        InvocationExpressionSyntax[] selectedCalls, string context)
+        InvocationExpressionSyntax[] selectedCalls, string context, string? diagnosticPrefix = null)
     {
         AssertBlockedWithoutCandidate(plan, fixture.Solution);
         plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
             && !string.IsNullOrWhiteSpace(site.Code)
+            && (diagnosticPrefix == null || site.Code.StartsWith(diagnosticPrefix, StringComparison.Ordinal))
             && site.Message.Contains(context, StringComparison.OrdinalIgnoreCase)
             && (site.Message.Contains("instance", StringComparison.OrdinalIgnoreCase)
                 || site.Message.Contains("consumer", StringComparison.OrdinalIgnoreCase))
@@ -776,6 +1215,9 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     private static async Task AssertAtomicSiteDispositionsAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
         InvocationExpressionSyntax[] selectedCalls)
     {
+        plan.Sites.Select(site => site.Id).Distinct(StringComparer.Ordinal).Count().ShouldBe(plan.Sites.Count);
+        plan.Sites.Count(site => site.Path.EndsWith(".cs", StringComparison.Ordinal)).ShouldBe(selectedCalls.Length + 1,
+            "each original selected call and the unselected adapter must have exactly one source site record");
         foreach (var call in selectedCalls)
         {
             var site = plan.Sites.Where(site => site.Path == FindDocument(fixture.Solution, "Consumer.cs").FilePath
@@ -963,6 +1405,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         var references = new[]
         {
             typeof(object).Assembly.Location, typeof(File).Assembly.Location, typeof(Encoding).Assembly.Location,
+            typeof(Enumerable).Assembly.Location,
             Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll")
         }.Distinct(StringComparer.Ordinal).Select(path => MetadataReference.CreateFromFile(path));
         workspace.AddProject(ProjectInfo.Create(projectId, VersionStamp.Create(), ProjectName, ProjectName,
@@ -977,7 +1420,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     }
 
     private static async Task<Fixture> CreateAsync(string? refusal = null, string? deferredForm = null,
-        string? deferredExpression = null)
+        string? deferredExpression = null, string? callerForm = null)
     {
         var sources = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -1042,25 +1485,33 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             {
                 "inherited method group" => "System.Func<object>",
                 "async" => "System.Threading.Tasks.Task<string>",
-                "iterator" => "System.Collections.Generic.IEnumerable<string>",
+                "iterator" or "query" or "iterator property" => "System.Collections.Generic.IEnumerable<string>",
                 _ => "System.Func<string>"
             };
             var escape = deferredForm switch
             {
                 "lambda" => $"internal System.Func<string> Escape(string path) => () => {deferredExpression};",
                 "inherited method group" => "internal System.Func<object> Escape(string path) => MemberwiseClone;",
-                "async" => """
+                "async" => $$"""
                     internal async System.Threading.Tasks.Task<string> Escape(string path)
                     {
                         await System.Threading.Tasks.Task.Yield();
-                        return _initial;
+                        return {{deferredExpression ?? "_initial"}};
                     }
                     """,
-                "iterator" => """
+                "iterator" => $$"""
                     internal System.Collections.Generic.IEnumerable<string> Escape(string path)
                     {
-                        yield return _initial;
+                        yield return {{deferredExpression ?? "_initial"}};
                     }
+                    """,
+                "query" => $"internal System.Collections.Generic.IEnumerable<string> Escape(string path) => from value in new[] {{ 0 }} select {deferredExpression};",
+                "iterator property" => """
+                    internal System.Collections.Generic.IEnumerable<string> Escape
+                    {
+                        get { yield return _initial; }
+                    }
+                    internal System.Collections.Generic.IEnumerable<string> GetEscape(string path) => Escape;
                     """,
                 _ => $$"""
                     internal System.Func<string> Escape(string path)
@@ -1073,9 +1524,28 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             var property = deferredExpression == "Initial" ? "internal string Initial => _initial;\n    " : "";
             sources["Consumer.cs"] = Consumer.Replace("internal string Read(string path)",
                 property + escape + "\n    internal string Read(string path)", StringComparison.Ordinal);
+            if (deferredForm == "query")
+                sources["Consumer.cs"] = "using System.Linq;\n" + sources["Consumer.cs"];
+            var escapeCall = deferredForm == "iterator property" ? "GetEscape" : "Escape";
             sources["Callers.cs"] = Callers.Replace("static string First", "static " + returnType + " First", StringComparison.Ordinal)
                 .Replace("path: Trace(path));\n        return consumer.Read(path);",
-                    "path: Trace(path));\n        return consumer.Escape(path);", StringComparison.Ordinal);
+                    "path: Trace(path));\n        return consumer." + escapeCall + "(path);", StringComparison.Ordinal);
+        }
+        if (callerForm is not null)
+        {
+            var returnType = callerForm == "async"
+                ? "async System.Threading.Tasks.Task<string>" : "System.Collections.Generic.IEnumerable<string>";
+            var suspensionAndRead = callerForm switch
+            {
+                "async" => "await System.Threading.Tasks.Task.Yield();\n        return consumer.Read(path);",
+                "query" => "return from value in new[] { 0 } select consumer.Read(path);",
+                _ => "yield return string.Empty;\n        yield return consumer.Read(path);"
+            };
+            sources["Callers.cs"] = Callers.Replace("static string First", "static " + returnType + " First", StringComparison.Ordinal)
+                .Replace("path: Trace(path));\n        return consumer.Read(path);",
+                    "path: Trace(path));\n        " + suspensionAndRead, StringComparison.Ordinal);
+            if (callerForm == "query")
+                sources["Callers.cs"] = "using System.Linq;\n" + sources["Callers.cs"];
         }
         var root = Path.Combine(Path.GetTempPath(), "rt153-simple-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
