@@ -14,30 +14,47 @@ are MCP errors.
 
 ## Policy
 
+A practical standard policy combines the repository architecture boundary with four
+deterministic maintainability checks:
+
 ```json
 {
   "version": 1,
   "rules": [
     { "id": "architecture", "config": ".rt/architecture.json" },
-    { "id": "maintainability.complexity", "maxCyclomatic": 10 }
+    { "id": "maintainability.complexity", "maxCyclomatic": 10 },
+    { "id": "maintainability.large-type", "maxLines": 300 },
+    { "id": "maintainability.long-method", "maxLines": 40 },
+    { "id": "maintainability.too-many-dependencies", "maxParameters": 7 }
   ]
 }
 ```
 
-Select either family or both. The architecture family uses the existing
-[architecture policy](check-architecture.md), including project, semantic, package,
-framework, SDK and technology restrictions. Architecture baselines label findings
-as existing; they do not make a violation pass.
+Select any non-empty combination of these rules. The architecture family uses the
+existing [architecture policy](check-architecture.md), including project, semantic,
+package, framework, SDK and technology restrictions. Architecture baselines label
+findings as existing; they do not make a violation pass.
 
-Complexity fails when a method's cyclomatic complexity is **greater than** the
-configured maximum. A value equal to the maximum passes. It uses the existing
-method complexity analyzer without top-N truncation; generated code is excluded
-according to that analyzer's existing rules. This first version does not support
-custom scripts, severity overrides, rule plugins or suppressions.
+The maintainability rules fail only when the measured value is **greater than** the
+configured maximum. A value equal to the maximum passes:
+
+| Rule | Setting | Finding |
+|---|---|---|
+| `maintainability.complexity` | `maxCyclomatic` | Method cyclomatic complexity |
+| `maintainability.large-type` | `maxLines` | Class or record source lines |
+| `maintainability.long-method` | `maxLines` | Method source lines |
+| `maintainability.too-many-dependencies` | `maxParameters` | Constructor parameter count |
+
+Complexity uses the existing method complexity analyzer without top-N truncation.
+The other maintainability rules reuse the existing `list-smells` detectors. These are
+screening heuristics rather than proof that a design is wrong; tune the limits for the
+repository and review the reported evidence before refactoring. Classifier-assisted
+semantic smells and solution-wide inferred architecture smells are deliberately not
+part of this deterministic CI policy yet.
 
 Policies require version 1 and at least one rule. Unknown properties, unknown or
-duplicate rule IDs, missing settings and invalid thresholds are errors. CI policy
-and architecture configuration paths must stay inside the solution directory.
+duplicate rule IDs, missing settings, mixed settings and invalid thresholds are errors.
+CI policy and architecture configuration paths must stay inside the solution directory.
 Configuration is data; repository evaluation still requires explicit trust.
 
 ## Results and exit codes
