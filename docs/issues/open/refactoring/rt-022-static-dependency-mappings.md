@@ -273,3 +273,40 @@ explicit parameter/dependency bindings, characterized UTC conversion, shared
 recipe/host planning and final whole-ticket slow verification remain required.
 MCP remains plan-only. Current delivery status and independent completion review
 belong to [issue 153](https://github.com/DanMarshall909/roslyn-tools/issues/153).
+
+
+### Base ownership and finalizer correction, 2026-11-07
+
+Independent Astra completion review rejected candidate `9e48026`: explicit
+`base` receivers have `System.Object` static type and bypassed the receiver
+ownership predicate, and a selected finalizer could invoke the rewritten instance
+method after the declared caller lifetime. That rejected candidate and all earlier
+native source and evidence remain preserved; its fast checkpoint did not establish
+completion.
+
+Serial run `20261107063103451-ff73c044` repairs both findings. The exact reviewed
+RED artifact is
+`61DEA6E482ED741DF48A2F727309733C8F39B12F32553DFA9D17FD459273D094`.
+The constructor group had six intended refusal failures and 82 passing controls.
+Independent semantic witnesses prove base-qualified cloning, method groups,
+deferred lambda and async/iterator retention, and the selected destructor's call
+to the exact rewritten method. The unrelated nested type's base receiver and
+finalizer remain supported without weakening the selected-owner checks.
+
+The complete native fingerprint is
+`578111CCA6A9104275A1E76B95DC9FEAF8AF1673736FEC6CA5E12AFFFA1BB56E`.
+GREEN, ordinary coverage and refactor verification passed all 228 focused cases.
+All 988 instrumented static-dependency owner lines were executed, with no changed
+code gaps; this does not prove complete behavior coverage. The Release fast gate
+passed 4,530 tests with nine existing skips, including 308 MCP tests, a zero-warning
+build and formatting verification. Refactoring preserved the frozen tests and
+production fix. All 1,190 checkpoint input hashes match the retained native source;
+only this appended evidence differs in the publication candidate.
+
+The selected class's own finalizer is deliberately unsupported. Explicit base
+ownership uses containing-instance kind and the enclosing semantic owner, rather
+than receiver static type alone. Path validation establishes unambiguous Roslyn
+document identity, without claiming filesystem inode/symlink uniqueness or durable
+apply. The remaining issue criteria listed above and final whole-ticket slow gate
+are still required. Mutation testing remains disabled. Renewed exact-candidate
+completion review and current publication status belong to issue 153.

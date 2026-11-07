@@ -59,6 +59,8 @@ internal sealed class StaticDependencyIntroductionClosure
             || type.ContainingAssembly.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString()
                 == "System.Runtime.CompilerServices.InternalsVisibleToAttribute"))
             return [Block("type-shape", "Only one internal sealed, nongeneric, top-level class without base types, interfaces or activation attributes is supported.")];
+        if (type.GetMembers().OfType<IMethodSymbol>().Any(method => method.MethodKind == MethodKind.Destructor))
+            return [Block("finalizer", "Select a consumer without a finalizer; runtime finalization cannot be confined to the declared dependency lifetime.")];
         var syntax = await type.DeclaringSyntaxReferences[0].GetSyntaxAsync(cancellationToken);
         if (syntax is not ClassDeclarationSyntax declaration || declaration.ParameterList is not null
             || declaration.BaseList is not null || declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
@@ -170,7 +172,8 @@ internal sealed class StaticDependencyIntroductionClosure
         foreach (var deferred in typeOperations
                      .Where(operation => operation is IAnonymousFunctionOperation or ILocalFunctionOperation))
         {
-            var capture = deferred.Descendants().OfType<IInstanceReferenceOperation>().FirstOrDefault(IsConsumerInstance);
+            var capture = deferred.Descendants().OfType<IInstanceReferenceOperation>()
+                .FirstOrDefault(instance => IsConsumerInstance(instance, typeModel, cancellationToken));
             if (capture is not null)
             {
                 var form = deferred is ILocalFunctionOperation ? "local function"
@@ -193,7 +196,8 @@ internal sealed class StaticDependencyIntroductionClosure
             // No suspension/lifetime proof is attempted: any selected-instance access in
             // an async or iterator member is outside this bounded constructor closure.
             // Nested functions' yields do not turn an ordinary member into an iterator.
-            if ((method.IsAsync || isIterator) && operations.OfType<IInstanceReferenceOperation>().Any(IsConsumerInstance))
+            if ((method.IsAsync || isIterator) && operations.OfType<IInstanceReferenceOperation>()
+                    .Any(instance => IsConsumerInstance(instance, typeModel, cancellationToken)))
             {
                 var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
                 blockers.Add(Block("state-machine-capture:" + member.SpanStart,
@@ -210,23 +214,28 @@ internal sealed class StaticDependencyIntroductionClosure
         {
             var expression = name.Parent is MemberAccessExpressionSyntax member && member.Name == name ? (SyntaxNode)member : name;
             if (typeModel.GetOperation(expression, cancellationToken) is IMethodReferenceOperation method
-                && IsConsumerInstance(method.Instance))
+                && IsConsumerInstance(method.Instance, typeModel, cancellationToken))
                 blockers.Add(Block("method-escape:" + name.SpanStart, "Instance method groups can escape the consumer and are unsupported."));
         }
         foreach (var invocation in _type.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
             if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation call
-                && IsConsumerInstance(call.Instance) && !SameSymbol(call.TargetMethod.ContainingType, type))
+                && IsConsumerInstance(call.Instance, typeModel, cancellationToken) && !SameSymbol(call.TargetMethod.ContainingType, type))
                 blockers.Add(Block("inherited-instance:" + invocation.SpanStart,
                     "Inherited instance calls can expose runtime identity or clone the consumer and are unsupported."));
         }
         return blockers;
     }
 
-    private bool IsConsumerInstance(IOperation? operation) => operation is IInstanceReferenceOperation
-    {
-        ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
-    } instance && SameSymbol(instance.Type, _preparation.Type);
+    private bool IsConsumerInstance(IOperation? operation, SemanticModel model,
+        CancellationToken cancellationToken) => operation is IInstanceReferenceOperation
+        {
+            ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
+        } instance && (SameSymbol(instance.Type, _preparation.Type)
+        // An explicit base receiver has the base type as its static type; the
+        // enclosing semantic owner distinguishes this consumer from nested types.
+        || instance.Syntax is BaseExpressionSyntax
+        && SameSymbol(model.GetEnclosingSymbol(instance.Syntax.SpanStart, cancellationToken)?.ContainingType, _preparation.Type));
 
     private static bool IsIterator(IOperation body, IMethodSymbol method, SemanticModel model,
         CancellationToken cancellationToken) => body.Descendants().Any(operation =>

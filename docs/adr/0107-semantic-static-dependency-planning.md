@@ -53,6 +53,11 @@ a compiling candidate cannot replace or upgrade its acquisition evidence.
 The initial supported closure is one internal sealed, nongeneric, top-level class
 with one authored nonpartial declaration and one ordinary unchained instance
 constructor. It has no custom base type, interfaces or activation attributes.
+The selected class must not declare its own destructor/finalizer: runtime
+finalization cannot be confined to the declared dependency lifetime. Refuse such
+types before constructing a candidate; no general finalizer or runtime lifetime
+proof is attempted. An unrelated nested type's finalizer does not make the
+selected class finalizable.
 Every construction must belong to a known ordinary synchronous caller, receive
 an explicitly selected existing parameter of the exact dependency type, and use
 the consumer as a confined local. Unsupported type uses, generated/shared contexts,
@@ -63,7 +68,12 @@ Introduce a private readonly field, append the constructor parameter and its
 caller arguments, and assign the field before the original constructor body.
 Preserve original argument evaluation order and verify the actual candidate field,
 constructor, assignment and every caller binding. Original consumer escape checks
-also cover implicit functions and state machines. Independently check every
+also cover implicit functions and state machines. Explicit `base` receivers
+belong to the selected consumer when their containing-instance kind and enclosing
+semantic owner identify it, even when their static type is `System.Object`.
+Apply that ownership to inherited calls, method groups, deferred functions and
+state-machine capture guards; unrelated nested types' receivers retain their own
+ownership. Independently check every
 selected replacement: an originally static call must not acquire a consumer
 receiver inside a deferred function or unsupported async/iterator execution.
 Eager initial query sources remain eligible when their generated selectors do not
@@ -75,6 +85,10 @@ symbols, complete document diffs and the actual receiver resolution. Version 1
 `MappingFingerprint` retains its mapping-only meaning; it is not advertised as a
 hash of the full request. Full dependency/binding plan identity belongs to the
 separately versioned explicit-binding extension.
+
+Source and document paths establish exact Roslyn identity and unambiguous paths
+within the acquired solution. They do not prove filesystem inode or symlink
+uniqueness, or expand this no-write preparation contract into durable apply.
 
 ## Consequences
 

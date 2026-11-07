@@ -83,6 +83,16 @@ Original consumer confinement and the receiver usage introduced by replacement
 are separate proof obligations; deferred captures and unsupported state-machine
 execution refuse the whole selection. The bounded introduction currently requires
 one internal sealed, nongeneric, nonpartial class and one unchained constructor.
+It rejects a selected class's own destructor/finalizer before candidate
+construction because runtime finalization cannot be confined to the declared
+dependency lifetime; it makes no general finalizer or runtime lifetime proof.
+Receiver ownership includes explicit `base` access through the containing-instance
+kind and enclosing semantic owner, even with `System.Object` static type. The same
+ownership guard covers inherited calls, method groups, deferred functions and
+state machines. An unrelated nested type's base receiver or finalizer does not
+belong to the selected consumer. Source and document path checks establish exact
+Roslyn identity within the acquired solution, not filesystem inode or symlink
+uniqueness or durable-apply proof.
 Dependency reuse through introduction, partial declarations/chains, explicit
 parameter bindings, the UTC preset and public host admission remain separate
 delivery gates in issue 153.
