@@ -91,20 +91,22 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                         return Failure($"CI checks could not complete for '{project.Name}': {diagnostic?.ToString() ?? "compilation unavailable"}");
                 }
 
+                var configuredRules = policy!.Rules!;
                 var configuredSmells = await AnalyzeConfiguredSmellsAsync(
                     solution,
-                    policy!.Rules!,
+                    configuredRules,
                     cancellationToken);
                 var findings = new List<CiFinding>();
                 var rules = new List<CiRuleResult>();
-                foreach (var rule in policy.Rules!)
+                foreach (var nullableRule in configuredRules)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    var rule = nullableRule!;
+                    var ruleId = rule.Id!;
                     var before = findings.Count;
-                    switch (rule!.Id)
+                    switch (ruleId)
                     {
                         case ArchitectureRuleId:
-                        {
                             var architecture = await ArchitectureCheckService.CheckAsync(
                                 solution,
                                 new ArchitectureCheckRequest(request.Solution, rule.Config!),
@@ -120,9 +122,7 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                             if (architectureError is not null)
                                 return Result<CiCheckResult, RtError>.Err(architectureError);
                             break;
-                        }
                         case ComplexityRuleId:
-                        {
                             var maximum = rule.MaxCyclomatic!.Value;
                             var report = await ComplexityAnalyzer.AnalyzeAsync(
                                 solution,
@@ -130,18 +130,17 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                             findings.AddRange(report.Methods
                                 .Where(method => method.Cyclomatic > maximum)
                                 .Select(method => new CiFinding(
-                                    rule.Id,
+                                    ruleId,
                                     RelativePath(root, method.File),
                                     method.Line,
                                     $"{method.Method}: cyclomatic complexity {method.Cyclomatic} exceeds maximum {maximum}.")));
                             break;
-                        }
                         case LargeTypeRuleId:
                             AddSmellFindings(
                                 findings,
                                 configuredSmells,
                                 "LargeClass",
-                                rule.Id,
+                                ruleId,
                                 root,
                                 rule.MaxLines!.Value);
                             break;
@@ -150,7 +149,7 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                                 findings,
                                 configuredSmells,
                                 "LongMethod",
-                                rule.Id,
+                                ruleId,
                                 root,
                                 rule.MaxLines!.Value);
                             break;
@@ -159,12 +158,12 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                                 findings,
                                 configuredSmells,
                                 "TooManyDependencies",
-                                rule.Id,
+                                ruleId,
                                 root,
                                 rule.MaxParameters!.Value);
                             break;
                     }
-                    rules.Add(new CiRuleResult(rule.Id!, findings.Count - before));
+                    rules.Add(new CiRuleResult(ruleId, findings.Count - before));
                 }
 
                 var ordered = findings.OrderBy(item => item.RuleId, StringComparer.Ordinal)
@@ -256,14 +255,16 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
         if (policy.Rules is not { Length: > 0 })
             return "CI policy must contain at least one rule.";
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var rule in policy.Rules)
+        foreach (var nullableRule in policy.Rules)
         {
-            if (rule?.Id is null || !SupportedRuleIds.Contains(rule.Id, StringComparer.Ordinal))
-                return $"Unknown CI rule '{rule?.Id}'. Supported rules: {string.Join(", ", SupportedRuleIds)}.";
-            if (!seen.Add(rule.Id))
-                return $"Duplicate CI rule '{rule.Id}'.";
+            var ruleId = nullableRule?.Id;
+            if (ruleId is null || !SupportedRuleIds.Contains(ruleId, StringComparer.Ordinal))
+                return $"Unknown CI rule '{ruleId}'. Supported rules: {string.Join(", ", SupportedRuleIds)}.";
+            if (!seen.Add(ruleId))
+                return $"Duplicate CI rule '{ruleId}'.";
 
-            switch (rule.Id)
+            var rule = nullableRule!;
+            switch (ruleId)
             {
                 case ArchitectureRuleId:
                     if (string.IsNullOrWhiteSpace(rule.Config)
@@ -285,7 +286,7 @@ internal sealed class CiCheckOperation(IWorkspaceSessionFactory sessions)
                         || rule.Config is not null
                         || rule.MaxCyclomatic is not null
                         || rule.MaxParameters is not null)
-                        return $"The {rule.Id} rule requires maxLines >= 1 and does not accept other settings.";
+                        return $"The {ruleId} rule requires maxLines >= 1 and does not accept other settings.";
                     break;
                 case TooManyDependenciesRuleId:
                     if (rule.MaxParameters is null or < 1
