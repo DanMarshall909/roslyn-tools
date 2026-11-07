@@ -19,11 +19,33 @@ internal sealed class StaticDependencyIntroductionService : IRtService
         var fingerprint = await SolutionRevision.ComputeAsync(solution, cancellationToken);
         var mappingFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(request.Mapping)));
         var sites = new List<StaticDependencySite>();
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
         var selection = request.Selection;
         void Block(string code, string message) => sites.Add(StaticDependencyPreparation.CreateBlocker(selection, code, message));
-        StaticDependencyIntroductionPlan Empty(StaticDependencyPlanStatus status) => new(
-            "rt.static-dependency.introduction-plan.v1", fingerprint, mappingFingerprint, request, status,
-            OrderSites(sites), [], [], null, new PreparedChangeSet(solution, solution));
+        StaticDependencyIntroductionPlan Empty(StaticDependencyPlanStatus status)
+        {
+            if (status == StaticDependencyPlanStatus.Blocked)
+            {
+                var reasons = string.Join("; ", sites.Where(site => site.Disposition == StaticDependencySiteDisposition.Blocked)
+                    .Select(site => site.Code + ": " + site.Message).Distinct(StringComparer.Ordinal));
+                for (var index = 0; index < sites.Count; index++)
+                {
+                    var site = sites[index];
+                    if (selectedIds.Contains(site.Id) && site.Disposition != StaticDependencySiteDisposition.Blocked)
+                    {
+                        sites[index] = site with
+                        {
+                            Disposition = StaticDependencySiteDisposition.Blocked,
+                            Code = "introduction.atomic-refusal",
+                            Message = "No selected call can be converted because introduction was atomically refused: " + reasons
+                        };
+                    }
+                }
+            }
+            return new StaticDependencyIntroductionPlan(
+                "rt.static-dependency.introduction-plan.v1", fingerprint, mappingFingerprint, request, status,
+                OrderSites(sites), [], [], null, new PreparedChangeSet(solution, solution));
+        }
 
         var (preparation, acquisitionBlockers) = await StaticDependencyPreparation.AcquireAsync(
             solution, selection, request.ExpectedSourceFingerprint, cancellationToken);
@@ -58,7 +80,7 @@ internal sealed class StaticDependencyIntroductionService : IRtService
         var selected = inventory.Where(entry => entry.Document.Project.Id == preparation.Project.Id
             && entry.Site.TypeDocumentationId == selection.TypeDocumentationId
             && (selection.SiteIds is null || selection.SiteIds.Contains(entry.Site.Id, StringComparer.Ordinal))).ToArray();
-        var selectedIds = selected.Select(entry => entry.Site.Id).ToHashSet(StringComparer.Ordinal);
+        selectedIds.UnionWith(selected.Select(entry => entry.Site.Id));
         sites.AddRange(inventory.Select(entry => entry.Site));
         if (selection.SiteIds is not null && selection.SiteIds.Any(id => !selectedIds.Contains(id)))
             Block("sites", "Every selected site must resolve in the acquired original project and type.");

@@ -226,6 +226,133 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await fixture.AssertUntouchedAsync();
     }
 
+    [Fact]
+    public async Task refuses_atomic_selection_on_public_consumer()
+    {
+        using var fixture = await CreateAsync("public-consumer");
+        var original = fixture.Solution;
+        await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var (root, model) = await InspectAsync(original, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(root, model, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, fixture.Request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Theory]
+    [InlineData("lambda", "_initial")]
+    [InlineData("lambda", "Initial")]
+    [InlineData("lambda", "Read(path)")]
+    [InlineData("local function", "_initial")]
+    [InlineData("local function", "Initial")]
+    [InlineData("local function", "Read(path)")]
+    public async Task refuses_implicit_instance_capture_in_deferred_consumer(string form, string expression)
+    {
+        using var fixture = await CreateAsync(deferredForm: form, deferredExpression: expression);
+        var original = fixture.Solution;
+        await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var (root, model) = await InspectAsync(original, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(root, model, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+        selectedCalls.All(call => !call.Ancestors().Any(node =>
+            node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)).ShouldBeTrue(
+            "selected source calls must remain in ordinary constructor and method contexts");
+        var escape = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Escape");
+        SyntaxNode deferredBody = form == "lambda"
+            ? escape.DescendantNodes().OfType<LambdaExpressionSyntax>().ShouldHaveSingleItem().Body
+            : escape.DescendantNodes().OfType<LocalFunctionStatementSyntax>().ShouldHaveSingleItem().ExpressionBody!.Expression;
+        var capture = model.GetOperation(deferredBody).ShouldNotBeNull();
+        var receiver = capture switch
+        {
+            IFieldReferenceOperation field => field.Instance,
+            IPropertyReferenceOperation property => property.Instance,
+            IInvocationOperation call => call.Instance,
+            _ => null
+        };
+        receiver.ShouldBeAssignableTo<IInstanceReferenceOperation>()!.IsImplicit.ShouldBeTrue(
+            "the deferred expression must bind to an implicit instance receiver, not merely contain deferred syntax");
+        var (callerRoot, callerModel) = await InspectAsync(original, "Callers.cs");
+        CallsBoundTo(callerRoot, callerModel, "M:Fixture.Consumer.Escape(System.String)")
+            .ShouldHaveSingleItem().Parent.ShouldBeAssignableTo<ReturnStatementSyntax>();
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, fixture.Request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && !string.IsNullOrWhiteSpace(site.Code)
+            && site.Message.Contains("implicit", StringComparison.OrdinalIgnoreCase)
+            && site.Message.Contains("instance", StringComparison.OrdinalIgnoreCase)
+            && site.Message.Contains("captur", StringComparison.OrdinalIgnoreCase)
+            && site.Message.Contains(form, StringComparison.OrdinalIgnoreCase),
+            "refusal must identify implicit instance capture in the lambda or local function");
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Theory]
+    [InlineData("relative-document-path", "introduction.document")]
+    [InlineData("reflection-activation", "introduction.reflection:")]
+    [InlineData("no-construction-sites", "introduction.callers")]
+    [InlineData("nonlocal-construction", "introduction.consumer:")]
+    [InlineData("explicit-self-escape", "introduction.self-escape:")]
+    [InlineData("instance-method-group", "introduction.method-escape:")]
+    [InlineData("inherited-instance-call", "introduction.inherited-instance:")]
+    [InlineData("nested-selected-calls", "introduction.context")]
+    [InlineData("selected-call-in-lambda", "introduction.context")]
+    [InlineData("nonmatching-target-parameter", null)]
+    public async Task preserves_atomic_refusal_for_unproved_closure_and_binding(string refusal, string? diagnosticPrefix)
+    {
+        using var fixture = await CreateAsync(refusal);
+        var original = fixture.Solution;
+        await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var (root, model) = await InspectAsync(original, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(root, model, SourceId);
+        selectedCalls.Length.ShouldBe(refusal is "nested-selected-calls" or "selected-call-in-lambda" ? 3 : 2);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, fixture.Request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        if (diagnosticPrefix is not null)
+            plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+                && site.Code.StartsWith(diagnosticPrefix, StringComparison.Ordinal));
+        if (refusal == "nonmatching-target-parameter")
+            plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+                && site.Message.Contains("path", StringComparison.Ordinal)
+                && site.Message.Contains("CS1739", StringComparison.Ordinal),
+                "a named argument that cannot bind must be reported after candidate verification");
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Fact]
+    public async Task refuses_unknown_site_selection_without_inventing_selected_calls()
+    {
+        using var fixture = await CreateAsync();
+        var request = fixture.Request with
+        {
+            Selection = fixture.Request.Selection with { SiteIds = ["unknown-original-site"] }
+        };
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, request);
+
+        AssertBlockedWithoutCandidate(plan, fixture.Solution);
+        plan.Sites.ShouldContain(site => site.Code == "introduction.sites"
+            && site.Disposition == StaticDependencySiteDisposition.Blocked);
+        var sourceCalls = plan.Sites.Where(site => site.Path.EndsWith(".cs", StringComparison.Ordinal)).ToArray();
+        sourceCalls.Length.ShouldBe(3);
+        sourceCalls.ShouldAllBe(site => site.Disposition == StaticDependencySiteDisposition.Skipped);
+        plan.Sites.ShouldNotContain(site => site.Id == "unknown-original-site");
+        await fixture.AssertUntouchedAsync();
+    }
+
     [Theory]
     [InlineData("missing-caller-binding")]
     [InlineData("multiple-constructors")]
@@ -450,6 +577,44 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await fixture.AssertUntouchedAsync();
     }
 
+    private static void AssertBlockedWithoutCandidate(StaticDependencyIntroductionPlan plan, Solution original)
+    {
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked);
+        plan.Documents.ShouldBeEmpty();
+        plan.Closure.ShouldBeEmpty();
+        plan.Resolution.ShouldBeNull();
+        plan.Changes.HasChanges.ShouldBeFalse();
+        plan.Changes.AffectedPaths.ShouldBeEmpty();
+        plan.Changes.OriginalSolution.ShouldBeSameAs(original);
+        plan.Changes.ChangedSolution.ShouldBeSameAs(original);
+        AssertNoFileEffects(plan.Changes);
+        plan.Sites.ShouldNotContain(site => site.Disposition == StaticDependencySiteDisposition.ConvertedInCandidate);
+    }
+
+    private static async Task AssertAtomicSiteDispositionsAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        InvocationExpressionSyntax[] selectedCalls)
+    {
+        foreach (var call in selectedCalls)
+        {
+            var site = plan.Sites.Where(site => site.Path == FindDocument(fixture.Solution, "Consumer.cs").FilePath
+                && site.SpanStart == call.SpanStart && site.SpanLength == call.Span.Length).ShouldHaveSingleItem();
+            site.Disposition.ShouldBe(StaticDependencySiteDisposition.Blocked,
+                "atomic refusal must block every selected source call");
+            site.ProjectPath.ShouldBe(fixture.Request.Selection.ProjectPath);
+            site.TypeDocumentationId.ShouldBe(ConsumerId);
+            site.Code.ShouldNotBeNullOrWhiteSpace();
+            site.Code.ShouldNotBe("selection.outside");
+            site.Message.ShouldNotBeNullOrWhiteSpace();
+        }
+        var (adapterRoot, adapterModel) = await InspectAsync(fixture.Solution, "Contracts.cs");
+        var adapterCall = CallsBoundTo(adapterRoot, adapterModel, SourceId).ShouldHaveSingleItem();
+        var adapterSite = plan.Sites.Where(site => site.Path == fixture.PathFor("Contracts.cs")
+            && site.SpanStart == adapterCall.SpanStart && site.SpanLength == adapterCall.Span.Length).ShouldHaveSingleItem();
+        adapterSite.TypeDocumentationId.ShouldBe("T:Fixture.BclReader");
+        adapterSite.Disposition.ShouldBe(StaticDependencySiteDisposition.Skipped,
+            "the unselected adapter call must retain its unselected disposition");
+    }
+
     private static async Task AssertDocumentChangesAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
         string expectedConsumer, string expectedCallers)
     {
@@ -629,7 +794,8 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         return workspace;
     }
 
-    private static async Task<Fixture> CreateAsync(string? refusal = null)
+    private static async Task<Fixture> CreateAsync(string? refusal = null, string? deferredForm = null,
+        string? deferredExpression = null)
     {
         var sources = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -662,6 +828,50 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             sources["Callers.cs"] = Callers.Replace("new Consumer(Stamp(code), path: Trace(path))", "new Consumer()", StringComparison.Ordinal)
                 .Replace("new Consumer(path: Trace(path), code: Stamp(2))", "new Consumer()", StringComparison.Ordinal);
         }
+        if (refusal == "reflection-activation")
+            sources["Callers.cs"] = Callers.Replace("private static int _order;",
+                "private static int _order;\n    private static object Activate(System.Type type) => System.Activator.CreateInstance(type);", StringComparison.Ordinal);
+        if (refusal == "no-construction-sites")
+            sources["Callers.cs"] = "namespace Fixture;";
+        if (refusal == "nonlocal-construction")
+            sources["Callers.cs"] = Callers.Replace("static string First", "static object First", StringComparison.Ordinal)
+                .Replace("var consumer = new Consumer(Stamp(code), path: Trace(path));\n        return consumer.Read(path);",
+                    "return new Consumer(Stamp(code), path: Trace(path));", StringComparison.Ordinal);
+        var escapeMember = refusal switch
+        {
+            "explicit-self-escape" => "internal object Escape() => this;",
+            "instance-method-group" => "internal System.Func<string, string> Escape() => Read;",
+            "inherited-instance-call" => "internal object Clone() => MemberwiseClone();",
+            "selected-call-in-lambda" => "internal System.Func<string> Deferred(string path) => () => System.IO.File.ReadAllText(path);",
+            _ => null
+        };
+        if (escapeMember is not null)
+            sources["Consumer.cs"] = Consumer.Replace("internal string Read(string path)",
+                escapeMember + "\n    internal string Read(string path)", StringComparison.Ordinal);
+        if (refusal == "nested-selected-calls")
+            sources["Consumer.cs"] = Consumer.Replace("File.ReadAllText(path: path + \"-body\")",
+                "File.ReadAllText(path: File.ReadAllText(path))", StringComparison.Ordinal);
+        if (refusal == "nonmatching-target-parameter")
+            sources["Contracts.cs"] = Contracts.Replace("string ReadAllText(string path);",
+                "string ReadAllText(string fileName);", StringComparison.Ordinal);
+        if (deferredForm is not null)
+        {
+            var escape = deferredForm == "lambda"
+                ? $"internal System.Func<string> Escape(string path) => () => {deferredExpression};"
+                : $$"""
+                    internal System.Func<string> Escape(string path)
+                    {
+                        string Later() => {{deferredExpression}};
+                        return Later;
+                    }
+                    """;
+            var property = deferredExpression == "Initial" ? "internal string Initial => _initial;\n    " : "";
+            sources["Consumer.cs"] = Consumer.Replace("internal string Read(string path)",
+                property + escape + "\n    internal string Read(string path)", StringComparison.Ordinal);
+            sources["Callers.cs"] = Callers.Replace("static string First", "static System.Func<string> First", StringComparison.Ordinal)
+                .Replace("path: Trace(path));\n        return consumer.Read(path);",
+                    "path: Trace(path));\n        return consumer.Escape(path);", StringComparison.Ordinal);
+        }
         var root = Path.Combine(Path.GetTempPath(), "rt153-simple-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         foreach (var (name, source) in sources)
@@ -669,6 +879,12 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await File.WriteAllTextAsync(Path.Combine(root, "Fixture.csproj"), "<Project />");
         var workspace = CreateWorkspace(root, sources);
         var solution = workspace.CurrentSolution;
+        if (refusal == "relative-document-path")
+        {
+            solution = solution.WithDocumentFilePath(FindDocument(solution, "Consumer.cs").Id, "Consumer.cs");
+            workspace.TryApplyChanges(solution).ShouldBeTrue();
+            solution = workspace.CurrentSolution;
+        }
         if (refusal == "non-source-inputs")
         {
             solution = solution.AddAdditionalDocument(DocumentId.CreateNewId(solution.ProjectIds.Single()),
@@ -700,11 +916,11 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
                 "BclReader retains no resources and returns the BCL result directly.",
                 ["Controlled BclReader source forwards path directly; lifetime/non-null are caller declarations."]));
         var projectPath = solution.Projects.Single().FilePath!;
-        var callers = new[]
-        {
+        StaticDependencyCallerParameter[] callers = refusal == "no-construction-sites" ? [] :
+        [
             new StaticDependencyCallerParameter(projectPath, "M:Fixture.Callers.First(System.Int32,Fixture.IReader,System.String)", 1),
             new StaticDependencyCallerParameter(projectPath, "M:Fixture.Callers.Second(Fixture.IReader,System.String)", 0)
-        };
+        ];
         foreach (var caller in callers)
         {
             var method = DocumentationCommentId.GetSymbolsForDeclarationId(caller.MethodDocumentationId, compilation)

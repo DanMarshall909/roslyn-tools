@@ -52,8 +52,7 @@ internal sealed class StaticDependencyIntroductionClosure
             || type.StaticConstructors.Length != 0)
             return [Block("constructors", "Exactly one explicitly declared instance constructor is supported.")];
         _constructorSymbol = type.InstanceConstructors[0];
-        if (_constructorSymbol.DeclaringSyntaxReferences.Length != 1)
-            return [Block("constructor-declaration", "The constructor must have exactly one source declaration.")];
+        // Complete acquisition and the nonpartial source-class guards ensure one ordinary source constructor declaration.
         var constructorSyntax = await _constructorSymbol.DeclaringSyntaxReferences[0].GetSyntaxAsync(cancellationToken);
         if (constructorSyntax is not ConstructorDeclarationSyntax { Body: not null, Initializer: null } constructor
             || _constructorSymbol.IsVararg || _constructorSymbol.GetAttributes().Length != 0
@@ -132,6 +131,18 @@ internal sealed class StaticDependencyIntroductionClosure
 
         // A selected instance may not escape through its own implementation either.
         var typeModel = (await _document.GetSemanticModelAsync(cancellationToken))!;
+        foreach (var deferred in _type.DescendantNodes()
+                     .Where(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
+        {
+            var operation = typeModel.GetOperation(deferred, cancellationToken)!;
+            if (operation.Descendants().OfType<IInstanceReferenceOperation>().Any(instance => instance.IsImplicit
+                && instance.ReferenceKind == InstanceReferenceKind.ContainingTypeInstance && SameSymbol(instance.Type, type)))
+            {
+                var form = deferred is LocalFunctionStatementSyntax ? "local function" : "lambda";
+                blockers.Add(Block("implicit-instance-capture:" + deferred.SpanStart,
+                    "Implicit instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
+            }
+        }
         foreach (var self in _type.DescendantNodes().OfType<ThisExpressionSyntax>())
         {
             if (self.Parent is not MemberAccessExpressionSyntax member || member.Expression != self
