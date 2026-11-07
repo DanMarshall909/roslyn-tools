@@ -6,6 +6,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $SelfTest) {
+    $mutationEnabled = & node "$PSScriptRoot/mutation-policy.mjs"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($mutationEnabled -eq "false") {
+        [Console]::Error.WriteLine("mutation-gate: mutation testing is disabled; skipping.")
+        exit 0
+    }
+}
+
 function Convert-GlobToRegex([string]$glob) {
     $normalized = $glob.Replace("\", "/")
 

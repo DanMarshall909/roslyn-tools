@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { isSlowTest, testFilter } from './test-lanes.mjs';
+import { mutationEnabled } from './mutation-policy.mjs';
 
 const hash = x => createHash('sha256').update(x).digest('hex');
 const stable = value => JSON.stringify(value, (_, x) => x && !Array.isArray(x) && typeof x === 'object' ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
@@ -252,6 +253,7 @@ async function full(c, o) {
 try {
     if (process.argv.includes('--help')) process.stdout.write('node scripts/mutation.mjs [--config stryker-config.json] [--concurrency N]\n  default: exact verified-state reuse; no implicit full run\n  --full: native whole-config verification, without updating state\n  --full --update-baseline: verify and atomically seed durable state\n  --show-baseline: inspect compatibility\n  --reset-baseline: remove only this checkout/branch/target state\nFull execution and owned-process cancellation are currently verified on Linux.\n');
     else {
+        if (!mutationEnabled()) fail('mutation_disabled', 'Mutation testing is disabled by repository policy. No native process was started.');
         const o = options(), c = context(o);
         if (o.full) await full(c, o);
         else if (o['reset-baseline']) { fs.rmSync(c.cache, { force: true }); emit({ status: 'reset', baseline: c.cache }); }
