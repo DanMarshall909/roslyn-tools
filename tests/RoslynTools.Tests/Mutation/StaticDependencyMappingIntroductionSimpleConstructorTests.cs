@@ -244,6 +244,133 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await fixture.AssertUntouchedAsync();
     }
 
+    [Fact]
+    public async Task refuses_explicit_field_capture_in_deferred_consumer()
+    {
+        using var fixture = await CreateAsync(deferredForm: "lambda", deferredExpression: "this._initial");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var lambda = escape.DescendantNodes().OfType<LambdaExpressionSyntax>().ShouldHaveSingleItem();
+        var capture = model.GetOperation(lambda.Body).ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        capture.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        receiver.Type!.GetDocumentationCommentId().ShouldBe(ConsumerId);
+        receiver.IsImplicit.ShouldBeFalse("the lambda must capture the selected consumer through an explicit field receiver");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked,
+            "explicit field capture must block dependency introduction");
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "lambda");
+    }
+
+    [Fact]
+    public async Task refuses_inherited_method_group_capture_in_consumer()
+    {
+        using var fixture = await CreateAsync(deferredForm: "inherited method group");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var operation = model.GetOperation(escape).ShouldNotBeNull();
+        var creation = operation.DescendantsAndSelf().OfType<IDelegateCreationOperation>().ShouldHaveSingleItem();
+        var capture = creation.Target.ShouldBeAssignableTo<IMethodReferenceOperation>()!;
+        capture.Method.GetDocumentationCommentId().ShouldBe("M:System.Object.MemberwiseClone");
+        capture.Method.IsStatic.ShouldBeFalse();
+        capture.Method.ContainingType.SpecialType.ShouldBe(SpecialType.System_Object);
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        receiver.Type!.GetDocumentationCommentId().ShouldBe(ConsumerId,
+            "an inherited method group must retain the selected consumer, not a separate object receiver");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "method group");
+    }
+
+    [Fact]
+    public async Task refuses_async_state_machine_retaining_consumer_state()
+    {
+        using var fixture = await CreateAsync(deferredForm: "async");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        model.GetDeclaredSymbol(escape).ShouldNotBeNull().IsAsync.ShouldBeTrue();
+        var body = model.GetOperation(escape.Body!).ShouldBeAssignableTo<IBlockOperation>()!;
+        body.Operations.Length.ShouldBe(2);
+        var suspension = body.Operations[0].ShouldBeAssignableTo<IExpressionStatementOperation>()!.Operation
+            .ShouldBeAssignableTo<IAwaitOperation>()!;
+        suspension.Operation.ShouldBeAssignableTo<IInvocationOperation>()!.TargetMethod
+            .GetDocumentationCommentId().ShouldBe("M:System.Threading.Tasks.Task.Yield");
+        var capture = body.Operations[1].ShouldBeAssignableTo<IReturnOperation>()!.ReturnedValue
+            .ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        capture.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        receiver.Type!.GetDocumentationCommentId().ShouldBe(ConsumerId,
+            "the async method reads the selected consumer's state after its await");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "async");
+    }
+
+    [Fact]
+    public async Task refuses_iterator_state_machine_retaining_consumer_state()
+    {
+        using var fixture = await CreateAsync(deferredForm: "iterator");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var body = model.GetOperation(escape.Body!).ShouldBeAssignableTo<IBlockOperation>()!;
+        var yielded = body.Operations.ShouldHaveSingleItem().ShouldBeAssignableTo<IReturnOperation>()!;
+        yielded.Kind.ShouldBe(OperationKind.YieldReturn);
+        var capture = yielded.ReturnedValue.ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        capture.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+        var receiver = capture.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+        receiver.ReferenceKind.ShouldBe(InstanceReferenceKind.ContainingTypeInstance);
+        receiver.Type!.GetDocumentationCommentId().ShouldBe(ConsumerId,
+            "the iterator must retain the selected consumer to evaluate its yielded field value");
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        await AssertDeferredRefusalAsync(fixture, plan, selectedCalls, "iterator");
+    }
+
+    [Fact]
+    public async Task prepares_noncapturing_lambda_without_changing_original_acquisition()
+    {
+        using var fixture = await CreateAsync(deferredForm: "lambda", deferredExpression: "string.Empty");
+        var (model, escape, selectedCalls) = await AssertDeferredConsumerAsync(fixture);
+        var lambda = escape.DescendantNodes().OfType<LambdaExpressionSyntax>().ShouldHaveSingleItem();
+        var operation = model.GetOperation(lambda).ShouldBeAssignableTo<IAnonymousFunctionOperation>()!;
+        operation.DescendantsAndSelf().OfType<IInstanceReferenceOperation>().ShouldBeEmpty();
+        var field = model.GetOperation(lambda.Body).ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        field.Field.GetDocumentationCommentId().ShouldBe("F:System.String.Empty");
+        field.Field.IsStatic.ShouldBeTrue();
+        field.Instance.ShouldBeNull();
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(fixture.Solution, fixture.Request);
+
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Prepared);
+        plan.Changes.OriginalSolution.ShouldBeSameAs(fixture.Solution);
+        plan.Changes.HasChanges.ShouldBeTrue();
+        AssertNoFileEffects(plan.Changes);
+        plan.Sites.Count.ShouldBe(3);
+        plan.Sites.Select(site => site.Id).Distinct(StringComparer.Ordinal).Count().ShouldBe(3);
+        plan.Sites.ShouldNotContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked);
+        var converted = plan.Sites.Where(site => site.Disposition == StaticDependencySiteDisposition.ConvertedInCandidate).ToArray();
+        converted.Length.ShouldBe(2);
+        converted.ShouldAllBe(site => site.ProjectPath == fixture.Request.Selection.ProjectPath
+            && site.TypeDocumentationId == ConsumerId);
+        converted.Select(site => (site.Path, site.SpanStart, site.SpanLength)).OrderBy(site => site.SpanStart)
+            .ShouldBe(selectedCalls.Select(call => (fixture.PathFor("Consumer.cs"), call.SpanStart, call.Span.Length)));
+        var (adapterRoot, adapterModel) = await InspectAsync(fixture.Solution, "Contracts.cs");
+        var adapterCall = CallsBoundTo(adapterRoot, adapterModel, SourceId).ShouldHaveSingleItem();
+        var skipped = plan.Sites.Where(site => site.Disposition == StaticDependencySiteDisposition.Skipped).ShouldHaveSingleItem();
+        skipped.TypeDocumentationId.ShouldBe("T:Fixture.BclReader");
+        (skipped.Path, skipped.SpanStart, skipped.SpanLength)
+            .ShouldBe((fixture.PathFor("Contracts.cs"), adapterCall.SpanStart, adapterCall.Span.Length));
+        var candidate = plan.Changes.ChangedSolution.ShouldNotBeNull();
+        var compilation = await AssertCompilesAsync(candidate);
+        await AssertCallerBindingsAsync(fixture.Solution, candidate, fixture.Request);
+        await AssertClosureAsync(fixture, plan, selectedCalls, compilation);
+        await fixture.AssertUntouchedAsync();
+    }
+
     [Theory]
     [InlineData("lambda", "_initial")]
     [InlineData("lambda", "Initial")]
@@ -577,6 +704,61 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await fixture.AssertUntouchedAsync();
     }
 
+    private static async Task<(SemanticModel Model, MethodDeclarationSyntax Escape, InvocationExpressionSyntax[] SelectedCalls)>
+        AssertDeferredConsumerAsync(Fixture fixture)
+    {
+        await AssertCompilesAsync(fixture.Solution);
+        await AssertCompleteAsync(fixture.Solution);
+        var (root, model) = await InspectAsync(fixture.Solution, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(root, model, SourceId);
+        selectedCalls.Length.ShouldBe(2);
+        selectedCalls.All(call => !call.Ancestors().Any(node =>
+            node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)).ShouldBeTrue(
+            "selected source calls must remain in ordinary constructor and method contexts");
+        selectedCalls.Select(call => model.GetEnclosingSymbol(call.SpanStart)!.GetDocumentationCommentId())
+            .ShouldBe([OriginalConstructorId, "M:Fixture.Consumer.Read(System.String)"]);
+        var escape = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Escape");
+        var (callerRoot, callerModel) = await InspectAsync(fixture.Solution, "Callers.cs");
+        var returnedEscape = CallsBoundTo(callerRoot, callerModel, "M:Fixture.Consumer.Escape(System.String)")
+            .ShouldHaveSingleItem();
+        returnedEscape.Parent.ShouldBeAssignableTo<ReturnStatementSyntax>();
+        var caller = callerModel.GetDeclaredSymbol(returnedEscape.Ancestors().OfType<MethodDeclarationSyntax>().First())
+            .ShouldNotBeNull();
+        caller.Name.ShouldBe("First");
+        var invocation = callerModel.GetOperation(returnedEscape).ShouldBeAssignableTo<IInvocationOperation>()!;
+        SymbolEqualityComparer.Default.Equals(caller.ReturnType, invocation.TargetMethod.ReturnType).ShouldBeTrue(
+            "the caller must return the exact deferred result type without an adapter or conversion");
+        var ordinaryRead = CallsBoundTo(callerRoot, callerModel, "M:Fixture.Consumer.Read(System.String)")
+            .ShouldHaveSingleItem();
+        ordinaryRead.Parent.ShouldBeAssignableTo<ReturnStatementSyntax>();
+        callerModel.GetDeclaredSymbol(ordinaryRead.Ancestors().OfType<MethodDeclarationSyntax>().First())
+            .ShouldNotBeNull().Name.ShouldBe("Second");
+        var creations = callerRoot.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().ToArray();
+        creations.Length.ShouldBe(2);
+        foreach (var creation in creations)
+            callerModel.GetOperation(creation).ShouldBeAssignableTo<IObjectCreationOperation>()!.Constructor!
+                .GetDocumentationCommentId().ShouldBe(OriginalConstructorId);
+        return (model, escape, selectedCalls);
+    }
+
+    private static async Task AssertDeferredRefusalAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        InvocationExpressionSyntax[] selectedCalls, string context)
+    {
+        AssertBlockedWithoutCandidate(plan, fixture.Solution);
+        plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && !string.IsNullOrWhiteSpace(site.Code)
+            && site.Message.Contains(context, StringComparison.OrdinalIgnoreCase)
+            && (site.Message.Contains("instance", StringComparison.OrdinalIgnoreCase)
+                || site.Message.Contains("consumer", StringComparison.OrdinalIgnoreCase))
+            && (site.Message.Contains("captur", StringComparison.OrdinalIgnoreCase)
+                || site.Message.Contains("escap", StringComparison.OrdinalIgnoreCase)
+                || site.Message.Contains("retain", StringComparison.OrdinalIgnoreCase)),
+            "refusal must identify how the " + context + " can retain the selected consumer instance");
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        await fixture.AssertUntouchedAsync();
+    }
+
     private static void AssertBlockedWithoutCandidate(StaticDependencyIntroductionPlan plan, Solution original)
     {
         plan.Status.ShouldBe(StaticDependencyPlanStatus.Blocked);
@@ -856,19 +1038,42 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
                 "string ReadAllText(string fileName);", StringComparison.Ordinal);
         if (deferredForm is not null)
         {
-            var escape = deferredForm == "lambda"
-                ? $"internal System.Func<string> Escape(string path) => () => {deferredExpression};"
-                : $$"""
+            var returnType = deferredForm switch
+            {
+                "inherited method group" => "System.Func<object>",
+                "async" => "System.Threading.Tasks.Task<string>",
+                "iterator" => "System.Collections.Generic.IEnumerable<string>",
+                _ => "System.Func<string>"
+            };
+            var escape = deferredForm switch
+            {
+                "lambda" => $"internal System.Func<string> Escape(string path) => () => {deferredExpression};",
+                "inherited method group" => "internal System.Func<object> Escape(string path) => MemberwiseClone;",
+                "async" => """
+                    internal async System.Threading.Tasks.Task<string> Escape(string path)
+                    {
+                        await System.Threading.Tasks.Task.Yield();
+                        return _initial;
+                    }
+                    """,
+                "iterator" => """
+                    internal System.Collections.Generic.IEnumerable<string> Escape(string path)
+                    {
+                        yield return _initial;
+                    }
+                    """,
+                _ => $$"""
                     internal System.Func<string> Escape(string path)
                     {
                         string Later() => {{deferredExpression}};
                         return Later;
                     }
-                    """;
+                    """
+            };
             var property = deferredExpression == "Initial" ? "internal string Initial => _initial;\n    " : "";
             sources["Consumer.cs"] = Consumer.Replace("internal string Read(string path)",
                 property + escape + "\n    internal string Read(string path)", StringComparison.Ordinal);
-            sources["Callers.cs"] = Callers.Replace("static string First", "static System.Func<string> First", StringComparison.Ordinal)
+            sources["Callers.cs"] = Callers.Replace("static string First", "static " + returnType + " First", StringComparison.Ordinal)
                 .Replace("path: Trace(path));\n        return consumer.Read(path);",
                     "path: Trace(path));\n        return consumer.Escape(path);", StringComparison.Ordinal);
         }

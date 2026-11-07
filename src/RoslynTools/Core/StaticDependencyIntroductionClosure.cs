@@ -135,12 +135,36 @@ internal sealed class StaticDependencyIntroductionClosure
                      .Where(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
         {
             var operation = typeModel.GetOperation(deferred, cancellationToken)!;
-            if (operation.Descendants().OfType<IInstanceReferenceOperation>().Any(instance => instance.IsImplicit
-                && instance.ReferenceKind == InstanceReferenceKind.ContainingTypeInstance && SameSymbol(instance.Type, type)))
+            var capture = operation.Descendants().OfType<IInstanceReferenceOperation>().FirstOrDefault(IsConsumerInstance);
+            if (capture is not null)
             {
                 var form = deferred is LocalFunctionStatementSyntax ? "local function" : "lambda";
-                blockers.Add(Block("implicit-instance-capture:" + deferred.SpanStart,
-                    "Implicit instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
+                var receiver = capture.IsImplicit ? "Implicit" : "Explicit";
+                var code = capture.IsImplicit ? "implicit-instance-capture:" : "explicit-instance-capture:";
+                blockers.Add(Block(code + deferred.SpanStart,
+                    receiver + " instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
+            }
+        }
+        foreach (var member in _type.DescendantNodes()
+                     .Where(node => node is MethodDeclarationSyntax or AccessorDeclarationSyntax))
+        {
+            if (typeModel.GetDeclaredSymbol(member, cancellationToken) is not IMethodSymbol method
+                || !SameSymbol(method.ContainingType, type)
+                || typeModel.GetOperation(member, cancellationToken) is not { } memberOperation)
+                continue;
+            var operations = memberOperation.Descendants().ToArray();
+            var isIterator = operations.Any(operation =>
+                (operation.Kind is OperationKind.YieldReturn or OperationKind.YieldBreak)
+                && SymbolEqualityComparer.Default.Equals(
+                    typeModel.GetEnclosingSymbol(operation.Syntax.SpanStart, cancellationToken), method));
+            // No suspension/lifetime proof is attempted: any selected-instance access in
+            // an async or iterator member is outside this bounded constructor closure.
+            // Nested functions' yields do not turn an ordinary member into an iterator.
+            if ((method.IsAsync || isIterator) && operations.OfType<IInstanceReferenceOperation>().Any(IsConsumerInstance))
+            {
+                var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
+                blockers.Add(Block("state-machine-capture:" + member.SpanStart,
+                    "The " + form + " state machine can retain the consumer instance; keep instance access in ordinary synchronous members."));
             }
         }
         foreach (var self in _type.DescendantNodes().OfType<ThisExpressionSyntax>())
@@ -151,22 +175,25 @@ internal sealed class StaticDependencyIntroductionClosure
         }
         foreach (var name in _type.DescendantNodes().OfType<SimpleNameSyntax>())
         {
-            if (typeModel.GetSymbolInfo(name, cancellationToken).Symbol is not IMethodSymbol { IsStatic: false } method
-                || !SameSymbol(method.ContainingType, type))
-                continue;
             var expression = name.Parent is MemberAccessExpressionSyntax member && member.Name == name ? (SyntaxNode)member : name;
-            if (expression.Parent is not InvocationExpressionSyntax invocation || invocation.Expression != expression)
+            if (typeModel.GetOperation(expression, cancellationToken) is IMethodReferenceOperation method
+                && IsConsumerInstance(method.Instance))
                 blockers.Add(Block("method-escape:" + name.SpanStart, "Instance method groups can escape the consumer and are unsupported."));
         }
         foreach (var invocation in _type.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation { Instance: IInstanceReferenceOperation } call
-                && !SameSymbol(call.TargetMethod.ContainingType, type))
+            if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation call
+                && IsConsumerInstance(call.Instance) && !SameSymbol(call.TargetMethod.ContainingType, type))
                 blockers.Add(Block("inherited-instance:" + invocation.SpanStart,
                     "Inherited instance calls can expose runtime identity or clone the consumer and are unsupported."));
         }
         return blockers;
     }
+
+    private bool IsConsumerInstance(IOperation? operation) => operation is IInstanceReferenceOperation
+    {
+        ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
+    } instance && SameSymbol(instance.Type, _preparation.Type);
 
     private bool IsConfinedLocal(ObjectCreationExpressionSyntax creation, MethodDeclarationSyntax method,
         SemanticModel model, CancellationToken cancellationToken)
