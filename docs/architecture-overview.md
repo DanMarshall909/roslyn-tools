@@ -93,9 +93,34 @@ state machines. An unrelated nested type's base receiver or finalizer does not
 belong to the selected consumer. Source and document path checks establish exact
 Roslyn identity within the acquired solution, not filesystem inode or symlink
 uniqueness or durable-apply proof.
-Dependency reuse through introduction, partial declarations/chains, explicit
-parameter bindings, the UTC preset and public host admission remain separate
-delivery gates in issue 153.
+
+The introduction service also accepts an explicit existing instance field on the
+selected source class with exactly the declared receiver type. It validates the
+field before closure analysis and even before empty-inventory no-op success;
+invalid IDs, other/inherited owners, properties, static fields and merely
+convertible types refuse without creating a fallback dependency. New-name hints
+are unused in this mode. Method-only reuse requires no constructor/caller or
+consumer confinement analysis because it changes no constructor API. Selected
+constructor calls require their own narrow proof: an ordinary unchained block
+constructor first assigns that exact field from an ordinary exact-type parameter,
+with no competing writes or reference escapes and all selected calls afterward.
+Conditional/nested/later assignments, assignment-RHS calls, prior helper
+execution and explicit constructor initializers/chaining refuse; this is not
+general dataflow analysis. Original selected-site, deferred/state-machine and
+authored absolute unique Roslyn-path guards remain mandatory, including shared
+paths across project contexts.
+
+Reuse shares original acquisition/inventory, invocation rewriting, binding checks
+and final candidate verification with introduction. Only selected invocations
+change; the closure contains only mapped calls and resolution names the existing
+field with no parameter name. Refusals retain original site anchors and unselected
+dispositions, and atomically block all selected sites without a candidate or effects. Receiver
+availability, lifetime, non-null and adapter semantics remain declared
+preconditions. The v1 mapping fingerprint stays mapping-only. New-field
+introduction across partial declarations/chains, version 2 explicit parameter
+bindings, the UTC preset and public host admission remain separate delivery gates
+in issue 153. Future multi-dependency planning must share one original closure;
+this slice does not implement that extension. Both planners remain internal.
 See [ADR-0107](adr/0107-semantic-static-dependency-planning.md).
 
 ### CI rule enforcement

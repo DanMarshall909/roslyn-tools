@@ -3,9 +3,9 @@
 ## Status
 
 Accepted, 2026-10-15, for the internal first slice of RT-022; extended 2026-11-07
-for bounded constructor introduction. Broader introduction cases, explicit
-parameter bindings, property presets and public host admission remain separate
-delivery gates.
+for bounded constructor introduction and explicit existing-field reuse. Broader
+introduction cases, explicit parameter bindings, property presets and public host
+admission remain separate delivery gates.
 
 ## Context
 
@@ -90,13 +90,57 @@ Source and document paths establish exact Roslyn identity and unambiguous paths
 within the acquired solution. They do not prove filesystem inode or symlink
 uniqueness, or expand this no-write preparation contract into durable apply.
 
+### Bounded explicit receiver reuse (2026-11-07)
+
+When `ExistingReceiverFieldDocumentationId` is supplied, resolve that exact
+instance field on the selected source class in the acquired original project
+before new-field closure analysis and before empty-inventory success. Its
+declared type must equal the mapping's exact receiver type. Inherited fields,
+other owners, properties, static fields, unknown IDs and merely convertible
+types refuse atomically; they never fall back to a new field. Preferred field
+and parameter names are unused hints in this mode, including colliding hints.
+
+Method-only reuse makes no constructor or caller edits and requires neither
+caller bindings nor the new-field closure's constructor/type confinement proof.
+Existing constructors, chains and caller wiring remain untouched. The original
+selected-site admission and selected-rewrite deferred/state-machine guards still
+apply. Every selected document must be authored and have an absolute exact
+unique Roslyn path across the original solution's document contexts, including
+linked/shared project contexts. Bypassing constructor closure does not bypass
+that edit-path admission.
+
+A selected constructor call has a separate deliberately narrow availability
+proof: an ordinary unchained block constructor's first statement must assign
+the selected field on this instance directly from an ordinary parameter of
+exactly the field's type. Every selected constructor call must follow that
+statement, with no competing writes or ref/out/ref-alias escape of the field
+in that constructor. Conditional, nested or later assignment, a selected call
+in the assignment RHS, helper execution before assignment and explicit
+initializers/chaining refuse. This is not general dataflow or an
+interprocedural availability proof. Explicit selection of only a safe method
+may leave unsupported constructor source sites inventoried as skipped.
+
+Reuse retains the original acquisition and inventory, shared invocation rewrite,
+argument/target/receiver binding checks and final candidate verification. Its
+closure contains only mapped calls at original anchors. Resolution reports
+`ReusedExistingReceiver=true`, the exact field ID and actual name, and
+`ParameterName=null`; no fields, parameters, assignments or caller arguments are
+added. Refusal blocks every selected original site while preserving unselected
+sites, and returns no candidate changes, closure, resolution or effects. A
+freshly acquired valid candidate is a no-op, but even empty source inventory
+must validate the explicit field. Version 1's mapping fingerprint remains
+mapping-only. Receiver availability, lifetime, non-null and adapter behavior
+remain explicit declared preconditions, separate from compiler structural proof.
+
 ## Consequences
 
 Both planners remain internal and unwired from public hosts. The bounded case
 introduces no framework registrations, guessed dependencies or writer effects.
-Exact dependency reuse through introduction, authored partial declarations and
-supported constructor chains require subsequent evidence under issue 153, as do
-explicit parameter/dependency bindings and the characterized UTC property preset.
+Authored partial declarations and supported constructor chains for new dependency
+introduction require subsequent evidence under issue 153, as do version 2 explicit
+parameter/dependency bindings and the characterized UTC property preset. Later
+multi-dependency planning must share one original closure; this bounded reuse
+policy does not implement that extension.
 Existing recipe consolidation and shared host exposure must pass admission
 policy; MCP remains plan-only. This contract introduces no durable apply or
 recovery mechanism.

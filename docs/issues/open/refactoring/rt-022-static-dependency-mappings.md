@@ -310,3 +310,45 @@ document identity, without claiming filesystem inode/symlink uniqueness or durab
 apply. The remaining issue criteria listed above and final whole-ticket slow gate
 are still required. Mutation testing remains disabled. Renewed exact-candidate
 completion review and current publication status belong to issue 153.
+
+
+### Explicit dependency reuse evidence, 2026-11-07
+
+The introduction planner now reuses an explicitly selected compatible instance
+field without adding fields, constructor parameters, assignments or caller wiring.
+Method-only reuse leaves constructor shape alone. Selected constructor calls
+require the separate first-assignment availability proof; competing writes and
+reference escapes refuse the whole selected plan. Exact field ownership/type,
+authored unique paths, original authority, capture guards and candidate bindings
+remain mandatory. ADR-0107 describes the supported proof and declared preconditions.
+
+Native run `20261107070451784-77370dfe` reached complete checkpoint
+`63BB97FC30FCE83936ED0B3BA8F57EEB7020F9216B36A4524175B1E61B5F0131`.
+Its reviewed RED is
+`2ECD183F49A1882D93EBD39582A0556BD2B54E0E73B620604659C082EC7F7646`.
+All 282 focused cases pass, preserving the earlier 228 cases. Ordinary coverage
+executes all 1,066 instrumented static-dependency owner lines with no changed-code
+gaps. The final Release fast gate passes 4,584 tests with nine existing skips,
+including all 308 MCP cases; build and formatting verification pass. All 1,194
+native checkpoint input hashes match. The publication candidate adds only this
+evidence to the verified native source; coverage alone is not behavior proof.
+
+The proposed increment/ref/out regression tests initially had an `AddedFiles`
+compile typo and were independently rejected before execution. Flo lacked a
+supported pending-proposal correction path. The separately reviewed and published
+Flo repair `7001d4ba7400c22c269d2ab5835489ce523a1c56` enabled explicit test-only
+resubmission while preserving rejected evidence. The old runtime, original RED,
+rejected packet and all native records remain retained. After the sole correction
+to `NewFiles`, Astra approved the new exact packet
+`4746106839DC73B283E48258B2EAFBE083242117FC21600BA768938B7C92415A`;
+normal GREEN, coverage and refactor verification reran successfully. No native
+record was edited to advance the cycle.
+
+The native report includes failed/retried work: 6,270,975 reported tokens, five
+agent attempts and seven retries. This omits controller/reviewer usage and is not
+whole-task cost. Complete evidence and runtime handoff receipts remain in
+`artifacts/rt153-resume-20261107/`. No RT mutation was run or queued. Authored
+partials/chains, explicit parameter/dependency bindings, characterized UTC,
+shared CLI/MCP planning and the final ticket slow gate remain required. Issue
+153 stays open; exact-candidate completion review and publication are separate
+from this native checkpoint.
