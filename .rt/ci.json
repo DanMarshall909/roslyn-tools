@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "architecture",
+      "config": ".rt/architecture.json"
+    },
+    {
+      "id": "maintainability.complexity",
+      "maxCyclomatic": 10
+    },
+    {
+      "id": "maintainability.large-type",
+      "maxLines": 300
+    },
+    {
+      "id": "maintainability.long-method",
+      "maxLines": 40
+    },
+    {
+      "id": "maintainability.too-many-dependencies",
+      "maxParameters": 7
+    }
+  ]
+}
