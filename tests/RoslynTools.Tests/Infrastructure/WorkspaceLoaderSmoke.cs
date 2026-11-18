@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
@@ -52,13 +54,7 @@ public class WorkspaceLoaderSmoke
     {
         using var project = new WorkspaceLoaderTestProject();
         var sln = project.AddSolution("", "Complete", "CompleteProject");
-        var projectPath = Path.Combine(project.RootDir, "CompleteProject", "CompleteProject.csproj");
-        await File.WriteAllTextAsync(
-            projectPath,
-            (await File.ReadAllTextAsync(projectPath)).Replace("net8.0", "net10.0", StringComparison.Ordinal));
-        await File.WriteAllTextAsync(
-            Path.Combine(project.RootDir, "global.json"),
-            "{\"sdk\":{\"version\":\"10.0.301\",\"rollForward\":\"latestPatch\"}}");
+        await PinSdkAsync(project, "CompleteProject");
         using var trust = RepositoryTrustContext.UseExplicitTrust(project.RootDir);
         using var loader = new WorkspaceLoader();
 
@@ -76,6 +72,62 @@ public class WorkspaceLoaderSmoke
         assessment.Acquisition.Provenance.TrustState.ShouldBe("Trusted");
         assessment.Acquisition.Provenance.RepositoryRoot.ShouldBe(project.RootDir);
         assessment.Acquisition.Provenance.TargetFrameworks.ShouldContain("net10.0");
+    }
+
+    [SkippableFact]
+    public async Task a_different_sdk_cannot_satisfy_the_registered_sdk_analyzer_inputs()
+    {
+        var registeredSdk = GetRegisteredSdkPath();
+        var sdkRoot = Path.GetDirectoryName(registeredSdk).ShouldNotBeNull();
+        var sdkMajorPrefix = Path.GetFileName(registeredSdk).Split('.')[0] + ".";
+        var paths = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var analyzerNames = new[]
+        {
+            "Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll",
+            "Microsoft.CodeAnalysis.NetAnalyzers.dll"
+        };
+        var alternate = MSBuildLocator.QueryVisualStudioInstances()
+            .Where(instance => instance.DiscoveryType == DiscoveryType.DotNetSdk)
+            .Select(instance => Path.TrimEndingDirectorySeparator(instance.MSBuildPath))
+            .Where(path => paths.Equals(Path.GetDirectoryName(path), sdkRoot)
+                && !paths.Equals(path, registeredSdk)
+                && Path.GetFileName(path).StartsWith(sdkMajorPrefix, StringComparison.Ordinal)
+                && File.Exists(Path.Combine(path, "MSBuild.dll"))
+                && analyzerNames.All(name => File.Exists(Path.Combine(
+                    path, "Sdks", "Microsoft.NET.Sdk", "analyzers", name))))
+            .OrderBy(path => path, paths)
+            .FirstOrDefault();
+        Skip.If(alternate is null, "Requires a second supported installed SDK with its default SDK analyzers.");
+        var alternateSdk = alternate.ShouldNotBeNull();
+        using var fixture = new WorkspaceLoaderTestProject();
+        var solution = fixture.AddSolution("", "DifferentSdk", "App");
+        await PinSdkAsync(fixture, "App");
+        await PinExactSdkAsync(fixture.RootDir, alternateSdk);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.RootDir);
+        using var loader = new WorkspaceLoader();
+
+        var loaded = await loader.LoadWorkspaceResultAsync(solution.SolutionPath, CancellationToken.None);
+
+        loaded.Completeness.State.ShouldBe(WorkspaceCompletenessState.Partial);
+        var acquisition = loaded.Completeness.Acquisition.ShouldNotBeNull();
+        acquisition.Manifest.DiscoveryState.ShouldBe(ManifestDiscoveryState.Closed);
+        var observed = loaded.Solution.Projects.ShouldHaveSingleItem().AnalyzerReferences
+            .Select(reference => reference.FullPath).ToArray();
+        foreach (var name in analyzerNames)
+        {
+            var expected = Path.Combine(registeredSdk, "Sdks", "Microsoft.NET.Sdk", "analyzers", name);
+            var foreign = Path.Combine(alternateSdk, "Sdks", "Microsoft.NET.Sdk", "analyzers", name);
+            observed.ShouldContain(path => paths.Equals(path, foreign));
+            observed.ShouldNotContain(path => paths.Equals(path, expected));
+            var input = acquisition.Manifest.Inputs.Where(input =>
+                    input.Kind == SemanticInputKind.AnalyzerReference
+                    && input.Path?.Split(':', 3) is ["analyzer", _, var path]
+                    && paths.Equals(path, expected))
+                .ShouldHaveSingleItem();
+            input.Required.ShouldBeTrue();
+            acquisition.Outcomes.Where(outcome => outcome.InputId == input.Id)
+                .ShouldHaveSingleItem().State.ShouldBe(SemanticInputState.Failed);
+        }
     }
 
     [Fact]
@@ -659,11 +711,24 @@ public class WorkspaceLoaderSmoke
         await File.WriteAllTextAsync(
             projectPath,
             (await File.ReadAllTextAsync(projectPath)).Replace("net8.0", "net10.0", StringComparison.Ordinal));
-        await File.WriteAllTextAsync(
-            Path.Combine(fixture.RootDir, "global.json"),
-            "{\"sdk\":{\"version\":\"10.0.301\",\"rollForward\":\"latestPatch\"}}");
+        await PinExactSdkAsync(fixture.RootDir, GetRegisteredSdkPath());
         return projectPath;
     }
+
+    private static string GetRegisteredSdkPath() => Path.TrimEndingDirectorySeparator(
+        global::RoslynTools.MsBuildBootstrap.GetRegisteredSdkInstance()
+            .ShouldNotBeNull("The real-workspace fixture needs an explicitly registered SDK.").MSBuildPath);
+
+    private static Task PinExactSdkAsync(string root, string sdkPath) =>
+        File.WriteAllTextAsync(Path.Combine(root, "global.json"),
+            JsonSerializer.Serialize(new
+            {
+                sdk = new
+                {
+                    version = Path.GetFileName(sdkPath),
+                    rollForward = "disable"
+                }
+            }));
 
     private sealed class CapturingWorkspaceLogger : ILogger<WorkspaceLoader>
     {

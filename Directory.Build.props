@@ -5,6 +5,8 @@
         <AnalysisMode>Recommended</AnalysisMode>
     </PropertyGroup>
     <ItemGroup>
+        <!-- MSBuildLocator supplies SDK-owned runtime assemblies; retain the package's compile APIs. -->
+        <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" />
         <PackageReference Include="Roslynator.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
