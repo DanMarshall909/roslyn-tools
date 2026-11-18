@@ -7,6 +7,7 @@
             <_ForbiddenReusablePackage Include="@(PackageReference)"
                 Condition="'%(PackageReference.Identity)' != 'Microsoft.Build.Locator' And
                            '%(PackageReference.Identity)' != 'Microsoft.Build' And
+                           !('%(PackageReference.Identity)' == 'Microsoft.Build.Framework' And '%(PackageReference.ExcludeAssets)' == 'runtime') And
                            '%(PackageReference.Identity)' != 'Microsoft.CodeAnalysis.Workspaces.MSBuild' And
                            '%(PackageReference.Identity)' != 'Microsoft.CodeAnalysis.CSharp.Workspaces' And
                            '%(PackageReference.Identity)' != 'Microsoft.Extensions.Logging.Abstractions' And
