@@ -55,35 +55,44 @@ internal sealed class StaticDependencyIntroductionClosure
         var type = _preparation.Type;
         if (type.DeclaredAccessibility != Accessibility.Internal || !type.IsSealed || type.Arity != 0
             || type.ContainingType is not null || type.BaseType?.SpecialType != SpecialType.System_Object
-            || type.Interfaces.Length != 0 || type.DeclaringSyntaxReferences.Length != 1 || type.GetAttributes().Length != 0
+            || type.Interfaces.Length != 0 || type.DeclaringSyntaxReferences.Length == 0 || type.GetAttributes().Length != 0
             || type.ContainingAssembly.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString()
                 == "System.Runtime.CompilerServices.InternalsVisibleToAttribute"))
-            return [Block("type-shape", "Only one internal sealed, nongeneric, top-level class without base types, interfaces or activation attributes is supported.")];
+            return [Block("type-shape", "Only an internal sealed, nongeneric, top-level class without base types, interfaces or activation attributes is supported.")];
         if (type.GetMembers().OfType<IMethodSymbol>().Any(method => method.MethodKind == MethodKind.Destructor))
             return [Block("finalizer", "Select a consumer without a finalizer; runtime finalization cannot be confined to the declared dependency lifetime.")];
-        var syntax = await type.DeclaringSyntaxReferences[0].GetSyntaxAsync(cancellationToken);
-        if (syntax is not ClassDeclarationSyntax declaration || declaration.ParameterList is not null
-            || declaration.BaseList is not null || declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
-            return [Block("declaration", "Partial and primary-constructor declarations are unsupported.")];
-        _type = declaration;
-        _document = _preparation.Original.GetDocument(declaration.SyntaxTree)!;
-        if (_document is null || !HasUniquePath(_document))
-            return [Block("document", "The selected class must have one authored, unambiguous document path.")];
+        var declarations = new List<(ClassDeclarationSyntax Syntax, Document Document)>();
+        foreach (var reference in type.DeclaringSyntaxReferences)
+        {
+            if (await reference.GetSyntaxAsync(cancellationToken) is not ClassDeclarationSyntax declaration
+                || declaration.ParameterList is not null || declaration.BaseList is not null
+                || (type.DeclaringSyntaxReferences.Length > 1 && !declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
+                return [Block("declaration", "Only ordinary class declarations without primary constructors are supported.")];
+            var document = _preparation.Original.GetDocument(declaration.SyntaxTree);
+            if (document is null || document is SourceGeneratedDocument
+                || document.Project.Id != _preparation.Project.Id || !HasUniquePath(document))
+                return [Block("document", "Every class declaration must have one authored, unambiguous document path in the selected project.")];
+            declarations.Add((declaration, document));
+        }
         if (type.InstanceConstructors.Length != 1 || type.InstanceConstructors[0].IsImplicitlyDeclared
             || type.StaticConstructors.Length != 0)
             return [Block("constructors", "Exactly one explicitly declared instance constructor is supported.")];
         _constructorSymbol = type.InstanceConstructors[0];
-        // Complete acquisition and the nonpartial source-class guards ensure one ordinary source constructor declaration.
         var constructorSyntax = await _constructorSymbol.DeclaringSyntaxReferences[0].GetSyntaxAsync(cancellationToken);
         if (constructorSyntax is not ConstructorDeclarationSyntax { Body: not null, Initializer: null } constructor
             || _constructorSymbol.IsVararg || _constructorSymbol.GetAttributes().Length != 0
             || _constructorSymbol.Parameters.Any(parameter => parameter.RefKind != RefKind.None || parameter.IsOptional || parameter.IsParams))
             return [Block("constructor-shape", "Only an ordinary block-bodied constructor without chaining, activation attributes or adapted parameters is supported.")];
         _constructor = constructor;
+        var owner = declarations.Single(part => part.Syntax.SyntaxTree == constructor.SyntaxTree
+            && part.Syntax.Span.Contains(constructor.Span));
+        _type = owner.Syntax;
+        _document = owner.Document;
         if (_request.ExistingReceiverFieldDocumentationId is not null
             || !SyntaxFacts.IsValidIdentifier(FieldName) || !SyntaxFacts.IsValidIdentifier(_request.PreferredParameterName)
             || FieldName == _request.PreferredParameterName || type.GetMembers(FieldName).Length != 0
-            || declaration.DescendantTokens().Any(token => token.IsKind(SyntaxKind.IdentifierToken) && token.ValueText == FieldName)
+            || declarations.Any(part => part.Syntax.DescendantTokens().Any(token =>
+                token.IsKind(SyntaxKind.IdentifierToken) && token.ValueText == FieldName))
             || constructor.DescendantTokens().Any(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.ValueText == _request.PreferredParameterName))
             return [Block("names", "Use unused field and constructor-parameter identifiers; existing receiver reuse is outside this slice.")];
@@ -161,68 +170,71 @@ internal sealed class StaticDependencyIntroductionClosure
         if (callers.Any(caller => !_creations.Any(creation => SameSymbol(creation.Parameter, caller))))
             blockers.Add(Block("caller-binding", "Every declared caller parameter must own an admitted creation."));
 
-        // A selected instance may not escape through its own implementation either.
-        var typeModel = (await _document.GetSemanticModelAsync(cancellationToken))!;
-        // Discover operation roots, including initializers and accessors, then walk
-        // their actual trees: query selectors have no lambda syntax to inventory.
-        var typeOperations = _type.DescendantNodes()
-            .Select(node => typeModel.GetOperation(node, cancellationToken))
-            .Where(operation => operation is { Parent: null }).Distinct()
-            .SelectMany(operation => operation!.DescendantsAndSelf());
-        foreach (var deferred in typeOperations
-                     .Where(operation => operation is IAnonymousFunctionOperation or ILocalFunctionOperation))
+        // A selected instance may not escape through any authored declaration.
+        foreach (var (declaration, document) in declarations)
         {
-            var capture = deferred.Descendants().OfType<IInstanceReferenceOperation>()
-                .FirstOrDefault(instance => IsConsumerInstance(instance, typeModel, cancellationToken));
-            if (capture is not null)
+            var typeModel = (await document.GetSemanticModelAsync(cancellationToken))!;
+            // Discover operation roots, including initializers and accessors, then walk
+            // their actual trees: query selectors have no lambda syntax to inventory.
+            var typeOperations = declaration.DescendantNodes()
+                .Select(node => typeModel.GetOperation(node, cancellationToken))
+                .Where(operation => operation is { Parent: null }).Distinct()
+                .SelectMany(operation => operation!.DescendantsAndSelf());
+            foreach (var deferred in typeOperations
+                         .Where(operation => operation is IAnonymousFunctionOperation or ILocalFunctionOperation))
             {
-                var form = deferred is ILocalFunctionOperation ? "local function"
-                    : deferred.Syntax.AncestorsAndSelf().Any(node => node is QueryExpressionSyntax) ? "query selector" : "lambda";
-                var receiver = capture.IsImplicit ? "Implicit" : "Explicit";
-                var code = capture.IsImplicit ? "implicit-instance-capture:" : "explicit-instance-capture:";
-                blockers.Add(Block(code + deferred.Syntax.SpanStart,
-                    receiver + " instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
+                var capture = deferred.Descendants().OfType<IInstanceReferenceOperation>()
+                    .FirstOrDefault(instance => IsConsumerInstance(instance, typeModel, cancellationToken));
+                if (capture is not null)
+                {
+                    var form = deferred is ILocalFunctionOperation ? "local function"
+                        : deferred.Syntax.AncestorsAndSelf().Any(node => node is QueryExpressionSyntax) ? "query selector" : "lambda";
+                    var receiver = capture.IsImplicit ? "Implicit" : "Explicit";
+                    var code = capture.IsImplicit ? "implicit-instance-capture:" : "explicit-instance-capture:";
+                    blockers.Add(Block(code + deferred.Syntax.SpanStart,
+                        receiver + " instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
+                }
             }
-        }
-        foreach (var member in _type.DescendantNodes()
-                     .Where(node => node is MethodDeclarationSyntax or AccessorDeclarationSyntax))
-        {
-            if (typeModel.GetDeclaredSymbol(member, cancellationToken) is not IMethodSymbol method
-                || !SameSymbol(method.ContainingType, type)
-                || typeModel.GetOperation(member, cancellationToken) is not { } memberOperation)
-                continue;
-            var operations = memberOperation.Descendants().ToArray();
-            var isIterator = IsIterator(memberOperation, method, typeModel, cancellationToken);
-            // No suspension/lifetime proof is attempted: any selected-instance access in
-            // an async or iterator member is outside this bounded constructor closure.
-            // Nested functions' yields do not turn an ordinary member into an iterator.
-            if ((method.IsAsync || isIterator) && operations.OfType<IInstanceReferenceOperation>()
-                    .Any(instance => IsConsumerInstance(instance, typeModel, cancellationToken)))
+            foreach (var member in declaration.DescendantNodes()
+                         .Where(node => node is MethodDeclarationSyntax or AccessorDeclarationSyntax))
             {
-                var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
-                blockers.Add(Block("state-machine-capture:" + member.SpanStart,
-                    "The " + form + " state machine can retain the consumer instance; keep instance access in ordinary synchronous members."));
+                if (typeModel.GetDeclaredSymbol(member, cancellationToken) is not IMethodSymbol method
+                    || !SameSymbol(method.ContainingType, type)
+                    || typeModel.GetOperation(member, cancellationToken) is not { } memberOperation)
+                    continue;
+                var operations = memberOperation.Descendants().ToArray();
+                var isIterator = IsIterator(memberOperation, method, typeModel, cancellationToken);
+                // No suspension/lifetime proof is attempted: any selected-instance access in
+                // an async or iterator member is outside this bounded constructor closure.
+                // Nested functions' yields do not turn an ordinary member into an iterator.
+                if ((method.IsAsync || isIterator) && operations.OfType<IInstanceReferenceOperation>()
+                        .Any(instance => IsConsumerInstance(instance, typeModel, cancellationToken)))
+                {
+                    var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
+                    blockers.Add(Block("state-machine-capture:" + member.SpanStart,
+                        "The " + form + " state machine can retain the consumer instance; keep instance access in ordinary synchronous members."));
+                }
             }
-        }
-        foreach (var self in _type.DescendantNodes().OfType<ThisExpressionSyntax>())
-        {
-            if (self.Parent is not MemberAccessExpressionSyntax member || member.Expression != self
-                || typeModel.GetSymbolInfo(member, cancellationToken).Symbol is not IFieldSymbol)
-                blockers.Add(Block("self-escape:" + self.SpanStart, "Explicit self values outside field access are unsupported."));
-        }
-        foreach (var name in _type.DescendantNodes().OfType<SimpleNameSyntax>())
-        {
-            var expression = name.Parent is MemberAccessExpressionSyntax member && member.Name == name ? (SyntaxNode)member : name;
-            if (typeModel.GetOperation(expression, cancellationToken) is IMethodReferenceOperation method
-                && IsConsumerInstance(method.Instance, typeModel, cancellationToken))
-                blockers.Add(Block("method-escape:" + name.SpanStart, "Instance method groups can escape the consumer and are unsupported."));
-        }
-        foreach (var invocation in _type.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation call
-                && IsConsumerInstance(call.Instance, typeModel, cancellationToken) && !SameSymbol(call.TargetMethod.ContainingType, type))
-                blockers.Add(Block("inherited-instance:" + invocation.SpanStart,
-                    "Inherited instance calls can expose runtime identity or clone the consumer and are unsupported."));
+            foreach (var self in declaration.DescendantNodes().OfType<ThisExpressionSyntax>())
+            {
+                if (self.Parent is not MemberAccessExpressionSyntax member || member.Expression != self
+                    || typeModel.GetSymbolInfo(member, cancellationToken).Symbol is not IFieldSymbol)
+                    blockers.Add(Block("self-escape:" + self.SpanStart, "Explicit self values outside field access are unsupported."));
+            }
+            foreach (var name in declaration.DescendantNodes().OfType<SimpleNameSyntax>())
+            {
+                var expression = name.Parent is MemberAccessExpressionSyntax member && member.Name == name ? (SyntaxNode)member : name;
+                if (typeModel.GetOperation(expression, cancellationToken) is IMethodReferenceOperation method
+                    && IsConsumerInstance(method.Instance, typeModel, cancellationToken))
+                    blockers.Add(Block("method-escape:" + name.SpanStart, "Instance method groups can escape the consumer and are unsupported."));
+            }
+            foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation call
+                    && IsConsumerInstance(call.Instance, typeModel, cancellationToken) && !SameSymbol(call.TargetMethod.ContainingType, type))
+                    blockers.Add(Block("inherited-instance:" + invocation.SpanStart,
+                        "Inherited instance calls can expose runtime identity or clone the consumer and are unsupported."));
+            }
         }
         return blockers;
     }

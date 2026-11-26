@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -20,6 +21,14 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     private const string TargetId = "M:Fixture.IReader.ReadAllText(System.String)";
     private const string OriginalConstructorId = "M:Fixture.Consumer.#ctor(System.Int32,System.String)";
     private const string CandidateConstructorId = "M:Fixture.Consumer.#ctor(System.Int32,System.String,Fixture.IReader)";
+    private const string ReadPart = "Consumer.Read.cs";
+    private const string UnselectedPart = "Consumer.Probe.cs";
+    private const string GeneratedPart = "Consumer.Probe.g.cs";
+    private const string LinkedProject = "LinkedProbe";
+    private const string Probe = "private const int PartialProbe = 153;";
+
+    private static readonly int[] FirstCallerArgumentOrdinals = [0, 1];
+    private static readonly int[] SecondCallerArgumentOrdinals = [1, 0];
 
     private static readonly string[] OrdinarySelectedCallOwners =
     [
@@ -96,6 +105,412 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await AssertPreparesSingleConstructorAsync(fixture);
     }
 
+    [Fact]
+    public async Task prepares_one_constructor_across_authored_partial_declarations()
+    {
+        using var fixture = await CreatePartialAsync();
+        var original = fixture.Solution;
+        var request = fixture.Request;
+        var compilation = await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var receipt = WorkspaceAcquisitionRegistry.Get(fixture.Workspace).Receipt.ShouldNotBeNull();
+        receipt.ShouldBeSameAs(fixture.Receipt);
+        receipt.Solution.ShouldBeSameAs(original);
+        request.ExpectedSourceFingerprint.ShouldBe(await SolutionRevision.ComputeAsync(original));
+
+        var type = compilation.GetTypeByMetadataName("Fixture.Consumer").ShouldNotBeNull();
+        type.GetDocumentationCommentId().ShouldBe(ConsumerId);
+        type.DeclaredAccessibility.ShouldBe(Accessibility.Internal);
+        type.IsSealed.ShouldBeTrue();
+        type.Arity.ShouldBe(0);
+        type.ContainingType.ShouldBeNull();
+        var declarations = type.DeclaringSyntaxReferences.Select(reference =>
+            reference.GetSyntax().ShouldBeAssignableTo<ClassDeclarationSyntax>()!).ToArray();
+        declarations.Length.ShouldBe(3);
+        foreach (var declaration in declarations)
+        {
+            declaration.Modifiers.Any(SyntaxKind.PartialKeyword).ShouldBeTrue();
+            declaration.ParameterList.ShouldBeNull();
+        }
+        var owners = declarations.Select(part => original.GetDocument(part.SyntaxTree).ShouldNotBeNull()).ToArray();
+        owners.Select(document => document.Id).Distinct().Count().ShouldBe(2);
+        owners.Select(document => document.Name).Order(StringComparer.Ordinal)
+            .ShouldBe([ReadPart, ReadPart, "Consumer.cs"]);
+        foreach (var owner in owners.DistinctBy(document => document.Id))
+        {
+            (owner is SourceGeneratedDocument).ShouldBeFalse();
+            owner.Project.FilePath.ShouldBe(request.Selection.ProjectPath);
+            owner.FilePath.ShouldBe(fixture.PathFor(owner.Name));
+            Path.IsPathFullyQualified(owner.FilePath!).ShouldBeTrue();
+            original.Projects.SelectMany(project => project.Documents).Count(document => document.FilePath == owner.FilePath)
+                .ShouldBe(1);
+            var input = receipt.Manifest.Inputs.Where(input => input.Kind == SemanticInputKind.SourceDocument
+                && input.ProjectPath == owner.Project.FilePath && input.Path == owner.FilePath).ShouldHaveSingleItem();
+            receipt.Outcomes.Where(outcome => outcome.InputId == input.Id).ShouldHaveSingleItem()
+                .State.ShouldBe(SemanticInputState.Resolved);
+        }
+        var constructor = type.InstanceConstructors.ShouldHaveSingleItem();
+        constructor.IsImplicitlyDeclared.ShouldBeFalse();
+        constructor.GetDocumentationCommentId().ShouldBe(OriginalConstructorId);
+        var constructorSyntax = constructor.DeclaringSyntaxReferences.ShouldHaveSingleItem().GetSyntax()
+            .ShouldBeAssignableTo<ConstructorDeclarationSyntax>()!;
+        original.GetDocument(constructorSyntax.SyntaxTree).ShouldNotBeNull().Name.ShouldBe("Consumer.cs");
+        constructorSyntax.Initializer.ShouldBeNull();
+        constructorSyntax.Body.ShouldNotBeNull();
+
+        var (readRoot, readModel) = await InspectAsync(original, ReadPart);
+        var (constructorRoot, constructorModel) = await InspectAsync(original, "Consumer.cs");
+        var readCall = CallsBoundTo(readRoot, readModel, SourceId).ShouldHaveSingleItem();
+        var constructorCall = CallsBoundTo(constructorRoot, constructorModel, SourceId).ShouldHaveSingleItem();
+        readCall.ToString().ShouldBe(SelectedRewriteOriginalCallTexts[2]);
+        constructorCall.ToString().ShouldBe(SelectedRewriteOriginalCallTexts[0]);
+        readModel.GetEnclosingSymbol(readCall.SpanStart).ShouldNotBeNull().GetDocumentationCommentId()
+            .ShouldBe(OrdinarySelectedCallOwners[1]);
+        constructorModel.GetEnclosingSymbol(constructorCall.SpanStart).ShouldNotBeNull().GetDocumentationCommentId()
+            .ShouldBe(OriginalConstructorId);
+        var probe = readRoot.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(part => part.Members.OfType<FieldDeclarationSyntax>().Any()).ShouldHaveSingleItem();
+        probe.Members.ShouldHaveSingleItem().ToString().ShouldBe(Probe);
+        CallsBoundTo(probe, readModel, SourceId).ShouldBeEmpty();
+        var originals = new[]
+        {
+            (Name: ReadPart, Call: readCall, Model: readModel),
+            (Name: "Consumer.cs", Call: constructorCall, Model: constructorModel)
+        };
+        foreach (var (_, call, model) in originals)
+        {
+            var source = model.GetOperation(call).ShouldBeAssignableTo<IInvocationOperation>()!.TargetMethod;
+            AssertSymbolIdentity(source, request.Mapping.Source, SourceId);
+            source.Locations.ShouldAllBe(location => location.IsInMetadata);
+        }
+        var callers = await AssertOriginalPartialCallersAsync(original, request, constructor);
+        var service = new StaticDependencyIntroductionService();
+
+        var plan = await service.PrepareAsync(original, request);
+
+        var siteCodes = string.Join(", ", plan.Sites.Select(site => site.Code));
+        plan.Status.ShouldBe(StaticDependencyPlanStatus.Prepared,
+            $"authored partial declarations must share one constructor wiring plan. Observed site codes [{siteCodes}]");
+        plan.SchemaVersion.ShouldBe("rt.static-dependency.introduction-plan.v1");
+        plan.Request.ShouldBe(request);
+        plan.SourceFingerprint.ShouldBe(request.ExpectedSourceFingerprint);
+        plan.MappingFingerprint.ShouldNotBeNullOrWhiteSpace();
+        plan.Resolution.ShouldBe(new StaticDependencyIntroductionResolution(false, FieldId, "_reader", "reader"));
+        plan.Changes.OriginalSolution.ShouldBeSameAs(original);
+        plan.Changes.HasChanges.ShouldBeTrue();
+        AssertNoFileEffects(plan.Changes);
+        var candidate = plan.Changes.ChangedSolution.ShouldNotBeNull();
+        var candidateCompilation = await AssertCompilesAsync(candidate);
+        var originalDiagnostics = compilation.GetDiagnostics().Select(DiagnosticIdentity);
+        candidateCompilation.GetDiagnostics().Select(DiagnosticIdentity).Except(originalDiagnostics).ShouldBeEmpty();
+        await AssertDocumentChangesAsync(fixture, plan, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Callers.cs"] = ExpectedWiredCallers(),
+            [ReadPart] = fixture.Sources[ReadPart].Replace("File.ReadAllText(path: path + \"-body\")",
+                "this._reader.ReadAllText(path: path + \"-body\")", StringComparison.Ordinal),
+            ["Consumer.cs"] = ExpectedWiredConstructor(fixture.Sources["Consumer.cs"])
+        });
+        var field = await AssertPartialConstructorWiringAsync(candidate, candidateCompilation, request, constructorSyntax);
+        foreach (var (name, before, oldModel) in originals)
+        {
+            var (root, model) = await InspectAsync(candidate, name);
+            var after = CallsBoundTo(root, model, TargetId).ShouldHaveSingleItem();
+            var bound = model.GetOperation(after).ShouldBeAssignableTo<IInvocationOperation>()!;
+            AssertSymbolIdentity(bound.TargetMethod, request.Mapping.Target, TargetId);
+            SymbolEqualityComparer.Default.Equals(bound.TargetMethod.ContainingType, field.Type).ShouldBeTrue();
+            var receiver = bound.Instance.ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+            SymbolEqualityComparer.Default.Equals(receiver.Field, field).ShouldBeTrue();
+            receiver.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>();
+            after.ArgumentList.ToString().ShouldBe(before.ArgumentList.ToString());
+            bound.Arguments.Select(ArgumentBinding).ShouldBe(
+                oldModel.GetOperation(before).ShouldBeAssignableTo<IInvocationOperation>()!.Arguments.Select(ArgumentBinding));
+        }
+        var (candidateReadRoot, candidateReadModel) = await InspectAsync(candidate, ReadPart);
+        var candidateProbe = candidateReadRoot.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(part => part.Members.OfType<FieldDeclarationSyntax>().Any()).ShouldHaveSingleItem();
+        candidateProbe.ToFullString().ShouldBe(probe.ToFullString());
+        var encoded = candidateReadRoot.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Single(call => call.Expression.ToString() == "File.ReadAllText");
+        var encodedMethod = candidateReadModel.GetOperation(encoded).ShouldBeAssignableTo<IInvocationOperation>()!.TargetMethod;
+        encodedMethod.GetDocumentationCommentId().ShouldBe("M:System.IO.File.ReadAllText(System.String,System.Text.Encoding)");
+        encodedMethod.ContainingAssembly.Identity.ToString().ShouldBe(request.Mapping.Source.AssemblyIdentity);
+        var (adapterRoot, adapterModel) = await InspectAsync(candidate, "Contracts.cs");
+        var adapter = CallsBoundTo(adapterRoot, adapterModel, SourceId).ShouldHaveSingleItem();
+        AssertSymbolIdentity(adapterModel.GetOperation(adapter).ShouldBeAssignableTo<IInvocationOperation>()!.TargetMethod,
+            request.Mapping.Source, SourceId);
+        var (originalAdapterRoot, originalAdapterModel) = await InspectAsync(original, "Contracts.cs");
+        var originalAdapter = CallsBoundTo(originalAdapterRoot, originalAdapterModel, SourceId).ShouldHaveSingleItem();
+        await AssertCallerBindingsAsync(original, candidate, request);
+        var selectedCalls = originals.Select(item => item.Call).ToArray();
+        await AssertSiteDispositionsAsync(fixture, plan, selectedCalls, StaticDependencySiteDisposition.ConvertedInCandidate);
+        plan.Sites.Select(site => (site.Path, site.SpanStart, site.SpanLength)).ShouldBe(
+        [
+            (fixture.PathFor("Contracts.cs"), originalAdapter.SpanStart, originalAdapter.Span.Length),
+            (fixture.PathFor(ReadPart), readCall.SpanStart, readCall.Span.Length),
+            (fixture.PathFor("Consumer.cs"), constructorCall.SpanStart, constructorCall.Span.Length)
+        ]);
+        AssertPartialClosure(fixture, plan, callers, constructorSyntax, readCall, constructorCall);
+        await AssertRepeatAndFreshNoOpAsync(fixture, plan, service, receipt);
+    }
+
+    private static void AssertSymbolIdentity(ISymbol symbol, StaticDependencySymbol identity, string expectedId)
+    {
+        identity.DocumentationId.ShouldBe(expectedId);
+        symbol.GetDocumentationCommentId().ShouldBe(expectedId);
+        symbol.ContainingAssembly.Identity.ToString().ShouldBe(identity.AssemblyIdentity);
+    }
+
+    private static (string Id, DiagnosticSeverity Severity, string Message) DiagnosticIdentity(Diagnostic diagnostic) =>
+        (diagnostic.Id, diagnostic.Severity, diagnostic.GetMessage(CultureInfo.InvariantCulture));
+
+    private static async Task<ObjectCreationExpressionSyntax[]> AssertOriginalPartialCallersAsync(Solution original,
+        StaticDependencyIntroductionRequest request, IMethodSymbol constructor)
+    {
+        var (root, model) = await InspectAsync(original, "Callers.cs");
+        var creations = root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().ToArray();
+        creations.Select(creation => creation.ToString()).ShouldBe([
+            "new Consumer(Stamp(code), path: Trace(path))",
+            "new Consumer(path: Trace(path), code: Stamp(2))"
+        ]);
+        request.Callers.Select(binding => binding.ParameterOrdinal).ShouldBe([1, 0]);
+        for (var index = 0; index < creations.Length; index++)
+        {
+            var creation = creations[index];
+            var method = creation.Ancestors().OfType<MethodDeclarationSyntax>().First();
+            var caller = model.GetDeclaredSymbol(method).ShouldNotBeNull();
+            caller.MethodKind.ShouldBe(MethodKind.Ordinary);
+            caller.IsAsync.ShouldBeFalse();
+            var binding = request.Callers[index];
+            caller.GetDocumentationCommentId().ShouldBe(binding.MethodDocumentationId);
+            binding.ProjectPath.ShouldBe(request.Selection.ProjectPath);
+            var parameter = caller.Parameters[binding.ParameterOrdinal];
+            parameter.Name.ShouldBe(index == 0 ? "input" : "alternate");
+            parameter.RefKind.ShouldBe(RefKind.None);
+            AssertSymbolIdentity(parameter.Type, request.Mapping.ReceiverType, "T:Fixture.IReader");
+            var body = model.GetOperation(method.Body!).ShouldBeAssignableTo<IBlockOperation>()!;
+            body.Operations.Length.ShouldBe(2);
+            var local = body.Operations[0].DescendantsAndSelf().OfType<IVariableDeclaratorOperation>().ShouldHaveSingleItem();
+            var operation = local.Initializer.ShouldNotBeNull().Value.ShouldBeAssignableTo<IObjectCreationOperation>()!;
+            SymbolEqualityComparer.Default.Equals(operation.Constructor, constructor).ShouldBeTrue();
+            operation.Arguments.Select(argument => argument.Parameter!.Ordinal)
+                .ShouldBe(index == 0 ? FirstCallerArgumentOrdinals : SecondCallerArgumentOrdinals);
+            var stamp = "M:Fixture.Callers.Stamp(System.Int32)";
+            var trace = "M:Fixture.Callers.Trace(System.String)";
+            operation.Arguments.Select(argument => argument.Value.ShouldBeAssignableTo<IInvocationOperation>()!
+                .TargetMethod.GetDocumentationCommentId()).ShouldBe(index == 0 ? new[] { stamp, trace } : new[] { trace, stamp });
+            var read = body.Operations[1].ShouldBeAssignableTo<IReturnOperation>()!.ReturnedValue
+                .ShouldBeAssignableTo<IInvocationOperation>()!;
+            read.TargetMethod.GetDocumentationCommentId().ShouldBe(OrdinarySelectedCallOwners[1]);
+            var instance = read.Instance.ShouldBeAssignableTo<ILocalReferenceOperation>()!;
+            SymbolEqualityComparer.Default.Equals(instance.Local, local.Symbol).ShouldBeTrue();
+        }
+        return creations;
+    }
+
+    private static async Task<IFieldSymbol> AssertPartialConstructorWiringAsync(Solution candidate, Compilation compilation,
+        StaticDependencyIntroductionRequest request, ConstructorDeclarationSyntax originalConstructor)
+    {
+        var type = compilation.GetTypeByMetadataName("Fixture.Consumer").ShouldNotBeNull();
+        type.DeclaringSyntaxReferences.Length.ShouldBe(3);
+        var field = type.GetMembers("_reader").OfType<IFieldSymbol>().ShouldHaveSingleItem();
+        field.GetDocumentationCommentId().ShouldBe(FieldId);
+        field.IsReadOnly.ShouldBeTrue();
+        field.IsStatic.ShouldBeFalse();
+        field.DeclaredAccessibility.ShouldBe(Accessibility.Private);
+        AssertSymbolIdentity(field.Type, request.Mapping.ReceiverType, "T:Fixture.IReader");
+        var (root, model) = await InspectAsync(candidate, "Consumer.cs");
+        var constructor = root.DescendantNodes().OfType<ConstructorDeclarationSyntax>().ShouldHaveSingleItem();
+        var fieldDeclaration = field.DeclaringSyntaxReferences.ShouldHaveSingleItem().GetSyntax();
+        fieldDeclaration.SyntaxTree.ShouldBeSameAs(constructor.SyntaxTree);
+        fieldDeclaration.Ancestors().OfType<ClassDeclarationSyntax>().First().Span.ShouldBe(constructor.Parent!.Span);
+        var constructorSymbol = type.InstanceConstructors.ShouldHaveSingleItem();
+        constructorSymbol.GetDocumentationCommentId().ShouldBe(CandidateConstructorId);
+        constructorSymbol.ContainingAssembly.Identity.ToString().ShouldBe(request.Mapping.ReceiverType.AssemblyIdentity);
+        constructor.Initializer.ShouldBeNull();
+        var parameters = constructor.ParameterList.Parameters;
+        parameters.Count.ShouldBe(originalConstructor.ParameterList.Parameters.Count + 1);
+        parameters.Take(2).Select(parameter => parameter.ToString())
+            .ShouldBe(originalConstructor.ParameterList.Parameters.Select(parameter => parameter.ToString()));
+        var reader = constructorSymbol.Parameters[2];
+        reader.Name.ShouldBe("reader");
+        reader.RefKind.ShouldBe(RefKind.None);
+        SymbolEqualityComparer.Default.Equals(reader.Type, field.Type).ShouldBeTrue();
+        var statements = constructor.Body.ShouldNotBeNull().Statements;
+        statements.Count.ShouldBe(originalConstructor.Body!.Statements.Count + 1);
+        var assignment = model.GetOperation(statements[0]).ShouldBeAssignableTo<IExpressionStatementOperation>()!
+            .Operation.ShouldBeAssignableTo<ISimpleAssignmentOperation>()!;
+        var target = assignment.Target.ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+        target.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>();
+        SymbolEqualityComparer.Default.Equals(target.Field, field).ShouldBeTrue();
+        var value = assignment.Value.ShouldBeAssignableTo<IParameterReferenceOperation>()!;
+        SymbolEqualityComparer.Default.Equals(value.Parameter, reader).ShouldBeTrue();
+        return field;
+    }
+
+    private static void AssertPartialClosure(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        ObjectCreationExpressionSyntax[] callers, ConstructorDeclarationSyntax constructor,
+        InvocationExpressionSyntax readCall, InvocationExpressionSyntax constructorCall)
+    {
+        var expected = new (StaticDependencyClosureChangeKind Kind, SyntaxNode Anchor, string? BeforeId, string AfterId)[]
+        {
+            (StaticDependencyClosureChangeKind.ConstructionArgument, callers[0], OriginalConstructorId, CandidateConstructorId),
+            (StaticDependencyClosureChangeKind.ConstructionArgument, callers[1], OriginalConstructorId, CandidateConstructorId),
+            (StaticDependencyClosureChangeKind.MappedCall, readCall, SourceId, TargetId),
+            (StaticDependencyClosureChangeKind.Field, constructor.Parent!, null, FieldId),
+            (StaticDependencyClosureChangeKind.ConstructorParameter, constructor, OriginalConstructorId, CandidateConstructorId),
+            (StaticDependencyClosureChangeKind.ConstructorAssignment, constructor, OriginalConstructorId, CandidateConstructorId),
+            (StaticDependencyClosureChangeKind.MappedCall, constructorCall, SourceId, TargetId)
+        };
+        plan.Closure.Select(change => change.Id).Distinct(StringComparer.Ordinal).Count().ShouldBe(expected.Length);
+        plan.Closure.ShouldAllBe(change => change.ProjectPath == fixture.Request.Selection.ProjectPath
+            && !string.IsNullOrWhiteSpace(change.Id) && !string.IsNullOrWhiteSpace(change.Detail));
+        plan.Closure.Select(change => (change.Kind, change.Path, change.SpanStart, change.SpanLength,
+                change.OriginalSymbolDocumentationId, change.CandidateSymbolDocumentationId))
+            .ShouldBe(expected.Select(change => (change.Kind, change.Anchor.SyntaxTree.FilePath,
+                change.Anchor.SpanStart, change.Anchor.Span.Length, change.BeforeId, change.AfterId)));
+    }
+
+    [Theory]
+    [InlineData("local-collision", "introduction.names")]
+    [InlineData("self-escape", "introduction.self-escape:")]
+    [InlineData("deferred", "introduction.explicit-instance-capture:")]
+    [InlineData("async", "introduction.state-machine-capture:")]
+    [InlineData("iterator", "introduction.state-machine-capture:")]
+    [InlineData("finalizer", "introduction.finalizer")]
+    [InlineData("generated", "introduction.document")]
+    [InlineData("relative", "introduction.document")]
+    [InlineData("shared", "introduction.document")]
+    [InlineData("primary", "introduction.declaration")]
+    [InlineData("implicit", "introduction.constructors")]
+    [InlineData("chained", "introduction.constructor-shape")]
+    [InlineData("multiple", "introduction.constructors")]
+    public async Task refuses_unsafe_partial_introduction_atomically(string form, string code)
+    {
+        using var fixture = await CreatePartialAsync(form);
+        var original = fixture.Solution;
+        var compilation = await AssertCompilesAsync(original);
+        var linkedProjectPath = fixture.PathFor("LinkedProbe.csproj");
+        if (form == "shared")
+            await AssertCompleteAsync(original, linkedProjectPath);
+        else
+            await AssertCompleteAsync(original);
+        WorkspaceAcquisitionRegistry.Get(fixture.Workspace).Receipt.ShouldNotBeNull().Solution.ShouldBeSameAs(original);
+        var type = compilation.GetTypeByMetadataName("Fixture.Consumer").ShouldNotBeNull();
+        var (constructorRoot, constructorModel) = await InspectAsync(original, "Consumer.cs");
+        var (readRoot, readModel) = await InspectAsync(original, ReadPart);
+        var selectedCalls = CallsBoundTo(constructorRoot, constructorModel, SourceId)
+            .Concat(CallsBoundTo(readRoot, readModel, SourceId)).ToArray();
+        selectedCalls.Length.ShouldBe(2);
+        var declarations = type.DeclaringSyntaxReferences.Select(reference =>
+            reference.GetSyntax().ShouldBeAssignableTo<ClassDeclarationSyntax>()!).ToArray();
+        declarations.Length.ShouldBe(3);
+        var probe = declarations.Where(part => part.SyntaxTree != constructorRoot.SyntaxTree
+            && !part.Members.OfType<MethodDeclarationSyntax>().Any(method => method.Identifier.ValueText == "Read"))
+            .ShouldHaveSingleItem();
+        var probeModel = compilation.GetSemanticModel(probe.SyntaxTree);
+        SymbolEqualityComparer.Default.Equals(probeModel.GetDeclaredSymbol(probe), type).ShouldBeTrue();
+        CallsBoundTo(probe, probeModel, SourceId).ShouldBeEmpty();
+
+        switch (form)
+        {
+            case "local-collision":
+                probe.SyntaxTree.ShouldBeSameAs(readRoot.SyntaxTree);
+                type.GetMembers("_reader").ShouldBeEmpty();
+                var local = probe.DescendantNodes().OfType<VariableDeclaratorSyntax>().ShouldHaveSingleItem();
+                probeModel.GetDeclaredSymbol(local).ShouldBeAssignableTo<ILocalSymbol>()!.Name.ShouldBe("_reader");
+                break;
+            case "self-escape":
+                original.GetDocument(probe.SyntaxTree).ShouldNotBeNull().Name.ShouldBe(UnselectedPart);
+                var self = probe.DescendantNodes().OfType<ThisExpressionSyntax>().ShouldHaveSingleItem();
+                self.Parent.ShouldBeAssignableTo<ArrowExpressionClauseSyntax>();
+                var receiver = probeModel.GetOperation(self).ShouldBeAssignableTo<IInstanceReferenceOperation>()!;
+                SymbolEqualityComparer.Default.Equals(receiver.Type, type).ShouldBeTrue();
+                break;
+            case "deferred":
+                probe.SyntaxTree.ShouldBeSameAs(readRoot.SyntaxTree);
+                var lambda = probe.DescendantNodes().OfType<LambdaExpressionSyntax>().ShouldHaveSingleItem();
+                probeModel.GetOperation(lambda).ShouldBeAssignableTo<IAnonymousFunctionOperation>();
+                var field = probeModel.GetOperation(lambda.Body).ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+                field.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+                field.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>()!.IsImplicit.ShouldBeFalse();
+                break;
+            case "async":
+            case "iterator":
+                original.GetDocument(probe.SyntaxTree).ShouldNotBeNull().Name.ShouldBe(UnselectedPart);
+                var method = probe.Members.OfType<MethodDeclarationSyntax>().ShouldHaveSingleItem();
+                probeModel.GetDeclaredSymbol(method).ShouldNotBeNull().IsAsync.ShouldBe(form == "async");
+                method.DescendantNodes().OfType<AwaitExpressionSyntax>().Count().ShouldBe(form == "async" ? 1 : 0);
+                method.DescendantNodes().OfType<YieldStatementSyntax>().Count().ShouldBe(form == "iterator" ? 1 : 0);
+                var captured = method.DescendantNodes().OfType<IdentifierNameSyntax>()
+                    .Single(identifier => identifier.Identifier.ValueText == "_initial");
+                var access = probeModel.GetOperation(captured).ShouldBeAssignableTo<IFieldReferenceOperation>()!;
+                access.Field.GetDocumentationCommentId().ShouldBe("F:Fixture.Consumer._initial");
+                access.Instance.ShouldBeAssignableTo<IInstanceReferenceOperation>();
+                break;
+            case "finalizer":
+                original.GetDocument(probe.SyntaxTree).ShouldNotBeNull().Name.ShouldBe(UnselectedPart);
+                var finalizer = probe.Members.OfType<DestructorDeclarationSyntax>().ShouldHaveSingleItem();
+                probeModel.GetDeclaredSymbol(finalizer).ShouldNotBeNull().MethodKind.ShouldBe(MethodKind.Destructor);
+                break;
+            case "generated":
+                var selectedProject = FindDocument(original, ReadPart).Project;
+                var generated = (await selectedProject.GetSourceGeneratedDocumentsAsync()).ShouldHaveSingleItem();
+                generated.Name.ShouldBe(GeneratedPart);
+                (await generated.GetSyntaxTreeAsync()).ShouldBeSameAs(probe.SyntaxTree);
+                selectedProject.DocumentIds.ShouldNotContain(generated.Id);
+                fixture.Receipt.ShouldNotBeNull().Manifest.Inputs.ShouldContain(input =>
+                    input.Kind == SemanticInputKind.GeneratedDocument && input.Path == generated.FilePath);
+                break;
+            case "relative":
+                var relative = original.GetDocument(probe.SyntaxTree).ShouldNotBeNull();
+                relative.FilePath.ShouldBe(UnselectedPart);
+                Path.IsPathFullyQualified(relative.FilePath!).ShouldBeFalse();
+                break;
+            case "shared":
+                var owned = original.GetDocument(probe.SyntaxTree).ShouldNotBeNull();
+                owned.FilePath.ShouldBe(fixture.PathFor(UnselectedPart));
+                var contexts = original.Projects.SelectMany(project => project.Documents)
+                    .Where(document => document.FilePath == owned.FilePath).ToArray();
+                contexts.Select(document => document.Id).Distinct().Count().ShouldBe(2);
+                contexts.Select(document => document.Project.FilePath).Order(StringComparer.Ordinal)
+                    .ShouldBe(new[] { fixture.Request.Selection.ProjectPath, linkedProjectPath }.Order(StringComparer.Ordinal));
+                var peer = contexts.Single(document => document.Id != owned.Id);
+                (await peer.GetTextAsync()).ToString().ShouldBe(fixture.Sources[UnselectedPart]);
+                break;
+            case "primary":
+                declarations.Where(part => part.ParameterList is not null).ShouldHaveSingleItem().SyntaxTree
+                    .ShouldBeSameAs(constructorRoot.SyntaxTree);
+                type.InstanceConstructors.ShouldHaveSingleItem().IsImplicitlyDeclared.ShouldBeFalse();
+                constructorRoot.DescendantNodes().OfType<ConstructorDeclarationSyntax>().ShouldBeEmpty();
+                break;
+            case "implicit":
+                declarations.ShouldAllBe(part => part.ParameterList == null);
+                type.InstanceConstructors.ShouldHaveSingleItem().IsImplicitlyDeclared.ShouldBeTrue();
+                break;
+            case "chained":
+                type.InstanceConstructors.ShouldHaveSingleItem();
+                constructorRoot.DescendantNodes().OfType<ConstructorInitializerSyntax>().ShouldHaveSingleItem()
+                    .IsKind(SyntaxKind.BaseConstructorInitializer).ShouldBeTrue();
+                break;
+            case "multiple":
+                type.InstanceConstructors.Length.ShouldBe(2);
+                constructorRoot.DescendantNodes().OfType<ConstructorDeclarationSyntax>().ShouldHaveSingleItem();
+                var overload = probe.Members.OfType<ConstructorDeclarationSyntax>().ShouldHaveSingleItem();
+                overload.Initializer.ShouldNotBeNull().IsKind(SyntaxKind.ThisConstructorInitializer).ShouldBeTrue();
+                original.GetDocument(overload.SyntaxTree).ShouldNotBeNull().FilePath.ShouldBe(fixture.PathFor(UnselectedPart));
+                break;
+        }
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, fixture.Request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        plan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && (code.EndsWith(':') ? site.Code.StartsWith(code, StringComparison.Ordinal) : site.Code == code),
+            $"the {form} declaration must block the whole plan with {code}");
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        await fixture.AssertUntouchedAsync();
+    }
+
     private static async Task AssertPreparesSingleConstructorAsync(Fixture fixture)
     {
         var original = fixture.Solution;
@@ -140,18 +555,14 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         var candidateCompilation = await AssertCompilesAsync(candidate);
 
         // Independently specified complete syntax; formatting is not part of wiring semantics.
-        var expectedConsumer = fixture.Sources["Consumer.cs"].Replace("private readonly int _code;",
-                "private readonly global::Fixture.IReader _reader;\n    private readonly int _code;", StringComparison.Ordinal)
-            .Replace("Consumer(int code, string path)",
-                "Consumer(int code, string path, global::Fixture.IReader reader)", StringComparison.Ordinal)
-            .Replace("_code = code;", "this._reader = reader;\n        _code = code;", StringComparison.Ordinal)
-            .Replace("FileAlias.ReadAllText", "this._reader.ReadAllText", StringComparison.Ordinal)
+        var expectedConsumer = ExpectedWiredConstructor(fixture.Sources["Consumer.cs"])
             .Replace("File.ReadAllText(path: path + \"-body\")",
                 "this._reader.ReadAllText(path: path + \"-body\")", StringComparison.Ordinal);
-        var expectedCallers = Callers.Replace("path: Trace(path));",
-                "path: Trace(path), reader: input);", StringComparison.Ordinal)
-            .Replace("code: Stamp(2));", "code: Stamp(2), reader: alternate);", StringComparison.Ordinal);
-        await AssertDocumentChangesAsync(fixture, plan, expectedConsumer, expectedCallers);
+        await AssertDocumentChangesAsync(fixture, plan, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Callers.cs"] = ExpectedWiredCallers(),
+            ["Consumer.cs"] = expectedConsumer
+        });
 
         var field = candidateCompilation.GetTypeByMetadataName("Fixture.Consumer").ShouldNotBeNull()
             .GetMembers("_reader").OfType<IFieldSymbol>().ShouldHaveSingleItem();
@@ -207,7 +618,15 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             && site.TypeDocumentationId == "T:Fixture.BclReader" && site.Path == fixture.PathFor("Contracts.cs"));
         await AssertCallerBindingsAsync(original, candidate, request);
         await AssertClosureAsync(fixture, plan, originalCalls, candidateCompilation, expectedSelectedCalls: 2);
+        await AssertRepeatAndFreshNoOpAsync(fixture, plan, service, receipt);
+    }
 
+    private static async Task AssertRepeatAndFreshNoOpAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        StaticDependencyIntroductionService service, WorkspaceAcquisitionReceipt receipt)
+    {
+        var original = fixture.Solution;
+        var request = fixture.Request;
+        var candidate = plan.Changes.ChangedSolution.ShouldNotBeNull();
         var repeated = await service.PrepareAsync(original, request);
         repeated.Status.ShouldBe(plan.Status);
         repeated.SchemaVersion.ShouldBe(plan.SchemaVersion);
@@ -229,8 +648,12 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         foreach (var document in candidate.Projects.Single().Documents)
             candidateSources.Add(document.Name, (await document.GetTextAsync()).ToString());
         using var freshWorkspace = CreateWorkspace(fixture.Root, candidateSources);
+        freshWorkspace.ShouldNotBeSameAs(fixture.Workspace);
         var reacquired = freshWorkspace.CurrentSolution;
         await ExplicitWorkspaceAcquisition.AttachAsync(reacquired, [ProjectName]);
+        var freshReceipt = WorkspaceAcquisitionRegistry.Get(freshWorkspace).Receipt.ShouldNotBeNull();
+        freshReceipt.ShouldNotBeSameAs(receipt);
+        freshReceipt.Solution.ShouldBeSameAs(reacquired);
         await AssertCompleteAsync(reacquired);
         await AssertCompilesAsync(reacquired);
         var candidateFingerprint = await SolutionRevision.ComputeAsync(reacquired);
@@ -239,13 +662,20 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         var noOp = await service.PrepareAsync(reacquired, request with { ExpectedSourceFingerprint = candidateFingerprint });
         noOp.Status.ShouldBe(StaticDependencyPlanStatus.NoOp);
         noOp.SourceFingerprint.ShouldBe(candidateFingerprint);
+        noOp.MappingFingerprint.ShouldBe(plan.MappingFingerprint);
         noOp.Documents.ShouldBeEmpty();
         noOp.Closure.ShouldBeEmpty();
+        noOp.Resolution.ShouldBeNull();
         noOp.Changes.HasChanges.ShouldBeFalse();
         noOp.Changes.AffectedPaths.ShouldBeEmpty();
+        noOp.Changes.OriginalSolution.ShouldBeSameAs(reacquired);
+        noOp.Changes.ChangedSolution.ShouldBeSameAs(reacquired);
         AssertNoFileEffects(noOp.Changes);
-        noOp.Sites.ShouldNotContain(site => site.Disposition != StaticDependencySiteDisposition.Skipped);
+        var remainingSite = noOp.Sites.ShouldHaveSingleItem();
+        remainingSite.Disposition.ShouldBe(StaticDependencySiteDisposition.Skipped);
+        remainingSite.TypeDocumentationId.ShouldBe("T:Fixture.BclReader");
         freshWorkspace.CurrentSolution.ShouldBeSameAs(reacquired);
+        WorkspaceAcquisitionRegistry.Get(freshWorkspace).Receipt.ShouldBeSameAs(freshReceipt);
         await fixture.AssertUntouchedAsync();
     }
 
@@ -1254,7 +1684,6 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     [InlineData("missing-acquisition")]
     [InlineData("stale-acquisition")]
     [InlineData("stale-fingerprint")]
-    [InlineData("partial-consumer")]
     [InlineData("optional-constructor")]
     [InlineData("implicit-constructor")]
     [InlineData("field-collision")]
@@ -1864,18 +2293,22 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         plan.Sites.ShouldNotContain(site => site.Disposition == StaticDependencySiteDisposition.ConvertedInCandidate);
     }
 
-    private static async Task AssertAtomicSiteDispositionsAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
-        InvocationExpressionSyntax[] selectedCalls)
+    private static Task AssertAtomicSiteDispositionsAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        InvocationExpressionSyntax[] selectedCalls) =>
+        AssertSiteDispositionsAsync(fixture, plan, selectedCalls, StaticDependencySiteDisposition.Blocked);
+
+    private static async Task AssertSiteDispositionsAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
+        InvocationExpressionSyntax[] selectedCalls, StaticDependencySiteDisposition expectedDisposition)
     {
         plan.Sites.Select(site => site.Id).Distinct(StringComparer.Ordinal).Count().ShouldBe(plan.Sites.Count);
         plan.Sites.Count(site => site.Path.EndsWith(".cs", StringComparison.Ordinal)).ShouldBe(selectedCalls.Length + 1,
             "each original selected call and the unselected adapter must have exactly one source site record");
         foreach (var call in selectedCalls)
         {
-            var site = plan.Sites.Where(site => site.Path == FindDocument(fixture.Solution, "Consumer.cs").FilePath
+            var source = fixture.Solution.GetDocument(call.SyntaxTree).ShouldNotBeNull();
+            var site = plan.Sites.Where(site => site.Path == source.FilePath
                 && site.SpanStart == call.SpanStart && site.SpanLength == call.Span.Length).ShouldHaveSingleItem();
-            site.Disposition.ShouldBe(StaticDependencySiteDisposition.Blocked,
-                "atomic refusal must block every selected source call");
+            site.Disposition.ShouldBe(expectedDisposition, "all selected source calls must have the same outcome");
             site.ProjectPath.ShouldBe(fixture.Request.Selection.ProjectPath);
             site.TypeDocumentationId.ShouldBe(ConsumerId);
             site.Code.ShouldNotBeNullOrWhiteSpace();
@@ -1891,21 +2324,33 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             "the unselected adapter call must retain its unselected disposition");
     }
 
+    private static string ExpectedWiredConstructor(string source) => source.Replace("private readonly int _code;",
+            "private readonly global::Fixture.IReader _reader;\n    private readonly int _code;", StringComparison.Ordinal)
+        .Replace("Consumer(int code, string path)",
+            "Consumer(int code, string path, global::Fixture.IReader reader)", StringComparison.Ordinal)
+        .Replace("_code = code;", "this._reader = reader;\n        _code = code;", StringComparison.Ordinal)
+        .Replace("FileAlias.ReadAllText", "this._reader.ReadAllText", StringComparison.Ordinal);
+
+    private static string ExpectedWiredCallers() => Callers.Replace("path: Trace(path));",
+            "path: Trace(path), reader: input);", StringComparison.Ordinal)
+        .Replace("code: Stamp(2));", "code: Stamp(2), reader: alternate);", StringComparison.Ordinal);
+
     private static async Task AssertDocumentChangesAsync(Fixture fixture, StaticDependencyIntroductionPlan plan,
-        string expectedConsumer, string expectedCallers)
+        IReadOnlyDictionary<string, string> expectedDocuments)
     {
         var candidate = plan.Changes.ChangedSolution.ShouldNotBeNull();
-        var expectedPaths = new[] { fixture.PathFor("Callers.cs"), fixture.PathFor("Consumer.cs") };
+        var expectedPaths = expectedDocuments.Keys.Select(fixture.PathFor).Order(StringComparer.Ordinal).ToArray();
         plan.Documents.Select(document => document.Path).ShouldBe(expectedPaths);
         plan.Changes.AffectedPaths.ShouldBe(expectedPaths);
         foreach (var change in plan.Documents)
         {
             var name = Path.GetFileName(change.Path);
             change.Before.ShouldBe(fixture.Sources[name]);
+            change.Before.ShouldBe((await FindDocument(fixture.Solution, name).GetTextAsync()).ToString());
             var actual = (await FindDocument(candidate, name).GetTextAsync()).ToString();
             change.After.ShouldBe(actual, "the diff must contain the entire final document");
             SyntaxFactory.ParseCompilationUnit(actual).NormalizeWhitespace().ToFullString().ShouldBe(
-                SyntaxFactory.ParseCompilationUnit(name == "Consumer.cs" ? expectedConsumer : expectedCallers)
+                SyntaxFactory.ParseCompilationUnit(expectedDocuments[name])
                     .NormalizeWhitespace().ToFullString());
         }
         (await FindDocument(candidate, "Contracts.cs").GetTextAsync()).ToString().ShouldBe(Contracts);
@@ -1926,6 +2371,8 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         var (newRoot, newModel) = await InspectAsync(candidate, "Callers.cs");
         var before = oldRoot.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().ToArray();
         var after = newRoot.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().ToArray();
+        var candidateConstructor = DocumentationCommentId.GetSymbolsForDeclarationId(CandidateConstructorId, newModel.Compilation)
+            .ShouldHaveSingleItem().ShouldBeAssignableTo<IMethodSymbol>()!;
         before.Length.ShouldBe(2);
         after.Length.ShouldBe(before.Length);
         foreach (var (oldCreation, newCreation) in before.Zip(after))
@@ -1934,6 +2381,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             var newOperation = newModel.GetOperation(newCreation).ShouldBeAssignableTo<IObjectCreationOperation>()!;
             oldOperation.Constructor!.GetDocumentationCommentId().ShouldBe(OriginalConstructorId);
             newOperation.Constructor!.GetDocumentationCommentId().ShouldBe(CandidateConstructorId);
+            SymbolEqualityComparer.Default.Equals(newOperation.Constructor, candidateConstructor).ShouldBeTrue();
             newOperation.Arguments.Length.ShouldBe(3);
             newOperation.Arguments.Take(2).Select(ArgumentBinding).ShouldBe(oldOperation.Arguments.Select(ArgumentBinding),
                 "original named-argument order, conversions and nested calls must retain their bindings");
@@ -2015,7 +2463,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
                 && operation.TargetMethod.GetDocumentationCommentId() == id).ToArray();
 
     private static Document FindDocument(Solution solution, string name) =>
-        solution.Projects.Single().Documents.Single(document => document.Name == name);
+        solution.Projects.Single(project => project.Name == ProjectName).Documents.Single(document => document.Name == name);
 
     private static async Task<(SyntaxNode Root, SemanticModel Model)> InspectAsync(Solution solution, string name)
     {
@@ -2026,18 +2474,25 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
 
     private static async Task<Compilation> AssertCompilesAsync(Solution solution)
     {
-        var compilation = (await solution.Projects.Single().GetCompilationAsync()).ShouldNotBeNull();
+        var compilation = (await solution.Projects.Single(project => project.Name == ProjectName).GetCompilationAsync()).ShouldNotBeNull();
         compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ShouldBeEmpty("the independent fixture must compile, independently of planner behavior");
+        foreach (var project in solution.Projects.Where(project => project.Name != ProjectName))
+        {
+            var peer = (await project.GetCompilationAsync()).ShouldNotBeNull();
+            peer.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .ShouldBeEmpty($"fixture project {project.Name} must compile before planning");
+        }
         return compilation;
     }
 
-    private static async Task AssertCompleteAsync(Solution solution)
+    private static async Task AssertCompleteAsync(Solution solution, params string[] additionalProjectPaths)
     {
         var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, CancellationToken.None);
         completeness.State.ShouldBe(WorkspaceCompletenessState.Complete, string.Join("; ", completeness.Diagnostics));
         WorkspaceProofPolicy.Evaluate(completeness).CanUseAbsenceEvidence.ShouldBeTrue();
-        completeness.RequestedProjects.ShouldBe([solution.Projects.Single().FilePath!]);
+        var selectedPath = solution.Projects.Single(project => project.Name == ProjectName).FilePath!;
+        completeness.RequestedProjects.ShouldBe(additionalProjectPaths.Append(selectedPath).Order(StringComparer.Ordinal));
     }
 
     private static void AssertNoFileEffects(PreparedChangeSet changes)
@@ -2049,7 +2504,8 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         changes.TextEdits.ShouldBeEmpty();
     }
 
-    private static AdhocWorkspace CreateWorkspace(string root, IReadOnlyDictionary<string, string> sources)
+    private static AdhocWorkspace CreateWorkspace(string root, IReadOnlyDictionary<string, string> sources,
+        AdhocProjectBuilder.ProjectDef? generator = null, bool relativeProbePath = false)
     {
         var workspace = new AdhocWorkspace();
         var projectId = ProjectId.CreateNewId();
@@ -2062,18 +2518,84 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         workspace.AddProject(ProjectInfo.Create(projectId, VersionStamp.Create(), ProjectName, ProjectName,
             LanguageNames.CSharp, filePath: Path.Combine(root, "Fixture.csproj"),
             compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
-            parseOptions: new CSharpParseOptions(LanguageVersion.CSharp12), metadataReferences: references));
+            parseOptions: new CSharpParseOptions(LanguageVersion.CSharp12), metadataReferences: references,
+            analyzerReferences: generator is null ? [] : generator.CreateAnalyzerReferences()));
         foreach (var (name, source) in sources)
             workspace.AddDocument(DocumentInfo.Create(DocumentId.CreateNewId(projectId), name,
                 loader: TextLoader.From(TextAndVersion.Create(SourceText.From(source), VersionStamp.Create())),
-                filePath: Path.Combine(root, name)));
+                filePath: relativeProbePath && name == UnselectedPart ? name : Path.Combine(root, name)));
         return workspace;
     }
 
-    private static async Task<Fixture> CreateAsync(string? refusal = null, string? deferredForm = null,
-        string? deferredExpression = null, string? callerForm = null, string? lifetimeForm = null)
+    private static Task<Fixture> CreatePartialAsync(string? form = null)
     {
+        var typeStart = Consumer.IndexOf("internal sealed class Consumer", StringComparison.Ordinal);
+        var readStart = Consumer.IndexOf("    internal string Read", StringComparison.Ordinal);
+        var constructorPart = "using FileAlias = System.IO.File;\nnamespace Fixture;\n"
+            + Consumer[typeStart..readStart].Replace("sealed class", "sealed partial class", StringComparison.Ordinal)
+            + "}";
+        // Keep the alias bound after the selected constructor call is changed.
+        constructorPart = constructorPart.Replace("private readonly int _code;",
+            "private readonly int _code;\n    private static System.Type FileType() => typeof(FileAlias);", StringComparison.Ordinal);
+        var readPart = "using System.IO;\nusing System.Text;\nnamespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + Consumer[readStart..];
+        var probeMember = form switch
+        {
+            "local-collision" => "private static int PartialProbe() { int _reader = 153; return _reader; }",
+            "self-escape" => "private object PartialProbe() => this;",
+            "deferred" => "private System.Func<string> PartialProbe() => () => this._initial;",
+            "async" => "private async System.Threading.Tasks.Task<string> PartialProbe() { await System.Threading.Tasks.Task.Yield(); return _initial; }",
+            "iterator" => "private System.Collections.Generic.IEnumerable<string> PartialProbe() { yield return _initial; }",
+            "finalizer" => "~Consumer() { _ = _initial; }",
+            "multiple" => "internal Consumer(string path) : this(0, path) { }",
+            _ => Probe
+        };
+        var probePart = $"internal sealed partial class Consumer\n{{\n    {probeMember}\n}}";
+        var separateProbe = form is "self-escape" or "async" or "iterator" or "finalizer" or "relative" or "shared" or "multiple";
+        if (!separateProbe && form != "generated")
+            readPart += "\n\n" + probePart;
+
+        var callers = Callers;
+        if (form is "primary" or "implicit")
+        {
+            constructorPart = form == "primary"
+                ? "namespace Fixture; internal sealed partial class Consumer(int code, string path) { private readonly int _code = code; private readonly string _initial = path; }"
+                : "namespace Fixture; internal sealed partial class Consumer { private readonly int _code = 0; private readonly string _initial = string.Empty; }";
+            if (form == "implicit")
+                callers = Callers.Replace("new Consumer(Stamp(code), path: Trace(path))", "new Consumer()", StringComparison.Ordinal)
+                    .Replace("new Consumer(path: Trace(path), code: Stamp(2))", "new Consumer()", StringComparison.Ordinal);
+        }
+        if (form == "chained")
+            constructorPart = constructorPart.Replace("Consumer(int code, string path)",
+                    "Consumer(int code, string path) : base()", StringComparison.Ordinal)
+                .Replace("_initial = FileAlias.ReadAllText(path: path + \"-ctor\");", "_initial = path;", StringComparison.Ordinal);
+        if (form is "primary" or "implicit" or "chained")
+        {
+            // Keep both selected calls in an ordinary method so the constructor guard owns the refusal.
+            readPart = readPart.Replace("var exact =", "var initial = File.ReadAllText(path: path + \"-ctor\");\n        var exact =",
+                StringComparison.Ordinal).Replace("return _initial +", "return _initial + initial +", StringComparison.Ordinal);
+        }
         var sources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [ReadPart] = readPart,
+            ["Consumer.cs"] = constructorPart,
+            ["Contracts.cs"] = Contracts,
+            ["Callers.cs"] = callers
+        };
+        if (separateProbe)
+            sources.Add(UnselectedPart, "namespace Fixture;\n" + probePart);
+        var generator = form == "generated"
+            ? new AdhocProjectBuilder.ProjectDef(ProjectName).AddGeneratedSource(GeneratedPart, "namespace Fixture;\n" + probePart)
+            : null;
+        return CreateAsync(sourceOverride: sources, probeContext: form, generator: generator);
+    }
+
+    private static async Task<Fixture> CreateAsync(string? refusal = null, string? deferredForm = null,
+        string? deferredExpression = null, string? callerForm = null, string? lifetimeForm = null,
+        Dictionary<string, string>? sourceOverride = null, string? probeContext = null,
+        AdhocProjectBuilder.ProjectDef? generator = null)
+    {
+        var sources = sourceOverride ?? new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Contracts.cs"] = Contracts,
             ["Consumer.cs"] = Consumer,
@@ -2088,8 +2610,6 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
             sources["Callers.cs"] = Callers.Replace("static string First", "static Consumer First", StringComparison.Ordinal)
                 .Replace("path: Trace(path));\n        return consumer.Read(path);",
                     "path: Trace(path));\n        return consumer;", StringComparison.Ordinal);
-        if (refusal == "partial-consumer")
-            sources["Consumer.cs"] = Consumer.Replace("internal sealed class Consumer", "internal sealed partial class Consumer", StringComparison.Ordinal);
         if (refusal == "optional-constructor")
             sources["Consumer.cs"] = Consumer.Replace("int code, string path)", "int code = 0, string path = \"default\")", StringComparison.Ordinal);
         if (refusal == "implicit-constructor")
@@ -2235,7 +2755,19 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         foreach (var (name, source) in sources)
             await File.WriteAllTextAsync(Path.Combine(root, name), source);
         await File.WriteAllTextAsync(Path.Combine(root, "Fixture.csproj"), "<Project />");
-        var workspace = CreateWorkspace(root, sources);
+        var workspace = CreateWorkspace(root, sources, generator, relativeProbePath: probeContext == "relative");
+        var selectedProject = workspace.CurrentSolution.Projects.Single();
+        var linkedProjectPath = Path.Combine(root, "LinkedProbe.csproj");
+        if (probeContext == "shared")
+        {
+            var linkedId = ProjectId.CreateNewId();
+            workspace.AddProject(ProjectInfo.Create(linkedId, VersionStamp.Create(), LinkedProject, LinkedProject,
+                LanguageNames.CSharp, filePath: linkedProjectPath, compilationOptions: selectedProject.CompilationOptions,
+                parseOptions: selectedProject.ParseOptions, metadataReferences: selectedProject.MetadataReferences));
+            workspace.AddDocument(DocumentInfo.Create(DocumentId.CreateNewId(linkedId), UnselectedPart,
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From(sources[UnselectedPart]), VersionStamp.Create())),
+                filePath: Path.Combine(root, UnselectedPart)));
+        }
         var solution = workspace.CurrentSolution;
         if (refusal == "relative-document-path")
         {
@@ -2255,8 +2787,12 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         var compilation = await AssertCompilesAsync(solution);
         if (refusal != "missing-acquisition")
         {
-            await ExplicitWorkspaceAcquisition.AttachAsync(solution, [ProjectName]);
-            await AssertCompleteAsync(solution);
+            await ExplicitWorkspaceAcquisition.AttachAsync(solution, probeContext == "shared" ? [ProjectName, LinkedProject] : [ProjectName],
+                generator is null ? null : new Dictionary<string, string[]> { [ProjectName] = [GeneratedPart] });
+            if (probeContext == "shared")
+                await AssertCompleteAsync(solution, linkedProjectPath);
+            else
+                await AssertCompleteAsync(solution);
         }
         var sourceMethod = DocumentationCommentId.GetSymbolsForDeclarationId(SourceId, compilation).ShouldHaveSingleItem();
         var targetMethod = DocumentationCommentId.GetSymbolsForDeclarationId(TargetId, compilation).ShouldHaveSingleItem();
@@ -2273,7 +2809,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
                 "Both synchronous contracts have no cancellation parameter.",
                 "BclReader retains no resources and returns the BCL result directly.",
                 ["Controlled BclReader source forwards path directly; lifetime/non-null are caller declarations."]));
-        var projectPath = solution.Projects.Single().FilePath!;
+        var projectPath = selectedProject.FilePath!;
         StaticDependencyCallerParameter[] callers = refusal == "no-construction-sites" ? [] :
         [
             new StaticDependencyCallerParameter(projectPath, "M:Fixture.Callers.First(System.Int32,Fixture.IReader,System.String)", 1),
