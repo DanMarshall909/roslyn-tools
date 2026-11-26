@@ -32,6 +32,56 @@ public sealed class CiCheckOperationTests
         }
     }
 
+    [Theory(DisplayName = "Standard smell rules enforce their configured maximums")]
+    [InlineData("maintainability.large-type", "maxLines", 5)]
+    [InlineData("maintainability.long-method", "maxLines", 4)]
+    [InlineData("maintainability.too-many-dependencies", "maxParameters", 1)]
+    public async Task Standard_smell_rules_enforce_their_configured_maximums(
+        string ruleId,
+        string setting,
+        int maximum)
+    {
+        using var builder = SmellFixture();
+        var (workspace, solution) = builder.Build();
+        WritePolicy(builder, SmellPolicy(ruleId, setting, maximum));
+
+        var result = Unwrap(await new CiCheckOperation(new FixedSessions(workspace, solution))
+            .ExecuteAsync(new CiCheckRequest(builder.SolutionPath)));
+
+        result.Passed.ShouldBeFalse();
+        result.FindingCount.ShouldBe(1);
+        result.Rules.Single().ShouldBe(new CiRuleResult(ruleId, 1));
+        result.Findings.Single().RuleId.ShouldBe(ruleId);
+        result.Findings.Single().File.ShouldBe("Demo/Smelly.cs");
+        result.Findings.Single().Message.ShouldContain($"exceeds maximum {maximum}");
+    }
+
+    [Fact(DisplayName = "Standard smell rules share one gate without duplicate findings")]
+    public async Task Standard_smell_rules_share_one_gate_without_duplicate_findings()
+    {
+        using var builder = SmellFixture();
+        var (workspace, solution) = builder.Build();
+        WritePolicy(builder, """
+            {"version":1,"rules":[
+              {"id":"maintainability.large-type","maxLines":5},
+              {"id":"maintainability.long-method","maxLines":4},
+              {"id":"maintainability.too-many-dependencies","maxParameters":1}
+            ]}
+            """);
+
+        var result = Unwrap(await new CiCheckOperation(new FixedSessions(workspace, solution))
+            .ExecuteAsync(new CiCheckRequest(builder.SolutionPath)));
+
+        result.Passed.ShouldBeFalse();
+        result.FindingCount.ShouldBe(3);
+        result.Rules.ShouldAllBe(rule => rule.FindingCount == 1);
+        result.Findings.Select(finding => finding.RuleId).ShouldBe([
+            "maintainability.large-type",
+            "maintainability.long-method",
+            "maintainability.too-many-dependencies"
+        ]);
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("{}")]
@@ -41,6 +91,9 @@ public sealed class CiCheckOperationTests
     [InlineData("{\"version\":1,\"rules\":[{\"id\":\"typo\"}]}")]
     [InlineData("{\"version\":1,\"rules\":[{\"id\":\"architecture\"}]}")]
     [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.complexity\",\"maxCyclomatic\":0}]}")]
+    [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.large-type\",\"maxLines\":0}]}")]
+    [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.long-method\",\"maxLines\":10,\"maxParameters\":2}]}")]
+    [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.too-many-dependencies\",\"maxParameters\":0}]}")]
     [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.complexity\",\"maxCyclomatic\":10,\"maxCyclomtic\":1}]}")]
     [InlineData("{\"version\":1,\"rules\":[{\"id\":\"maintainability.complexity\",\"maxCyclomatic\":10},{\"id\":\"maintainability.complexity\",\"maxCyclomatic\":20}]}")]
     [InlineData("{")]
@@ -173,8 +226,39 @@ public sealed class CiCheckOperationTests
     private static AdhocProjectBuilder Fixture() => new AdhocProjectBuilder("Demo")
         .AddSource("Value.cs", "namespace Demo; public class Value { public int Run(bool flag) { if (flag) return 1; return 0; } }");
 
+    private static AdhocProjectBuilder SmellFixture() => new AdhocProjectBuilder("Demo")
+        .AddSource("Smelly.cs", """
+            namespace Demo;
+            public sealed class Smelly
+            {
+                public Smelly(int first, int second)
+                {
+                }
+
+                public int Run(bool flag)
+                {
+                    if (flag)
+                    {
+                        return 1;
+                    }
+
+                    return 0;
+                }
+            }
+            """);
+
     private static string ComplexityPolicy(int maximum) =>
         JsonSerializer.Serialize(new { version = 1, rules = new[] { new { id = "maintainability.complexity", maxCyclomatic = maximum } } });
+
+    private static string SmellPolicy(string ruleId, string setting, int maximum)
+    {
+        var rule = new Dictionary<string, object>
+        {
+            ["id"] = ruleId,
+            [setting] = maximum
+        };
+        return JsonSerializer.Serialize(new { version = 1, rules = new[] { rule } });
+    }
 
     private static void WritePolicy(AdhocProjectBuilder builder, string policy)
     {
