@@ -81,8 +81,12 @@ separate internal introduction service prepares a new field, one ordinary
 constructor and every explicitly bound synchronous caller in one candidate.
 Original consumer confinement and the receiver usage introduced by replacement
 are separate proof obligations; deferred captures and unsupported state-machine
-execution refuse the whole selection. The bounded introduction currently requires
-one internal sealed, nongeneric, nonpartial class and one unchained constructor.
+execution refuse the whole selection. The bounded introduction currently supports
+one internal sealed, nongeneric class across authored declarations in the
+selected project (no primary constructors, base lists, source-generated parts,
+or cross-project shared paths) and one ordinary unchained, non-partial
+constructor, evaluating declarations in deterministic `(FilePath, SpanStart)`
+order and checking name collisions and escapes across every part.
 It rejects a selected class's own destructor/finalizer before candidate
 construction because runtime finalization cannot be confined to the declared
 dependency lifetime; it makes no general finalizer or runtime lifetime proof.
@@ -117,7 +121,7 @@ field with no parameter name. Refusals retain original site anchors and unselect
 dispositions, and atomically block all selected sites without a candidate or effects. Receiver
 availability, lifetime, non-null and adapter semantics remain declared
 preconditions. The v1 mapping fingerprint stays mapping-only. New-field
-introduction across partial declarations/chains, version 2 explicit parameter
+introduction across supported constructor chains, version 2 explicit parameter
 bindings, the UTC preset and public host admission remain separate delivery gates
 in issue 153. Future multi-dependency planning must share one original closure;
 this slice does not implement that extension. Both planners remain internal.

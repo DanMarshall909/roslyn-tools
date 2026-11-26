@@ -3,9 +3,10 @@
 ## Status
 
 Accepted, 2026-10-15, for the internal first slice of RT-022; extended 2026-11-07
-for bounded constructor introduction and explicit existing-field reuse. Broader
-introduction cases, explicit parameter bindings, property presets and public host
-admission remain separate delivery gates.
+for bounded constructor introduction and explicit existing-field reuse, and
+2026-11-26 for authored partial declarations. Constructor chains, explicit
+parameter bindings, property presets and public host admission remain separate
+delivery gates.
 
 ## Context
 
@@ -51,8 +52,18 @@ Verify that original authority remains unchanged after constructing the candidat
 a compiling candidate cannot replace or upgrade its acquisition evidence.
 
 The initial supported closure is one internal sealed, nongeneric, top-level class
-with one authored nonpartial declaration and one ordinary unchained instance
-constructor. It has no custom base type, interfaces or activation attributes.
+with one or more authored partial declarations in the selected project (requiring
+`partial` on all declarations when split across multiple declarations) and one
+ordinary unchained, non-partial instance constructor. Every declaration must be
+authored with an unambiguous absolute Roslyn path in the selected project (no
+source-generated, linked/shared cross-project, primary-constructor, or base-list
+declarations), and it has no custom base type, interfaces or activation
+attributes.
+Declaration scanning and escape analysis evaluate all authored declarations in
+deterministic `(FilePath, SpanStart)` order, checking field-name collisions
+across every part and emitting unique file-qualified blocker identifiers across
+partial and caller documents. The field and constructor parameter are introduced
+into the authored declaration that owns the sole explicit constructor.
 The selected class must not declare its own destructor/finalizer: runtime
 finalization cannot be confined to the declared dependency lifetime. Refuse such
 types before constructing a candidate; no general finalizer or runtime lifetime
@@ -136,11 +147,11 @@ remain explicit declared preconditions, separate from compiler structural proof.
 
 Both planners remain internal and unwired from public hosts. The bounded case
 introduces no framework registrations, guessed dependencies or writer effects.
-Authored partial declarations and supported constructor chains for new dependency
-introduction require subsequent evidence under issue 153, as do version 2 explicit
-parameter/dependency bindings and the characterized UTC property preset. Later
-multi-dependency planning must share one original closure; this bounded reuse
-policy does not implement that extension.
+Supported constructor chains for new dependency introduction remain pending under
+issue 153, as do version 2 explicit parameter/dependency bindings and the
+characterized UTC property preset. Later multi-dependency planning must share
+one original closure; this bounded reuse policy does not implement that
+extension.
 Existing recipe consolidation and shared host exposure must pass admission
 policy; MCP remains plan-only. This contract introduces no durable apply or
 recovery mechanism.

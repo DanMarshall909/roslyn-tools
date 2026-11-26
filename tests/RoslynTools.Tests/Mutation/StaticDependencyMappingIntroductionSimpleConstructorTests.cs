@@ -253,6 +253,174 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         await AssertRepeatAndFreshNoOpAsync(fixture, plan, service, receipt);
     }
 
+    [Fact]
+    public async Task refuses_cross_file_partial_escapes_with_unique_ids_and_deterministic_order()
+    {
+        var typeStart = Consumer.IndexOf("internal sealed class Consumer", StringComparison.Ordinal);
+        var readStart = Consumer.IndexOf("    internal string Read", StringComparison.Ordinal);
+        var constructorPart = "using FileAlias = System.IO.File;\nnamespace Fixture;\n"
+            + Consumer[typeStart..readStart].Replace("sealed class", "sealed partial class", StringComparison.Ordinal)
+            + "}";
+        var readPart = "using System.IO;\nusing System.Text;\nnamespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + Consumer[readStart..];
+        const string escapeSourceA = "namespace Fixture;\ninternal sealed partial class Consumer\n{\n    private object EscapeA() => this;\n}";
+        const string escapeSourceZ = "namespace Fixture;\ninternal sealed partial class Consumer\n{\n    private object EscapeZ() => this;\n}";
+        var sources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Contracts.cs"] = Contracts,
+            ["Consumer.PartZ.cs"] = escapeSourceZ,
+            ["Consumer.cs"] = constructorPart,
+            [ReadPart] = readPart,
+            ["Consumer.PartA.cs"] = escapeSourceA,
+            ["Callers.cs"] = Callers
+        };
+        using var fixture = await CreateAsync(sourceOverride: sources);
+        var original = fixture.Solution;
+        await AssertCompilesAsync(original);
+        await AssertCompleteAsync(original);
+        var (readRoot, readModel) = await InspectAsync(original, ReadPart);
+        var (constructorRoot, constructorModel) = await InspectAsync(original, "Consumer.cs");
+        var selectedCalls = CallsBoundTo(readRoot, readModel, SourceId)
+            .Concat(CallsBoundTo(constructorRoot, constructorModel, SourceId)).ToArray();
+        selectedCalls.Length.ShouldBe(2);
+        var (partARoot, _) = await InspectAsync(original, "Consumer.PartA.cs");
+        var (partZRoot, _) = await InspectAsync(original, "Consumer.PartZ.cs");
+        var spanA = partARoot.DescendantNodes().OfType<ThisExpressionSyntax>().ShouldHaveSingleItem().SpanStart;
+        var spanZ = partZRoot.DescendantNodes().OfType<ThisExpressionSyntax>().ShouldHaveSingleItem().SpanStart;
+        spanA.ShouldBe(spanZ);
+
+        var plan = await new StaticDependencyIntroductionService().PrepareAsync(original, fixture.Request);
+
+        AssertBlockedWithoutCandidate(plan, original);
+        var pathA = fixture.PathFor("Consumer.PartA.cs");
+        var pathZ = fixture.PathFor("Consumer.PartZ.cs");
+        var expectedCodeA = $"introduction.self-escape:{pathA}:{spanA}";
+        var expectedCodeZ = $"introduction.self-escape:{pathZ}:{spanZ}";
+        var hasQualifiedA = plan.Sites.Any(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && site.Code == expectedCodeA);
+        hasQualifiedA.ShouldBeTrue("cross-file escapes need unique file-qualified blocker IDs");
+        var hasQualifiedZ = plan.Sites.Any(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && site.Code == expectedCodeZ);
+        hasQualifiedZ.ShouldBeTrue("cross-file escapes need unique file-qualified blocker IDs");
+        await AssertAtomicSiteDispositionsAsync(fixture, plan, selectedCalls);
+        var atomicRefusal = plan.Sites.First(site => site.Code == "introduction.atomic-refusal");
+        var indexA = atomicRefusal.Message.IndexOf(expectedCodeA, StringComparison.Ordinal);
+        var indexZ = atomicRefusal.Message.IndexOf(expectedCodeZ, StringComparison.Ordinal);
+        indexA.ShouldBeGreaterThanOrEqualTo(0);
+        indexZ.ShouldBeGreaterThan(indexA,
+            "cross-file partial escapes must emit unique file-qualified blocker IDs in deterministic order");
+        await fixture.AssertUntouchedAsync();
+    }
+
+    [Fact]
+    public async Task prepares_single_file_partial_class_and_partial_methods_across_authored_parts()
+    {
+        var singleSources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Contracts.cs"] = Contracts,
+            ["Consumer.cs"] = Consumer.Replace("internal sealed class Consumer",
+                "internal sealed partial class Consumer", StringComparison.Ordinal),
+            ["Callers.cs"] = Callers
+        };
+        using (var singleFixture = await CreateAsync(sourceOverride: singleSources))
+        {
+            var singlePlan = await new StaticDependencyIntroductionService().PrepareAsync(
+                singleFixture.Solution, singleFixture.Request);
+            singlePlan.Status.ShouldBe(StaticDependencyPlanStatus.Prepared);
+            await AssertCompilesAsync(singlePlan.Changes.ChangedSolution.ShouldNotBeNull());
+            await singleFixture.AssertUntouchedAsync();
+        }
+
+        var typeStart = Consumer.IndexOf("internal sealed class Consumer", StringComparison.Ordinal);
+        var readStart = Consumer.IndexOf("    internal string Read", StringComparison.Ordinal);
+        var constructorPart = "using FileAlias = System.IO.File;\nnamespace Fixture;\n"
+            + Consumer[typeStart..readStart].Replace("sealed class", "sealed partial class", StringComparison.Ordinal)
+            + "    private partial string FormatSuffix(int code);\n}";
+        var readPart = "using System.IO;\nusing System.Text;\nnamespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + "    private partial string FormatSuffix(int code) => code.ToString(System.Globalization.CultureInfo.InvariantCulture);\n"
+            + Consumer[readStart..].Replace("_code + exact", "FormatSuffix(_code) + exact", StringComparison.Ordinal);
+        var multiSources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Contracts.cs"] = Contracts,
+            ["Consumer.cs"] = constructorPart,
+            [ReadPart] = readPart,
+            ["Callers.cs"] = Callers
+        };
+        using var multiFixture = await CreateAsync(sourceOverride: multiSources);
+        var multiOriginal = multiFixture.Solution;
+        await AssertCompilesAsync(multiOriginal);
+        var multiPlan = await new StaticDependencyIntroductionService().PrepareAsync(multiOriginal, multiFixture.Request);
+        multiPlan.Status.ShouldBe(StaticDependencyPlanStatus.Prepared);
+        var candidate = multiPlan.Changes.ChangedSolution.ShouldNotBeNull();
+        await AssertCompilesAsync(candidate);
+        multiPlan.Documents.Select(document => Path.GetFileName(document.Path)).Order(StringComparer.Ordinal)
+            .ShouldBe(["Callers.cs", ReadPart, "Consumer.cs"]);
+        await multiFixture.AssertUntouchedAsync();
+    }
+
+    [Fact]
+    public async Task refuses_unselected_partial_base_list_and_csharp14_partial_constructor()
+    {
+        var typeStart = Consumer.IndexOf("internal sealed class Consumer", StringComparison.Ordinal);
+        var readStart = Consumer.IndexOf("    internal string Read", StringComparison.Ordinal);
+        var constructorPart = "using FileAlias = System.IO.File;\nnamespace Fixture;\n"
+            + Consumer[typeStart..readStart].Replace("sealed class", "sealed partial class", StringComparison.Ordinal)
+            + "}";
+        var readPart = "using System.IO;\nusing System.Text;\nnamespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + Consumer[readStart..];
+
+        var baseListSources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Contracts.cs"] = Contracts,
+            [UnselectedPart] = "namespace Fixture;\ninternal sealed partial class Consumer : object\n{\n    private const int PartialProbe = 153;\n}",
+            ["Consumer.cs"] = constructorPart,
+            [ReadPart] = readPart,
+            ["Callers.cs"] = Callers
+        };
+        using (var baseFixture = await CreateAsync(sourceOverride: baseListSources))
+        {
+            var basePlan = await new StaticDependencyIntroductionService().PrepareAsync(
+                baseFixture.Solution, baseFixture.Request);
+            AssertBlockedWithoutCandidate(basePlan, baseFixture.Solution);
+            basePlan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+                && site.Code == "introduction.declaration");
+            await baseFixture.AssertUntouchedAsync();
+        }
+
+        var implementingPart = "using System.IO;\nusing System.Text;\nusing FileAlias = System.IO.File;\n"
+            + "namespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + "    internal partial Consumer(int code, string path)\n"
+            + "    {\n"
+            + "        _code = code;\n"
+            + "        _initial = FileAlias.ReadAllText(path: path + \"-ctor\");\n"
+            + "    }\n"
+            + Consumer[readStart..];
+        var definingPart = "namespace Fixture;\ninternal sealed partial class Consumer\n{\n"
+            + "    private readonly int _code;\n"
+            + "    private readonly string _initial;\n"
+            + "    internal partial Consumer(int code, string path);\n}";
+        var partialCtorSources = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Contracts.cs"] = Contracts,
+            [ReadPart] = implementingPart,
+            ["Consumer.cs"] = definingPart,
+            ["Callers.cs"] = Callers
+        };
+        using var ctorFixture = await CreateAsync(sourceOverride: partialCtorSources, languageVersion: LanguageVersion.Preview);
+        var compilation = await AssertCompilesAsync(ctorFixture.Solution);
+        var ctorSymbol = compilation.GetTypeByMetadataName("Fixture.Consumer").ShouldNotBeNull()
+            .InstanceConstructors.ShouldHaveSingleItem();
+        (ctorSymbol.PartialImplementationPart is not null || ctorSymbol.PartialDefinitionPart is not null
+            || ctorSymbol.DeclaringSyntaxReferences.Length == 2).ShouldBeTrue();
+        var ctorPlan = await new StaticDependencyIntroductionService().PrepareAsync(
+            ctorFixture.Solution, ctorFixture.Request);
+        AssertBlockedWithoutCandidate(ctorPlan, ctorFixture.Solution);
+        ctorPlan.Sites.ShouldContain(site => site.Disposition == StaticDependencySiteDisposition.Blocked
+            && site.Code == "introduction.constructor-shape",
+            $"C# 14 partial constructors must refuse with introduction.constructor-shape. Observed [{string.Join(", ", ctorPlan.Sites.Select(site => site.Code))}]");
+        await ctorFixture.AssertUntouchedAsync();
+    }
+
     private static void AssertSymbolIdentity(ISymbol symbol, StaticDependencySymbol identity, string expectedId)
     {
         identity.DocumentationId.ShouldBe(expectedId);
@@ -2505,7 +2673,8 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     }
 
     private static AdhocWorkspace CreateWorkspace(string root, IReadOnlyDictionary<string, string> sources,
-        AdhocProjectBuilder.ProjectDef? generator = null, bool relativeProbePath = false)
+        AdhocProjectBuilder.ProjectDef? generator = null, bool relativeProbePath = false,
+        LanguageVersion languageVersion = LanguageVersion.CSharp12)
     {
         var workspace = new AdhocWorkspace();
         var projectId = ProjectId.CreateNewId();
@@ -2518,7 +2687,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         workspace.AddProject(ProjectInfo.Create(projectId, VersionStamp.Create(), ProjectName, ProjectName,
             LanguageNames.CSharp, filePath: Path.Combine(root, "Fixture.csproj"),
             compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
-            parseOptions: new CSharpParseOptions(LanguageVersion.CSharp12), metadataReferences: references,
+            parseOptions: new CSharpParseOptions(languageVersion), metadataReferences: references,
             analyzerReferences: generator is null ? [] : generator.CreateAnalyzerReferences()));
         foreach (var (name, source) in sources)
             workspace.AddDocument(DocumentInfo.Create(DocumentId.CreateNewId(projectId), name,
@@ -2593,7 +2762,7 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
     private static async Task<Fixture> CreateAsync(string? refusal = null, string? deferredForm = null,
         string? deferredExpression = null, string? callerForm = null, string? lifetimeForm = null,
         Dictionary<string, string>? sourceOverride = null, string? probeContext = null,
-        AdhocProjectBuilder.ProjectDef? generator = null)
+        AdhocProjectBuilder.ProjectDef? generator = null, LanguageVersion languageVersion = LanguageVersion.CSharp12)
     {
         var sources = sourceOverride ?? new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -2755,7 +2924,8 @@ public sealed class StaticDependencyMappingIntroductionSimpleConstructorTests
         foreach (var (name, source) in sources)
             await File.WriteAllTextAsync(Path.Combine(root, name), source);
         await File.WriteAllTextAsync(Path.Combine(root, "Fixture.csproj"), "<Project />");
-        var workspace = CreateWorkspace(root, sources, generator, relativeProbePath: probeContext == "relative");
+        var workspace = CreateWorkspace(root, sources, generator, relativeProbePath: probeContext == "relative",
+            languageVersion: languageVersion);
         var selectedProject = workspace.CurrentSolution.Projects.Single();
         var linkedProjectPath = Path.Combine(root, "LinkedProbe.csproj");
         if (probeContext == "shared")

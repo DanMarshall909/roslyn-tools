@@ -33,8 +33,9 @@ contract. A loaded-project count and successful compilations do not establish
 scope or caller closure. The current checkout's `Partial` outline results are
 navigation evidence only.
 
-Dependency introduction must later inventory partial declarations, supported
-constructor chains and every permitted caller/composition change together.
+Dependency introduction inventories all authored partial declarations in the
+selected project together and must later support constructor chains and every
+permitted caller/composition change together.
 Unknown, reflected, external, DI or out-of-scope consumers block introduction.
 The UTC preset uses the same engine and a characterized projection to
 `GetUtcNow().UtcDateTime`; it must preserve UTC kind and evaluation count.
@@ -347,8 +348,21 @@ record was edited to advance the cycle.
 The native report includes failed/retried work: 6,270,975 reported tokens, five
 agent attempts and seven retries. This omits controller/reviewer usage and is not
 whole-task cost. Complete evidence and runtime handoff receipts remain in
-`artifacts/rt153-resume-20261107/`. No RT mutation was run or queued. Authored
-partials/chains, explicit parameter/dependency bindings, characterized UTC,
-shared CLI/MCP planning and the final ticket slow gate remain required. Issue
-153 stays open; exact-candidate completion review and publication are separate
-from this native checkpoint.
+`artifacts/rt153-resume-20261107/`. No RT mutation was run or queued. Constructor
+chains, explicit parameter/dependency bindings, characterized UTC, shared
+CLI/MCP planning and the final ticket slow gate remain required. Issue 153
+stays open; exact-candidate completion review and publication are separate from
+this native checkpoint.
+
+## Authored partial declarations verification, 2026-11-26
+
+- Base authored-partials slice checkpointed at `eef3675f138b64bea5799cec5b2acf1679aee034`
+  (Flo run `20261126030729095-274818ca`, `sourceFingerprint`
+  `3E6219BBA063DD66E74BE01C7CB8970C4F8066FECECF66E1008F8F57C3131785`, `criterionUncoveredLines: 0`),
+  then remediated in Flo run `20261126035943077-07d39089` (`sourceFingerprint`
+  `1148CDD841306961BC81F85AC6ABE17BE94F7880CE8341AB0C156CFC21B4122B`, `criterionUncoveredLines: 0`,
+  `4611` full-gate tests passed) to add file-qualified blocker IDs across partial and caller
+  documents, canonical `(FilePath, SpanStart)` declaration ordering, explicit C# 14
+  partial-constructor refusal, and single-file/partial-method/BaseList boundary coverage.
+- Complete `--full --lane all --configuration Release` ticket verification and fresh independent
+  candidate review follow on the final combined code + test + ADR/doc candidate.

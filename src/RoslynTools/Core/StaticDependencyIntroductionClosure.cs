@@ -62,7 +62,10 @@ internal sealed class StaticDependencyIntroductionClosure
         if (type.GetMembers().OfType<IMethodSymbol>().Any(method => method.MethodKind == MethodKind.Destructor))
             return [Block("finalizer", "Select a consumer without a finalizer; runtime finalization cannot be confined to the declared dependency lifetime.")];
         var declarations = new List<(ClassDeclarationSyntax Syntax, Document Document)>();
-        foreach (var reference in type.DeclaringSyntaxReferences)
+        foreach (var reference in type.DeclaringSyntaxReferences
+                     .OrderBy(reference => _preparation.Original.GetDocument(reference.SyntaxTree)?.FilePath
+                         ?? reference.SyntaxTree.FilePath, StringComparer.Ordinal)
+                     .ThenBy(reference => reference.Span.Start))
         {
             if (await reference.GetSyntaxAsync(cancellationToken) is not ClassDeclarationSyntax declaration
                 || declaration.ParameterList is not null || declaration.BaseList is not null
@@ -78,6 +81,10 @@ internal sealed class StaticDependencyIntroductionClosure
             || type.StaticConstructors.Length != 0)
             return [Block("constructors", "Exactly one explicitly declared instance constructor is supported.")];
         _constructorSymbol = type.InstanceConstructors[0];
+        if (_constructorSymbol.PartialDefinitionPart is not null
+            || _constructorSymbol.PartialImplementationPart is not null
+            || _constructorSymbol.DeclaringSyntaxReferences.Length != 1)
+            return [Block("constructor-shape", "Only an ordinary, non-partial constructor is supported.")];
         var constructorSyntax = await _constructorSymbol.DeclaringSyntaxReferences[0].GetSyntaxAsync(cancellationToken);
         if (constructorSyntax is not ConstructorDeclarationSyntax { Body: not null, Initializer: null } constructor
             || _constructorSymbol.IsVararg || _constructorSymbol.GetAttributes().Length != 0
@@ -190,8 +197,8 @@ internal sealed class StaticDependencyIntroductionClosure
                     var form = deferred is ILocalFunctionOperation ? "local function"
                         : deferred.Syntax.AncestorsAndSelf().Any(node => node is QueryExpressionSyntax) ? "query selector" : "lambda";
                     var receiver = capture.IsImplicit ? "Implicit" : "Explicit";
-                    var code = capture.IsImplicit ? "implicit-instance-capture:" : "explicit-instance-capture:";
-                    blockers.Add(Block(code + deferred.Syntax.SpanStart,
+                    var code = capture.IsImplicit ? "implicit-instance-capture" : "explicit-instance-capture";
+                    blockers.Add(BlockAt(code, document, deferred.Syntax.SpanStart,
                         receiver + " instance capture in a " + form + " is unsupported; keep consumer instance access outside deferred functions."));
                 }
             }
@@ -211,7 +218,7 @@ internal sealed class StaticDependencyIntroductionClosure
                         .Any(instance => IsConsumerInstance(instance, typeModel, cancellationToken)))
                 {
                     var form = method.IsAsync ? (isIterator ? "async iterator" : "async") : "iterator";
-                    blockers.Add(Block("state-machine-capture:" + member.SpanStart,
+                    blockers.Add(BlockAt("state-machine-capture", document, member.SpanStart,
                         "The " + form + " state machine can retain the consumer instance; keep instance access in ordinary synchronous members."));
                 }
             }
@@ -219,20 +226,22 @@ internal sealed class StaticDependencyIntroductionClosure
             {
                 if (self.Parent is not MemberAccessExpressionSyntax member || member.Expression != self
                     || typeModel.GetSymbolInfo(member, cancellationToken).Symbol is not IFieldSymbol)
-                    blockers.Add(Block("self-escape:" + self.SpanStart, "Explicit self values outside field access are unsupported."));
+                    blockers.Add(BlockAt("self-escape", document, self.SpanStart,
+                        "Explicit self values outside field access are unsupported."));
             }
             foreach (var name in declaration.DescendantNodes().OfType<SimpleNameSyntax>())
             {
                 var expression = name.Parent is MemberAccessExpressionSyntax member && member.Name == name ? (SyntaxNode)member : name;
                 if (typeModel.GetOperation(expression, cancellationToken) is IMethodReferenceOperation method
                     && IsConsumerInstance(method.Instance, typeModel, cancellationToken))
-                    blockers.Add(Block("method-escape:" + name.SpanStart, "Instance method groups can escape the consumer and are unsupported."));
+                    blockers.Add(BlockAt("method-escape", document, name.SpanStart,
+                        "Instance method groups can escape the consumer and are unsupported."));
             }
             foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 if (typeModel.GetOperation(invocation, cancellationToken) is IInvocationOperation call
                     && IsConsumerInstance(call.Instance, typeModel, cancellationToken) && !SameSymbol(call.TargetMethod.ContainingType, type))
-                    blockers.Add(Block("inherited-instance:" + invocation.SpanStart,
+                    blockers.Add(BlockAt("inherited-instance", document, invocation.SpanStart,
                         "Inherited instance calls can expose runtime identity or clone the consumer and are unsupported."));
             }
         }
@@ -397,7 +406,7 @@ internal sealed class StaticDependencyIntroductionClosure
                     Value: IParameterReferenceOperation supplied
                 }
                 || destination.Ordinal != parameter.Ordinal || !SameSymbol(supplied.Parameter, creation.Parameter))
-                blockers.Add(Block("caller-binding:" + creation.Node.SpanStart,
+                blockers.Add(BlockAt("caller-binding", creation.Document, creation.Node.SpanStart,
                     "Candidate creation must preserve original ordered bindings and pass exactly the declared caller parameter."));
             changes.Add(Change(StaticDependencyClosureChangeKind.ConstructionArgument, creation.Document, creation.Node,
                 _constructorSymbol.GetDocumentationCommentId(), constructorId, "Append the declared caller parameter after all original argument evaluations."));
@@ -410,6 +419,9 @@ internal sealed class StaticDependencyIntroductionClosure
 
     private StaticDependencySite Block(string code, string message) =>
         StaticDependencyPreparation.CreateBlocker(_request.Selection, code, message);
+
+    private StaticDependencySite BlockAt(string code, Document document, int spanStart, string message) =>
+        Block($"{code}:{document.FilePath}:{spanStart}", message);
 
     private static StaticDependencyClosureChange Change(StaticDependencyClosureChangeKind kind, Document document,
         SyntaxNode node, string? originalId, string candidateId, string detail) => new(
