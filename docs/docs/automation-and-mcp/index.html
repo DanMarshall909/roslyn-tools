@@ -1,0 +1,109 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><meta name="theme-color" content="#f5f7f8"><title>Connect with MCP · Roslyn Tools</title><meta name="description" content="Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server."><link rel="canonical" href="https://roslyn-tools.danmarshall.dev/docs/automation-and-mcp/"><meta property="og:type" content="website"><meta property="og:site_name" content="Roslyn Tools"><meta property="og:title" content="Connect with MCP · Roslyn Tools"><meta property="og:description" content="Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server."><meta property="og:url" content="https://roslyn-tools.danmarshall.dev/docs/automation-and-mcp/"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Connect with MCP · Roslyn Tools"><meta name="twitter:description" content="Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server."><link rel="stylesheet" href="/_astro/BaseLayout.CiRyq9w1.css"></head><body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><div class="command-wallpaper" aria-hidden="true" style="--wallpaper-cycle: 98s;"><span data-wallpaper-command="solid-review" style="--wallpaper-top: -14.6%; --wallpaper-delay: 0s; --wallpaper-font-size: clamp(1.96rem, 3.17vw, 3.19rem); --wallpaper-static-left: 43.8%;">rt analyze solid-review</span><span data-wallpaper-command="change-signature" style="--wallpaper-top: 23.9%; --wallpaper-delay: 7s; --wallpaper-font-size: clamp(1.95rem, 3.14vw, 3.16rem); --wallpaper-static-left: 39.8%;">rt refactor change-signature</span><span data-wallpaper-command="check-architecture" style="--wallpaper-top: -14.7%; --wallpaper-delay: 14s; --wallpaper-font-size: clamp(1.94rem, 3.09vw, 3.13rem); --wallpaper-static-left: -5.6%;">rt analyze check-architecture</span><span data-wallpaper-command="migrate-to-ioptions" style="--wallpaper-top: 9.2%; --wallpaper-delay: 21s; --wallpaper-font-size: clamp(2.11rem, 3.61vw, 3.49rem); --wallpaper-static-left: 70.8%;">rt refactor migrate-to-ioptions</span><span data-wallpaper-command="add-xml-doc" style="--wallpaper-top: -10.1%; --wallpaper-delay: 28s; --wallpaper-font-size: clamp(1.66rem, 2.22vw, 2.52rem); --wallpaper-static-left: 22.2%;">rt refactor add-xml-doc</span><span data-wallpaper-command="add-null-checks" style="--wallpaper-top: -10.8%; --wallpaper-delay: 35s; --wallpaper-font-size: clamp(1.82rem, 2.74vw, 2.88rem); --wallpaper-static-left: 31.1%;">rt refactor add-null-checks</span><span data-wallpaper-command="move" style="--wallpaper-top: 44.3%; --wallpaper-delay: 42s; --wallpaper-font-size: clamp(2.13rem, 3.68vw, 3.55rem); --wallpaper-static-left: 21.0%;">rt refactor move</span><span data-wallpaper-command="source" style="--wallpaper-top: 29.3%; --wallpaper-delay: 49s; --wallpaper-font-size: clamp(1.81rem, 2.69vw, 2.84rem); --wallpaper-static-left: 44.1%;">rt inspect source</span><span data-wallpaper-command="extract-method" style="--wallpaper-top: -7.2%; --wallpaper-delay: 56s; --wallpaper-font-size: clamp(1.79rem, 2.63vw, 2.80rem); --wallpaper-static-left: 55.3%;">rt refactor extract-method</span><span data-wallpaper-command="find-magic-strings" style="--wallpaper-top: 2.0%; --wallpaper-delay: 63s; --wallpaper-font-size: clamp(2.19rem, 3.87vw, 3.68rem); --wallpaper-static-left: 52.5%;">rt analyze find-magic-strings</span><span data-wallpaper-command="config" style="--wallpaper-top: -5.2%; --wallpaper-delay: 70s; --wallpaper-font-size: clamp(1.73rem, 2.44vw, 2.67rem); --wallpaper-static-left: 55.4%;">rt inspect config</span><span data-wallpaper-command="list-smells" style="--wallpaper-top: 22.9%; --wallpaper-delay: 77s; --wallpaper-font-size: clamp(2.09rem, 3.55vw, 3.46rem); --wallpaper-static-left: 20.9%;">rt analyze list-smells</span><span data-wallpaper-command="add-dependency" style="--wallpaper-top: 26.1%; --wallpaper-delay: 84s; --wallpaper-font-size: clamp(1.86rem, 2.85vw, 2.96rem); --wallpaper-static-left: 42.0%;">rt refactor add-dependency</span><span data-wallpaper-command="outline" style="--wallpaper-top: 44.1%; --wallpaper-delay: 91s; --wallpaper-font-size: clamp(1.84rem, 2.78vw, 2.91rem); --wallpaper-static-left: 36.8%;">rt inspect outline</span></div><div class="site-shell header-inner"><a class="brand" href="/" aria-label="Roslyn Tools home"><span class="brand-mark" aria-hidden="true">rt</span><span>Roslyn Tools</span></a><nav class="primary-nav" aria-label="Primary navigation"><a href="/docs/getting-started/">CLI</a><a class="active" href="/docs/automation-and-mcp/">MCP</a><a href="/docs/ci/">CI</a><a href="https://blog.danmarshall.dev">Blog</a><a href="https://github.com/DanMarshall909/roslyn-tools">Contribute</a></nav></div></header><main id="main-content"><div class="site-shell docs-grid"><aside class="docs-sidebar" aria-label="Documentation navigation"><p class="sidebar-label">Documentation</p><nav><ol><li><a class="active" aria-current="page" href="/docs/automation-and-mcp/">Connect with MCP</a><ol class="docs-subnav" aria-label="Connect with MCP sections"><li data-depth="2"><a href="#install-the-mcp-server">Install the MCP server</a></li><li data-depth="2"><a href="#configure-your-mcp-client">Configure your MCP client</a></li><li data-depth="2"><a href="#install-as-a-portable-agent-plugin">Install as a portable agent plugin</a></li><li data-depth="2"><a href="#configure-host-behavior-and-tool-policy">Configure host behavior and tool policy</a></li><li data-depth="2"><a href="#give-agents-semantic-tools">Give agents semantic tools</a></li><li data-depth="2"><a href="#respect-the-exposed-surface">Respect the exposed surface</a></li><li data-depth="2"><a href="#bound-agent-output">Bound agent output</a></li></ol></li><li><a href="/docs/getting-started/">Use the CLI</a></li><li><a href="/docs/discovery/">Discover workflows</a></li><li><a href="/docs/inspecting-code/">Inspect code</a></li><li><a href="/docs/analyzing-solutions/">Analyze solutions</a></li><li><a href="/docs/refactoring-safely/">Refactor safely</a></li><li><a href="/docs/command-reference/">Command reference</a></li><li><a href="/docs/ci/">Enforce rules in CI</a></li></ol></nav></aside><article class="doc-article"><header class="doc-header"><p class="eyebrow">Coding agents</p><h1>Connect with MCP</h1><p class="doc-lead">Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server.</p></header><div class="prose"><p>Connect the Roslyn Tools MCP host to give coding agents bounded, structured semantic tools for C# repositories. It shares its Roslyn-powered engine with the <a href="/docs/getting-started/">developer CLI</a> and <a href="/docs/ci/">CI rule checks</a>.</p>
+<h2 id="install-the-mcp-server">Install the MCP server</h2>
+<p>Install the portable MCP server and companion CLI for the current user on macOS or Linux:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="sh"><code><span class="line"><span style="color:#B392F0">curl</span><span style="color:#79B8FF"> -fsSL</span><span style="color:#9ECBFF"> https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.sh</span><span style="color:#F97583"> |</span><span style="color:#B392F0"> bash</span></span></code></pre>
+<p>On Windows PowerShell:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="powershell"><code><span class="line"><span style="color:#E1E4E8">irm https:</span><span style="color:#F97583">//</span><span style="color:#79B8FF">raw.githubusercontent.com</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">DanMarshall909</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">roslyn</span><span style="color:#F97583">-</span><span style="color:#E1E4E8">tools</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">main</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">scripts</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">install.ps1 </span><span style="color:#F97583">|</span><span style="color:#E1E4E8"> iex</span></span></code></pre>
+<p>The installer exposes the <code>roslyn-tools-mcp</code> launcher. Semantic operations still need a compatible .NET SDK for the C# solution being inspected.</p>
+<h2 id="configure-your-mcp-client">Configure your MCP client</h2>
+<p>After reviewing the repository, persist trust once:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="powershell"><code><span class="line"><span style="color:#E1E4E8">rt trust add </span><span style="color:#F97583">/</span><span style="color:#E1E4E8">absolute</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">path</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">to</span><span style="color:#F97583">/</span><span style="color:#E1E4E8">MyApp</span></span></code></pre>
+<p>Then configure one stable launcher. New registered worktrees for the same Git common
+directory do not require client configuration changes:</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#79B8FF">  "mcpServers"</span><span style="color:#E1E4E8">: {</span></span>
+<span class="line"><span style="color:#79B8FF">    "roslyn-tools"</span><span style="color:#E1E4E8">: {</span></span>
+<span class="line"><span style="color:#79B8FF">      "command"</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">"roslyn-tools-mcp"</span></span>
+<span class="line"><span style="color:#E1E4E8">    }</span></span>
+<span class="line"><span style="color:#E1E4E8">  }</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span></code></pre>
+<p>The client starts the server over stdio. Protocol messages stay on stdout; diagnostics and progress are kept separate.</p>
+<h2 id="install-as-a-portable-agent-plugin">Install as a portable agent plugin</h2>
+<p>The source repository also publishes a preview Agent Plugins 1.0 bundle in
+<code>plugins/roslyn-tools</code>, listed by <code>.agents/plugins/marketplace.json</code>. Its portable MCP
+configuration launches the bare <code>roslyn-tools-mcp</code> command with no arguments, trust path,
+or machine-specific location. Install the portable Roslyn Tools launchers first, then add
+the repository marketplace through your agent client’s plugin workflow.</p>
+<p>Agent Plugins 1.0 does not currently define Codex-specific <code>required</code> or
+<code>startup_timeout_sec</code> fields. The bundle therefore cannot require startup success or set a
+longer catalogue timeout portably; those remain client-side settings when supported.</p>
+<p>Each call revalidates its solution against the persistent record and Git’s current
+registered-worktree inventory. MCP tool arguments cannot grant or broaden trust, and
+trust-management operations are not MCP tools. <code>--trust-repository &lt;absolute-root&gt;</code>
+remains available as a startup-scoped compatibility option.</p>
+<h2 id="configure-host-behavior-and-tool-policy">Configure host behavior and tool policy</h2>
+<p>The CLI and MCP host read optional strict JSON configuration from
+<code>~/.rt/config.json</code> and from <code>.rt/config.json</code> at the current Git worktree root.
+Repository daemon values override global values. Existing daemon environment variables
+override both files.</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#79B8FF">  "schemaVersion"</span><span style="color:#E1E4E8">: </span><span style="color:#79B8FF">1</span><span style="color:#E1E4E8">,</span></span>
+<span class="line"><span style="color:#79B8FF">  "daemon"</span><span style="color:#E1E4E8">: {</span></span>
+<span class="line"><span style="color:#79B8FF">    "enabled"</span><span style="color:#E1E4E8">: </span><span style="color:#79B8FF">true</span><span style="color:#E1E4E8">,</span></span>
+<span class="line"><span style="color:#79B8FF">    "autoStart"</span><span style="color:#E1E4E8">: </span><span style="color:#79B8FF">false</span><span style="color:#E1E4E8">,</span></span>
+<span class="line"><span style="color:#79B8FF">    "idleTimeoutSeconds"</span><span style="color:#E1E4E8">: </span><span style="color:#79B8FF">600</span></span>
+<span class="line"><span style="color:#E1E4E8">  },</span></span>
+<span class="line"><span style="color:#79B8FF">  "mcp"</span><span style="color:#E1E4E8">: {</span></span>
+<span class="line"><span style="color:#79B8FF">    "enabledTools"</span><span style="color:#E1E4E8">: [</span><span style="color:#9ECBFF">"outline"</span><span style="color:#E1E4E8">, </span><span style="color:#9ECBFF">"source"</span><span style="color:#E1E4E8">, </span><span style="color:#9ECBFF">"relationships"</span><span style="color:#E1E4E8">],</span></span>
+<span class="line"><span style="color:#79B8FF">    "disabledTools"</span><span style="color:#E1E4E8">: [</span><span style="color:#9ECBFF">"source"</span><span style="color:#E1E4E8">]</span></span>
+<span class="line"><span style="color:#E1E4E8">  }</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span></code></pre>
+<p>MCP allowlists intersect across selected files, denylists accumulate, and denial wins.
+Omitting <code>enabledTools</code> leaves that layer unrestricted; an empty array exposes no MCP
+tools. Names are exact and validated against the public MCP catalogue during startup.
+The same policy controls discovery and invocation. It does not hide CLI commands or
+grant repository trust.</p>
+<p>Run <code>rt config --json</code> to inspect the selected files, effective values, and value
+sources. The command remains available when a file is invalid and does not start
+MSBuild or route through the daemon.</p>
+<h2 id="give-agents-semantic-tools">Give agents semantic tools</h2>
+<p>Once connected, an agent can discover focused operations such as:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_symbols</code></td>
+<td>Resolve typed symbol candidates before acting</td>
+</tr>
+<tr>
+<td><code>describe</code> and <code>source</code></td>
+<td>Inspect declarations and bounded related source</td>
+</tr>
+<tr>
+<td><code>relationships</code></td>
+<td>Follow references, callers, and implementations</td>
+</tr>
+<tr>
+<td><code>dependency_graph</code> and <code>circular_deps</code></td>
+<td>Analyze solution structure</td>
+</tr>
+<tr>
+<td><code>semantic_diff</code></td>
+<td>Compare Git refs or a trusted Git working tree</td>
+</tr>
+<tr>
+<td><code>suggest_command</code></td>
+<td>Find the right Roslyn Tools workflow from a goal</td>
+</tr>
+</tbody>
+</table>
+<p>These tools return typed results with explicit workspace context. That lets an agent distinguish semantic evidence from an incomplete load or a bounded response.
+The MCP <code>semantic_diff</code> tool returns <code>Unsupported</code> for two-file <code>files</code> requests
+until contained file reading is available. Use the local
+<code>rt analyze semantic-diff before.cs after.cs</code> CLI route for that mode.</p>
+<h2 id="respect-the-exposed-surface">Respect the exposed surface</h2>
+<p>The available tools depend on current host authority. A host with startup trust or at
+least one live persistent record advertises eligible refactoring tools as well as
+read-only tools; each call still validates its own repository, and refactor requests
+default to dry-run unless the caller explicitly applies them. With no live record,
+discovery is limited to the read-only subset.</p>
+<p>Use the MCP client’s tool listing for the current agent surface. MCP exposure is being migrated incrementally; the <code>rt</code> CLI command catalogue covers the complete command surface.</p>
+<h2 id="bound-agent-output">Bound agent output</h2>
+<p>Prefer focused symbol identities, explicit solution paths, and structured formats. Large source and relationship results carry limits or continuation information so an agent can distinguish a complete result from a bounded projection.</p>
+<p>Continue with <a href="/docs/inspecting-code/">semantic inspection</a> or learn how to <a href="/docs/discovery/">discover agent workflows</a>.</p>
+</div><nav class="doc-pagination" aria-label="Adjacent documentation"><span></span><a class="next" href="/docs/getting-started/"><span>Next</span><strong>Use the CLI</strong></a></nav></article><aside class="page-toc" aria-label="On this page"><p class="sidebar-label">On this page</p><ol><li data-depth="2"><a href="#install-the-mcp-server">Install the MCP server</a></li><li data-depth="2"><a href="#configure-your-mcp-client">Configure your MCP client</a></li><li data-depth="2"><a href="#install-as-a-portable-agent-plugin">Install as a portable agent plugin</a></li><li data-depth="2"><a href="#configure-host-behavior-and-tool-policy">Configure host behavior and tool policy</a></li><li data-depth="2"><a href="#give-agents-semantic-tools">Give agents semantic tools</a></li><li data-depth="2"><a href="#respect-the-exposed-surface">Respect the exposed surface</a></li><li data-depth="2"><a href="#bound-agent-output">Bound agent output</a></li></ol></aside></div></main><footer class="site-footer"><div class="site-shell footer-inner"><p>Semantic C# tooling for developers, coding agents, and CI.</p><p>Designed by Dan Marshall.</p></div></footer></body></html>
